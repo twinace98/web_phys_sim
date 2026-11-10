@@ -32,6 +32,8 @@ export type Params = Record<string, ParamValue>;
 
 interface ParamBase {
   label: Msg;
+  /** One line on what the control changes: tooltip, settings drawer and info panel. */
+  desc?: Msg;
   /** main → control bar (max 2 per scene), advanced → drawer, hidden → URL only. */
   group: 'main' | 'advanced' | 'hidden';
   /** false → changing it resets the scene. */
@@ -202,6 +204,8 @@ export interface Scene<P extends Params = any, S extends { t: number } = any> {
   handles?: Handle<S, P>[];
   plotHandles?: PlotHandle<P>[];
   drawPlot?: (plotId: string, pd: PlotDraw, p: P, ui: UiState) => void;
+  /** TeX for an outlined, user-resizable panel at the top-left of the stage. */
+  overlay?: (s: S, p: P) => string;
   info: InfoSpec;
 }
 

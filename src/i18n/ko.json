@@ -27,5 +27,8 @@
   "key.lecture": "강의 모드",
   "key.scrub": "일시정지 중 그래프 위로 이동: 해당 시각 보기",
   "plot.slope": "기울기",
-  "plot.area": "넓이"
+  "plot.area": "넓이",
+  "ui.resize": "크기 조절",
+  "ui.speed.desc": "재생 속도 배율",
+  "info.controls": "조작"
 }

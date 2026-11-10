@@ -58,6 +58,7 @@ const params: ParamSchema<P> = {
   motion: {
     kind: 'select',
     label: 'ch02.p.motion',
+    desc: 'ch02.d.motion',
     group: 'main',
     live: false,
     default: 'startStop',
@@ -72,6 +73,7 @@ const params: ParamSchema<P> = {
   mode: {
     kind: 'select',
     label: 'ch02.p.mode',
+    desc: 'ch02.d.mode',
     group: 'main',
     live: true,
     default: 'slope',
@@ -83,6 +85,7 @@ const params: ParamSchema<P> = {
   v0: {
     kind: 'number',
     label: 'ch02.p.v0',
+    desc: 'ch02.d.v0',
     group: 'advanced',
     live: false,
     control: 'select',
@@ -100,7 +103,7 @@ const params: ParamSchema<P> = {
     min: -CUSTOM_A_MAX,
     max: CUSTOM_A_MAX,
   },
-  vectors: { kind: 'toggle', label: 'ch02.p.vectors', group: 'advanced', live: true, default: true },
+  vectors: { kind: 'toggle', label: 'ch02.p.vectors', desc: 'ch02.d.vectors', group: 'advanced', live: true, default: true },
 };
 
 export const kinematics: Scene<P, S> = {

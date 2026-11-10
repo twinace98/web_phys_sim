@@ -19,5 +19,7 @@
   "ch03.c.obs.comp": "$A_x$, $A_y$ 끝을 끌면 그 성분만 변화 → $\\vec A$, $A$, $\\theta$ 재구성",
   "ch03.s.goal.comp": "벡터 합의 성분 = 각 성분의 합: $C_x = A_x + B_x$, $C_y = A_y + B_y$",
   "ch03.s.obs.panel": "좌상단 패널: 끌 때마다 $A_x + B_x = C_x$, $A_y + B_y = C_y$ 값 갱신",
-  "ch03.s.obs.cancel": "$\\vec A$, $\\vec B$가 반대 방향이면 성분 상쇄 → $C < A + B$"
+  "ch03.s.obs.cancel": "$\\vec A$, $\\vec B$가 반대 방향이면 성분 상쇄 → $C < A + B$",
+  "ch03.d.phi": "좌표축을 돌리는 각도, 벡터는 그대로 두고 성분만 변화",
+  "ch03.d.drag": "끌 때 자유롭게 이동 또는 0.5 간격 격자점에 맞춤"
 }

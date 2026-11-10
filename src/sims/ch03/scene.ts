@@ -2,8 +2,7 @@
 import { fmt, fmtTick } from '../../core/format';
 import type { ParamSchema, Role, Scene, SceneCtx, SelectParam, Vec2, WorldSpec } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { drawRich, measureRich } from '../../draw/text';
-import { color, theme } from '../../draw/theme';
+import { ROLE_COLOR } from '../../draw/theme';
 import { add, axes, clampWithPartner, components, placeTip, setComponent, type V2 } from './physics';
 
 const DEG = Math.PI / 180;
@@ -71,6 +70,7 @@ const halo = (g: Draw, at: Vec2, role: Role) => g.circle(at, 14, { fill: role, a
 const dragParam: SelectParam = {
   kind: 'select',
   label: 'ch03.p.drag',
+    desc: 'ch03.d.drag',
   group: 'main',
   live: true,
   default: 'smooth',
@@ -88,6 +88,7 @@ const componentsParams: ParamSchema<PC> = {
   phi: {
     kind: 'number',
     label: 'ch03.p.phi',
+    desc: 'ch03.d.phi',
     group: 'main',
     live: true,
     control: 'select',
@@ -198,60 +199,23 @@ const sumParams: ParamSchema<PS> = {
   B: { kind: 'array', label: 'ch03.p.B', group: 'hidden', live: true, default: [-1, 3], min: -LIM, max: LIM },
 };
 
-/** Two decimals with a true minus sign; terms of the identity line up digit by digit. */
-const f2 = (v: number) => (Math.abs(v) < 0.005 ? '0.00' : v.toFixed(2).replace('-', '\u2212'));
-
-type Piece = [text: string, role: Role];
-
-/** Draw pieces left to right, each in its own colour; returns the total width in px. */
-function pieces(ctx: CanvasRenderingContext2D, list: Piece[], x: number, y: number, size: number, dry = false): number {
-  let cx = x;
-  for (const [text, role] of list) {
-    if (!dry) drawRich(ctx, text, cx, y, { size, color: color(role) });
-    cx += measureRich(ctx, text, { size });
-  }
-  return cx - x;
+/** Two decimals for TeX; negatives in parentheses so each term reads as one number. */
+function num(v: number, paren = false): string {
+  const t = Math.abs(v) < 0.005 ? '0.00' : v.toFixed(2);
+  return paren && t.startsWith('-') ? `(${t})` : t;
 }
 
 /**
- * Top-left panel: A_x + B_x = C_x and A_y + B_y = C_y, symbolic on the left and with the
- * current values on the right. A terms in blue, B in orange, C in black, as on the stage.
+ * Panel TeX: A_x + B_x = C_x and A_y + B_y = C_y, symbolic and with the current values,
+ * coloured like the arrows (A blue, B orange, C black).
  */
-function componentPanel(g: Draw, a: V2, b: V2): void {
+export function componentPanel(a: V2, b: V2): string {
   const s = add(a, b);
-  const size = 15;
-  const k = theme.scale;
-  const term = (v: number) => (v < 0 ? `(${f2(v)})` : f2(v));
-  const rows = (['x', 'y'] as const).map((c, i): [Piece[], Piece[]] => [
-    [
-      [`*A*_{*${c}*}`, 'position'],
-      [' + ', 'fg'],
-      [`*B*_{*${c}*}`, 'energyU'],
-      [' = ', 'fg'],
-      [`*C*_{*${c}*}`, 'fg'],
-    ],
-    [
-      [f2(a[i]), 'position'],
-      [' + ', 'fg'],
-      [term(b[i]), 'energyU'],
-      [' = ', 'fg'],
-      [f2(s[i]), 'fg'],
-    ],
-  ]);
-  const ctx = g.ctx;
-  const symW = Math.max(...rows.map(([sym]) => pieces(ctx, sym, 0, 0, size, true)));
-  const numW = Math.max(...rows.map(([, num]) => pieces(ctx, num, 0, 0, size, true)));
-  const gap = 22 * k;
-  const x0 = 18 * k;
-  ctx.save();
-  ctx.fillStyle = 'rgba(255,255,255,0.9)';
-  ctx.fillRect(10 * k, 10 * k, symW + gap + numW + 16 * k, 58 * k);
-  ctx.restore();
-  rows.forEach(([sym, num], i) => {
-    const y = (32 + 24 * i) * k;
-    pieces(ctx, sym, x0, y, size);
-    pieces(ctx, num, x0 + symW + gap, y, size);
-  });
+  const A = (x: string) => `\\textcolor{${ROLE_COLOR.position}}{${x}}`;
+  const B = (x: string) => `\\textcolor{${ROLE_COLOR.energyU}}{${x}}`;
+  const row = (c: 'x' | 'y', i: 0 | 1) =>
+    `${A(`A_${c}`)} + ${B(`B_${c}`)} = C_${c} & \\quad ${A(num(a[i]))} + ${B(num(b[i], true))} = ${num(s[i])}`;
+  return `\\begin{array}{ll} ${row('x', 0)} \\\\ ${row('y', 1)} \\end{array}`;
 }
 
 /** Drag one vector of the pair; keeps it and the sum inside the view. */
@@ -292,9 +256,9 @@ export const sumScene: Scene<PS, { t: number }> = {
     midLabel(g, O, P(a), `*A* = ${fmt(lenA)}`, 'position', centre);
     midLabel(g, O, P(b), `*B* = ${fmt(lenB)}`, 'energyU', centre);
     if (lenC > 1e-9) sideText(g, P(s), { x: s[0] / lenC, y: s[1] / lenC }, 14, `*C* = ${fmt(lenC)}`, 'fg');
-
-    componentPanel(g, a, b);
   },
+
+  overlay: (_s, p) => componentPanel([p.A[0], p.A[1]], [p.B[0], p.B[1]]),
 
   handles: [
     { pos: (_s, p) => P([p.A[0], p.A[1]]), radiusPx: 18, onDrag: (ctx, _s, w) => dragOne(ctx, 'A', w) },

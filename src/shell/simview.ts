@@ -13,6 +13,7 @@ import type { ChapterMeta } from '../sims/registry';
 import { h, iconButton, rich, tex } from './dom';
 import { ICON } from './icons';
 import { isLecture, onLectureChange, setLecture, toggleLang } from './prefs';
+import { StagePanel, resizableSidePanel } from './resize';
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
 
@@ -44,6 +45,7 @@ export class SimView {
   private shownPlaying: boolean | null = null;
   private timeVal: HTMLElement | null = null;
   private readoutVals: HTMLElement[] = [];
+  private stagePanel: StagePanel | null = null;
 
   private ro: ResizeObserver | null = null;
   private raf = 0;
@@ -119,6 +121,11 @@ export class SimView {
     this.stageCanvas = h('canvas', { class: 'stage', 'aria-label': t(scene.title), role: 'img' });
     this.stageCtx = this.stageCanvas.getContext('2d')!;
     this.stageWrap.append(this.stageCanvas);
+    this.stagePanel = null;
+    if (scene.overlay) {
+      this.stagePanel = new StagePanel(`wps.panel.${this.meta.ch}.${scene.id}`, t('ui.resize'));
+      this.stageWrap.append(this.stagePanel.el);
+    }
     this.bindStage();
     this.bar = this.buildBar();
     main.append(this.stageWrap, this.bar);
@@ -197,6 +204,7 @@ export class SimView {
       const speed = h('select', { class: 'sel speed', 'aria-label': t('ui.speed'), title: t('ui.speed') });
       for (const s of SPEEDS) speed.append(h('option', { value: String(s), selected: s === r.speed }, `${s}×`));
       speed.addEventListener('change', () => (r.speed = Number(speed.value)));
+      const speedCtl = h('label', { class: 'ctl', title: t('ui.speed.desc') }, h('span', { class: 'lbl' }, t('ui.speed')), speed);
       this.timeVal = h('span', { class: 'val' });
       const time = h('span', { class: 'ro' });
       time.innerHTML = `${tex('t')} = `;
@@ -208,7 +216,7 @@ export class SimView {
           r.stepFrame();
         }),
         reset,
-        speed,
+        speedCtl,
         time,
       );
     }
@@ -248,10 +256,12 @@ export class SimView {
     const value = this.runner.params[key];
     const label = t(spec.label);
     const plain = label.replace(/\$/g, '');
+    const desc = spec.desc ? t(spec.desc) : '';
+    const tip = desc ? `${plain}: ${desc.replace(/\$/g, '')}` : plain;
     let input: HTMLElement;
     switch (spec.kind) {
       case 'select': {
-        const s = h('select', { class: 'sel', 'aria-label': plain, title: plain });
+        const s = h('select', { class: 'sel', 'aria-label': plain, title: tip });
         for (const o of spec.options) s.append(h('option', { value: o.value, selected: o.value === value }, t(o.label)));
         s.addEventListener('change', () => this.setParam(key, s.value));
         input = s;
@@ -259,7 +269,7 @@ export class SimView {
       }
       case 'number': {
         if (spec.control === 'select') {
-          const s = h('select', { class: 'sel', 'aria-label': plain, title: plain });
+          const s = h('select', { class: 'sel', 'aria-label': plain, title: tip });
           for (const c of spec.choices ?? []) {
             s.append(h('option', { value: String(c), selected: c === value }, withUnit(fmtTick(c), spec.unit)));
           }
@@ -293,9 +303,9 @@ export class SimView {
         input = h('span');
         break;
     }
-    if (!labelled) return input;
-    const row = h('label', { class: `row ${spec.kind}` }, rich('span', label, 'lbl'), input);
-    return row;
+    if (!labelled) return h('label', { class: 'ctl', title: tip }, rich('span', label, 'lbl'), input);
+    const text = h('span', { class: 'row-text' }, rich('span', label, 'lbl'), desc ? rich('span', desc, 'desc') : null);
+    return h('label', { class: `row ${spec.kind}` }, text, input);
   }
 
   private buildSettings(): HTMLElement {
@@ -326,6 +336,13 @@ export class SimView {
       body.append(h('h3', null, t('info.equations')), eq);
     }
     list(t('info.assumptions'), info.assumptions ?? []);
+    const schema = this.scene.params as Record<string, ParamSpec>;
+    const ctls = [...this.paramKeys('main'), ...this.paramKeys('advanced')].filter((k) => schema[k].desc);
+    if (ctls.length) {
+      const ul = h('ul');
+      for (const k of ctls) ul.append(h('li', null, rich('strong', t(schema[k].label)), ': ', rich('span', t(schema[k].desc!))));
+      body.append(h('h3', null, t('info.controls')), ul);
+    }
     const keys: [string, string][] = [
       ['Space', 'key.play'],
       ['→', 'key.step'],
@@ -338,6 +355,7 @@ export class SimView {
     for (const [k, m] of keys) dl.append(h('dt', null, h('kbd', null, k)), h('dd', null, t(m)));
     body.append(h('h3', null, t('info.shortcuts')), dl, h('p', { class: 'note' }, t('key.scrub')));
     panel.append(body);
+    resizableSidePanel(panel, 'wps.info', t('ui.resize'));
     return panel;
   }
 
@@ -530,6 +548,7 @@ export class SimView {
     this.stageCanvas.width = Math.max(1, Math.round(r.width * this.dpr));
     this.stageCanvas.height = Math.max(1, Math.round(r.height * this.dpr));
     this.plots?.resize();
+    this.stagePanel?.fit();
   }
 
   private frame = (now: number): void => {
@@ -565,6 +584,7 @@ export class SimView {
       this.vp.fit(scene.world(p), this.stageW, this.stageH);
       scene.draw(new CanvasDraw(ctx, this.vp), s, p, this.ui);
     }
+    if (this.stagePanel && scene.overlay) this.stagePanel.update(scene.overlay(s, p));
 
     if (this.plots) {
       const { tEnd, window: win = 10 } = scene.time ?? {};

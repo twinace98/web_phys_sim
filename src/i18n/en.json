@@ -27,5 +27,8 @@
   "key.lecture": "Lecture mode",
   "key.scrub": "While paused, move over a graph to view that instant",
   "plot.slope": "slope",
-  "plot.area": "area"
+  "plot.area": "area",
+  "ui.resize": "Resize",
+  "ui.speed.desc": "Playback speed multiplier",
+  "info.controls": "Controls"
 }
