@@ -1,0 +1,559 @@
+// Chapter page: header, stage, control bar, plots, settings drawer, info panel
+// (docs/design.md §2). Controls are generated from the scene's parameter schema.
+import { fmt } from '../core/format';
+import { getLang, onLangChange, t } from '../core/i18n';
+import { fromQuery, toQuery } from '../core/params';
+import { Runner } from '../core/runner';
+import type { Params, ParamSpec, Scene, SimPage, UiState } from '../core/types';
+import { chapterHash } from '../core/url';
+import { Viewport } from '../core/viewport';
+import { CanvasDraw } from '../draw/draw';
+import { PlotGroup } from '../plot/plot';
+import type { ChapterMeta } from '../sims/registry';
+import { h, iconButton, rich, tex } from './dom';
+import { ICON } from './icons';
+import { isLecture, onLectureChange, setLecture, toggleLang } from './prefs';
+
+const SPEEDS = [0.25, 0.5, 1, 2, 4];
+
+type Panel = 'none' | 'settings' | 'info';
+
+export class SimView {
+  private sceneIdx: number;
+  private runner: Runner<Params, { t: number }>;
+  private ui: UiState = { t: 0, cursorT: 0, scrubbing: false, lecture: false };
+  private scrubT: number | null = null;
+  private vp = new Viewport();
+  private panel: Panel = 'none';
+
+  // DOM
+  private stageWrap!: HTMLElement;
+  private stageCanvas!: HTMLCanvasElement;
+  private stageCtx!: CanvasRenderingContext2D;
+  private stageW = 0;
+  private stageH = 0;
+  private dpr = 1;
+  private plots: PlotGroup<Params> | null = null;
+  private bar!: HTMLElement;
+  private settings!: HTMLElement;
+  private info!: HTMLElement;
+  private playBtn!: HTMLButtonElement;
+  private shownPlaying: boolean | null = null;
+  private timeVal!: HTMLElement;
+  private readoutVals: HTMLElement[] = [];
+
+  private ro: ResizeObserver | null = null;
+  private raf = 0;
+  private last = 0;
+  private urlTimer = 0;
+  private stageDrag: { i: number; pointerId: number } | null = null;
+  private off: (() => void)[] = [];
+
+  constructor(
+    private readonly root: HTMLElement,
+    private readonly page: SimPage,
+    private readonly meta: ChapterMeta,
+    query: URLSearchParams,
+  ) {
+    const sid = query.get('s');
+    this.sceneIdx = Math.max(0, page.scenes.findIndex((s) => s.id === sid));
+    this.runner = new Runner(this.scene, fromQuery(this.scene.params, query));
+    this.build();
+
+    const onKey = (e: KeyboardEvent) => this.onKey(e);
+    const onVis = () => {
+      if (document.hidden) this.runner.pause();
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('visibilitychange', onVis);
+    this.off.push(
+      () => window.removeEventListener('keydown', onKey),
+      () => document.removeEventListener('visibilitychange', onVis),
+      onLangChange(() => {
+        this.build();
+        this.syncUrl(true);
+      }),
+      onLectureChange(() => this.build()),
+    );
+    this.raf = requestAnimationFrame(this.frame);
+  }
+
+  dispose(): void {
+    cancelAnimationFrame(this.raf);
+    window.clearTimeout(this.urlTimer);
+    this.ro?.disconnect();
+    for (const f of this.off) f();
+    this.root.replaceChildren();
+  }
+
+  private get scene(): Scene {
+    return this.page.scenes[this.sceneIdx];
+  }
+
+  // ------------------------------------------------------------------ build
+
+  private build(): void {
+    const scene = this.scene;
+    const lang = getLang();
+    const title = `Ch ${this.meta.ch} · ${this.meta.title[lang]}`;
+    document.title = `${title} · ${t('app.title')}`;
+
+    const header = h(
+      'header',
+      { class: 'hdr' },
+      iconButton(ICON.menu, t('ui.contents'), () => (location.hash = '#/')),
+      h('h1', null, title),
+      this.page.scenes.length > 1 ? this.buildTabs() : null,
+      h('div', { class: 'spacer' }),
+      this.buildLangSwitch(),
+      iconButton(ICON.screen, `${t('ui.lecture')} (F)`, () => setLecture(!isLecture()), isLecture() ? 'ib on' : 'ib'),
+      iconButton(ICON.info, `${t('ui.info')} (I)`, () => this.togglePanel('info')),
+      this.buildLinkButton(),
+    );
+
+    const main = h('main', { class: `sim ${scene.layout ?? 'side'}` });
+    this.stageWrap = h('section', { class: 'stage-wrap' });
+    this.stageCanvas = h('canvas', { class: 'stage', 'aria-label': t(scene.title), role: 'img' });
+    this.stageCtx = this.stageCanvas.getContext('2d')!;
+    this.stageWrap.append(this.stageCanvas);
+    this.bindStage();
+    this.bar = this.buildBar();
+    main.append(this.stageWrap, this.bar);
+
+    this.plots = null;
+    if (scene.plots?.length) {
+      this.plots = new PlotGroup<Params>({
+        scene,
+        params: () => this.runner.params,
+        ctx: () => this.runner.ctx(() => this.onParamsChanged(false)),
+        isPaused: () => !this.runner.playing,
+        setScrub: (tt) => this.setScrub(tt),
+      });
+      main.append(this.plots.el);
+    }
+
+    this.settings = this.buildSettings();
+    this.info = this.buildInfo();
+
+    this.root.replaceChildren(h('div', { class: 'app' }, header, main, this.settings, this.info));
+    this.applyPanel();
+
+    this.ro?.disconnect();
+    this.ro = new ResizeObserver(() => this.resize());
+    this.ro.observe(this.stageWrap);
+    if (this.plots) this.ro.observe(this.plots.el);
+    this.shownPlaying = null;
+  }
+
+  private buildTabs(): HTMLElement {
+    const nav = h('nav', { class: 'tabs', 'aria-label': t('ui.scenes') });
+    this.page.scenes.forEach((s, i) => {
+      const b = h('button', { type: 'button', class: 'tab', 'aria-selected': i === this.sceneIdx ? 'true' : 'false' }, t(s.title));
+      b.addEventListener('click', () => this.switchScene(i));
+      nav.append(b);
+    });
+    return nav;
+  }
+
+  private buildLangSwitch(): HTMLElement {
+    const lang = getLang();
+    const seg = h('div', { class: 'seg', role: 'group', 'aria-label': `${t('ui.language')} (L)` });
+    for (const l of ['ko', 'en'] as const) {
+      const b = h('button', { type: 'button', 'aria-pressed': l === lang ? 'true' : 'false' }, l.toUpperCase());
+      b.addEventListener('mousedown', (e) => e.preventDefault());
+      b.addEventListener('click', () => l !== getLang() && toggleLang());
+      seg.append(b);
+    }
+    return seg;
+  }
+
+  private buildLinkButton(): HTMLButtonElement {
+    const b = iconButton(ICON.link, t('ui.copyLink'), async () => {
+      this.syncUrl(true);
+      try {
+        await navigator.clipboard.writeText(location.href);
+        b.innerHTML = ICON.check;
+        window.setTimeout(() => (b.innerHTML = ICON.link), 1200);
+      } catch {
+        /* clipboard blocked: the address bar already holds the link */
+      }
+    });
+    return b;
+  }
+
+  private buildBar(): HTMLElement {
+    const r = this.runner;
+    const bar = h('div', { class: 'bar' });
+    this.playBtn = iconButton(ICON.play, t('ui.play'), () => this.togglePlay(), 'ib primary');
+    const speed = h('select', { class: 'sel speed', 'aria-label': t('ui.speed'), title: t('ui.speed') });
+    for (const s of SPEEDS) speed.append(h('option', { value: String(s), selected: s === r.speed }, `${s}×`));
+    speed.addEventListener('change', () => (r.speed = Number(speed.value)));
+
+    this.timeVal = h('span', { class: 'val' });
+    const time = h('span', { class: 'ro' });
+    time.innerHTML = `${tex('t')} = `;
+    time.append(this.timeVal, ' s');
+
+    bar.append(
+      this.playBtn,
+      iconButton(ICON.step, `${t('ui.step')} (→)`, () => {
+        this.scrubT = null;
+        r.stepFrame();
+      }),
+      iconButton(ICON.reset, `${t('ui.reset')} (R)`, () => this.reset()),
+      speed,
+      time,
+    );
+
+    const mains = this.paramKeys('main');
+    if (mains.length) {
+      const g = h('div', { class: 'group' });
+      for (const k of mains) g.append(this.control(k, false));
+      bar.append(g);
+    }
+    if (this.paramKeys('advanced').length) {
+      bar.append(iconButton(ICON.gear, t('ui.settings'), () => this.togglePanel('settings')));
+    }
+
+    const ros = h('div', { class: 'readouts' });
+    this.readoutVals = [];
+    for (const spec of this.scene.readouts ?? []) {
+      const val = h('span', { class: 'val' });
+      const el = h('span', { class: 'ro' });
+      el.innerHTML = `${tex(spec.label)} = `;
+      el.append(val, ` ${spec.unit}`);
+      ros.append(el);
+      this.readoutVals.push(val);
+    }
+    bar.append(ros);
+    return bar;
+  }
+
+  private paramKeys(group: ParamSpec['group']): string[] {
+    const schema = this.scene.params as Record<string, ParamSpec>;
+    return Object.keys(schema).filter((k) => schema[k].group === group && (schema[k].visibleIf?.(this.runner.params) ?? true));
+  }
+
+  /** Control generated from the schema. `labelled` adds a visible label (drawer). */
+  private control(key: string, labelled: boolean): HTMLElement {
+    const spec = (this.scene.params as Record<string, ParamSpec>)[key];
+    const value = this.runner.params[key];
+    const label = t(spec.label);
+    const plain = label.replace(/\$/g, '');
+    let input: HTMLElement;
+    switch (spec.kind) {
+      case 'select': {
+        const s = h('select', { class: 'sel', 'aria-label': plain, title: plain });
+        for (const o of spec.options) s.append(h('option', { value: o.value, selected: o.value === value }, t(o.label)));
+        s.addEventListener('change', () => this.setParam(key, s.value));
+        input = s;
+        break;
+      }
+      case 'number': {
+        if (spec.control === 'select') {
+          const s = h('select', { class: 'sel', 'aria-label': plain, title: plain });
+          for (const c of spec.choices ?? []) {
+            s.append(h('option', { value: String(c), selected: c === value }, `${fmt(c, 3)}${spec.unit ? ` ${spec.unit}` : ''}`));
+          }
+          s.addEventListener('change', () => this.setParam(key, Number(s.value)));
+          input = s;
+        } else {
+          const out = h('span', { class: 'val' }, `${fmt(value as number)}${spec.unit ? ` ${spec.unit}` : ''}`);
+          const s = h('input', {
+            type: 'range',
+            min: String(spec.min ?? 0),
+            max: String(spec.max ?? 1),
+            step: String(spec.step ?? 0.01),
+            value: String(value),
+            'aria-label': plain,
+          });
+          s.addEventListener('input', () => {
+            out.textContent = `${fmt(Number(s.value))}${spec.unit ? ` ${spec.unit}` : ''}`;
+            this.setParam(key, Number(s.value), false);
+          });
+          input = h('span', { class: 'slider' }, s, out);
+        }
+        break;
+      }
+      case 'toggle': {
+        const cb = h('input', { type: 'checkbox', checked: value === true, 'aria-label': plain });
+        cb.addEventListener('change', () => this.setParam(key, cb.checked));
+        input = cb;
+        break;
+      }
+      case 'array':
+        input = h('span');
+        break;
+    }
+    if (!labelled) return input;
+    const row = h('label', { class: `row ${spec.kind}` }, rich('span', label, 'lbl'), input);
+    return row;
+  }
+
+  private buildSettings(): HTMLElement {
+    const panel = h('aside', { class: 'panel', 'aria-label': t('ui.settings') });
+    panel.append(this.panelHead(t('ui.settings')));
+    const body = h('div', { class: 'panel-body' });
+    for (const k of this.paramKeys('advanced')) body.append(this.control(k, true));
+    panel.append(body);
+    return panel;
+  }
+
+  private buildInfo(): HTMLElement {
+    const info = this.scene.info;
+    const panel = h('aside', { class: 'panel info', 'aria-label': t('ui.info') });
+    panel.append(this.panelHead(t(this.scene.title)));
+    const body = h('div', { class: 'panel-body' });
+    const list = (title: string, keys: string[]) => {
+      if (!keys.length) return;
+      const ul = h('ul');
+      for (const k of keys) ul.append(rich('li', t(k)));
+      body.append(h('h3', null, title), ul);
+    };
+    list(t('info.goals'), info.goals);
+    list(t('info.observe'), info.observe);
+    if (info.equations?.length) {
+      const eq = h('div', { class: 'eqs' });
+      eq.innerHTML = info.equations.map((e) => tex(e, true)).join('');
+      body.append(h('h3', null, t('info.equations')), eq);
+    }
+    list(t('info.assumptions'), info.assumptions ?? []);
+    const keys: [string, string][] = [
+      ['Space', 'key.play'],
+      ['→', 'key.step'],
+      ['R', 'key.reset'],
+      ['L', 'key.lang'],
+      ['I', 'key.info'],
+      ['F', 'key.lecture'],
+    ];
+    const dl = h('dl', { class: 'keys' });
+    for (const [k, m] of keys) dl.append(h('dt', null, h('kbd', null, k)), h('dd', null, t(m)));
+    body.append(h('h3', null, t('info.shortcuts')), dl, h('p', { class: 'note' }, t('key.scrub')));
+    panel.append(body);
+    return panel;
+  }
+
+  private panelHead(title: string): HTMLElement {
+    return h('div', { class: 'panel-head' }, h('h2', null, title), iconButton(ICON.close, t('ui.close'), () => this.togglePanel('none')));
+  }
+
+  // ------------------------------------------------------------------ state changes
+
+  private setParam(key: string, value: Params[string], refresh = true): void {
+    this.scrubT = null;
+    this.runner.setParam(key, value);
+    this.onParamsChanged(refresh);
+  }
+
+  /** After any parameter change: rebuild controls whose visibility may depend on it, then sync the URL. */
+  private onParamsChanged(refresh: boolean): void {
+    this.scrubT = null;
+    if (refresh) {
+      const bar = this.buildBar();
+      this.bar.replaceWith(bar);
+      this.bar = bar;
+      const settings = this.buildSettings();
+      this.settings.replaceWith(settings);
+      this.settings = settings;
+      this.applyPanel();
+      this.shownPlaying = null;
+    }
+    this.syncUrl(false);
+  }
+
+  private switchScene(i: number): void {
+    if (i === this.sceneIdx) return;
+    this.sceneIdx = i;
+    this.scrubT = null;
+    this.runner = new Runner(this.scene, fromQuery(this.scene.params, new URLSearchParams()));
+    this.build();
+    this.syncUrl(true);
+  }
+
+  private reset(): void {
+    this.scrubT = null;
+    this.runner.pause();
+    this.runner.reset();
+  }
+
+  private togglePlay(): void {
+    if (this.runner.playing) this.runner.pause();
+    else {
+      this.scrubT = null;
+      this.runner.play();
+    }
+  }
+
+  private togglePanel(p: Panel): void {
+    this.panel = this.panel === p ? 'none' : p;
+    this.applyPanel();
+  }
+
+  private applyPanel(): void {
+    this.settings.classList.toggle('open', this.panel === 'settings');
+    this.info.classList.toggle('open', this.panel === 'info');
+  }
+
+  private setScrub(tt: number | null): void {
+    if (tt === null || this.runner.playing) {
+      this.scrubT = null;
+      return;
+    }
+    const ts = this.runner.hist.col('t');
+    this.scrubT = Math.min(Math.max(tt, ts[0] ?? 0), ts[ts.length - 1] ?? 0);
+  }
+
+  /** Replace the hash without a navigation; debounced while dragging. */
+  private syncUrl(now: boolean): void {
+    window.clearTimeout(this.urlTimer);
+    const write = () => {
+      const q: Record<string, string> = {};
+      if (this.sceneIdx > 0) q.s = this.scene.id;
+      q.lang = getLang();
+      Object.assign(q, toQuery(this.scene.params, this.runner.params));
+      history.replaceState(null, '', chapterHash(this.meta.ch, q));
+    };
+    if (now) write();
+    else this.urlTimer = window.setTimeout(write, 300);
+  }
+
+  private onKey(e: KeyboardEvent): void {
+    const tg = e.target as HTMLElement | null;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (tg && /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(tg.tagName)) return;
+    switch (e.key) {
+      case ' ':
+        this.togglePlay();
+        break;
+      case 'ArrowRight':
+        this.scrubT = null;
+        this.runner.stepFrame();
+        break;
+      case 'r':
+      case 'R':
+        this.reset();
+        break;
+      case 'l':
+      case 'L':
+        toggleLang();
+        break;
+      case 'i':
+      case 'I':
+        this.togglePanel('info');
+        break;
+      case 'f':
+      case 'F':
+        setLecture(!isLecture());
+        break;
+      case 'Escape':
+        this.togglePanel('none');
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+  }
+
+  // ------------------------------------------------------------------ stage pointer (scene handles)
+
+  private bindStage(): void {
+    const c = this.stageCanvas;
+    const world = (e: PointerEvent) => {
+      const r = c.getBoundingClientRect();
+      const [x, y] = this.vp.toWorld(e.clientX - r.left, e.clientY - r.top);
+      return { x, y };
+    };
+    const handles = () => (this.scene.handles ?? []).map((hd, i) => ({ hd, i })).filter(({ hd }) => hd.when?.(this.runner.params) ?? true);
+    c.addEventListener('pointerdown', (e) => {
+      const r = c.getBoundingClientRect();
+      const px = e.clientX - r.left;
+      const py = e.clientY - r.top;
+      for (const { hd, i } of handles()) {
+        const p = hd.pos(this.runner.state, this.runner.params);
+        const [hx, hy] = this.vp.toPx(p.x, p.y);
+        const rad = Math.max(hd.radiusPx, e.pointerType === 'mouse' ? 0 : 24);
+        if (Math.hypot(px - hx, py - hy) <= rad) {
+          this.stageDrag = { i, pointerId: e.pointerId };
+          c.setPointerCapture(e.pointerId);
+          e.preventDefault();
+          return;
+        }
+      }
+    });
+    c.addEventListener('pointermove', (e) => {
+      if (!this.stageDrag || this.stageDrag.pointerId !== e.pointerId) return;
+      const hd = this.scene.handles![this.stageDrag.i];
+      hd.onDrag(this.runner.ctx(() => this.onParamsChanged(false)), this.runner.state, world(e));
+    });
+    const end = (e: PointerEvent) => {
+      if (this.stageDrag?.pointerId === e.pointerId) this.stageDrag = null;
+    };
+    c.addEventListener('pointerup', end);
+    c.addEventListener('pointercancel', end);
+  }
+
+  // ------------------------------------------------------------------ frame
+
+  private resize(): void {
+    const r = this.stageWrap.getBoundingClientRect();
+    this.dpr = window.devicePixelRatio || 1;
+    this.stageW = r.width;
+    this.stageH = r.height;
+    this.stageCanvas.width = Math.max(1, Math.round(r.width * this.dpr));
+    this.stageCanvas.height = Math.max(1, Math.round(r.height * this.dpr));
+    this.plots?.resize();
+  }
+
+  private frame = (now: number): void => {
+    const dt = this.last ? Math.min((now - this.last) / 1000, 0.1) : 0;
+    this.last = now;
+    this.runner.advance(dt);
+    this.render();
+    this.raf = requestAnimationFrame(this.frame);
+  };
+
+  private render(): void {
+    const r = this.runner;
+    const scene = this.scene;
+    const p = r.params;
+    const hist = r.hist;
+    let idx = hist.length - 1;
+    let s = r.state;
+    const scrubbing = !r.playing && this.scrubT !== null;
+    if (scrubbing) {
+      idx = hist.indexAtTime(this.scrubT!);
+      s = (hist.snap(idx) as typeof s | undefined) ?? s;
+    }
+    const ts = hist.col('t');
+    this.ui.t = r.state.t;
+    this.ui.cursorT = ts[idx] ?? r.state.t;
+    this.ui.scrubbing = scrubbing;
+    this.ui.lecture = isLecture();
+
+    const ctx = this.stageCtx;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.clearRect(0, 0, this.stageW, this.stageH);
+    if (this.stageW > 0 && this.stageH > 0) {
+      this.vp.fit(scene.world(p), this.stageW, this.stageH);
+      scene.draw(new CanvasDraw(ctx, this.vp), s, p, this.ui);
+    }
+
+    if (this.plots) {
+      const { tEnd, window: win = 10 } = scene.time;
+      const tRange: [number, number] = tEnd !== undefined ? [0, tEnd] : [Math.max(0, this.ui.t - win), Math.max(win, this.ui.t)];
+      this.plots.render({ hist, p, ui: this.ui, idx, tRange });
+    }
+
+    this.timeVal.textContent = this.ui.cursorT.toFixed(2);
+    (scene.readouts ?? []).forEach((spec, i) => {
+      this.readoutVals[i].textContent = fmt(spec.value(s, p), spec.sig ?? 3);
+    });
+    if (this.shownPlaying !== r.playing) {
+      this.shownPlaying = r.playing;
+      this.playBtn.innerHTML = r.playing ? ICON.pause : ICON.play;
+      const lbl = `${r.playing ? t('ui.pause') : t('ui.play')} (Space)`;
+      this.playBtn.setAttribute('aria-label', lbl);
+      this.playBtn.title = lbl;
+    }
+  }
+}

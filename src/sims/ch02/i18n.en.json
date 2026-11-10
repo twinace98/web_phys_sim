@@ -1,0 +1,22 @@
+{
+  "ch02.scene": "x–v–a graphs",
+  "ch02.p.motion": "Motion",
+  "ch02.p.mode": "Show",
+  "ch02.p.v0": "Initial velocity $v_0$",
+  "ch02.p.custom": "Acceleration segments",
+  "ch02.p.vectors": "Velocity and acceleration arrows",
+  "ch02.m.uniform": "Constant velocity",
+  "ch02.m.accel": "Constant acceleration",
+  "ch02.m.startStop": "Start and stop",
+  "ch02.m.reverse": "Turnaround",
+  "ch02.m.custom": "Custom",
+  "ch02.mode.slope": "Slope → next graph",
+  "ch02.mode.area": "Area → previous graph",
+  "ch02.goal.slope": "The slope of $x(t)$ is the instantaneous velocity $v$; the slope of $v(t)$ is the acceleration $a$",
+  "ch02.goal.area": "The area under $a(t)$ is the change in velocity $\\Delta v$; the area under $v(t)$ is the displacement $\\Delta x$",
+  "ch02.obs.slope": "Slope mode: compare the slope of the tangent to $x(t)$ with the height of the dot on $v(t)$",
+  "ch02.obs.area": "Area mode: area where $v < 0$ is negative (hatched), so $x$ decreases",
+  "ch02.obs.turn": "Turnaround: when $v = 0$ the tangent to $x(t)$ is horizontal and the object reverses",
+  "ch02.obs.custom": "Custom: drag the bars on the $a(t)$ graph up or down to set each segment's acceleration",
+  "ch02.assume": "Acceleration is constant within each segment"
+}
