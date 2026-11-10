@@ -1,6 +1,6 @@
 # 일반물리 웹 시뮬레이션 커리큘럼 명세
 
-- 기준 교재: Halliday, Resnick, Walker, *Fundamentals of Physics* 10–12판 (44장)
+- 기준 교재: Halliday, Resnick, Walker, *Fundamentals of Physics* 12판 (44장)
 - 작성일: 2026-11-10
 - 상태: 기획 단계 (구현 전)
 - 용도: 이후 설계·구현 명세의 기준 문서

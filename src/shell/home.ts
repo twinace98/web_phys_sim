@@ -52,7 +52,7 @@ export class HomeView {
         { class: 'source' },
         `${t('app.source')}: D. Halliday, R. Resnick, J. Walker, `,
         h('cite', null, 'Fundamentals of Physics'),
-        ', Wiley.',
+        ', 12th ed., Wiley.',
       ),
     );
     this.root.replaceChildren(page);
