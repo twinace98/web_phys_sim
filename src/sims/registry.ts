@@ -31,7 +31,7 @@ const c = (ch: number, part: ChapterMeta['part'], ko: string, en: string, sko: s
 export const CHAPTERS: ChapterMeta[] = [
   c(2, 1, '직선 운동', 'Motion Along a Straight Line', '위치, 속도, 가속도 그래프, 자유낙하', 'Position, velocity, and acceleration graphs; free fall', () => import('./ch02').then((m) => m.default)),
   c(3, 1, '벡터', 'Vectors', '벡터 성분, 벡터 합', 'Vector components, vector sum', () => import('./ch03').then((m) => m.default)),
-  c(4, 1, '2차원·3차원 운동', 'Motion in Two and Three Dimensions', '포물선 운동', 'Projectile motion', () => import('./ch04').then((m) => m.default)),
+  c(4, 1, '2차원·3차원 운동', 'Motion in Two and Three Dimensions', '포물선 운동, 등속원운동, 상대운동', 'Projectile, uniform circular, and relative motion', () => import('./ch04').then((m) => m.default)),
   c(5, 1, '힘과 운동 I', 'Force and Motion I', '뉴턴 법칙, 관성계', "Newton's laws, inertial frames"),
   c(6, 1, '힘과 운동 II', 'Force and Motion II', '마찰력, 원운동', 'Friction, circular motion'),
   c(7, 1, '운동에너지와 일', 'Kinetic Energy and Work', '일, 운동에너지', 'Work, kinetic energy'),
