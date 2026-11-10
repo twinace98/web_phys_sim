@@ -41,6 +41,8 @@ export interface Draw {
   /** Arc of screen radius rPx from angle a0 to a1 (radians, counter-clockwise from +x in world). */
   arc(c: Vec2, rPx: number, a0: number, a1: number, st?: Stroke): void;
   text(p: Vec2, s: string, st?: LabelStyle): void;
+  /** Text at a fixed canvas position in CSS px (x from left, y from top), e.g. a formula panel. */
+  screenText(x: number, y: number, s: string, st?: LabelStyle): void;
 }
 
 /** Plot-coordinate (t, y) drawing used by scene plot hooks. */
@@ -183,6 +185,10 @@ export class CanvasDraw implements Draw {
     ctx.arc(x, y, rPx * theme.scale, -a0, -a1, a1 > a0);
     ctx.stroke();
     ctx.restore();
+  }
+
+  screenText(x: number, y: number, s: string, st: LabelStyle = {}): void {
+    drawRich(this.ctx, s, x * theme.scale, y * theme.scale, { ...st, color: color(st.color ?? st.role ?? 'fg') });
   }
 
   text(p: Vec2, s: string, st: LabelStyle = {}): void {

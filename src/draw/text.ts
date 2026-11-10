@@ -1,6 +1,7 @@
 // Minimal rich text for canvas labels.
 //   *…*   math italic          'Δ*v* = 2.00 m/s'
 //   _{…}  subscript            '*A*_{*x*}'
+//   ^{…}  superscript          '*C*^{2}'
 import { MATH_FONT, UI_FONT, theme } from './theme';
 
 export interface TextStyle {
@@ -14,16 +15,17 @@ export interface TextStyle {
 interface Seg {
   text: string;
   italic: boolean;
-  sub: boolean;
+  /** 0 normal, -1 subscript, +1 superscript. */
+  shift: -1 | 0 | 1;
 }
 
 function segments(s: string): Seg[] {
   const out: Seg[] = [];
   let italic = false;
-  let sub = false;
+  let shift: Seg['shift'] = 0;
   let buf = '';
   const flush = () => {
-    if (buf) out.push({ text: buf, italic, sub });
+    if (buf) out.push({ text: buf, italic, shift });
     buf = '';
   };
   for (let i = 0; i < s.length; i++) {
@@ -31,13 +33,13 @@ function segments(s: string): Seg[] {
     if (ch === '*') {
       flush();
       italic = !italic;
-    } else if (ch === '_' && s[i + 1] === '{') {
+    } else if ((ch === '_' || ch === '^') && s[i + 1] === '{') {
       flush();
-      sub = true;
+      shift = ch === '_' ? -1 : 1;
       i += 1;
-    } else if (ch === '}' && sub) {
+    } else if (ch === '}' && shift !== 0) {
       flush();
-      sub = false;
+      shift = 0;
     } else {
       buf += ch;
     }
@@ -47,7 +49,7 @@ function segments(s: string): Seg[] {
 }
 
 function fontOf(seg: Seg, size: number, weight: number): string {
-  const sz = seg.sub ? size * 0.72 : size;
+  const sz = seg.shift ? size * 0.72 : size;
   return seg.italic ? `italic ${sz * 1.1}px ${MATH_FONT}` : `${weight} ${sz}px ${UI_FONT}`;
 }
 
@@ -73,7 +75,7 @@ export function drawRich(ctx: CanvasRenderingContext2D, s: string, x: number, y:
   ctx.textAlign = 'left';
   for (const seg of segments(s)) {
     ctx.font = fontOf(seg, size, st.weight ?? 400);
-    ctx.fillText(seg.text, cx, seg.sub ? y + size * 0.28 : y);
+    ctx.fillText(seg.text, cx, y + (seg.shift === -1 ? size * 0.28 : seg.shift === 1 ? -size * 0.4 : 0));
     cx += ctx.measureText(seg.text).width;
   }
   ctx.restore();
