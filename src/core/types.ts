@@ -188,11 +188,12 @@ export interface Scene<P extends Params = any, S extends { t: number } = any> {
   layout?: 'side' | 'stack';
   params: ParamSchema<P>;
   world: (p: P) => WorldSpec;
-  time: TimeSpec;
+  /** Absent → static scene: no clock, no play controls; reset restores default parameters. */
+  time?: TimeSpec;
   init: (p: P, rng: Rng) => S;
-  step: (s: S, h: number, p: P) => void;
-  /** Must contain 't' and every channel used by plots. */
-  record: (s: S, p: P) => Record<string, number>;
+  step?: (s: S, h: number, p: P) => void;
+  /** Must contain 't' and every channel used by plots. Defaults to { t }. */
+  record?: (s: S, p: P) => Record<string, number>;
   /** Enables scrubbing on the stage. */
   snapshot?: (s: S) => S;
   draw: (g: Draw, s: S, p: P, ui: UiState) => void;

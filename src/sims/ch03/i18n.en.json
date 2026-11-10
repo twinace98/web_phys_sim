@@ -1,0 +1,18 @@
+{
+  "ch03.scene.components": "Components",
+  "ch03.scene.sum": "Vector sum",
+  "ch03.p.phi": "Axis rotation",
+  "ch03.p.A": "Vector A",
+  "ch03.p.B": "Vector B",
+  "ch03.p.snap": "Snap to 0.5 steps",
+  "ch03.c.goal.proj": "Components are projections onto the axes: $A_x = A\\cos\\theta$, $A_y = A\\sin\\theta$",
+  "ch03.c.goal.axes": "Rotating the axes changes the components; the vector and its magnitude $A$ stay the same",
+  "ch03.c.obs.drag": "Drag the arrow tip to change the vector",
+  "ch03.c.obs.neg": "$\\theta > 90^\\circ$ gives $A_x < 0$: a component's sign refers to the axis direction",
+  "ch03.c.obs.rot": "Rotate the axes: $A_x$ and $A_y$ change, $A$ does not",
+  "ch03.c.obs.incline": "Axes at 30°: the coordinate choice for incline problems (Ch 5, 6)",
+  "ch03.s.goal": "The components of a sum are the sums of the components",
+  "ch03.s.obs.bars": "Bars beside each axis: $A_x$ and $B_x$ placed end to end span $C_x$",
+  "ch03.s.obs.cancel": "When $\\vec A$ and $\\vec B$ point in opposite directions their components cancel",
+  "ch03.s.obs.drag": "Drag the tip of $\\vec A$ or of $\\vec B$"
+}

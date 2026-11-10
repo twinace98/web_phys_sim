@@ -1,4 +1,5 @@
 // Fixed-step time loop, DOM-free so it can be unit-tested (docs/design.md §5.1).
+// Static scenes (no `time`) never advance.
 import { History } from './history';
 import { Rng } from './rng';
 import type { Params, Scene, SceneCtx } from './types';
@@ -22,8 +23,12 @@ export class Runner<P extends Params = Params, S extends { t: number } = { t: nu
     this.reset();
   }
 
+  get isStatic(): boolean {
+    return !this.scene.time;
+  }
+
   get done(): boolean {
-    const e = this.scene.time.tEnd;
+    const e = this.scene.time?.tEnd;
     return e !== undefined && this.state.t >= e - 1e-9;
   }
 
@@ -37,6 +42,7 @@ export class Runner<P extends Params = Params, S extends { t: number } = { t: nu
   }
 
   play(): void {
+    if (this.isStatic) return;
     if (this.done) this.reset();
     this.playing = true;
   }
@@ -46,15 +52,15 @@ export class Runner<P extends Params = Params, S extends { t: number } = { t: nu
     this.acc = 0;
   }
 
-  /** Advance by wall-clock seconds (no-op while paused). */
+  /** Advance by wall-clock seconds (no-op while paused or static). */
   advance(wallDt: number): void {
-    if (!this.playing) return;
-    const { h, scale = 1 } = this.scene.time;
-    this.acc += wallDt * this.speed * scale;
+    const time = this.scene.time;
+    if (!this.playing || !time) return;
+    this.acc += wallDt * this.speed * (time.scale ?? 1);
     let n = 0;
-    while (this.acc >= h && n < MAX_STEPS_PER_CALL) {
+    while (this.acc >= time.h && n < MAX_STEPS_PER_CALL) {
       this.stepOnce();
-      this.acc -= h;
+      this.acc -= time.h;
       n += 1;
       if (this.done) {
         this.pause();
@@ -66,9 +72,9 @@ export class Runner<P extends Params = Params, S extends { t: number } = { t: nu
 
   /** Step button: advance `frameStep` sim seconds and stay paused. */
   stepFrame(): void {
-    if (this.done) return;
-    const { h, frameStep } = this.scene.time;
-    const n = Math.max(1, Math.round(frameStep / h));
+    const time = this.scene.time;
+    if (!time || this.done) return;
+    const n = Math.max(1, Math.round(time.frameStep / time.h));
     for (let i = 0; i < n && !this.done; i++) this.stepOnce();
     this.pause();
   }
@@ -83,6 +89,12 @@ export class Runner<P extends Params = Params, S extends { t: number } = { t: nu
     return false;
   }
 
+  /** Replace all parameters and reset. */
+  setParams(p: P): void {
+    this.params = p;
+    this.reset();
+  }
+
   ctx(onChange?: () => void): SceneCtx<P> {
     return {
       params: this.params,
@@ -94,12 +106,14 @@ export class Runner<P extends Params = Params, S extends { t: number } = { t: nu
   }
 
   private stepOnce(): void {
-    this.scene.step(this.state, this.scene.time.h, this.params);
+    const time = this.scene.time!;
+    this.scene.step?.(this.state, time.h, this.params);
     this.steps += 1;
-    if (this.steps % this.scene.time.recordEvery === 0 || this.done) this.record();
+    if (this.steps % time.recordEvery === 0 || this.done) this.record();
   }
 
   private record(): void {
-    this.hist.push(this.scene.record(this.state, this.params), this.scene.snapshot?.(this.state));
+    const rec = this.scene.record?.(this.state, this.params) ?? { t: this.state.t };
+    this.hist.push(rec, this.scene.snapshot?.(this.state));
   }
 }

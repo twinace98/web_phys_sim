@@ -1,0 +1,67 @@
+import { describe, expect, it } from 'vitest';
+import { add, components, fromAxes, placeTip, toAxes, type V2 } from '../src/sims/ch03/physics';
+
+const deg = Math.PI / 180;
+const vecs: V2[] = [
+  [4, 3],
+  [-2, 5],
+  [-3.5, -1],
+  [0.5, -4],
+];
+
+describe('ch03 components', () => {
+  it('A = 4, 3 in the standard frame: A = 5, θ = 36.87°', () => {
+    const c = components([4, 3], 0);
+    expect(c.ax).toBeCloseTo(4, 12);
+    expect(c.ay).toBeCloseTo(3, 12);
+    expect(c.mag).toBeCloseTo(5, 12);
+    expect(c.theta / deg).toBeCloseTo(36.8699, 3);
+  });
+
+  it('components satisfy A_x = A cos θ, A_y = A sin θ in any frame', () => {
+    for (const a of vecs) {
+      for (const phi of [0, 15, 30, 45, 60]) {
+        const c = components(a, phi * deg);
+        expect(c.ax).toBeCloseTo(c.mag * Math.cos(c.theta), 12);
+        expect(c.ay).toBeCloseTo(c.mag * Math.sin(c.theta), 12);
+      }
+    }
+  });
+
+  it('rotating the axes changes the components but not the magnitude', () => {
+    for (const a of vecs) {
+      const m0 = components(a, 0).mag;
+      for (const phi of [15, 30, 45, 60]) expect(components(a, phi * deg).mag).toBeCloseTo(m0, 12);
+    }
+    expect(components([4, 3], 30 * deg).ax).not.toBeCloseTo(4, 3);
+  });
+
+  it('toAxes and fromAxes are inverse', () => {
+    for (const a of vecs) {
+      const back = fromAxes(toAxes(a, 0.7), 0.7);
+      expect(back[0]).toBeCloseTo(a[0], 12);
+      expect(back[1]).toBeCloseTo(a[1], 12);
+    }
+  });
+
+  it('the sum has components equal to the sums of components, in any frame', () => {
+    const a: V2 = [4, 1];
+    const b: V2 = [-1, 3];
+    for (const phi of [0, 30 * deg]) {
+      const ca = components(a, phi);
+      const cb = components(b, phi);
+      const cs = components(add(a, b), phi);
+      expect(cs.ax).toBeCloseTo(ca.ax + cb.ax, 12);
+      expect(cs.ay).toBeCloseTo(ca.ay + cb.ay, 12);
+    }
+  });
+
+  it('snapping gives 0.5-step components along the rotated axes and clamps to the view', () => {
+    const phi = 30 * deg;
+    const tip = placeTip([3.13, 2.07], phi, true, 5.5);
+    const [u, v] = toAxes(tip, phi);
+    expect(Math.abs(u * 2 - Math.round(u * 2))).toBeLessThan(0.02);
+    expect(Math.abs(v * 2 - Math.round(v * 2))).toBeLessThan(0.02);
+    expect(placeTip([9, -9], 0, false, 5.5)).toEqual([5.5, -5.5]);
+  });
+});

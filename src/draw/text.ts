@@ -1,5 +1,6 @@
-// Minimal rich text for canvas labels: segments between '*' are math italic.
-// Example: 'Δ*v* = 2.00 m/s'.
+// Minimal rich text for canvas labels.
+//   *…*   math italic          'Δ*v* = 2.00 m/s'
+//   _{…}  subscript            '*A*_{*x*}'
 import { MATH_FONT, UI_FONT, theme } from './theme';
 
 export interface TextStyle {
@@ -10,22 +11,51 @@ export interface TextStyle {
   weight?: number;
 }
 
-function segments(s: string): { text: string; italic: boolean }[] {
-  return s
-    .split('*')
-    .map((text, i) => ({ text, italic: i % 2 === 1 }))
-    .filter((seg) => seg.text.length > 0);
+interface Seg {
+  text: string;
+  italic: boolean;
+  sub: boolean;
 }
 
-function font(italic: boolean, size: number, weight: number): string {
-  return italic ? `italic ${size * 1.1}px ${MATH_FONT}` : `${weight} ${size}px ${UI_FONT}`;
+function segments(s: string): Seg[] {
+  const out: Seg[] = [];
+  let italic = false;
+  let sub = false;
+  let buf = '';
+  const flush = () => {
+    if (buf) out.push({ text: buf, italic, sub });
+    buf = '';
+  };
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '*') {
+      flush();
+      italic = !italic;
+    } else if (ch === '_' && s[i + 1] === '{') {
+      flush();
+      sub = true;
+      i += 1;
+    } else if (ch === '}' && sub) {
+      flush();
+      sub = false;
+    } else {
+      buf += ch;
+    }
+  }
+  flush();
+  return out;
+}
+
+function fontOf(seg: Seg, size: number, weight: number): string {
+  const sz = seg.sub ? size * 0.72 : size;
+  return seg.italic ? `italic ${sz * 1.1}px ${MATH_FONT}` : `${weight} ${sz}px ${UI_FONT}`;
 }
 
 export function measureRich(ctx: CanvasRenderingContext2D, s: string, st: TextStyle = {}): number {
   const size = (st.size ?? 12) * theme.scale;
   let w = 0;
   for (const seg of segments(s)) {
-    ctx.font = font(seg.italic, size, st.weight ?? 400);
+    ctx.font = fontOf(seg, size, st.weight ?? 400);
     w += ctx.measureText(seg.text).width;
   }
   return w;
@@ -42,8 +72,8 @@ export function drawRich(ctx: CanvasRenderingContext2D, s: string, x: number, y:
   ctx.textBaseline = st.baseline ?? 'alphabetic';
   ctx.textAlign = 'left';
   for (const seg of segments(s)) {
-    ctx.font = font(seg.italic, size, st.weight ?? 400);
-    ctx.fillText(seg.text, cx, y);
+    ctx.font = fontOf(seg, size, st.weight ?? 400);
+    ctx.fillText(seg.text, cx, seg.sub ? y + size * 0.28 : y);
     cx += ctx.measureText(seg.text).width;
   }
   ctx.restore();
