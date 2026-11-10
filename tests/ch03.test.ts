@@ -76,3 +76,21 @@ describe('ch03 parallelogram limits', () => {
     expect(clampWithPartner([-5, 1], [-3, 0], 5.5)).toEqual([-2.5, 1]);
   });
 });
+
+describe('ch03 component handles', () => {
+  it('dragging A_x changes only A_x, in any frame', async () => {
+    const { setComponent, toAxes } = await import('../src/sims/ch03/physics');
+    for (const phi of [0, 30 * deg]) {
+      const a: V2 = [4, 3];
+      const [, v0] = toAxes(a, phi);
+      const pointer = fromAxes([2, 9], phi); // projection on the x axis is 2
+      const [u, v] = toAxes(setComponent(a, phi, 0, pointer, false, 5.5), phi);
+      expect(u).toBeCloseTo(2, 1);
+      expect(v).toBeCloseTo(v0, 1);
+    }
+  });
+  it('dragging A_y snaps to 0.5 and keeps A_x', async () => {
+    const { setComponent } = await import('../src/sims/ch03/physics');
+    expect(setComponent([4, 3], 0, 1, [0, -1.37], true, 5.5)).toEqual([4, -1.5]);
+  });
+});

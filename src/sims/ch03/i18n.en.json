@@ -6,17 +6,17 @@
   "ch03.p.B": "Vector B",
   "ch03.c.goal.proj": "Components are projections onto the axes: $A_x = A\\cos\\theta$, $A_y = A\\sin\\theta$",
   "ch03.c.goal.axes": "Rotating the axes changes the components; the vector and its magnitude $A$ stay the same",
-  "ch03.c.obs.drag": "Drag the arrow tip to change the vector",
+  "ch03.c.obs.drag": "Drag the tip of $\\vec A$ to change the vector",
   "ch03.c.obs.neg": "$\\theta > 90^\\circ$ gives $A_x < 0$: a component's sign refers to the axis direction",
   "ch03.c.obs.rot": "Rotate the axes: $A_x$ and $A_y$ change, $A$ does not",
   "ch03.c.obs.incline": "Axes at 30°: the coordinate choice for incline problems (Ch 5, 6)",
   "ch03.s.goal": "The components of a sum are the sums of the components",
-  "ch03.s.obs.bars": "Bars beside each axis: $A_x$ and $B_x$ placed end to end span $C_x$",
   "ch03.s.obs.cancel": "When $\\vec A$ and $\\vec B$ point in opposite directions their components cancel",
   "ch03.s.obs.drag": "Drag the tip of $\\vec A$ or of $\\vec B$",
   "ch03.p.drag": "Drag mode",
   "ch03.drag.smooth": "Smooth",
   "ch03.drag.snap": "Snap to 0.5",
   "ch03.s.goal.para": "Parallelogram rule: $\\vec A + \\vec B$ is the diagonal of the parallelogram with sides $\\vec A$ and $\\vec B$",
-  "ch03.s.obs.para": "Dashed sides are $\\vec A$ and $\\vec B$ moved to the other tip, so the result matches head-to-tail addition"
+  "ch03.s.obs.para": "Dashed sides are $\\vec A$ and $\\vec B$ moved to the other tip, so the result matches head-to-tail addition",
+  "ch03.c.obs.comp": "Drag the tip of $A_x$ or $A_y$ to change that component alone; $\\vec A$, $A$ and $\\theta$ follow"
 }

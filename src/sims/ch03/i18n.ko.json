@@ -6,17 +6,17 @@
   "ch03.p.B": "벡터 B",
   "ch03.c.goal.proj": "성분 = 좌표축 위로의 투영: $A_x = A\\cos\\theta$, $A_y = A\\sin\\theta$",
   "ch03.c.goal.axes": "좌표축을 돌리면 성분은 바뀌고, 벡터와 크기 $A$는 그대로",
-  "ch03.c.obs.drag": "화살표 끝을 끌어 벡터 변경",
+  "ch03.c.obs.drag": "$\\vec A$ 끝을 끌어 벡터 변경",
   "ch03.c.obs.neg": "$\\theta > 90^\\circ$ → $A_x < 0$, 성분의 부호 = 축 방향 기준",
   "ch03.c.obs.rot": "좌표축 회전: $A_x$, $A_y$ 변화, $A$ 불변",
   "ch03.c.obs.incline": "좌표축 30°: 경사면 문제의 좌표 선택 (Ch 5, 6)",
   "ch03.s.goal": "벡터 합의 성분 = 각 성분의 합",
-  "ch03.s.obs.bars": "축 옆 막대: $A_x$, $B_x$를 이어 붙인 길이 = $C_x$",
   "ch03.s.obs.cancel": "$\\vec A$, $\\vec B$가 반대 방향이면 성분 상쇄",
   "ch03.s.obs.drag": "$\\vec A$, $\\vec B$의 끝을 각각 끌어 변경",
   "ch03.p.drag": "끌기 방식",
   "ch03.drag.smooth": "부드럽게",
   "ch03.drag.snap": "0.5 간격 맞춤",
   "ch03.s.goal.para": "평행사변형법: $\\vec A$, $\\vec B$를 두 변으로 하는 평행사변형의 대각선 = $\\vec A + \\vec B$",
-  "ch03.s.obs.para": "점선 = 반대쪽 끝으로 옮긴 $\\vec A$, $\\vec B$ → 꼬리-머리 연결과 같은 결과"
+  "ch03.s.obs.para": "점선 = 반대쪽 끝으로 옮긴 $\\vec A$, $\\vec B$ → 꼬리-머리 연결과 같은 결과",
+  "ch03.c.obs.comp": "$A_x$, $A_y$ 끝을 끌면 그 성분만 변화 → $\\vec A$, $A$, $\\theta$ 재구성"
 }
