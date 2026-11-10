@@ -120,3 +120,18 @@ export function ranges(pr: Profile): Ranges {
   }
   return r;
 }
+
+// ------------------------------------------------------------------ free fall (vertical, y up)
+
+export const G_EARTH = 9.8;
+export type Throw = 'drop' | 'up' | 'down';
+export const THROW_V0: Record<Throw, number> = { drop: 0, up: 10, down: -10 };
+
+/**
+ * Vertical motion from height h with initial velocity v0 under a = −g until y = 0.
+ * Reuses Profile with the position read as y: one segment of constant acceleration −g.
+ */
+export function fallProfile(h: number, v0: number, g = G_EARTH): Profile {
+  const T = (v0 + Math.sqrt(v0 * v0 + 2 * g * h)) / g;
+  return { x0: h, v0, segs: [{ t0: 0, t1: T, a: -g }], tEnd: T };
+}
