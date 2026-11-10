@@ -36,6 +36,10 @@ export interface Draw {
   arrow(from: Vec2, vec: Vec2, st?: ArrowStyle): void;
   /** Circle with radius in screen px. */
   circle(c: Vec2, rPx: number, st?: Stroke & { fill?: Role | string }): void;
+  /** Closed polygon; fill and/or stroke. */
+  polygon(pts: Vec2[], st?: Stroke & { fill?: Role | string; fillAlpha?: number }): void;
+  /** Arc of screen radius rPx from angle a0 to a1 (radians, counter-clockwise from +x in world). */
+  arc(c: Vec2, rPx: number, a0: number, a1: number, st?: Stroke): void;
   text(p: Vec2, s: string, st?: LabelStyle): void;
 }
 
@@ -143,6 +147,41 @@ export class CanvasDraw implements Draw {
       applyStroke(ctx, st);
       ctx.stroke();
     }
+    ctx.restore();
+  }
+
+  polygon(pts: Vec2[], st: Stroke & { fill?: Role | string; fillAlpha?: number } = {}): void {
+    if (pts.length < 3) return;
+    const { ctx } = this;
+    ctx.save();
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const [x, y] = this.vp.toPx(p.x, p.y);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    if (st.fill) {
+      ctx.globalAlpha = st.fillAlpha ?? 1;
+      ctx.fillStyle = color(st.fill);
+      ctx.fill();
+    }
+    if (st.role || st.color || st.width) {
+      applyStroke(ctx, st);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  arc(c: Vec2, rPx: number, a0: number, a1: number, st?: Stroke): void {
+    const { ctx } = this;
+    const [x, y] = this.vp.toPx(c.x, c.y);
+    ctx.save();
+    applyStroke(ctx, st);
+    ctx.beginPath();
+    // World y is up, canvas y is down: world angle a is canvas angle −a.
+    ctx.arc(x, y, rPx * theme.scale, -a0, -a1, a1 > a0);
+    ctx.stroke();
     ctx.restore();
   }
 

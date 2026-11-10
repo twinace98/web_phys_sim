@@ -1,8 +1,8 @@
 // Chapter page: header, stage, control bar, plots, settings drawer, info panel
 // (docs/design.md §2). Controls are generated from the scene's parameter schema.
-import { fmt } from '../core/format';
+import { fmt, fmtTick } from '../core/format';
 import { getLang, onLangChange, t } from '../core/i18n';
-import { fromQuery, toQuery } from '../core/params';
+import { defaults, fromQuery, toQuery } from '../core/params';
 import { Runner } from '../core/runner';
 import type { Params, ParamSpec, Scene, SimPage, UiState } from '../core/types';
 import { chapterHash } from '../core/url';
@@ -15,6 +15,9 @@ import { ICON } from './icons';
 import { isLecture, onLectureChange, setLecture, toggleLang } from './prefs';
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
+
+/** "30°" but "2 m/s": no space before the degree sign. */
+const withUnit = (v: string, unit?: string) => (!unit ? v : unit === '°' ? `${v}°` : `${v} ${unit}`);
 
 type Panel = 'none' | 'settings' | 'info';
 
@@ -37,9 +40,9 @@ export class SimView {
   private bar!: HTMLElement;
   private settings!: HTMLElement;
   private info!: HTMLElement;
-  private playBtn!: HTMLButtonElement;
+  private playBtn: HTMLButtonElement | null = null;
   private shownPlaying: boolean | null = null;
-  private timeVal!: HTMLElement;
+  private timeVal: HTMLElement | null = null;
   private readoutVals: HTMLElement[] = [];
 
   private ro: ResizeObserver | null = null;
@@ -111,7 +114,7 @@ export class SimView {
       this.buildLinkButton(),
     );
 
-    const main = h('main', { class: `sim ${scene.layout ?? 'side'}` });
+    const main = h('main', { class: `sim ${scene.plots?.length ? (scene.layout ?? 'side') : 'solo'}` });
     this.stageWrap = h('section', { class: 'stage-wrap' });
     this.stageCanvas = h('canvas', { class: 'stage', 'aria-label': t(scene.title), role: 'img' });
     this.stageCtx = this.stageCanvas.getContext('2d')!;
@@ -184,26 +187,31 @@ export class SimView {
   private buildBar(): HTMLElement {
     const r = this.runner;
     const bar = h('div', { class: 'bar' });
-    this.playBtn = iconButton(ICON.play, t('ui.play'), () => this.togglePlay(), 'ib primary');
-    const speed = h('select', { class: 'sel speed', 'aria-label': t('ui.speed'), title: t('ui.speed') });
-    for (const s of SPEEDS) speed.append(h('option', { value: String(s), selected: s === r.speed }, `${s}×`));
-    speed.addEventListener('change', () => (r.speed = Number(speed.value)));
-
-    this.timeVal = h('span', { class: 'val' });
-    const time = h('span', { class: 'ro' });
-    time.innerHTML = `${tex('t')} = `;
-    time.append(this.timeVal, ' s');
-
-    bar.append(
-      this.playBtn,
-      iconButton(ICON.step, `${t('ui.step')} (→)`, () => {
-        this.scrubT = null;
-        r.stepFrame();
-      }),
-      iconButton(ICON.reset, `${t('ui.reset')} (R)`, () => this.reset()),
-      speed,
-      time,
-    );
+    const reset = iconButton(ICON.reset, `${t('ui.reset')} (R)`, () => this.reset());
+    if (r.isStatic) {
+      this.playBtn = null;
+      this.timeVal = null;
+      bar.append(reset);
+    } else {
+      this.playBtn = iconButton(ICON.play, t('ui.play'), () => this.togglePlay(), 'ib primary');
+      const speed = h('select', { class: 'sel speed', 'aria-label': t('ui.speed'), title: t('ui.speed') });
+      for (const s of SPEEDS) speed.append(h('option', { value: String(s), selected: s === r.speed }, `${s}×`));
+      speed.addEventListener('change', () => (r.speed = Number(speed.value)));
+      this.timeVal = h('span', { class: 'val' });
+      const time = h('span', { class: 'ro' });
+      time.innerHTML = `${tex('t')} = `;
+      time.append(this.timeVal, ' s');
+      bar.append(
+        this.playBtn,
+        iconButton(ICON.step, `${t('ui.step')} (→)`, () => {
+          this.scrubT = null;
+          r.stepFrame();
+        }),
+        reset,
+        speed,
+        time,
+      );
+    }
 
     const mains = this.paramKeys('main');
     if (mains.length) {
@@ -253,12 +261,12 @@ export class SimView {
         if (spec.control === 'select') {
           const s = h('select', { class: 'sel', 'aria-label': plain, title: plain });
           for (const c of spec.choices ?? []) {
-            s.append(h('option', { value: String(c), selected: c === value }, `${fmt(c, 3)}${spec.unit ? ` ${spec.unit}` : ''}`));
+            s.append(h('option', { value: String(c), selected: c === value }, withUnit(fmtTick(c), spec.unit)));
           }
           s.addEventListener('change', () => this.setParam(key, Number(s.value)));
           input = s;
         } else {
-          const out = h('span', { class: 'val' }, `${fmt(value as number)}${spec.unit ? ` ${spec.unit}` : ''}`);
+          const out = h('span', { class: 'val' }, withUnit(fmt(value as number), spec.unit));
           const s = h('input', {
             type: 'range',
             min: String(spec.min ?? 0),
@@ -268,7 +276,7 @@ export class SimView {
             'aria-label': plain,
           });
           s.addEventListener('input', () => {
-            out.textContent = `${fmt(Number(s.value))}${spec.unit ? ` ${spec.unit}` : ''}`;
+            out.textContent = withUnit(fmt(Number(s.value)), spec.unit);
             this.setParam(key, Number(s.value), false);
           });
           input = h('span', { class: 'slider' }, s, out);
@@ -370,10 +378,16 @@ export class SimView {
     this.syncUrl(true);
   }
 
+  /** Dynamic scenes return to t = 0; static scenes return to their default parameters. */
   private reset(): void {
     this.scrubT = null;
     this.runner.pause();
-    this.runner.reset();
+    if (this.runner.isStatic) {
+      this.runner.setParams(defaults(this.scene.params));
+      this.onParamsChanged(true);
+    } else {
+      this.runner.reset();
+    }
   }
 
   private togglePlay(): void {
@@ -423,9 +437,11 @@ export class SimView {
     if (tg && /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(tg.tagName)) return;
     switch (e.key) {
       case ' ':
+        if (this.runner.isStatic) return;
         this.togglePlay();
         break;
       case 'ArrowRight':
+        if (this.runner.isStatic) return;
         this.scrubT = null;
         this.runner.stepFrame();
         break;
@@ -465,31 +481,43 @@ export class SimView {
     };
     const handles = () => (this.scene.handles ?? []).map((hd, i) => ({ hd, i })).filter(({ hd }) => hd.when?.(this.runner.params) ?? true);
     c.addEventListener('pointerdown', (e) => {
-      const r = c.getBoundingClientRect();
-      const px = e.clientX - r.left;
-      const py = e.clientY - r.top;
-      for (const { hd, i } of handles()) {
-        const p = hd.pos(this.runner.state, this.runner.params);
-        const [hx, hy] = this.vp.toPx(p.x, p.y);
-        const rad = Math.max(hd.radiusPx, e.pointerType === 'mouse' ? 0 : 24);
-        if (Math.hypot(px - hx, py - hy) <= rad) {
-          this.stageDrag = { i, pointerId: e.pointerId };
-          c.setPointerCapture(e.pointerId);
-          e.preventDefault();
-          return;
-        }
-      }
+      const i = this.hitHandle(e, handles());
+      if (i < 0) return;
+      this.stageDrag = { i, pointerId: e.pointerId };
+      c.setPointerCapture(e.pointerId);
+      c.style.cursor = 'grabbing';
+      e.preventDefault();
     });
     c.addEventListener('pointermove', (e) => {
-      if (!this.stageDrag || this.stageDrag.pointerId !== e.pointerId) return;
+      if (!this.stageDrag || this.stageDrag.pointerId !== e.pointerId) {
+        if (e.pointerType === 'mouse') c.style.cursor = this.hitHandle(e, handles()) >= 0 ? 'grab' : '';
+        return;
+      }
       const hd = this.scene.handles![this.stageDrag.i];
       hd.onDrag(this.runner.ctx(() => this.onParamsChanged(false)), this.runner.state, world(e));
     });
     const end = (e: PointerEvent) => {
-      if (this.stageDrag?.pointerId === e.pointerId) this.stageDrag = null;
+      if (this.stageDrag?.pointerId === e.pointerId) {
+        this.stageDrag = null;
+        c.style.cursor = '';
+      }
     };
     c.addEventListener('pointerup', end);
     c.addEventListener('pointercancel', end);
+  }
+
+  /** Index of the scene handle under the pointer, or −1. */
+  private hitHandle(e: PointerEvent, list: { hd: NonNullable<Scene['handles']>[number]; i: number }[]): number {
+    const r = this.stageCanvas.getBoundingClientRect();
+    const px = e.clientX - r.left;
+    const py = e.clientY - r.top;
+    for (const { hd, i } of list) {
+      const p = hd.pos(this.runner.state, this.runner.params);
+      const [hx, hy] = this.vp.toPx(p.x, p.y);
+      const rad = Math.max(hd.radiusPx, e.pointerType === 'mouse' ? 0 : 24);
+      if (Math.hypot(px - hx, py - hy) <= rad) return i;
+    }
+    return -1;
   }
 
   // ------------------------------------------------------------------ frame
@@ -539,16 +567,16 @@ export class SimView {
     }
 
     if (this.plots) {
-      const { tEnd, window: win = 10 } = scene.time;
+      const { tEnd, window: win = 10 } = scene.time ?? {};
       const tRange: [number, number] = tEnd !== undefined ? [0, tEnd] : [Math.max(0, this.ui.t - win), Math.max(win, this.ui.t)];
       this.plots.render({ hist, p, ui: this.ui, idx, tRange });
     }
 
-    this.timeVal.textContent = this.ui.cursorT.toFixed(2);
+    if (this.timeVal) this.timeVal.textContent = this.ui.cursorT.toFixed(2);
     (scene.readouts ?? []).forEach((spec, i) => {
       this.readoutVals[i].textContent = fmt(spec.value(s, p), spec.sig ?? 3);
     });
-    if (this.shownPlaying !== r.playing) {
+    if (this.playBtn && this.shownPlaying !== r.playing) {
       this.shownPlaying = r.playing;
       this.playBtn.innerHTML = r.playing ? ICON.pause : ICON.play;
       const lbl = `${r.playing ? t('ui.pause') : t('ui.play')} (Space)`;
