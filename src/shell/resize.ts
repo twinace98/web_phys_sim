@@ -57,13 +57,8 @@ function onDrag(grip: HTMLElement, onStart: () => void, onMove: (dx: number, dy:
 export function resizableSidePanel(panel: HTMLElement, key: string, label: string): void {
   const grip = h('div', { class: 'panel-grip', role: 'separator', 'aria-label': label, title: label });
   panel.append(grip);
-  const apply = () => {
-    const w = load(`${key}.w`);
-    const hh = load(`${key}.h`);
-    panel.style.width = !narrow() && w ? `${clamp(w, 260, window.innerWidth * 0.9)}px` : '';
-    panel.style.height = narrow() && hh ? `${clamp(hh, window.innerHeight * 0.25, window.innerHeight * 0.92)}px` : '';
-  };
-  apply();
+  panel.dataset.sizeKey = key;
+  restoreSize(panel);
   let start = 0;
   onDrag(
     grip,
@@ -80,6 +75,16 @@ export function resizableSidePanel(panel: HTMLElement, key: string, label: strin
       }
     },
   );
+}
+
+/** Re-apply the stored size of a side panel; panels sharing a key open at the same size. */
+export function restoreSize(panel: HTMLElement): void {
+  const key = panel.dataset.sizeKey;
+  if (!key) return;
+  const w = load(`${key}.w`);
+  const hh = load(`${key}.h`);
+  panel.style.width = !narrow() && w ? `${clamp(w, 260, window.innerWidth * 0.9)}px` : '';
+  panel.style.height = narrow() && hh ? `${clamp(hh, window.innerHeight * 0.25, window.innerHeight * 0.92)}px` : '';
 }
 
 const GRIP_SVG =
