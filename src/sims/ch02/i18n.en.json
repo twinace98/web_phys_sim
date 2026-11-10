@@ -18,5 +18,9 @@
   "ch02.obs.area": "Integral relation: area where $v < 0$ is negative (hatched), so $x$ decreases",
   "ch02.obs.turn": "Turnaround: when $v = 0$ the tangent to $x(t)$ is horizontal and the object reverses",
   "ch02.obs.custom": "Custom: drag the bars on the $a(t)$ graph up or down to set each segment's acceleration",
-  "ch02.assume": "Acceleration is constant within each segment"
+  "ch02.assume": "Acceleration is constant within each segment",
+  "ch02.d.motion": "How the acceleration changes over time",
+  "ch02.d.mode": "Derivative: a slope gives the next graph's value. Integral: an area gives the change in the previous graph",
+  "ch02.d.v0": "Velocity at $t = 0$ for the custom motion",
+  "ch02.d.vectors": "Show velocity and acceleration arrows on the object"
 }

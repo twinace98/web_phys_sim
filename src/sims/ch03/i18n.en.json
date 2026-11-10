@@ -19,5 +19,7 @@
   "ch03.c.obs.comp": "Drag the tip of $A_x$ or $A_y$ to change that component alone; $\\vec A$, $A$ and $\\theta$ follow",
   "ch03.s.goal.comp": "The components of the sum are the sums of the components: $C_x = A_x + B_x$, $C_y = A_y + B_y$",
   "ch03.s.obs.panel": "Top-left panel: $A_x + B_x = C_x$ and $A_y + B_y = C_y$ update as you drag",
-  "ch03.s.obs.cancel": "When $\\vec A$ and $\\vec B$ point in opposite directions their components cancel, so $C < A + B$"
+  "ch03.s.obs.cancel": "When $\\vec A$ and $\\vec B$ point in opposite directions their components cancel, so $C < A + B$",
+  "ch03.d.phi": "Angle of the axes; the vector stays put and its components change",
+  "ch03.d.drag": "Move freely while dragging, or snap to 0.5 steps"
 }

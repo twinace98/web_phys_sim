@@ -64,7 +64,10 @@
 - 수치 줄: 핵심 측정값 최대 3개. 구현에서는 조작 바 오른쪽 끝에 배치 (좁은 화면에서는 줄바꿈)
 - 배치 2종 (`Scene.layout`): `side` (스테이지 왼쪽, 그래프 오른쪽) / `stack` (위쪽 스테이지 띠, 아래 그래프). 그래프가 주인공인 장면 (Ch 2 등)은 `stack`
 - ⚙ 상세 설정: 오른쪽에서 열리는 서랍, 그래프 열을 덮음
-- ⓘ 정보 패널: 학습 목표 · 관찰할 점 · 핵심 수식 · 가정과 근사
+- ⓘ 정보 패널: 학습 목표 · 관찰할 점 · 핵심 수식 · 가정과 근사 · 조작 설명 · 단축키
+  - 가장자리 드래그로 크기 조절 (넓은 화면: 왼쪽 가장자리 → 너비, 좁은 화면: 위쪽 가장자리 → 높이), 브라우저에 저장
+- 드롭다운: 왼쪽에 짧은 라벨, 마우스를 올리면 한 줄 설명 (`ParamSpec.desc`). 같은 설명을 설정 서랍과 정보 패널 "조작"에도 표시
+- 스테이지 패널 (`Scene.overlay`): 스테이지 좌상단의 테두리 있는 TeX 패널. 우하단 모서리 드래그로 패널과 글자를 함께 확대·축소, 스테이지 폭을 넘지 않게 자동 축소, 장면별로 브라우저에 저장
 
 ### 2.2 좁은 화면 (폭 768 px 미만)
 
@@ -164,6 +167,7 @@ export interface Scene<P extends Params, S> {
   record?(s: S, p: P): Record<string, number>;  // channels pushed to history
   snapshot?(s: S): S;                 // enables scrubbing on stage
   draw(g: Draw, s: S, p: P, ui: UiState): void;
+  overlay?(s: S, p: P): string;      // TeX for the resizable stage panel
   plots?: PlotSpec[];
   readouts?: ReadoutSpec<S, P>[];
   handles?: Handle<S, P>[];           // draggable objects
@@ -192,6 +196,7 @@ type ParamSpec =
 
 interface ParamMeta {
   label: Msg;
+  desc?: Msg;                         // one line: tooltip, drawer, info panel
   group: 'main' | 'advanced';         // main → control bar (max 2), advanced → drawer
   live: boolean;                      // false → change triggers reset
   visibleIf?: (p: Params) => boolean;

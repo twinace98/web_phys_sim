@@ -94,3 +94,19 @@ describe('ch03 component handles', () => {
     expect(setComponent([4, 3], 0, 1, [0, -1.37], true, 5.5)).toEqual([4, -1.5]);
   });
 });
+
+describe('ch03 component-sum panel', () => {
+  it('renders as valid KaTeX and shows the current values', async () => {
+    const katex = (await import('katex')).default;
+    const { componentPanel } = await import('../src/sims/ch03/scene');
+    for (const [a, b] of [
+      [[4, 1], [-1, 3]],
+      [[0, 0], [-2.5, -3.5]],
+    ] as [V2, V2][]) {
+      const tex = componentPanel(a, b);
+      expect(() => katex.renderToString(tex, { throwOnError: true })).not.toThrow();
+      expect(tex).toContain((a[0] + b[0]).toFixed(2));
+    }
+    expect(componentPanel([4, 1], [-1, 3])).toContain('(-1.00)');
+  });
+});
