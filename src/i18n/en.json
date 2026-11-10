@@ -1,6 +1,6 @@
 {
   "app.title": "General Physics Simulations",
-  "app.subtitle": "Following the chapters of Halliday & Resnick, Fundamentals of Physics",
+  "app.source": "Source",
   "ui.contents": "Contents",
   "ui.play": "Play",
   "ui.pause": "Pause",

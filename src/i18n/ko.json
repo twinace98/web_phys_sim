@@ -1,6 +1,6 @@
 {
   "app.title": "일반물리 시뮬레이션",
-  "app.subtitle": "Halliday·Resnick, Fundamentals of Physics 장 구성",
+  "app.source": "출처",
   "ui.contents": "목록",
   "ui.play": "재생",
   "ui.pause": "일시정지",

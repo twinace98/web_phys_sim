@@ -30,7 +30,7 @@ export class HomeView {
     const page = h(
       'div',
       { class: 'home' },
-      h('header', { class: 'home-head' }, h('div', null, h('h1', null, t('app.title')), h('p', null, t('app.subtitle'))), seg),
+      h('header', { class: 'home-head' }, h('h1', null, t('app.title')), seg),
     );
     for (const part of [1, 2, 3, 4, 5] as const) {
       const ol = h('ol', { class: 'chapters' });
@@ -46,6 +46,15 @@ export class HomeView {
       }
       page.append(h('section', null, h('h2', null, PARTS[part][lang]), ol));
     }
+    page.append(
+      h(
+        'footer',
+        { class: 'source' },
+        `${t('app.source')}: D. Halliday, R. Resnick, J. Walker, `,
+        h('cite', null, 'Fundamentals of Physics'),
+        ', Wiley.',
+      ),
+    );
     this.root.replaceChildren(page);
   }
 }
