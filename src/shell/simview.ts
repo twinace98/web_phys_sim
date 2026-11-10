@@ -594,7 +594,8 @@ export class SimView {
     if (this.stagePanel && scene.overlay) this.stagePanel.update(scene.overlay(s, p));
 
     if (this.plots) {
-      const { tEnd, window: win = 10 } = scene.time ?? {};
+      const tEnd = r.tEnd;
+      const win = scene.time?.window ?? 10;
       const tRange: [number, number] = tEnd !== undefined ? [0, tEnd] : [Math.max(0, this.ui.t - win), Math.max(win, this.ui.t)];
       this.plots.render({ hist, p, ui: this.ui, idx, tRange });
     }

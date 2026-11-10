@@ -27,8 +27,14 @@ export class Runner<P extends Params = Params, S extends { t: number } = { t: nu
     return !this.scene.time;
   }
 
-  get done(): boolean {
+  /** End time for the current parameters, if the scene has one. */
+  get tEnd(): number | undefined {
     const e = this.scene.time?.tEnd;
+    return typeof e === 'function' ? e(this.params) : e;
+  }
+
+  get done(): boolean {
+    const e = this.tEnd;
     return e !== undefined && this.state.t >= e - 1e-9;
   }
 
