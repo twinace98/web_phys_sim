@@ -518,6 +518,11 @@ kbd {
   .tabs {
     order: 10;
     width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar {
+    display: none;
   }
   .sim.solo {
     grid-template-rows: minmax(0, 1fr) auto;
