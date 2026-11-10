@@ -45,9 +45,9 @@
 
 | Ch | 제목 | 시뮬레이션 핵심 | 엔진 |
 |---|---|---|---|
-| 2 | Motion Along a Straight Line | 기울기 → 다음 그래프 값, 넓이 → 이전 그래프 변화량 | E1 |
-| 3 | Vectors | 성분 분해, 축 선택에 따른 성분 변화 | E0 |
-| 4 | Motion in Two and Three Dimensions | 포물선 운동 = x 등속 + y 등가속 | E1 |
+| 2 | Motion Along a Straight Line | 탭 1 그래프: 기울기 → 다음 그래프 값, 넓이 → 이전 그래프 변화량 · 탭 2 자유낙하 | E1 |
+| 3 | Vectors | 탭 1 성분 분해 (축 회전, 성분 드래그) · 탭 2 평행사변형법 벡터 합, 성분 합 패널 | E0 |
+| 4 | Motion in Two and Three Dimensions | 포물선 운동 = x 등속 + y 등가속, 발사각·발사 높이 조절 | E1 |
 | 5 | Force and Motion I | 뉴턴 법칙, 관성계 / 비관성계 | E1 |
 | 6 | Force and Motion II | 정지·운동 마찰, 구심력은 알짜힘의 지름 성분 | E1 |
 | 7 | Kinetic Energy and Work | $F(x)$ 넓이 = $\Delta K$ | E1 |
