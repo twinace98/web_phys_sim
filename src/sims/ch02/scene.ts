@@ -1,7 +1,8 @@
 // Ch 2 scene: x(t), v(t), a(t) linked by slope (derivative) and area (integral).
 import { fmtTick, niceTicks } from '../../core/format';
 import type { ParamSchema, Scene } from '../../core/types';
-import { CUSTOM_A_MAX, CUSTOM_SEGS, T_END, areaUnderA, areaUnderV, makeProfile, ranges, stateAt, type Motion, type Profile, type Ranges } from './physics';
+import { kinematicPlots, padded } from './common';
+import { CUSTOM_A_MAX, CUSTOM_SEGS, T_END, makeProfile, ranges, stateAt, type Motion, type Profile, type Ranges } from './physics';
 
 type P = {
   motion: string;
@@ -32,19 +33,6 @@ function model(p: P): { pr: Profile; rg: Ranges } {
     memoKey = key;
   }
   return memo;
-}
-
-/** Range including zero, at least minSpan wide, with a margin. */
-function padded([lo0, hi0]: [number, number], minSpan: number): [number, number] {
-  let lo = Math.min(lo0, 0);
-  let hi = Math.max(hi0, 0);
-  if (hi - lo < minSpan) {
-    const mid = (hi + lo) / 2;
-    lo = Math.min(lo, mid - minSpan / 2);
-    hi = Math.max(hi, mid + minSpan / 2);
-  }
-  const m = 0.12 * (hi - lo);
-  return [lo - m, hi + m];
 }
 
 function track(p: P): [number, number] {
@@ -152,56 +140,9 @@ export const kinematics: Scene<P, S> = {
     g.circle({ x: s.x, y: 0 }, 9, { fill: 'position' });
   },
 
-  plots: [
-    {
-      id: 'x',
-      label: 'x\\,(\\mathrm{m})',
-      traces: [{ channel: 'x', role: 'position' }],
-      yRange: (p) => padded(model(p).rg.x, 2),
-      overlays: (p) =>
-        p.mode === 'slope' ? [{ kind: 'tangent', channel: 'x', slopeChannel: 'v', role: 'velocity', unit: 'm/s', target: { plot: 'v', channel: 'v' } }] : [],
-    },
-    {
-      id: 'v',
-      label: 'v\\,(\\mathrm{m/s})',
-      traces: [{ channel: 'v', role: 'velocity' }],
-      yRange: (p) => padded(model(p).rg.v, 1),
-      overlays: (p) =>
-        p.mode === 'slope'
-          ? [{ kind: 'tangent', channel: 'v', slopeChannel: 'a', role: 'acceleration', unit: 'm/s²', target: { plot: 'a', channel: 'a' } }]
-          : [
-              {
-                kind: 'area',
-                channel: 'v',
-                role: 'velocity',
-                unit: 'm',
-                symbol: 'Δ*x*',
-                area: (pp, t0, t1) => areaUnderV(model(pp as P).pr, t0, t1),
-                target: { plot: 'x', channel: 'x' },
-              },
-            ],
-    },
-    {
-      id: 'a',
-      label: 'a\\,(\\mathrm{m/s^2})',
-      traces: [{ channel: 'a', role: 'acceleration' }],
-      yRange: (p) => (p.motion === 'custom' ? [-CUSTOM_A_MAX - 0.5, CUSTOM_A_MAX + 0.5] : padded(model(p).rg.a, 1)),
-      overlays: (p) =>
-        p.mode === 'area'
-          ? [
-              {
-                kind: 'area',
-                channel: 'a',
-                role: 'acceleration',
-                unit: 'm/s',
-                symbol: 'Δ*v*',
-                area: (pp, t0, t1) => areaUnderA(model(pp as P).pr, t0, t1),
-                target: { plot: 'v', channel: 'v' },
-              },
-            ]
-          : [],
-    },
-  ],
+  plots: kinematicPlots<P>('x', model, (p) =>
+    p.motion === 'custom' ? [-CUSTOM_A_MAX - 0.5, CUSTOM_A_MAX + 0.5] : padded(model(p).rg.a, 1),
+  ),
 
   drawPlot: (id, pd, p) => {
     if (id !== 'a' || p.motion !== 'custom') return;

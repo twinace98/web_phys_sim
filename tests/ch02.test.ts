@@ -88,3 +88,48 @@ describe('ch02 scene through the runner', () => {
     expect(r.setParam('mode', 'area')).toBe(false);
   });
 });
+
+describe('ch02 free fall', () => {
+  it('drop from h lands at sqrt(2h/g) with v = −sqrt(2gh)', async () => {
+    const { fallProfile, stateAt } = await import('../src/sims/ch02/physics');
+    const pr = fallProfile(20, 0);
+    expect(pr.tEnd).toBeCloseTo(Math.sqrt(40 / 9.8), 12);
+    const k = stateAt(pr, pr.tEnd);
+    expect(k.x).toBeCloseTo(0, 10);
+    expect(k.v).toBeCloseTo(-Math.sqrt(2 * 9.8 * 20), 10);
+    expect(k.a).toBe(-9.8);
+  });
+
+  it('distances fallen in equal intervals go as 1 : 3 : 5 (Galileo)', async () => {
+    const { fallProfile, stateAt } = await import('../src/sims/ch02/physics');
+    const pr = fallProfile(45, 0);
+    const y = (t: number) => stateAt(pr, t).x;
+    const d = [0, 1, 2, 3].map((k) => y(k * 0.1) - y((k + 1) * 0.1));
+    expect(d[1] / d[0]).toBeCloseTo(3, 10);
+    expect(d[2] / d[0]).toBeCloseTo(5, 10);
+    expect(d[3] / d[0]).toBeCloseTo(7, 10);
+  });
+
+  it('thrown up: v = 0 at the top, a = −g there too; areas match the changes', async () => {
+    const { fallProfile, stateAt, areaUnderA, areaUnderV } = await import('../src/sims/ch02/physics');
+    const pr = fallProfile(20, 10);
+    const tTop = 10 / 9.8;
+    expect(stateAt(pr, tTop).v).toBeCloseTo(0, 12);
+    expect(stateAt(pr, tTop).a).toBe(-9.8);
+    expect(stateAt(pr, tTop).x).toBeCloseTo(20 + 100 / (2 * 9.8), 12);
+    for (const t of [0.3, tTop, 2.5]) {
+      expect(areaUnderA(pr, 0, t)).toBeCloseTo(stateAt(pr, t).v - 10, 12);
+      expect(areaUnderV(pr, 0, t)).toBeCloseTo(stateAt(pr, t).x - 20, 12);
+    }
+  });
+
+  it('the free-fall scene stops exactly at the ground', async () => {
+    const { freefall } = await import('../src/sims/ch02/freefall');
+    const r = new Runner(freefall, defaults(freefall.params));
+    r.play();
+    for (let i = 0; i < 100 && r.playing; i++) r.advance(0.1);
+    expect(r.playing).toBe(false);
+    const ys = r.hist.col('y');
+    expect(ys[ys.length - 1]).toBeCloseTo(0, 9);
+  });
+});
