@@ -13,7 +13,7 @@ import type { ChapterMeta } from '../sims/registry';
 import { h, iconButton, rich, tex } from './dom';
 import { ICON } from './icons';
 import { isLecture, onLectureChange, setLecture, toggleLang } from './prefs';
-import { StagePanel, resizableSidePanel } from './resize';
+import { StagePanel, resizableSidePanel, restoreSize } from './resize';
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
 
@@ -228,7 +228,7 @@ export class SimView {
       bar.append(g);
     }
     if (this.paramKeys('advanced').length) {
-      bar.append(iconButton(ICON.gear, t('ui.settings'), () => this.togglePanel('settings')));
+      bar.append(iconButton(ICON.sliders, t('ui.settings'), () => this.togglePanel('settings')));
     }
 
     const ros = h('div', { class: 'readouts' });
@@ -309,19 +309,14 @@ export class SimView {
   }
 
   private buildSettings(): HTMLElement {
-    const panel = h('aside', { class: 'panel', 'aria-label': t('ui.settings') });
-    panel.append(this.panelHead(t('ui.settings')));
-    const body = h('div', { class: 'panel-body' });
+    const { panel, body } = this.sidePanel('', t('ui.settings'), t('ui.settings'));
     for (const k of this.paramKeys('advanced')) body.append(this.control(k, true));
-    panel.append(body);
     return panel;
   }
 
   private buildInfo(): HTMLElement {
     const info = this.scene.info;
-    const panel = h('aside', { class: 'panel info', 'aria-label': t('ui.info') });
-    panel.append(this.panelHead(t(this.scene.title)));
-    const body = h('div', { class: 'panel-body' });
+    const { panel, body } = this.sidePanel('info', t('ui.info'), t(this.scene.title));
     const list = (title: string, keys: string[]) => {
       if (!keys.length) return;
       const ul = h('ul');
@@ -354,9 +349,19 @@ export class SimView {
     const dl = h('dl', { class: 'keys' });
     for (const [k, m] of keys) dl.append(h('dt', null, h('kbd', null, k)), h('dd', null, t(m)));
     body.append(h('h3', null, t('info.shortcuts')), dl, h('p', { class: 'note' }, t('key.scrub')));
-    panel.append(body);
-    resizableSidePanel(panel, 'wps.info', t('ui.resize'));
     return panel;
+  }
+
+  /**
+   * Every side panel (settings, info) shares one frame: header, scrolling body, and the same
+   * resize rule. They also share one stored size so switching panels never changes the layout.
+   */
+  private sidePanel(extraClass: string, label: string, title: string): { panel: HTMLElement; body: HTMLElement } {
+    const panel = h('aside', { class: extraClass ? `panel ${extraClass}` : 'panel', 'aria-label': label });
+    const body = h('div', { class: 'panel-body' });
+    panel.append(this.panelHead(title), body);
+    resizableSidePanel(panel, 'wps.side', t('ui.resize'));
+    return { panel, body };
   }
 
   private panelHead(title: string): HTMLElement {
@@ -422,6 +427,8 @@ export class SimView {
   }
 
   private applyPanel(): void {
+    restoreSize(this.settings);
+    restoreSize(this.info);
     this.settings.classList.toggle('open', this.panel === 'settings');
     this.info.classList.toggle('open', this.panel === 'info');
   }

@@ -7,7 +7,8 @@ export const ICON = {
   pause: svg('<rect x="5.5" y="4.5" width="3" height="11" rx="0.8" fill="currentColor" stroke="none"/><rect x="11.5" y="4.5" width="3" height="11" rx="0.8" fill="currentColor" stroke="none"/>'),
   step: svg('<path d="M5 5v10l7.5-5z" fill="currentColor" stroke="none"/><path d="M15 5v10"/>'),
   reset: svg('<path d="M4.5 10a5.5 5.5 0 1 0 1.7-4"/><path d="M4.5 3.5v3h3"/>'),
-  gear: svg('<circle cx="10" cy="10" r="2.6"/><path d="M10 2.8v2M10 15.2v2M2.8 10h2M15.2 10h2M4.9 4.9l1.4 1.4M13.7 13.7l1.4 1.4M4.9 15.1l1.4-1.4M13.7 6.3l1.4-1.4"/>'),
+  // Vertical sliders, so it never reads as the menu (hamburger) icon.
+  sliders: svg('<path d="M5.5 3.5v13M10 3.5v13M14.5 3.5v13"/><circle cx="5.5" cy="12.5" r="2" fill="currentColor"/><circle cx="10" cy="6.5" r="2" fill="currentColor"/><circle cx="14.5" cy="10.5" r="2" fill="currentColor"/>'),
   info: svg('<circle cx="10" cy="10" r="7.2"/><path d="M10 9v5"/><circle cx="10" cy="6.4" r="0.6" fill="currentColor"/>'),
   link: svg('<path d="M8.5 11.5a3 3 0 0 0 4.2 0l2.6-2.6a3 3 0 0 0-4.2-4.2l-.9.9"/><path d="M11.5 8.5a3 3 0 0 0-4.2 0l-2.6 2.6a3 3 0 0 0 4.2 4.2l.9-.9"/>'),
   check: svg('<path d="M4.5 10.5l3.5 3.5 7.5-8"/>'),
