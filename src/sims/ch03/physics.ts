@@ -61,3 +61,17 @@ export function clampWithPartner(v: V2, other: V2, lim: number): V2 {
   const c = (x: number, o: number) => Math.min(Math.min(lim, lim - o), Math.max(Math.max(-lim, -lim - o), x));
   return [r2(c(v[0], other[0])), r2(c(v[1], other[1]))];
 }
+
+/**
+ * Change one component of a (along the rotated x axis if axis = 0, y if 1) to the pointer's
+ * projection on that axis, keeping the other component. Snapped and clamped like placeTip.
+ */
+export function setComponent(a: V2, phi: number, axis: 0 | 1, pointer: V2, snap: boolean, lim: number, step = 0.5): V2 {
+  const [u, v] = toAxes(a, phi);
+  let q = toAxes(pointer, phi)[axis];
+  if (snap) q = Math.round(q / step) * step;
+  q = Math.min(lim, Math.max(-lim, q));
+  const next = fromAxes(axis === 0 ? [q, v] : [u, q], phi);
+  const clamp = (x: number) => Math.min(lim, Math.max(-lim, x));
+  return [r2(clamp(next[0])), r2(clamp(next[1]))];
+}

@@ -1,8 +1,8 @@
 // Ch 3 scenes: components of a vector (with rotatable axes) and the parallelogram sum.
 import { fmt, fmtTick } from '../../core/format';
-import type { ParamSchema, Role, Scene, SelectParam, Vec2, WorldSpec } from '../../core/types';
+import type { ParamSchema, Role, Scene, SceneCtx, SelectParam, Vec2, WorldSpec } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { add, axes, clampWithPartner, components, placeTip, type V2 } from './physics';
+import { add, axes, clampWithPartner, components, placeTip, setComponent, type V2 } from './physics';
 
 const DEG = Math.PI / 180;
 const L = 5.8; // axis half-length
@@ -22,7 +22,6 @@ const sign = (v: number) => (v < 0 ? -1 : 1);
 function drawGrid(g: Draw, phi: number): void {
   const { ex, ey } = axes(phi);
   for (let k = -GRID; k <= GRID; k++) {
-    if (k === 0) continue;
     g.line(plus(P(ex, k), P(ey, -GRID)), plus(P(ex, k), P(ey, GRID)), { color: GRID_COLOR, width: 1 });
     g.line(plus(P(ey, k), P(ex, -GRID)), plus(P(ey, k), P(ex, GRID)), { color: GRID_COLOR, width: 1 });
   }
@@ -118,6 +117,8 @@ export const componentsScene: Scene<PC, { t: number }> = {
 
     const fx = P(ex, c.ax);
     const fy = P(ey, c.ay);
+    halo(g, fx, 'position');
+    halo(g, fy, 'position');
     g.polygon([O, fx, tip], { fill: 'position', fillAlpha: 0.07 });
     g.line(tip, fx, { color: DASH, width: 1, dash: [4, 4] });
     g.line(tip, fy, { color: DASH, width: 1, dash: [4, 4] });
@@ -163,11 +164,24 @@ export const componentsScene: Scene<PC, { t: number }> = {
         if (next[0] !== ctx.params.A[0] || next[1] !== ctx.params.A[1]) ctx.set('A', next);
       },
     },
+    ...([0, 1] as const).map((axis) => ({
+      // Tip of A_x (axis 0) or A_y (axis 1): moves along its own axis, the other component is kept.
+      pos: (_s: { t: number }, p: PC) => {
+        const c = components([p.A[0], p.A[1]], p.phi * DEG);
+        const e = axes(p.phi * DEG)[axis === 0 ? 'ex' : 'ey'];
+        return P(e, axis === 0 ? c.ax : c.ay);
+      },
+      radiusPx: 16,
+      onDrag: (ctx: SceneCtx<PC>, _s: { t: number }, w: Vec2) => {
+        const next = setComponent([ctx.params.A[0], ctx.params.A[1]], ctx.params.phi * DEG, axis, [w.x, w.y], ctx.params.drag === 'snap', LIM);
+        if (next[0] !== ctx.params.A[0] || next[1] !== ctx.params.A[1]) ctx.set('A', next);
+      },
+    })),
   ],
 
   info: {
     goals: ['ch03.c.goal.proj', 'ch03.c.goal.axes'],
-    observe: ['ch03.c.obs.drag', 'ch03.c.obs.neg', 'ch03.c.obs.rot', 'ch03.c.obs.incline'],
+    observe: ['ch03.c.obs.drag', 'ch03.c.obs.comp', 'ch03.c.obs.neg', 'ch03.c.obs.rot', 'ch03.c.obs.incline'],
     equations: ['A_x = A\\cos\\theta, \\quad A_y = A\\sin\\theta', 'A = \\sqrt{A_x^2 + A_y^2}, \\quad \\tan\\theta = \\frac{A_y}{A_x}'],
   },
 };
@@ -181,16 +195,6 @@ const sumParams: ParamSchema<PS> = {
   A: { kind: 'array', label: 'ch03.p.A', group: 'hidden', live: true, default: [4, 1], min: -LIM, max: LIM },
   B: { kind: 'array', label: 'ch03.p.B', group: 'hidden', live: true, default: [-1, 3], min: -LIM, max: LIM },
 };
-
-/** Component bars beside an axis, one row each: A from 0, B starting where A ends, C = A + B from 0. */
-function componentBars(g: Draw, a: V2, b: V2, axis: 0 | 1): void {
-  const s = add(a, b);
-  const at = (v: number, off: number): Vec2 => (axis === 0 ? { x: v, y: -g.px(off) } : { x: -g.px(off), y: v });
-  const dir = (v: number): Vec2 => (axis === 0 ? { x: v, y: 0 } : { x: 0, y: v });
-  g.arrow(at(0, 11), dir(a[axis]), { role: 'position', width: 2.25 });
-  g.arrow(at(a[axis], 21), dir(b[axis]), { role: 'energyU', width: 2.25 });
-  g.arrow(at(0, 31), dir(s[axis]), { role: 'fg', width: 2.25 });
-}
 
 /** Drag one vector of the pair; keeps it and the sum inside the view. */
 function dragOne(ctx: { params: PS; set: (k: 'A' | 'B', v: number[]) => void }, key: 'A' | 'B', w: Vec2): void {
@@ -213,8 +217,6 @@ export const sumScene: Scene<PS, { t: number }> = {
     const centre = P(s, 0.5);
     drawGrid(g, 0);
     drawAxes(g, 0, false);
-    componentBars(g, a, b, 0);
-    componentBars(g, a, b, 1);
     halo(g, P(a), 'position');
     halo(g, P(b), 'energyU');
 
@@ -245,7 +247,7 @@ export const sumScene: Scene<PS, { t: number }> = {
 
   info: {
     goals: ['ch03.s.goal.para', 'ch03.s.goal'],
-    observe: ['ch03.s.obs.para', 'ch03.s.obs.bars', 'ch03.s.obs.cancel', 'ch03.s.obs.drag'],
+    observe: ['ch03.s.obs.para', 'ch03.s.obs.cancel', 'ch03.s.obs.drag'],
     equations: ['\\vec C = \\vec A + \\vec B', 'C_x = A_x + B_x, \\quad C_y = A_y + B_y'],
   },
 };
