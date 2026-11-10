@@ -55,3 +55,9 @@ export function placeTip(w: V2, phi: number, snap: boolean, lim: number, step = 
   const clamp = (x: number) => Math.min(lim, Math.max(-lim, x));
   return [r2(clamp(p[0])), r2(clamp(p[1]))];
 }
+
+/** Clamp v so that both v and v + other stay within ±lim in each component. */
+export function clampWithPartner(v: V2, other: V2, lim: number): V2 {
+  const c = (x: number, o: number) => Math.min(Math.min(lim, lim - o), Math.max(Math.max(-lim, -lim - o), x));
+  return [r2(c(v[0], other[0])), r2(c(v[1], other[1]))];
+}

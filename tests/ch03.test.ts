@@ -65,3 +65,14 @@ describe('ch03 components', () => {
     expect(placeTip([9, -9], 0, false, 5.5)).toEqual([5.5, -5.5]);
   });
 });
+
+describe('ch03 parallelogram limits', () => {
+  it('clampWithPartner keeps the vector and the sum within the view', async () => {
+    const { clampWithPartner } = await import('../src/sims/ch03/physics');
+    const b = clampWithPartner([5, 5], [3, -2], 5.5);
+    expect(b[0]).toBeLessThanOrEqual(2.5);
+    expect(b[1]).toBe(5);
+    expect(b[0] + 3).toBeLessThanOrEqual(5.5);
+    expect(clampWithPartner([-5, 1], [-3, 0], 5.5)).toEqual([-2.5, 1]);
+  });
+});
