@@ -2,6 +2,8 @@
 import { fmt, fmtTick } from '../../core/format';
 import type { ParamSchema, Role, Scene, SceneCtx, SelectParam, Vec2, WorldSpec } from '../../core/types';
 import type { Draw } from '../../draw/draw';
+import { drawRich, measureRich } from '../../draw/text';
+import { color, theme } from '../../draw/theme';
 import { add, axes, clampWithPartner, components, placeTip, setComponent, type V2 } from './physics';
 
 const DEG = Math.PI / 180;
@@ -196,6 +198,62 @@ const sumParams: ParamSchema<PS> = {
   B: { kind: 'array', label: 'ch03.p.B', group: 'hidden', live: true, default: [-1, 3], min: -LIM, max: LIM },
 };
 
+/** Two decimals with a true minus sign; terms of the identity line up digit by digit. */
+const f2 = (v: number) => (Math.abs(v) < 0.005 ? '0.00' : v.toFixed(2).replace('-', '\u2212'));
+
+type Piece = [text: string, role: Role];
+
+/** Draw pieces left to right, each in its own colour; returns the total width in px. */
+function pieces(ctx: CanvasRenderingContext2D, list: Piece[], x: number, y: number, size: number, dry = false): number {
+  let cx = x;
+  for (const [text, role] of list) {
+    if (!dry) drawRich(ctx, text, cx, y, { size, color: color(role) });
+    cx += measureRich(ctx, text, { size });
+  }
+  return cx - x;
+}
+
+/**
+ * Top-left panel: A_x + B_x = C_x and A_y + B_y = C_y, symbolic on the left and with the
+ * current values on the right. A terms in blue, B in orange, C in black, as on the stage.
+ */
+function componentPanel(g: Draw, a: V2, b: V2): void {
+  const s = add(a, b);
+  const size = 15;
+  const k = theme.scale;
+  const term = (v: number) => (v < 0 ? `(${f2(v)})` : f2(v));
+  const rows = (['x', 'y'] as const).map((c, i): [Piece[], Piece[]] => [
+    [
+      [`*A*_{*${c}*}`, 'position'],
+      [' + ', 'fg'],
+      [`*B*_{*${c}*}`, 'energyU'],
+      [' = ', 'fg'],
+      [`*C*_{*${c}*}`, 'fg'],
+    ],
+    [
+      [f2(a[i]), 'position'],
+      [' + ', 'fg'],
+      [term(b[i]), 'energyU'],
+      [' = ', 'fg'],
+      [f2(s[i]), 'fg'],
+    ],
+  ]);
+  const ctx = g.ctx;
+  const symW = Math.max(...rows.map(([sym]) => pieces(ctx, sym, 0, 0, size, true)));
+  const numW = Math.max(...rows.map(([, num]) => pieces(ctx, num, 0, 0, size, true)));
+  const gap = 22 * k;
+  const x0 = 18 * k;
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.fillRect(10 * k, 10 * k, symW + gap + numW + 16 * k, 58 * k);
+  ctx.restore();
+  rows.forEach(([sym, num], i) => {
+    const y = (32 + 24 * i) * k;
+    pieces(ctx, sym, x0, y, size);
+    pieces(ctx, num, x0 + symW + gap, y, size);
+  });
+}
+
 /** Drag one vector of the pair; keeps it and the sum inside the view. */
 function dragOne(ctx: { params: PS; set: (k: 'A' | 'B', v: number[]) => void }, key: 'A' | 'B', w: Vec2): void {
   const other = key === 'A' ? ctx.params.B : ctx.params.A;
@@ -225,13 +283,17 @@ export const sumScene: Scene<PS, { t: number }> = {
     g.line(P(a), P(s), { role: 'energyU', width: 1.25, dash: [5, 4] });
     g.line(P(b), P(s), { role: 'position', width: 1.25, dash: [5, 4] });
 
+    const lenA = Math.hypot(a[0], a[1]);
+    const lenB = Math.hypot(b[0], b[1]);
+    const lenC = Math.hypot(s[0], s[1]);
     g.arrow(O, P(s), { role: 'fg', width: 3 });
     g.arrow(O, P(a), { role: 'position', width: 2.5 });
     g.arrow(O, P(b), { role: 'energyU', width: 2.5 });
-    midLabel(g, O, P(a), '*A*', 'position', centre);
-    midLabel(g, O, P(b), '*B*', 'energyU', centre);
-    const len = Math.hypot(s[0], s[1]);
-    if (len > 1e-9) sideText(g, P(s), { x: s[0] / len, y: s[1] / len }, 14, '*C* = *A* + *B*', 'fg');
+    midLabel(g, O, P(a), `*A* = ${fmt(lenA)}`, 'position', centre);
+    midLabel(g, O, P(b), `*B* = ${fmt(lenB)}`, 'energyU', centre);
+    if (lenC > 1e-9) sideText(g, P(s), { x: s[0] / lenC, y: s[1] / lenC }, 14, `*C* = ${fmt(lenC)}`, 'fg');
+
+    componentPanel(g, a, b);
   },
 
   handles: [
@@ -239,15 +301,9 @@ export const sumScene: Scene<PS, { t: number }> = {
     { pos: (_s, p) => P([p.B[0], p.B[1]]), radiusPx: 18, onDrag: (ctx, _s, w) => dragOne(ctx, 'B', w) },
   ],
 
-  readouts: [
-    { label: 'C_x', unit: '', value: (_s, p) => p.A[0] + p.B[0] },
-    { label: 'C_y', unit: '', value: (_s, p) => p.A[1] + p.B[1] },
-    { label: 'C', unit: '', value: (_s, p) => Math.hypot(p.A[0] + p.B[0], p.A[1] + p.B[1]) },
-  ],
-
   info: {
-    goals: ['ch03.s.goal.para', 'ch03.s.goal'],
-    observe: ['ch03.s.obs.para', 'ch03.s.obs.cancel', 'ch03.s.obs.drag'],
+    goals: ['ch03.s.goal.para', 'ch03.s.goal.comp'],
+    observe: ['ch03.s.obs.para', 'ch03.s.obs.panel', 'ch03.s.obs.cancel', 'ch03.s.obs.drag'],
     equations: ['\\vec C = \\vec A + \\vec B', 'C_x = A_x + B_x, \\quad C_y = A_y + B_y'],
   },
 };
