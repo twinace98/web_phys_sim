@@ -5,7 +5,6 @@ import type { Draw } from '../../draw/draw';
 import { G, flightTime, maxHeight, range, stateAt, v0x, v0y, type Launch } from './physics';
 
 type P = {
-  launch: string;
   theta: number;
   h: number;
   v0: number;
@@ -28,16 +27,13 @@ const DEG = Math.PI / 180;
 const TICK = '#6b6b6b';
 const GUIDE = '#b5b5b5';
 
-function launchOf(p: P): Launch {
-  const g = G[p.g] ?? G.earth;
-  return p.launch === 'cliff' ? { h: p.h, v0: p.v0, theta: 0, g } : { h: 0, v0: p.v0, theta: p.theta * DEG, g };
-}
+const launchOf = (p: P): Launch => ({ h: p.h, v0: p.v0, theta: p.theta * DEG, g: G[p.g] ?? G.earth });
 
 // Everything below depends only on parameters; cache the last one.
 let memoKey = '';
 let memo: { l: Launch; T: number; R: number; H: number; vyEnd: number } | null = null;
 function model(p: P) {
-  const key = `${p.launch}|${p.theta}|${p.h}|${p.v0}|${p.g}`;
+  const key = `${p.theta}|${p.h}|${p.v0}|${p.g}`;
   if (key !== memoKey || !memo) {
     const l = launchOf(p);
     const T = flightTime(l);
@@ -57,18 +53,6 @@ function padded(lo0: number, hi0: number, minSpan: number): [number, number] {
 }
 
 const params: ParamSchema<P> = {
-  launch: {
-    kind: 'select',
-    label: 'ch04.p.launch',
-    desc: 'ch04.d.launch',
-    group: 'main',
-    live: false,
-    default: 'ground',
-    options: [
-      { value: 'ground', label: 'ch04.launch.ground' },
-      { value: 'cliff', label: 'ch04.launch.cliff' },
-    ],
-  },
   theta: {
     kind: 'number',
     label: 'ch04.p.theta',
@@ -76,10 +60,9 @@ const params: ParamSchema<P> = {
     group: 'main',
     live: false,
     control: 'select',
-    choices: [15, 30, 45, 60, 75],
+    choices: [0, 15, 30, 45, 60, 75],
     default: 45,
     unit: '°',
-    visibleIf: (p) => p.launch !== 'cliff',
   },
   h: {
     kind: 'number',
@@ -88,10 +71,9 @@ const params: ParamSchema<P> = {
     group: 'main',
     live: false,
     control: 'select',
-    choices: [5, 10, 20, 40],
-    default: 20,
+    choices: [0, 5, 10, 20, 40],
+    default: 0,
     unit: 'm',
-    visibleIf: (p) => p.launch === 'cliff',
   },
   v0: {
     kind: 'number',
@@ -161,8 +143,11 @@ export const projectile: Scene<P, S> = {
 
   world: (p) => {
     const { R, H } = model(p);
-    const span = Math.max(R, H);
-    return { x: [-0.14 * span, R + 0.08 * span], y: [-0.13 * span, H + 0.1 * span], aspect: 'contain', padPx: 20 };
+    // θ = 0 at h = 0 lands at once (R = H = 0): keep a sensible, non-empty view.
+    const span = Math.max(R, H, 5);
+    const xMax = Math.max(R, 0.5 * span);
+    const yMax = Math.max(H, 0.3 * span);
+    return { x: [-0.14 * span, xMax + 0.08 * span], y: [-0.13 * span, yMax + 0.1 * span], aspect: 'contain', padPx: 20 };
   },
 
   init: (p) => ({ t: 0, n: 0, ...stateAt(model(p).l, 0) }),
@@ -179,9 +164,9 @@ export const projectile: Scene<P, S> = {
 
   draw: (g, s, p) => {
     const { l, R, H } = model(p);
-    const span = Math.max(R, H);
+    const span = Math.max(R, H, 5);
     const x0 = -0.12 * span;
-    if (p.launch === 'cliff') {
+    if (l.h > 0) {
       g.polygon(
         [
           { x: x0, y: 0 },
@@ -192,7 +177,7 @@ export const projectile: Scene<P, S> = {
         { fill: '#efefef' },
       );
     }
-    drawAxes(g, R, H, x0);
+    drawAxes(g, Math.max(R, 0.5 * span), Math.max(H, 0.3 * span), x0);
 
     // Path travelled so far (exact curve).
     const path: Vec2[] = [];

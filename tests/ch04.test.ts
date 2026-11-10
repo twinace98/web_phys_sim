@@ -65,3 +65,29 @@ describe('ch04 scene through the runner', () => {
     expect(ys[ys.length - 1]).toBeCloseTo(0, 9);
   });
 });
+
+describe('ch04 angle and height together', () => {
+  it('an angled throw from a height lands later and farther than from the ground', () => {
+    const fromGround: Launch = { h: 0, v0: 20, theta: 30 * deg, g: 9.8 };
+    const fromHill: Launch = { ...fromGround, h: 20 };
+    expect(flightTime(fromHill)).toBeGreaterThan(flightTime(fromGround));
+    expect(range(fromHill)).toBeGreaterThan(range(fromGround));
+    expect(stateAt(fromHill, flightTime(fromHill)).y).toBeCloseTo(0, 10);
+  });
+
+  it('from a height the best angle is below 45°', () => {
+    const r = (th: number) => range({ h: 20, v0: 20, theta: th * deg, g: 9.8 });
+    expect(r(30)).toBeGreaterThan(r(45));
+  });
+
+  it('θ = 0 at h = 0 lands at once without breaking the scene', () => {
+    const p = { ...defaults(projectile.params), theta: 0, h: 0 };
+    const r = new Runner(projectile, p);
+    expect(r.tEnd).toBe(0);
+    const w = projectile.world(p);
+    expect(Number.isFinite(w.x[0]) && w.x[1] > w.x[0] && w.y[1] > w.y[0]).toBe(true);
+    r.play();
+    r.advance(0.1);
+    expect(r.playing).toBe(false);
+  });
+});
