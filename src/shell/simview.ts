@@ -596,7 +596,8 @@ export class SimView {
     if (this.plots) {
       const tEnd = r.tEnd;
       const win = scene.time?.window ?? 10;
-      const tRange: [number, number] = tEnd !== undefined ? [0, tEnd] : [Math.max(0, this.ui.t - win), Math.max(win, this.ui.t)];
+      // A zero-length run (e.g. a projectile that lands at once) still needs a non-empty time axis.
+      const tRange: [number, number] = tEnd !== undefined ? [0, tEnd > 0 ? tEnd : 1] : [Math.max(0, this.ui.t - win), Math.max(win, this.ui.t)];
       this.plots.render({ hist, p, ui: this.ui, idx, tRange });
     }
 
