@@ -31,9 +31,10 @@ describe('ch14 Venturi tube', () => {
   });
 
   it('every standpipe column stands at least 5 cm above the axis', () => {
-    for (const ratio of [0.4, 0.5, 0.7, 1])
-      for (const Q of [0.005, 0.01, 0.015])
-        for (const dy of [0, 0.1, 0.2]) {
+    // the whole slider ranges: ratio 0.4–1 (0.05), Q 5–15 L/s (0.5), dy 0–20 cm
+    for (let ratio = 0.4; ratio <= 1 + 1e-9; ratio += 0.05)
+      for (let Q = 0.005; Q <= 0.015 + 1e-9; Q += 0.0005)
+        for (const dy of [0, 0.05, 0.13, 0.2]) {
           const v = tube(ratio, Q, dy);
           for (const q of taps(v)) expect(q.p / (RHO * G)).toBeGreaterThan(0.05 - 1e-9);
           expect(inletHead(v)).toBeLessThanOrEqual(1);

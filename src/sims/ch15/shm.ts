@@ -4,7 +4,7 @@ import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { omega0, oscAt, period, type OscState, type Oscillator } from './physics';
 
-type P = { A: number; k: number; m: number; damp: string; vectors: boolean };
+type P = { A: number; k: number; m: number; zeta: number; vectors: boolean };
 type S = { t: number } & OscState;
 
 const A_MAX = 0.3;
@@ -17,9 +17,8 @@ const BOX = 0.11;
 const GREY = '#9a9a9a';
 const LABEL = '#6b6b6b';
 const GUIDE = '#c8c8c8';
-const ZETA: Record<string, number> = { none: 0, light: 0.05 };
 
-const oscOf = (p: P): Oscillator => ({ A: p.A, k: p.k, m: p.m, zeta: ZETA[p.damp] ?? 0 });
+const oscOf = (p: P): Oscillator => ({ A: p.A, k: p.k, m: p.m, zeta: p.zeta });
 
 const params: ParamSchema<P> = {
   A: {
@@ -28,8 +27,10 @@ const params: ParamSchema<P> = {
     desc: 'ch15.d.A',
     group: 'main',
     live: false,
-    control: 'select',
-    choices: [0.1, 0.2, 0.3],
+    control: 'slider',
+    min: 0.05,
+    max: 0.3,
+    step: 0.01,
     default: 0.2,
     unit: 'm',
   },
@@ -39,8 +40,10 @@ const params: ParamSchema<P> = {
     desc: 'ch15.d.k',
     group: 'main',
     live: false,
-    control: 'select',
-    choices: [10, 20, 40],
+    control: 'slider',
+    min: 5,
+    max: 40,
+    step: 1,
     default: 20,
     unit: 'N/m',
   },
@@ -50,22 +53,24 @@ const params: ParamSchema<P> = {
     desc: 'ch15.d.m',
     group: 'advanced',
     live: false,
-    control: 'select',
-    choices: [0.5, 1, 2],
+    control: 'slider',
+    min: 0.2,
+    max: 2,
+    step: 0.1,
     default: 1,
     unit: 'kg',
   },
-  damp: {
-    kind: 'select',
+  zeta: {
+    kind: 'number',
     label: 'ch15.p.damp',
     desc: 'ch15.d.damp',
     group: 'advanced',
     live: false,
-    default: 'none',
-    options: [
-      { value: 'none', label: 'ch15.damp.none' },
-      { value: 'light', label: 'ch15.damp.light' },
-    ],
+    control: 'slider',
+    min: 0,
+    max: 0.2,
+    step: 0.01,
+    default: 0,
   },
   vectors: { kind: 'toggle', label: 'ch15.p.vectors', desc: 'ch15.d.vectors', group: 'advanced', live: true, default: true },
 };
@@ -154,11 +159,17 @@ export const shm: Scene<P, S> = {
 
     if (p.vectors) {
       // On the circle: full v (tangent) and a (towards the centre). On the mass: their vertical parts.
-      g.arrow(P0, { x: s.pvx * kv, y: s.pvy * kv }, { role: 'velocity', width: 2.25, label: '*v*' });
-      g.arrow(P0, { x: s.pax * ka, y: s.pay * ka }, { role: 'acceleration', width: 2.25, label: '*a*' });
+      // Labels only on arrows long enough to keep them clear of the dot and of each other.
+      const lbl = (len: number, txt: string) => (len > g.px(18) ? txt : undefined);
+      const vc = { x: s.pvx * kv, y: s.pvy * kv };
+      const ac = { x: s.pax * ka, y: s.pay * ka };
+      g.arrow(P0, vc, { role: 'velocity', width: 2.25, label: lbl(Math.hypot(vc.x, vc.y), '*v*') });
+      g.arrow(P0, ac, { role: 'acceleration', width: 2.25, label: lbl(Math.hypot(ac.x, ac.y), '*a*') });
       const side = SX + BOX / 2 + 0.05;
-      if (Math.abs(s.v * kv) > g.px(3)) g.arrow({ x: side, y: s.x }, { x: 0, y: s.v * kv }, { role: 'velocity', width: 2.25, label: '*v*' });
-      if (Math.abs(s.a * ka) > g.px(3)) g.arrow({ x: side + 0.07, y: s.x }, { x: 0, y: s.a * ka }, { role: 'acceleration', width: 2.25, label: '*a*' });
+      const vm = s.v * kv;
+      const am = s.a * ka;
+      if (Math.abs(vm) > g.px(3)) g.arrow({ x: side, y: s.x }, { x: 0, y: vm }, { role: 'velocity', width: 2.25, label: lbl(Math.abs(vm), '*v*') });
+      if (Math.abs(am) > g.px(3)) g.arrow({ x: side + 0.07, y: s.x }, { x: 0, y: am }, { role: 'acceleration', width: 2.25, label: lbl(Math.abs(am), '*a*') });
     }
     g.circle(P0, 7, { fill: 'position' });
   },
