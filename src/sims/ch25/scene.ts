@@ -10,7 +10,7 @@ type P = { dielectric: string; source: string; A: number; d: number };
 const V0 = 12; // battery emf [V]
 const A_REF = 100; // reference plate area [cm²]
 const D_REF = 1; // reference separation [mm]
-const GAP_K = 4; // drawn gap per mm (world units)
+const GAP_K = 4.5; // drawn gap per mm (world units)
 const N_REF = 5; // charges drawn per plate and field lines in the reference state
 const SLAB = '#e9eef3';
 const WIRE = '#3a3a3a';
@@ -131,20 +131,21 @@ export const capacitor: Scene<P, { t: number }> = {
   id: 'capacitor',
   title: 'ch25.scene',
   params,
-  world: () => ({ x: [-9, 13], y: [-8.5, 8], aspect: 'contain', padPx: 16 }),
+  world: () => ({ x: [-8, 11.6], y: [-8.6, 8.2], aspect: 'contain', padPx: 16 }),
   init: () => ({ t: 0 }),
 
   draw: (g, _s, p) => {
     const st = stateOf(p);
     const ref = refState();
     const w = Math.sqrt(p.A); // drawn plate width [cm]
-    const gap = p.d * GAP_K;
+    // Proportional to d, but never too thin for the charge rows and field lines on a small stage.
+    const gap = Math.max(p.d * GAP_K, g.px(66));
     const x0 = -w / 2;
     const x1 = w / 2;
     const yt = gap / 2;
     const yb = -gap / 2;
     const th = 0.45; // plate thickness
-    const xb = 9; // battery x
+    const xb = 8.6; // battery x
 
     // Wires and battery; when disconnected, the top wire is open at the switch.
     const on = p.source === 'on';
@@ -193,23 +194,31 @@ export const capacitor: Scene<P, { t: number }> = {
 
     // Counts: free charge ∝ Q, field lines ∝ E · width; induced charge = free − lines (Gauss).
     const maxN = Math.max(4, Math.floor(w / g.px(15)));
-    const nFree = Math.min(maxN, Math.round((N_REF * st.Q) / ref.Q));
-    const nLines = Math.min(maxN, Math.round(((N_REF * st.E) / ref.E) * (w / Math.sqrt(A_REF))));
+    // Too many to fit: scale both down together so lines / free charge stays 1/κ.
+    const rawFree = (N_REF * st.Q) / ref.Q;
+    const rawLines = ((N_REF * st.E) / ref.E) * (w / Math.sqrt(A_REF));
+    const fit = Math.min(1, maxN / Math.max(rawFree, rawLines));
+    const nFree = Math.round(rawFree * fit);
+    // Keep at least one line while the unscaled count has one (water, battery connected).
+    const nLines = Math.max(Math.round(rawLines * fit), rawLines >= 0.5 ? 1 : 0);
     const nBound = p.dielectric === 'air' ? 0 : Math.max(0, nFree - nLines);
 
     // Free charge sits on the inner faces of the plates, induced charge on the faces of the slab.
+    // On a small stage the induced rows move closer to the plates to leave room for field lines.
+    const bOff = Math.min(g.px(17), 0.22 * gap);
     const inset = 0.3;
     charges(g, nFree, x0 + inset, x1 - inset, yt, 1, true);
     charges(g, nFree, x0 + inset, x1 - inset, yb, -1, true);
     if (nBound > 0) {
-      charges(g, nBound, x0 + inset, x1 - inset, yt - g.px(17), -1, false);
-      charges(g, nBound, x0 + inset, x1 - inset, yb + g.px(17), 1, false);
+      charges(g, nBound, x0 + inset, x1 - inset, yt - bOff, -1, false);
+      charges(g, nBound, x0 + inset, x1 - inset, yb + bOff, 1, false);
     }
 
     // Field lines from the + plate to the − plate, between the induced layers.
-    const yA = yt - g.px(nBound > 0 ? 28 : 11);
-    const yB = yb + g.px(nBound > 0 ? 28 : 11);
-    if (yA - yB > g.px(12)) {
+    const lOff = nBound > 0 ? bOff + g.px(10) : g.px(11);
+    const yA = yt - lOff;
+    const yB = yb + lOff;
+    if (yA - yB > g.px(8)) {
       for (const x of spread(nLines, x0 + inset, x1 - inset)) g.arrow({ x, y: yA }, { x: 0, y: yB - yA }, { role: 'field', width: 1.5 });
     }
   },

@@ -24,7 +24,7 @@ const ION = '#b9b9b9';
 const WIRE_FILL = '#f6f6f6';
 const TICK = '#6b6b6b';
 // I-V chart, in world units below the wire.
-const CH = { x0: 0.6, x1: 5.9, y0: -5.2, y1: -2.4, vMax: 1.6, iMax: 400 };
+const CH = { x0: 0.6, x1: 5.9, y0: -5.2, y1: -2.4, vMax: 1.6 };
 
 const wireOf = (p: P): Wire => ({ L: p.L, A: p.A, T: p.T });
 
@@ -84,25 +84,27 @@ const params: ParamSchema<P> = {
 
 function drawChart(g: Draw, p: P, s: S): void {
   const X = (v: number) => CH.x0 + (v / CH.vMax) * (CH.x1 - CH.x0);
-  const Y = (i: number) => CH.y0 + (i / CH.iMax) * (CH.y1 - CH.y0);
+  // Current axis: at least 400 mA, extended in 200 mA steps so the present wire's line fits.
+  const iMax = Math.max(400, Math.ceil((currentOf(wireOf(p), CH.vMax) * 1e3 * 1.05) / 200) * 200);
+  const Y = (i: number) => CH.y0 + (i / iMax) * (CH.y1 - CH.y0);
   const axis = { role: 'axis' as const, width: 1.25 };
   g.line({ x: X(0), y: Y(0) }, { x: X(CH.vMax), y: Y(0) }, axis);
-  g.line({ x: X(0), y: Y(0) }, { x: X(0), y: Y(CH.iMax) }, axis);
+  g.line({ x: X(0), y: Y(0) }, { x: X(0), y: Y(iMax) }, axis);
   for (const v of [0.5, 1, 1.5]) {
     g.line({ x: X(v), y: Y(0) }, { x: X(v), y: Y(0) - g.px(4) }, { role: 'axis', width: 1 });
     g.text({ x: X(v), y: Y(0) }, fmtTick(v), { size: 11, color: TICK, align: 'center', dy: 16 });
   }
-  for (const i of niceTicks(0, CH.iMax, 4)) {
+  for (const i of niceTicks(0, iMax, 4)) {
     g.line({ x: X(0), y: Y(i) }, { x: X(0) - g.px(4), y: Y(i) }, { role: 'axis', width: 1 });
     g.text({ x: X(0), y: Y(i) }, fmtTick(i), { size: 11, color: TICK, align: 'right', baseline: 'middle', dx: -7 });
   }
   g.text({ x: X(CH.vMax), y: Y(0) }, '*V* (V)', { size: 12, color: TICK, align: 'right', dy: 32 });
-  g.text({ x: X(0), y: Y(CH.iMax) }, '*I* (mA)', { size: 12, color: TICK, align: 'left', dx: 8, dy: 4 });
+  g.text({ x: X(0), y: Y(iMax) }, '*I* (mA)', { size: 12, color: TICK, align: 'left', dx: 8, dy: 4 });
 
   /** Line I = V / R clipped to the chart. */
   const line = (w: Wire, st: Parameters<Draw['line']>[2]) => {
     const k = (currentOf(w, 1) * 1e3) as number;
-    const vEnd = Math.min(CH.vMax, CH.iMax / k);
+    const vEnd = Math.min(CH.vMax, iMax / k);
     g.line({ x: X(0), y: Y(0) }, { x: X(vEnd), y: Y(k * vEnd) }, st);
   };
   const cur = keyOf(p);
@@ -114,9 +116,9 @@ function drawChart(g: Draw, p: P, s: S): void {
   line(wireOf(p), { role: 'fg', width: 1.5 });
   for (const [V, I] of measured.get(cur) ?? []) {
     if (V === p.V) continue;
-    g.circle({ x: X(V), y: Y(Math.min(I, CH.iMax)) }, 4.5, { fill: '#ffffff', role: 'velocity', width: 2 });
+    g.circle({ x: X(V), y: Y(Math.min(I, iMax)) }, 4.5, { fill: '#ffffff', role: 'velocity', width: 2 });
   }
-  if (s.t > 0.5) g.circle({ x: X(p.V), y: Y(Math.max(0, Math.min(measuredI(s), CH.iMax))) }, 5, { fill: 'velocity' });
+  if (s.t > 0.5) g.circle({ x: X(p.V), y: Y(Math.max(0, Math.min(measuredI(s), iMax))) }, 5, { fill: 'velocity' });
 }
 
 export const conduction: Scene<P, S> = {
@@ -200,9 +202,11 @@ export const conduction: Scene<P, S> = {
       g.arrow({ x: w.L * 0.2, y: ya }, { x: w.L * 0.22, y: 0 }, { role: 'field', width: 2 });
       g.text({ x: w.L * 0.42, y: ya }, '*E*', { size: 14, role: 'field', align: 'left', baseline: 'middle', dx: 8 });
       const vd = driftSpeed(w, p.V);
-      const xa = w.L * 0.8;
-      g.arrow({ x: xa, y: ya }, { x: -vd * 0.6, y: 0 }, { role: 'velocity', width: 2 });
-      g.text({ x: xa - vd * 0.6, y: ya }, '*v*_{d}', { size: 14, role: 'velocity', align: 'right', baseline: 'middle', dx: -8 });
+      // Drift velocity below the wire, pointing against E.
+      const yb = bot - 0.55;
+      const xa = w.L * 0.55;
+      g.arrow({ x: xa, y: yb }, { x: -vd * 0.6, y: 0 }, { role: 'velocity', width: 2 });
+      g.text({ x: xa - vd * 0.6, y: yb }, '*v*_{d}', { size: 14, role: 'velocity', align: 'right', baseline: 'middle', dx: -8 });
     }
 
     drawChart(g, p, s);
@@ -247,7 +251,7 @@ export const conduction: Scene<P, S> = {
   info: {
     goals: ['ch26.goal.drift', 'ch26.goal.R'],
     observe: ['ch26.obs.zero', 'ch26.obs.drift', 'ch26.obs.count', 'ch26.obs.ohm', 'ch26.obs.LA', 'ch26.obs.T'],
-    equations: ['v_d = \\frac{eE}{m}\\tau, \\quad J = n e v_d', 'I = \\frac{V}{R}, \\quad R = \\rho\\frac{L}{A}, \\quad \\rho = \\frac{m}{e^2 n \\tau}'],
+    equations: ['v_d = \\frac{eE}{m}\\tau, \\quad J = n e v_d', 'I = \\frac{V}{R}, \\quad R = \\rho\\frac{L}{A}', '\\rho = \\frac{m}{e^2 n \\tau}'],
     assumptions: ['ch26.assume.speed', 'ch26.assume.model', 'ch26.assume.units'],
   },
 };

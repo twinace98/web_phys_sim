@@ -282,8 +282,8 @@ export const rcCircuit: Scene<P, S> = {
     goals: ['ch27.goal.exp', 'ch27.goal.tau'],
     observe: ['ch27.obs.tau', 'ch27.obs.tangent', 'ch27.obs.i', 'ch27.obs.switch', 'ch27.obs.RC'],
     equations: [
-      'q = C\\mathcal{E}\\left(1 - e^{-t/\\tau}\\right), \\quad i = \\frac{\\mathcal{E}}{R} e^{-t/\\tau} \\quad (\\text{charging})',
-      'q = q_0 e^{-t/\\tau}, \\quad i = -\\frac{q_0}{\\tau} e^{-t/\\tau} \\quad (\\text{discharging})',
+      'q = C\\mathcal{E}\\left(1 - e^{-t/\\tau}\\right), \\quad i = \\frac{\\mathcal{E}}{R} e^{-t/\\tau}',
+      'q = q_0 e^{-t/\\tau}, \\quad i = -\\frac{q_0}{\\tau} e^{-t/\\tau}',
       '\\tau = RC',
     ],
     assumptions: ['ch27.assume'],

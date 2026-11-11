@@ -59,20 +59,28 @@ const params: ParamSchema<P> = {
   spring: { kind: 'toggle', label: 'ch31.f.p.spring', desc: 'ch31.f.d.spring', group: 'advanced', live: true, default: true },
 };
 
-/** Panel: LC circuit ↔ block on a spring (Ch 15). */
-export function analogyPanel(): string {
-  const E = (x: string) => `\\textcolor{${ROLE_COLOR.energyU}}{${x}}`;
-  const B = (x: string) => `\\textcolor{${ROLE_COLOR.energyK}}{${x}}`;
-  const rows = [
-    ['q', 'x'],
-    ['i', 'v'],
-    ['L', 'm'],
-    ['1/C', 'k'],
-    ['R', 'b'],
-    [E('q^2/2C'), E('kx^2/2')],
-    [B('Li^2/2'), B('mv^2/2')],
-  ];
-  return `\\begin{array}{rcl} ${rows.map(([a, b]) => `${a} & \\leftrightarrow & ${b}`).join(' \\\\ ')} \\end{array}`;
+/** LC circuit ↔ block on a spring (Ch 15), drawn left of the circuit so it scales with the stage. */
+const ANALOGY: [string, string, string?][] = [
+  ['*q*', '*x*'],
+  ['*i*', '*v*'],
+  ['*L*', '*m*'],
+  ['1/*C*', '*k*'],
+  ['*R*', '*b*'],
+  ['*q*^{2}/2*C*', '*kx*^{2}/2', 'energyU'],
+  ['*Li*^{2}/2', '*mv*^{2}/2', 'energyK'],
+];
+
+function analogy(g: Draw): void {
+  const x = 2.1;
+  const top = 7.85;
+  const dy = (top - 4.75) / (ANALOGY.length - 1);
+  ANALOGY.forEach(([a, b, role], i) => {
+    const y = top - i * dy;
+    const st = { size: 14, color: role ?? '#1a1a1a', baseline: 'middle' as const };
+    g.text({ x, y }, a, { ...st, align: 'right', dx: -14 });
+    g.text({ x, y }, '↔', { ...st, color: MUTED, align: 'center' });
+    g.text({ x, y }, b, { ...st, align: 'left', dx: 14 });
+  });
 }
 
 // ------------------------------------------------------------------ drawing
@@ -137,7 +145,7 @@ function circuit(g: Draw, p: P, q: number): void {
     g.text({ x: (xa + xb) / 2, y: Y1 }, '*R*', { size: 15, color: WIRE, align: 'center', dy: -20 });
   }
   const lbl = { size: 15, color: WIRE, baseline: 'middle' as const };
-  g.text({ x: X0 - 0.55, y: YC }, '*C*', { ...lbl, align: 'right', dx: -8 });
+  g.text({ x: X0 + 0.55, y: YC }, '*C*', { ...lbl, align: 'left', dx: 8 });
   g.text({ x: X1 + 0.5, y: YC }, '*L*', { ...lbl, align: 'left', dx: 10 });
 
   // Plate charges.
@@ -246,10 +254,9 @@ export const freeScene: Scene<P, S> = {
       g.circle(pt, 2.6, { fill: 'positive', alpha: 0.75 });
     }
     bars(g, e.UE, e.UB, U0);
+    analogy(g);
     if (p.spring) spring(g, (k.q / q0) * 2.4, k.i / (q0 * omega0(c)));
   },
-
-  overlay: () => analogyPanel(),
 
   plots: [
     {
@@ -300,7 +307,8 @@ export const freeScene: Scene<P, S> = {
     observe: ['ch31.f.obs.exchange', 'ch31.f.obs.phase', 'ch31.f.obs.spring', 'ch31.f.obs.damp', 'ch31.f.obs.over'],
     equations: [
       'L\\frac{d^2q}{dt^2} + R\\frac{dq}{dt} + \\frac{q}{C} = 0',
-      '\\omega_0 = \\frac{1}{\\sqrt{LC}}, \\quad q = Q e^{-Rt/2L}\\cos(\\omega\' t + \\phi)',
+      '\\omega_0 = \\frac{1}{\\sqrt{LC}}',
+      'q = Q e^{-Rt/2L}\\cos(\\omega\' t + \\phi)',
       'U = \\frac{q^2}{2C} + \\frac{1}{2}Li^2',
     ],
     assumptions: ['ch31.f.assume'],

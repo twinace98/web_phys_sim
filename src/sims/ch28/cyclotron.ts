@@ -106,10 +106,11 @@ export const cyclotronScene: Scene<P, S> = {
     const v = gapVoltage(c, tS) / c.V0;
     const a = Math.min(1, Math.abs(v) * 1.2);
     const gx = (GAP * 100) / 2;
-    for (const y of [-0.6 * Rc, 0.6 * Rc]) {
+    // Signs just outside the rim, next to the gap.
+    for (const y of [-Rc - 0.5, Rc + 0.5]) {
       for (const side of [-1, 1] as const) {
         const positive = side * v < 0;
-        g.text({ x: side * (gx + 0.7), y }, positive ? '+' : '−', {
+        g.text({ x: side * (gx + 0.9), y }, positive ? '+' : '−', {
           size: 18,
           weight: 700,
           align: 'center',
@@ -117,9 +118,12 @@ export const cyclotronScene: Scene<P, S> = {
           color: withAlpha(positive ? ROLE_COLOR.positive : ROLE_COLOR.negative, a),
         });
       }
-      if (Math.abs(v) > 0.05) g.arrow({ x: -v * gx * 1.6, y: y + 0.9 }, { x: 2 * v * gx * 1.6, y: 0 }, { role: 'field', width: 1.75 });
+
     }
-    g.text({ x: 0, y: 0.6 * Rc + 0.9 }, '*E*', { size: 13, role: 'field', align: 'center', dy: -12 });
+    for (const y of [-0.4 * Rc, 0.4 * Rc]) {
+      if (Math.abs(v) > 0.05) g.arrow({ x: -v * gx * 1.6, y }, { x: 2 * v * gx * 1.6, y: 0 }, { role: 'field', width: 1.75 });
+    }
+    g.text({ x: 0, y: 0.4 * Rc }, '*E*', { size: 13, role: 'field', align: 'center', dy: -12 });
 
     // Path so far (from the precomputed run) and the proton.
     const end = sampleRun(run, tS);

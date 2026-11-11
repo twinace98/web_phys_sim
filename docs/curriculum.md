@@ -447,7 +447,7 @@
 
 - **학습 목표**: RLC 진동, 전압과 전류 사이 위상차의 원인
 - 탭 1 자유 진동
-  - LC: 전기 에너지 ↔ 자기 에너지 교환, Ch 15 용수철 대응표 병기 (좌상단 패널: $q \leftrightarrow x$, $i \leftrightarrow v$, $L \leftrightarrow m$, $1/C \leftrightarrow k$, $R \leftrightarrow b$, 에너지 두 줄)
+  - LC: 전기 에너지 ↔ 자기 에너지 교환, Ch 15 용수철 대응표 병기 (회로 왼쪽 표: $q \leftrightarrow x$, $i \leftrightarrow v$, $L \leftrightarrow m$, $1/C \leftrightarrow k$, $R \leftrightarrow b$, 에너지 두 줄)
   - 화면: 회로도 ($C$, $L$, $R > 0$이면 $R$), 판 전하 기호, 관례적 전류 점 (이동량 $\propto q$), 에너지 막대 $U_E$, $U_B$, $U$, 아래쪽 용수철-물체 ($x \propto q$, $\vec v \propto i$, 설정 토글)
   - $R$ 추가 → 감쇠 (5, 20 Ω 감쇠 진동, 100 Ω 과감쇠). 해석해 사용 (보존·감쇠 정확)
   - 그래프: $q(t)$, $i(t)$, $U_E$·$U_B$·$U$ (10 ms 창). 수치 줄 $T$, $U$

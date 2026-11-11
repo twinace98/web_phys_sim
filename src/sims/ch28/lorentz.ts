@@ -146,7 +146,17 @@ export const lorentzScene: Scene<P, S> = {
       const [fx, fy] = lorentz(k, pt, -B);
       const main = i === last;
       g.arrow(c, { x: k.vx * kV, y: k.vy * kV }, { role: 'velocity', width: 2.25, label: main ? '*v*' : undefined });
-      g.arrow(c, { x: fx * kF, y: fy * kF }, { role: 'force', width: 2.25, label: main ? '*F*' : undefined });
+      g.arrow(c, { x: fx * kF, y: fy * kF }, { role: 'force', width: 2.25 });
+      if (main) {
+        // Beside the middle of F, on the side away from v: clear of the slower particles inside.
+        const sp = Math.hypot(k.vx, k.vy);
+        g.text({ x: c.x + (fx * kF) / 2 - (k.vx / sp) * g.px(13), y: c.y + (fy * kF) / 2 - (k.vy / sp) * g.px(13) }, '*F*', {
+          size: 13,
+          role: 'force',
+          align: 'center',
+          baseline: 'middle',
+        });
+      }
       particle(g, c, pos, 7);
     });
   },
