@@ -661,6 +661,10 @@ kbd {
     flex: none;
     height: 150px;
   }
+  /* A scene with one plot gives it the room the others share. */
+  .plot:only-child {
+    height: max(150px, 34vh);
+  }
   .readouts {
     margin-left: 0;
     width: 100%;
