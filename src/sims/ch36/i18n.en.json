@@ -31,5 +31,5 @@
   "ch36.ph.obs.a": "Narrower slit: smaller phase difference at the same angle, the chain curls less, so the central maximum is wider",
   "ch36.ph.obs.N": "Changing the number of sources (settings) leaves the minima in place: they are set by the edge-to-edge phase difference $\\phi$",
   "ch36.ph.assume.far": "Screen very far away (Fraunhofer diffraction): rays from all sources are parallel",
-  "ch36.ph.assume.draw": "The slit on the left is an enlarged sketch; the graph is the sum of $N$ sources (very close to $(\\sin\\alpha/\\alpha)^2$ of a continuous slit)"
+  "ch36.ph.assume.draw": "The slit on the left is an enlarged sketch; the graph is the sum of $N$ sources ($N \\ge 8$: the same minima as $(\\sin\\alpha/\\alpha)^2$ of a continuous slit, outer maxima slightly higher for small $N$)"
 }

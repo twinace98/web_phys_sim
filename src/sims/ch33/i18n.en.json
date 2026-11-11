@@ -9,7 +9,7 @@
   "ch33.p.obs.half": "Unpolarized light ($\\vec E$ in every direction) leaves the first polarizer vertically polarized, at half the intensity",
   "ch33.p.obs.dial": "Double arrows in the circles: the $\\vec E$ oscillation seen head-on; length = amplitude ($\\propto \\sqrt{I}$)",
   "ch33.p.obs.cross": "Rotation 90°: crossed polarizers, no light gets through",
-  "ch33.p.obs.three": "Three polarizers, rotation 45°: the middle one turns the polarization by 45° and $I = I_0/8$ gets through. At 0° or 90° the output is 0 again",
+  "ch33.p.obs.three": "Three polarizers, rotation 45°: the middle one turns the polarization by 45° and $I_3 = I_0/8$ gets through. At 0° or 90° the output is 0 again",
   "ch33.p.assume.ideal": "Ideal polarizers: the component along the axis passes fully, the perpendicular one is absorbed",
   "ch33.scene.refraction": "Refraction and total reflection",
   "ch33.p.n1": "Incident medium",

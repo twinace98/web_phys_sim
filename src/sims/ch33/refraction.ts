@@ -238,7 +238,8 @@ export const fibre: Scene<PF, { t: number }> = {
     const f = fibreOf(p);
     g.polygon(rect(X0, -CL, XF, CL), { fill: MEDIUM, fillAlpha: tint(f.n2), color: '#9a9a9a', width: 1 });
     g.polygon(rect(X0, -CR, XF, CR), { fill: MEDIUM, fillAlpha: tint(f.n1), color: '#5c5c5c', width: 1.25 });
-    g.text({ x: X0, y: CR / 2 }, `*n*_{1} = ${f.n1.toFixed(2)}`, { size: 13, align: 'right', baseline: 'middle', dx: -8 });
+    // n1 beside the core, lifted clear of the dashed normal on small stages.
+    g.text({ x: X0, y: Math.max(CR / 2, g.px(12)) }, `*n*_{1} = ${f.n1.toFixed(2)}`, { size: 13, align: 'right', baseline: 'middle', dx: -8 });
     g.text({ x: X0, y: (CR + CL) / 2 }, `*n*_{2} = ${f.n2.toFixed(2)}`, { size: 13, align: 'right', baseline: 'middle', dx: -8 });
 
     const a = p.alpha * DEG;
@@ -251,9 +252,15 @@ export const fibre: Scene<PF, { t: number }> = {
       for (const sg of guided) ray(g, sg.a, sg.b, sg.I);
     });
     g.circle(S, 9, { fill: '#ffffff', color: RAY, width: 2 });
+    // Angle arc and label well inside the handle's radius LIN, so the knob never covers them.
+    const lin = LIN / g.px(1);
+    const arcR = Math.min(40, 0.4 * lin);
+    const labR = Math.min(56, 0.58 * lin);
     if (a > 1.5 * DEG) {
-      g.arc({ x: X0, y: 0 }, 40, Math.PI, Math.PI + a, { color: TICK, width: 1.25 });
-      g.text({ x: X0 - Math.cos(a / 2) * g.px(56), y: -Math.sin(a / 2) * g.px(56) }, '*α*', { size: 13, color: TICK, align: 'center', baseline: 'middle' });
+      g.arc({ x: X0, y: 0 }, arcR, Math.PI, Math.PI + a, { color: TICK, width: 1.25 });
+      // Inside the wedge when it is wide enough for the glyph, otherwise just below the ray.
+      const la = 2 * labR * Math.sin(a / 2) >= 24 ? a / 2 : a + 20 * DEG;
+      g.text({ x: X0 - Math.cos(la) * g.px(labR), y: -Math.sin(la) * g.px(labR) }, '*α*', { size: 13, color: TICK, align: 'center', baseline: 'middle' });
     }
   },
 

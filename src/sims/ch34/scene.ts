@@ -1,9 +1,11 @@
 // Ch 34 scenes: thin lens and spherical / plane mirror. Drag the object; the three principal
 // rays, the image and 1/p + 1/i = 1/f follow.
+import { fmt } from '../../core/format';
 import { t } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { ROLE_COLOR } from '../../draw/theme';
+import { measureRich } from '../../draw/text';
+import { ROLE_COLOR, theme } from '../../draw/theme';
 import { TICK, boxText } from '../inset/inset';
 import { imageDistance, magnification, principalRays, type Ray } from './physics';
 
@@ -72,23 +74,64 @@ function params(el: Element): ParamSchema<P> {
   };
 }
 
-/** TeX number for the panel: one decimal, ∞ for an image at infinity or a plane mirror. */
-const tn = (v: number) => (Number.isFinite(v) ? v.toFixed(1) : '\\infty');
+/** Significant figures of i and m, shared by the panel and the readouts so both print the same digits. */
+const SIG = 3;
+/** TeX number: the readout formatting (true minus → ASCII for TeX). */
+const tex = (v: number) => fmt(v, SIG).replace('−', '-');
+/** Inputs p and f (0.5 cm steps): one decimal; f = ∞ for the plane mirror. */
+const tin = (v: number) => (Number.isFinite(v) ? v.toFixed(1) : '\\infty');
 
-function panel(p: P): string {
+/**
+ * Formula panel. At p = f there is no image (i → ∞): the readouts print "–", so the panel
+ * writes 1/i = 0 and m = – instead of an ∞ that the readouts do not show.
+ */
+export function panel(p: P): string {
   const f = fOf(p);
   const i = imageDistance(p.p, f);
   const m = magnification(p.p, i);
-  const row = `\\dfrac{1}{${tn(p.p)}} + \\dfrac{1}{${tn(i)}} = \\dfrac{1}{${tn(f)}}`;
-  const mm = Number.isFinite(m) ? m.toFixed(2) : '\\infty';
+  const inv = Number.isFinite(i) ? `\\dfrac{1}{${tex(i)}}` : '0';
+  const row = `\\dfrac{1}{${tin(p.p)}} + ${inv} = \\dfrac{1}{${tin(f)}}`;
+  const mm = Number.isFinite(m) ? tex(m) : '\\text{–}';
   return `\\begin{array}{l} \\dfrac{1}{p} + \\dfrac{1}{i} = \\dfrac{1}{f} \\\\[8pt] ${row} \\\\[8pt] m = -\\dfrac{i}{p} = ${mm} \\end{array}`;
 }
 
 /** Real-space x of a point on the outgoing ray, a distance d along the axis past the element. */
 const outX = (el: Element, d: number) => (el === 'lens' ? d : -d);
 
+/**
+ * Drawn half-height of the element: AP, or for a mirror tall enough that every principal ray
+ * reflects on it (a ray toward F from an object near F meets the vertex plane far from the
+ * axis), up to the edge of the stage.
+ */
+export function apertureOf(el: Element, p: P): number {
+  if (el === 'lens') return AP;
+  let y = 0;
+  for (const r of principalRays(p.p, p.h, fOf(p))) y = Math.max(y, Math.abs(r.y));
+  return Math.min(YW + 2, Math.max(AP, y + 1));
+}
+
+/** Drawn mirror profile x = −sag y²/2: reduced sag, at most 2.5 cm at the rim; 0 for a plane mirror. */
+const sagOf = (f: number, ap: number) => (Number.isFinite(f) ? Math.sign(f) * Math.min(Math.abs(0.4 / f), 5 / (ap * ap)) : 0);
+
+/**
+ * Where a ray from the object tip meets the drawn mirror curve (fixed-point iteration; the sag
+ * is small). The plane crossing r.y for a lens, a plane mirror or a ray beyond the mirror.
+ */
+export function mirrorHit(el: Element, p: P, r: Ray): Vec2 {
+  const ap = apertureOf(el, p);
+  const sag = el === 'mirror' ? sagOf(fOf(p), ap) : 0;
+  if (sag === 0 || Math.abs(r.y) > ap) return { x: 0, y: r.y };
+  let x = 0;
+  for (let k = 0; k < 12; k++) {
+    const y = p.h + r.sIn * (x + p.p);
+    x = -sag * y * y * 0.5;
+  }
+  return { x, y: p.h + r.sIn * (x + p.p) };
+}
+
 function drawElement(g: Draw, el: Element, p: P): void {
   const f = fOf(p);
+  const ap = apertureOf(el, p);
   // The element plane, extended so rays far from the axis still meet it (paraxial model).
   g.line({ x: 0, y: -YW }, { x: 0, y: YW }, { color: '#c8c8c8', width: 1, dash: [3, 4] });
   g.line({ x: 0, y: -AP }, { x: 0, y: AP }, { color: '#5c5c5c', width: 1 });
@@ -108,17 +151,18 @@ function drawElement(g: Draw, el: Element, p: P): void {
     }
     g.polygon(pts, { fill: OBJ, fillAlpha: 0.1, color: '#5c5c5c', width: 1.25 });
   } else {
-    // Curve drawn with a reduced sag; rays reflect at the vertex plane (paraxial).
-    const sag = Number.isFinite(f) ? 0.4 / f : 0;
+    // Curve drawn with a reduced sag (at most 2.5 cm at the rim); rays reflect at the vertex plane (paraxial).
+    const sag = sagOf(f, ap);
     const pts: Vec2[] = [];
     for (let k = 0; k <= 32; k++) {
-      const y = -AP + (2 * AP * k) / 32;
+      const y = -ap + (2 * ap * k) / 32;
       pts.push({ x: -sag * y * y * 0.5, y });
     }
     g.polyline(pts, { color: '#1a1a1a', width: 3 });
     // Hatching on the back side.
-    for (let k = 0; k <= 13; k++) {
-      const y = -AP + (2 * AP * k) / 13;
+    const nh = Math.round((13 * ap) / AP);
+    for (let k = 0; k <= nh; k++) {
+      const y = -ap + (2 * ap * k) / nh;
       const x = -sag * y * y * 0.5;
       g.line({ x, y }, { x: x + 1.2, y: y - 1.2 }, { color: '#5c5c5c', width: 1 });
     }
@@ -156,12 +200,18 @@ function drawRays(g: Draw, el: Element, p: P, i: number): void {
   g.ctx.beginPath();
   g.ctx.rect(ax, ay, bx - ax, by - ay);
   g.ctx.clip();
+  const img: Vec2 | null = Number.isFinite(i) ? { x: outX(el, i), y: magnification(p.p, i) * p.h } : null;
   rays.forEach((r: Ray, k) => {
     const col = RAY_COLORS[k];
-    g.line({ x: -p.p, y: p.h }, { x: 0, y: r.y }, { color: col, width: 1.75 });
-    g.line({ x: 0, y: r.y }, { x: outX(el, far), y: r.y + r.sOut * far }, { color: col, width: 1.75 });
+    // A curved mirror reflects each ray where it meets the drawn curve, aimed at (or away from)
+    // the paraxial image, so the rays still meet there. Lens and plane mirror: the vertex plane.
+    const hit = mirrorHit(el, p, r);
+    let slope = r.sOut;
+    if (img && hit.x !== 0) slope = (img.y - hit.y) / Math.abs(img.x - hit.x) * (i > 0 ? 1 : -1);
+    g.line({ x: -p.p, y: p.h }, hit, { color: col, width: 1.75 });
+    g.line(hit, { x: hit.x + outX(el, far), y: hit.y + slope * far }, { color: col, width: 1.75 });
     // Virtual image: extend the outgoing ray backwards to it.
-    if (Number.isFinite(i) && i < 0) g.line({ x: 0, y: r.y }, { x: outX(el, i), y: r.y + r.sOut * i }, { color: col, width: 1.25, dash: [5, 4], alpha: 0.8 });
+    if (img && i < 0) g.line(hit, img, { color: col, width: 1.25, dash: [5, 4], alpha: 0.8 });
   });
   g.ctx.restore();
 }
@@ -180,6 +230,31 @@ function upright(g: Draw, base: Vec2, h: number, color: string, dashed: boolean)
       { color, width: 1.5 },
     );
   } else g.arrow(base, { x: 0, y: h }, { color, width: 3.5 });
+}
+
+/**
+ * Real/virtual and upright/inverted beside the image, on the side away from the element (the
+ * rays reach the image from the element's side). If that side has no room on a narrow stage,
+ * the label goes past the arrow tip instead, kept inside the stage.
+ */
+function imageLabel(g: Draw, xi: number, hi: number, label: string): void {
+  const side = xi >= 0 ? 1 : -1;
+  const ly = Math.max(-YW + 1, Math.min(YW - 1, hi / 2));
+  const w = measureRich(g.ctx, label, { size: 13 }) + 8;
+  const gap = 12 * theme.scale;
+  const [px] = g.vp.toPx(xi, ly);
+  const fits = side > 0 ? px + gap + w <= g.vp.w - 2 : px - gap - w >= 2;
+  if (fits) {
+    boxText(g, { x: xi, y: ly }, label, { size: 13, color: IMG, align: side > 0 ? 'left' : 'right', dx: side * 12 });
+    return;
+  }
+  // Past the tip, centred on the arrow but shifted to stay on the stage.
+  const sy = hi >= 0 ? 1 : -1;
+  const ty = Math.max(-YW - 1, Math.min(YW + 1, hi + sy * g.px(16)));
+  const [, py] = g.vp.toPx(xi, ty);
+  const cx = Math.min(g.vp.w - 2 - w / 2, Math.max(2 + w / 2, px));
+  const [wx, wy] = g.vp.toWorld(cx, Math.min(g.vp.h - 12, Math.max(12, py)));
+  boxText(g, { x: wx, y: wy }, label, { size: 13, color: IMG, align: 'center' });
 }
 
 function makeScene(el: Element): Scene<P, { t: number }> {
@@ -215,9 +290,7 @@ function makeScene(el: Element): Scene<P, { t: number }> {
           // Real/virtual and upright/inverted beside the image, on the side away from the element:
           // the rays (or their extensions) reach the image from the element's side.
           const label = `${t(i > 0 ? 'ch34.real' : 'ch34.virtual')} · ${t(hi > 0 ? 'ch34.upright' : 'ch34.inverted')}`;
-          const side = xi >= 0 ? 1 : -1;
-          const ly = Math.max(-YW + 1, Math.min(YW - 1, hi / 2));
-          boxText(g, { x: xi, y: ly }, label, { size: 13, color: IMG, align: side > 0 ? 'left' : 'right', dx: side * 12 });
+          imageLabel(g, xi, hi, label);
         }
       }
     },
@@ -238,8 +311,8 @@ function makeScene(el: Element): Scene<P, { t: number }> {
     overlay: (_s, p) => panel(p),
 
     readouts: [
-      { label: 'i', unit: 'cm', value: (_s, p) => imageDistance(p.p, fOf(p)) },
-      { label: 'm', unit: '', value: (_s, p) => magnification(p.p, imageDistance(p.p, fOf(p))) },
+      { label: 'i', unit: 'cm', value: (_s, p) => imageDistance(p.p, fOf(p)), sig: SIG },
+      { label: 'm', unit: '', value: (_s, p) => magnification(p.p, imageDistance(p.p, fOf(p))), sig: SIG },
     ],
 
     info:

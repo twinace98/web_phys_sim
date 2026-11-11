@@ -24,7 +24,7 @@
   "ch34.l.goal.sign": "If the rays really meet, the image is real ($i > 0$, beyond the lens); if only their extensions meet, it is virtual ($i < 0$, on the object side)",
   "ch34.l.obs.drag": "Rays: green parallel to the axis, then through $F_2$; pink straight through the centre; orange through $F_1$, then parallel to the axis",
   "ch34.l.obs.2f": "Converging lens, object beyond $2f$: smaller, inverted, real image. At $p = 2f$ the same size ($m = -1$)",
-  "ch34.l.obs.f": "Drag the object toward the focal point: the image moves away and grows; at $p = f$ the rays leave parallel and the image is at infinity",
+  "ch34.l.obs.f": "Drag the object toward the focal point: the image moves away and grows; at $p = f$ the rays leave parallel and the image is at infinity ($1/i = 0$; the $i$ and $m$ readouts show –)",
   "ch34.l.obs.inside": "Inside the focal point ($p < f$): the rays spread, their extensions (dashed) meet on the object side, giving an enlarged, upright, virtual image (a magnifier)",
   "ch34.l.obs.div": "Diverging lens: a smaller, upright, virtual image wherever the object is",
   "ch34.m.goal.rays": "Three principal rays from the tip of the object reflect from the mirror and meet at the tip of the image",
@@ -33,7 +33,7 @@
   "ch34.m.obs.inside": "Concave mirror, inside the focal point ($p < f$): enlarged, upright, virtual image (a make-up mirror)",
   "ch34.m.obs.convex": "Convex mirror: always a smaller, upright, virtual image and a wide field of view (a car side mirror)",
   "ch34.m.obs.plane": "Plane mirror: $i = -p$ and $m = 1$, a same-size virtual image as far behind the mirror as the object is in front",
-  "ch34.assume.thin": "Paraxial approximation: rays stay close to the axis at small angles. Lenses and mirrors are treated as thin elements that refract or reflect in one plane; the mirror's curvature is only drawn",
+  "ch34.assume.thin": "Paraxial approximation: rays stay close to the axis at small angles. Lenses and mirrors are treated as thin elements that refract or reflect in one plane; the mirror's curvature is only drawn, and the mirror is drawn tall enough for every principal ray to reach it",
   "ch34.l.assume.sign": "Signs: converging lens $f > 0$, diverging lens $f < 0$, real image $i > 0$, virtual image $i < 0$",
   "ch34.m.assume.sign": "Signs: concave mirror $f > 0$, convex mirror $f < 0$, plane mirror $f = \\infty$, real image $i > 0$, virtual image $i < 0$"
 }

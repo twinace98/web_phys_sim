@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { brightAt, doubleSlitFar, fringeSpacing, pathDiff } from '../src/sims/ch35/physics';
-import { doubleSlit } from '../src/sims/ch35/scene';
+import { doubleSlit, firstBright } from '../src/sims/ch35/scene';
 import { C_LIGHT, WaveField, sourcesOf, wavelengthRGB } from '../src/sims/wave2d/field';
 
 const lambda = 0.5;
@@ -108,5 +108,34 @@ describe('ch35 wave field', () => {
     const s = sourcesOf({ yc: 0, w: 2 }, 0.5);
     expect(s.length).toBe(8);
     expect(s[0] - s[1]).toBeLessThanOrEqual(0.5 / 2 + 1e-12);
+  });
+});
+
+describe('ch35 review fixes: the Δy mark sits on the first bright fringe', () => {
+  it('at the slider extremes the mark follows the wave-field maximum, not λD/d', () => {
+    const p = { ...defaults(doubleSlit.params), lambda: 700, d: 1.5, D: 12, a: 0 };
+    const f = new WaveField({ lambda: 0.7, apertures: [{ yc: 0.75, w: 0 }, { yc: -0.75, w: 0 }], xL: -4, x1: 12, y0: -12, y1: 12, screenX: 12, screenN: 481, maxCells: 20000 });
+    const I = f.screenSteady();
+    const ys = f.screenY;
+    const ps = peaks(I).map((i) => ys[i]).filter((y) => y > 2);
+    const y1 = firstBright(p);
+    const near = ps.reduce((a, b) => (Math.abs(b - y1) < Math.abs(a - y1) ? b : a));
+    // Within 0.15 μm (unequal r^(-1/2) amplitudes shift the peak slightly); λD/d = 5.60 μm misses by about 0.7 μm.
+    expect(Math.abs(near - y1)).toBeLessThan(0.15);
+    expect(Math.abs(fringeSpacing(0.7, 12, 1.5) - near)).toBeGreaterThan(0.5);
+    expect(doubleSlit.readouts![0].value({ t: 0, acc: new Float64Array(0), psi: new Float64Array(0) }, p)).toBeCloseTo(y1, 12);
+  });
+
+  it('default: mark, readout and dragged marker agree (ΔL = λ), close to λD/d', () => {
+    const p = defaults(doubleSlit.params);
+    expect(Math.abs(firstBright(p) - p.yp)).toBeLessThan(0.03);
+    expect(firstBright(p) / fringeSpacing(0.5, 20, 3)).toBeCloseTo(1.017, 3);
+  });
+
+  it('first bright fringe is finite over the slider ranges', () => {
+    const p0 = defaults(doubleSlit.params);
+    for (const d of [1.5, 2.3, 5])
+      for (const lambda of [400, 570, 700])
+        for (const D of [12, 17, 25]) expect(Number.isFinite(firstBright({ ...p0, d, lambda, D }))).toBe(true);
   });
 });

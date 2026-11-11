@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { afterFirst, segments } from '../src/sims/ch33/polar';
+import { defaults } from '../src/core/params';
+import { afterFirst, knobDir, polar, segments } from '../src/sims/ch33/polar';
 import { MEDIA, acceptance, coreAngle, criticalAngle, malus, polarizerChain, reflectance, snell, wallIncidence } from '../src/sims/ch33/physics';
 import { traceFibre } from '../src/sims/ch33/refraction';
 
@@ -78,5 +79,31 @@ describe('ch33 optical fibre', () => {
     const leak = traceFibre({ alpha: 35, clad: '1.46' });
     expect(leak.escaped.length).toBeGreaterThan(0);
     expect(traceFibre({ alpha: 60, clad: '1' }).escaped.length).toBe(0);
+  });
+});
+
+describe('ch33 review fixes', () => {
+  const D = Math.PI / 180;
+  it('the polarizer knob stays on the upper half of the rim at every angle (clear of the P label)', () => {
+    for (let th = 0; th <= 180; th += 1) {
+      const k = knobDir(th * D);
+      expect(k.y).toBeGreaterThanOrEqual(-1e-9);
+      // Still on the transmission axis: parallel to (sin θ, cos θ).
+      expect(Math.abs(k.x * Math.cos(th * D) - k.y * Math.sin(th * D))).toBeLessThan(1e-12);
+    }
+  });
+
+  it('three polarizers: I_3 = I_0 sin²2θ / 8 as in the info equation', () => {
+    for (const th of [0, 10, 30, 45, 60, 90, 135, 180]) {
+      const out = segments({ n: 3, theta: th }).at(-1)!;
+      expect(out).toBeCloseTo(Math.sin(2 * th * D) ** 2 / 8, 12);
+    }
+    expect(polar.info.equations!.some((e) => e.includes('\\tfrac18 I_0'))).toBe(true);
+  });
+
+  it('readouts are finite over n and θ', () => {
+    for (const n of [2, 3])
+      for (const theta of [0, 1, 37, 90, 133, 180])
+        for (const r of polar.readouts!) expect(Number.isFinite(r.value({ t: 0 }, { ...defaults(polar.params), n, theta }))).toBe(true);
   });
 });

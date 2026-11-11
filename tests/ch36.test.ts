@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { edgePhase, firstMin, phasorChain, singleSlit, sourcesIntensity } from '../src/sims/ch36/physics';
 import { pairDiff, singleSlit as singleScene } from '../src/sims/ch36/single';
+import { N_MIN, phasor } from '../src/sims/ch36/phasor';
 import { WaveField } from '../src/sims/wave2d/field';
 
 const deg = Math.PI / 180;
@@ -54,5 +55,40 @@ describe('ch36 single slit', () => {
     // Not exactly Fraunhofer at this distance (a²/λD = 0.32): within 0.5 μm.
     expect(Math.abs(f.screenY[best] - y1)).toBeLessThan(0.5);
     expect(I[best] / I[240]).toBeLessThan(0.03);
+  });
+});
+
+describe('ch36 phasor chain: the minima do not depend on N', () => {
+  const spec = phasor.params.N as { min: number; max: number };
+  it('N range starts at N_MIN = 8', () => {
+    expect(spec.min).toBe(N_MIN);
+    expect(N_MIN).toBeGreaterThanOrEqual(8);
+  });
+
+  it('for every allowed N: zeros at a sin θ = mλ and no grating principal maximum in range', () => {
+    const p0 = defaults(phasor.params);
+    for (let N = spec.min; N <= spec.max; N++)
+      for (const a of [0.5, 1.3, 2, 4])
+        for (const lambda of [400, 530, 700]) {
+          const p = { ...p0, N, a, lambda };
+          const I = (th: number) => phasor.readouts![1].value({ t: 0 }, { ...p, theta: th });
+          for (let m = 1; m * lambda < a * 1000 * Math.sin(40 * deg); m++) {
+            const th = Math.asin((m * lambda) / (a * 1000)) / deg;
+            expect(sourcesIntensity(N, edgePhase(a, lambda / 1000, th * deg))).toBeLessThan(1e-20);
+            expect(I(th)).toBeLessThan(1e-12); // the scene readout uses the same sum
+          }
+          // Beyond the first minimum the N-source sum stays a small side lobe, as (sin α/α)² does.
+          const t1 = firstMin(lambda / 1000, a) / deg;
+          for (let th = -40; th <= 40; th += 0.25)
+            if (Math.abs(th) > t1 + 0.5) expect(sourcesIntensity(N, edgePhase(a, lambda / 1000, th * deg))).toBeLessThan(0.06);
+        }
+  });
+
+  it('readouts stay finite over the parameter ranges', () => {
+    const p0 = defaults(phasor.params);
+    for (const theta of [-40, -14.5, 0, 0.1, 23.7, 40])
+      for (const a of [0.5, 2, 4])
+        for (const N of [8, 13, 20])
+          for (const r of phasor.readouts!) expect(Number.isFinite(r.value({ t: 0 }, { ...p0, theta, a, N }))).toBe(true);
   });
 });

@@ -70,6 +70,11 @@ export function afterFirst(n: number, th: number): number {
 }
 
 const dir = (a: number): Vec2 => ({ x: Math.sin(a), y: Math.cos(a) });
+/** End of the transmission axis that carries the knob: always the upper one, clear of the P label below. */
+export const knobDir = (a: number): Vec2 => {
+  const d = dir(a);
+  return d.y >= -1e-9 ? d : { x: -d.x, y: -d.y };
+};
 
 function polarizer(g: Draw, x: number, a: number, label: string, knob: boolean): void {
   const pts: Vec2[] = [];
@@ -82,7 +87,10 @@ function polarizer(g: Draw, x: number, a: number, label: string, knob: boolean):
     g.line({ x: x + n.x * o - d.x * h, y: BY + n.y * o - d.y * h }, { x: x + n.x * o + d.x * h, y: BY + n.y * o + d.y * h }, { color: '#c4c4c4', width: 1 });
   }
   g.line({ x: x - d.x * R, y: BY - d.y * R }, { x: x + d.x * R, y: BY + d.y * R }, { color: '#1a1a1a', width: 2.5 });
-  if (knob) g.circle({ x: x + d.x * R, y: BY + d.y * R }, 7, { fill: '#ffffff', color: '#1a1a1a', width: 2 });
+  if (knob) {
+    const k = knobDir(a);
+    g.circle({ x: x + k.x * R, y: BY + k.y * R }, 7, { fill: '#ffffff', color: '#1a1a1a', width: 2 });
+  }
   g.text({ x, y: BY - R }, label, { size: 14, align: 'center', dy: 20 });
 }
 
@@ -109,7 +117,7 @@ export const polar: Scene<P, { t: number }> = {
   id: 'polar',
   title: 'ch33.scene.polar',
   params,
-  world: () => ({ x: [-0.4, 23], y: [-9, 4.8], aspect: 'contain', padPx: 14 }),
+  world: () => ({ x: [-0.4, 23], y: [-9, 5.6], aspect: 'contain', padPx: 14 }),
   init: () => ({ t: 0 }),
 
   draw: (g, _s, p) => {
@@ -160,9 +168,11 @@ export const polar: Scene<P, { t: number }> = {
     // Dial angle between the first axis (vertical) and the turned one.
     const xd = L.xs[L.dial];
     const a = L.axes[L.dial];
-    g.line({ x: xd, y: BY }, { x: xd, y: BY + R + 0.5 }, { color: TICK, width: 1, dash: [3, 3] });
+    // Vertical reference above the polarizer, the θ label on top of it: clear of the knob at any angle.
+    const top = BY + R + Math.max(0.35, g.px(14));
+    g.line({ x: xd, y: BY }, { x: xd, y: top }, { color: TICK, width: 1, dash: [3, 3] });
     if (a > 0.5 * DEG) g.arc({ x: xd, y: BY }, 26, Math.PI / 2, Math.PI / 2 - a, { color: TICK, width: 1.25 });
-    g.text({ x: xd, y: BY + R }, `*θ* = ${Math.round(p.theta)}°`, { size: 13, color: TICK, align: 'right', dx: -8, dy: -4 });
+    g.text({ x: xd, y: top }, `*θ* = ${Math.round(p.theta)}°`, { size: 13, color: TICK, align: 'center', dy: -6 });
 
     // Malus's law: output relative to the light after P1.
     const ins = new Inset(g, PLOT, [0, 180], [0, 1.1]);
@@ -177,7 +187,7 @@ export const polar: Scene<P, { t: number }> = {
     {
       pos: (_s, p) => {
         const L = layout(p);
-        const d = dir(L.axes[L.dial]);
+        const d = knobDir(L.axes[L.dial]);
         return { x: L.xs[L.dial] + d.x * R, y: BY + d.y * R };
       },
       radiusPx: 14,
@@ -198,7 +208,11 @@ export const polar: Scene<P, { t: number }> = {
   info: {
     goals: ['ch33.p.goal.malus', 'ch33.p.goal.three'],
     observe: ['ch33.p.obs.half', 'ch33.p.obs.dial', 'ch33.p.obs.cross', 'ch33.p.obs.three'],
-    equations: ['I_1 = \\tfrac12 I_0', 'I = I_1\\cos^2\\theta'],
+    equations: [
+      'I_1 = \\tfrac12 I_0',
+      'I = I_1\\cos^2\\theta',
+      'I_3 = I_1\\cos^2\\theta\\,\\sin^2\\theta = \\tfrac18 I_0\\sin^2 2\\theta',
+    ],
     assumptions: ['ch33.p.assume.ideal'],
   },
 };
