@@ -44,9 +44,9 @@ export const CHAPTERS: ChapterMeta[] = [
   c(15, 1, '진동', 'Oscillations', '단순조화운동, 단진자', 'Simple harmonic motion, simple pendulum', () => import('./ch15').then((m) => m.default)),
   c(16, 1, '파동 I', 'Waves I', '반사파, 정상파, 공명', 'Reflection, standing waves, resonance', () => import('./ch16').then((m) => m.default)),
   c(17, 1, '파동 II', 'Waves II', '맥놀이, 도플러 효과', 'Beats, Doppler effect', () => import('./ch17').then((m) => m.default)),
-  c(18, 2, '온도, 열, 열역학 제1법칙', 'Temperature, Heat, and the First Law of Thermodynamics', '열, 일, 내부에너지', 'Heat, work, internal energy'),
-  c(19, 2, '기체 운동론', 'The Kinetic Theory of Gases', '분자 충돌, 압력', 'Molecular collisions, pressure'),
-  c(20, 2, '엔트로피와 열역학 제2법칙', 'Entropy and the Second Law of Thermodynamics', '엔트로피, 미시상태', 'Entropy, microstates'),
+  c(18, 2, '온도, 열, 열역학 제1법칙', 'Temperature, Heat, and the First Law of Thermodynamics', '열역학 과정, 경로 비교, 순환 과정', 'Thermodynamic processes, path comparison, and cycles', () => import('./ch18').then((m) => m.default)),
+  c(19, 2, '기체 운동론', 'The Kinetic Theory of Gases', '분자 충돌과 압력, 속력 분포', 'Molecular collisions, pressure, and speed distribution', () => import('./ch19').then((m) => m.default)),
+  c(20, 2, '엔트로피와 열역학 제2법칙', 'Entropy and the Second Law of Thermodynamics', '자유 팽창, 열 흐름, 카르노 순환', 'Free expansion, heat flow, and the Carnot cycle', () => import('./ch20').then((m) => m.default)),
   c(22, 3, '전기장', 'Electric Fields', '점전하, 전기장', 'Point charges, electric field'),
   c(23, 3, '가우스 법칙', "Gauss' Law", '가우스면, 전기 선속', 'Gaussian surfaces, electric flux'),
   c(24, 3, '전위', 'Electric Potential', '등전위선', 'Equipotential lines'),
@@ -67,7 +67,7 @@ export const CHAPTERS: ChapterMeta[] = [
   c(39, 5, '물질파 심화', 'More About Matter Waves', '퍼텐셜 우물, 에너지 준위', 'Potential wells, energy levels'),
   c(40, 5, '원자', 'All About Atoms', '슈테른-게를라흐 실험', 'Stern-Gerlach experiment'),
   c(41, 5, '고체의 전기 전도', 'Conduction of Electricity in Solids', '에너지 띠, 반도체', 'Energy bands, semiconductors'),
-  c(42, 5, '핵물리', 'Nuclear Physics', '방사성 붕괴, 반감기', 'Radioactive decay, half-life'),
+  c(42, 5, '핵물리', 'Nuclear Physics', '방사성 붕괴, 반감기', 'Radioactive decay, half-life', () => import('./ch42').then((m) => m.default)),
 ];
 
 export const chapterMeta = (ch: number) => CHAPTERS.find((m) => m.ch === ch);

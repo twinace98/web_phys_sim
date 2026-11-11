@@ -60,9 +60,9 @@
 | 15 | Oscillations | 탭 1 단순조화운동 (등속원운동의 투영, x·v·a·에너지 그래프, 위상 공간) · 탭 2 단진자 (큰 진폭에서 주기 증가) | E1 |
 | 16 | Waves I | 탭 1 반사와 정상파 (고정단·자유단, 펄스·연속파, 마디·포락선) · 탭 2 공명 (구동 진동수 스윕, 공명 곡선) | E3 |
 | 17 | Waves II | 탭 1 맥놀이 (두 파형·합성파·포락선, 소리 재생) · 탭 2 도플러 효과 (움직이는 음원·관측자, 마하 원뿔) | E3 |
-| 18 | Temperature, Heat, and the First Law | 열·일·내부에너지, 경로 의존성 | 전용 |
-| 19 | The Kinetic Theory of Gases | 입자 충돌의 합 = 압력 | E5 |
-| 20 | Entropy and the Second Law | 미시상태 수와 엔트로피, 비가역성 | E5 |
+| 18 | Temperature, Heat, and the First Law | 탭 1 열역학 과정 (등압·등적·등온·단열, 피스톤 + $p$-$V$ 넓이 = $W$, $Q$·$W$·$\Delta E_\text{int}$ 막대) · 탭 2 경로 비교 (같은 시작·끝 상태, $W$·$Q$ 다르고 $\Delta E_\text{int}$ 같음) · 탭 3 순환 과정 (사각형·카르노, 순 일 = 둘러싼 넓이) | 전용 |
+| 19 | The Kinetic Theory of Gases | 탭 1 분자 충돌과 압력 (강체원판 기체, 벽 충격량 $2mv_x$ 누적 → 압력 $NkT/A$로 수렴, 속력 분포 → 2D 맥스웰-볼츠만) | E5 |
+| 20 | Entropy and the Second Law | 탭 1 자유 팽창 ($W(n) = \binom{N}{n}$, $S = k\ln W$, $N$ = 4–1000에서 복귀 확률 비교) · 탭 2 열 흐름 (아인슈타인 고체 두 개, $S_\text{tot}$ 최대에서 기울기 = 온도 일치) · 탭 3 카르노 순환 ($p$-$V$·$T$-$S$ 도표, 효율 $1 - T_C/T_H$) | E5 |
 | 22 | Electric Fields | 전하 드래그 배치 → 벡터장 | E2 |
 | 23 | Gauss' Law | 가우스면 변형, 내부 전하와 플럭스 | E2 |
 | 24 | Electric Potential | 등전위선 추가 | E2 |
@@ -83,7 +83,7 @@
 | 39 | More About Matter Waves | 1D 무한/유한/조화/이중 우물 | E4 |
 | 40 | All About Atoms | 슈테른-게를라흐 축 변경 실험 | E5 |
 | 41 | Conduction of Electricity in Solids | 밴드갭과 금속/반도체/절연체 | E4 |
-| 42 | Nuclear Physics | 반감기 | E5 |
+| 42 | Nuclear Physics | 탭 1 방사성 붕괴 (핵 격자의 무작위 붕괴, $N(t)$ 계단 vs $N_0 e^{-\lambda t}$, 반감기 표식, $^{14}\text{C}$·$^{131}\text{I}$·$^{238}\text{U}$ 시간축 자동 축척) | E5 |
 
 ---
 
