@@ -37,6 +37,23 @@ const currentOf = (c: RC, s: S, sw: string) => {
   return Math.abs(i) < 1e-7 * (c.emf / c.R) ? 0 : i; // rounding noise once settled
 };
 
+/** Charge at the start of a run: a run that starts in discharge mode starts full, q = Cε. */
+export const startCharge = (p: P) => (p.sw === 'discharge' ? finalCharge(rcOf(p), true) : 0);
+
+/**
+ * Before the first step there is nothing to continue from: a change of the switch, R or C
+ * prepares the start again (a switch during a run continues from the charge at that instant).
+ */
+function prepare(s: S, p: P): void {
+  if (s.n !== 0) return;
+  const rc = `${p.R}|${p.C}`;
+  if (s.mode === p.sw && s.rc === rc) return;
+  s.mode = p.sw;
+  s.rc = rc;
+  s.ts = s.t;
+  s.q = s.q0 = startCharge(p);
+}
+
 const params: ParamSchema<P> = {
   sw: {
     kind: 'select',
@@ -230,10 +247,12 @@ export const rcCircuit: Scene<P, S> = {
 
   init: (p) => {
     env = { vc: [0, 0], i: [0, 0], q: [0, 0] };
-    return { t: 0, n: 0, q: 0, mode: p.sw, rc: `${p.R}|${p.C}`, ts: 0, q0: 0 };
+    const q = startCharge(p);
+    return { t: 0, n: 0, q, mode: p.sw, rc: `${p.R}|${p.C}`, ts: 0, q0: q };
   },
 
   step: (s, _h, p) => {
+    prepare(s, p);
     const rc = `${p.R}|${p.C}`;
     if (p.sw !== s.mode || rc !== s.rc) {
       s.mode = p.sw;
@@ -256,7 +275,8 @@ export const rcCircuit: Scene<P, S> = {
   snapshot: (s) => ({ ...s }),
 
   draw: (g, s, p) => {
-    shown = { ts: s.ts, q0: s.q0, mode: s.mode };
+    prepare(s, p);
+    shown ={ ts: s.ts, q0: s.q0, mode: s.mode };
     const c = rcOf(p);
     const charging = p.sw === 'charge';
     circuit(g, charging);
@@ -316,8 +336,22 @@ export const rcCircuit: Scene<P, S> = {
 
   readouts: [
     { label: '\\tau', unit: 's', value: (_s, p) => tau(rcOf(p)) },
-    { label: 'V_C', unit: 'V', value: (s, p) => s.q / rcOf(p).C },
-    { label: 'i', unit: 'mA', value: (s, p) => currentOf(rcOf(p), s, p.sw) * 1e3 },
+    {
+      label: 'V_C',
+      unit: 'V',
+      value: (s, p) => {
+        prepare(s, p);
+        return s.q / rcOf(p).C;
+      },
+    },
+    {
+      label: 'i',
+      unit: 'mA',
+      value: (s, p) => {
+        prepare(s, p);
+        return currentOf(rcOf(p), s, p.sw) * 1e3;
+      },
+    },
   ],
 
   info: {

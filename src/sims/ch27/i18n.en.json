@@ -15,5 +15,5 @@
   "ch27.obs.i": "The current starts at its maximum $\\mathcal{E}/R$ and falls to 0: as the capacitor voltage approaches the emf, less voltage is left across $R$",
   "ch27.obs.switch": "Switch to discharge halfway: discharge starts from the charge at that instant and the current reverses ($i < 0$)",
   "ch27.obs.RC": "Doubling $R$ or $C$ doubles $\\tau$ and stretches the curves in time by 2. Changing $C$ while running keeps the charge $q$, so $V_C = q/C$ jumps",
-  "ch27.assume": "Battery emf 12 V; internal and wire resistance neglected. Moving dots show the flow of positive charge (conventional current)"
+  "ch27.assume": "Battery emf 12 V; internal and wire resistance neglected. A run that starts in discharge mode starts from a fully charged capacitor ($q = C\\mathcal{E}$). Moving dots show the flow of positive charge (conventional current)"
 }

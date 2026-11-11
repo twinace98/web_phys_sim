@@ -24,6 +24,8 @@ const HIST_TAU = 10;
 const FORCE = ROLE_COLOR.force;
 const DISK = '#5c5c5c';
 const WALL = '#5c5c5c';
+/** Width reserved for the 2mv_x label right of the box panel [px]: 6 px gap + about 32 px text. */
+export const LABEL_PX = 40;
 
 const vMax = (T: number) => 4.2 * sigmaV(T);
 
@@ -96,7 +98,10 @@ const params: ParamSchema<P> = {
 
 function drawBox(g: Parameters<Scene['draw']>[0], r: Rect, s: S, p: P): void {
   const L = p.L;
-  inPanel(g, r, { x: [-0.04 * L, 1.2 * L], y: [-0.04 * L, 1.04 * L], aspect: 'contain', padPx: 8 }, (d) => {
+  // The 2mv_x label beyond the longest impulse arrow gets its own strip at the panel's right
+  // edge, so on a narrow stage it stays clear of the histogram's axis.
+  const panel = { ...r, w: Math.max(1, r.w - LABEL_PX) };
+  inPanel(g, panel, { x: [-0.04 * L, 1.2 * L], y: [-0.04 * L, 1.04 * L], aspect: 'contain', padPx: 8 }, (d) => {
     const gas = s.gas;
     d.polyline(
       [

@@ -206,8 +206,12 @@ export const relative: Scene<P, { t: number; n: number }> = {
     const ground = p.frame !== 'water';
     const [x0, x1] = xSpan(p);
     const t = s.t;
-    const L = x0 - 0.5 * W;
-    const R = x1 + 0.5 * W;
+    // Water, banks, ripples and posts all span the whole visible stage width (plus a margin),
+    // so no dash or post runs past the end of the water on a wide stage.
+    const [vl] = g0.vp.toWorld(0, 0);
+    const [vr] = g0.vp.toWorld(g0.vp.w, 0);
+    const L = Math.min(x0, vl - dx) - 0.5 * W;
+    const R = Math.max(x1, vr - dx) + 0.5 * W;
 
     g.polygon(
       [

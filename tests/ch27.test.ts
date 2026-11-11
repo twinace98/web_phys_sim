@@ -55,6 +55,33 @@ describe('ch27 RC circuit', () => {
     expect(run.state.q / qMid).toBeCloseTo(Math.exp(-1), 2);
   });
 
+  it('a run that starts in discharge mode starts from a full capacitor, q = Cε (URL or before play)', () => {
+    const qFull = finalCharge(c, true);
+    // From the URL: the scene is initialised with sw = discharge.
+    const url = new Runner(rcCircuit, { ...defaults(rcCircuit.params), sw: 'discharge' });
+    expect(url.state.q).toBeCloseTo(qFull, 12);
+    expect(url.hist.col('vc')[0]).toBeCloseTo(12, 9);
+    url.play();
+    url.advance(2);
+    expect(url.state.q / qFull).toBeCloseTo(Math.exp(-1), 2);
+    const vc = url.hist.col('vc');
+    expect(Math.max(...vc) - Math.min(...vc)).toBeGreaterThan(12 * 0.6);
+    // Chosen in the bar before pressing play: the readouts show it at once, then it discharges.
+    const ui = new Runner(rcCircuit, defaults(rcCircuit.params));
+    ui.setParam('sw', 'discharge');
+    const iReadout = rcCircuit.readouts!.find((r) => r.label === 'i')!;
+    expect(iReadout.value(ui.state, ui.params)).toBeCloseTo((-qFull / tau(c)) * 1e3, 9);
+    ui.play();
+    ui.advance(2);
+    expect(ui.state.q / qFull).toBeCloseTo(Math.exp(-1), 2);
+    // Back to charge before play: empty again.
+    const back = new Runner(rcCircuit, { ...defaults(rcCircuit.params), sw: 'discharge' });
+    back.setParam('sw', 'charge');
+    back.play();
+    back.advance(2);
+    expect(back.state.q / qFull).toBeCloseTo(ONE_TAU, 2);
+  });
+
   it('changing R while running continues from the present charge with the new τ', () => {
     const run = new Runner(rcCircuit, defaults(rcCircuit.params));
     run.play();

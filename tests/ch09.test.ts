@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
 import { collide1D, collide2D, contactTime, explode1D, motion1D, motion2D, state1D, state2D, type Puck, type Track } from '../src/sims/ch09/physics';
-import { bMax, bOf, puckScene } from '../src/sims/ch09/puck';
+import { MIN_R_PX, bMax, bOf, puckScene } from '../src/sims/ch09/puck';
 import { track } from '../src/sims/ch09/track';
+import type { Vec2 } from '../src/core/types';
+import { ProbeDraw } from './stage-probe';
 
 describe('ch09 1D collisions', () => {
   const cases: [number, number, number, number][] = [
@@ -138,5 +140,51 @@ describe('ch09 2D collisions', () => {
     }
     // A hand-edited URL beyond the range is clamped to 0.95 (R1 + R2).
     expect(bOf({ ...base, b: 0.4 })).toBeCloseTo(bMax(1), 12);
+  });
+});
+
+class DiscProbe extends ProbeDraw {
+  readonly discs: { x: number; y: number; r: number }[] = [];
+  polygon(pts: Vec2[]): void {
+    if (pts.length !== 48) return;
+    const px = pts.map((q) => this.vp.toPx(q.x, q.y));
+    const xs = px.map((q) => q[0]);
+    const ys = px.map((q) => q[1]);
+    this.discs.push({ x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2, r: (Math.max(...xs) - Math.min(...xs)) / 2 });
+  }
+}
+
+describe('ch09 puck magnification (round 3)', () => {
+  it('b = 0.29, m2 = 0.5, v1 = 2: pucks at least 11 px in radius, touch at contact, never overlap, on stage', () => {
+    for (const kind of ['elastic', 'inelastic', 'stick'])
+      for (const [w, h] of [
+        [390, 250],
+        [800, 600],
+      ]) {
+        const p = { ...defaults(puckScene.params), kind, b: 0.29, m2: 0.5, v1: 2 };
+        const s = puckScene.init(p, undefined as never);
+        let minGap = Infinity;
+        let contactGap = NaN;
+        for (let i = 0; i <= 500; i++) {
+          s.t = i / 100;
+          const g = new DiscProbe(w, h);
+          g.vp.fit(puckScene.world(p), w, h);
+          puckScene.draw(g, s, p, { t: s.t, cursorT: s.t, scrubbing: false, lecture: false });
+          const [a, b] = g.discs;
+          expect(Math.min(a.r, b.r)).toBeGreaterThanOrEqual(MIN_R_PX - 0.5);
+          // Area proportional to mass: r2 / r1 = √(m2 / m1).
+          expect(b.r / a.r).toBeCloseTo(Math.sqrt(0.5), 2);
+          const gap = Math.hypot(a.x - b.x, a.y - b.y) - a.r - b.r;
+          minGap = Math.min(minGap, gap);
+          if (i === 200) contactGap = gap; // T_C = 2 s
+          for (const d of [a, b]) {
+            expect(d.x - d.r).toBeGreaterThanOrEqual(-0.5);
+            expect(d.x + d.r).toBeLessThanOrEqual(w + 0.5);
+            expect(d.y - d.r).toBeGreaterThanOrEqual(-0.5);
+          }
+        }
+        expect(minGap).toBeGreaterThanOrEqual(-0.3);
+        expect(Math.abs(contactGap)).toBeLessThan(0.3);
+      }
   });
 });

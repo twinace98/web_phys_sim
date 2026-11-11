@@ -136,8 +136,10 @@ export const wavePacket: Scene<PP, { t: number; n: number }> = {
       fs.line(k, 0, k, pk.a[j], { color: WAVE, width: 2 });
       g.circle(fs.P(k, pk.a[j]), 3.5, { fill: WAVE });
     });
-    fs.axes({ xLabel: '*k* (nm^{−1})', yTicks: false });
+    fs.axes({ yTicks: false });
     textPx(g, fs.box.l + 4, fs.box.t - 4, t('ch38.k.amp'), { size: 12, color: TICK });
+    // k label on the title row at the right, clear of the stems (at M = 33 they reach the axis ends).
+    textPx(g, fs.box.r, fs.box.t - 4, '*k* (nm^{−1})', { size: 12, color: TICK, align: 'right' });
   },
 
   readouts: [
