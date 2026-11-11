@@ -1,0 +1,20 @@
+{
+  "ch14.scene": "Venturi tube",
+  "ch14.p.ratio": "Area ratio $A_2/A_1$",
+  "ch14.d.ratio": "Throat area $A_2$ over the wide area $A_1$; 1 means a uniform pipe",
+  "ch14.p.Q": "Flow rate $Q$",
+  "ch14.d.Q": "Volume of water crossing any cross-section per second",
+  "ch14.p.dy": "Height difference",
+  "ch14.d.dy": "Height of the outlet above the inlet; the pipe tilts by that much",
+  "ch14.sum": "sum",
+  "ch14.goal.cont": "Continuity: the flow rate $Q = Av$ is the same everywhere in the pipe, so the water is faster where the pipe is narrow",
+  "ch14.goal.bern": "Bernoulli: $p + \\tfrac{1}{2}\\rho v^2 + \\rho g y$ is constant, so the pressure is lower where the water is faster",
+  "ch14.obs.tracer": "Tracers enter at equal time intervals; in the throat their spacing grows by $A_1/A_2$",
+  "ch14.obs.column": "Standpipe column height $= p/\\rho g$; the level is lowest at the throat (2)",
+  "ch14.obs.table": "Table: the $Av$ row and the sum row are equal at all three taps; $p$ and $\\tfrac{1}{2}\\rho v^2$ trade off",
+  "ch14.obs.ratio": "Area ratio 1: speed and pressure stay constant. Ratio 0.5: $v_2 = 2v_1$ and $p_1 - p_2 = \\tfrac{1}{2}\\rho (v_2^2 - v_1^2)$",
+  "ch14.obs.tilt": "Height difference 20 cm: taps 1 and 3 have the same speed, but the pressure at the higher outlet (3) is lower by $\\rho g \\Delta y$",
+  "ch14.assume.flow": "Incompressible, steady, non-viscous flow (water, $\\rho = 1000\\ \\text{kg/m}^3$), uniform speed across each cross-section",
+  "ch14.assume.p": "$p$ is gauge pressure (relative to the atmosphere); height $y$ is measured from the inlet axis. The inlet pressure is chosen so that every column stands above the pipe",
+  "ch14.assume.slow": "Shown at 1/4 of real speed"
+}
