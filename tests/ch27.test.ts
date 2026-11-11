@@ -128,3 +128,19 @@ describe('ch27 RC circuit', () => {
     }
   });
 });
+
+describe('ch27 switch before play (runner restarts on a live change before the first step)', () => {
+  it('discharge chosen before play: the t = 0 sample is already the charged capacitor', () => {
+    const r = new Runner(rcCircuit, { ...defaults(rcCircuit.params), sw: 'charge' }, 1);
+    r.setParam('sw', 'discharge');
+    const q0 = r.hist.col('q')[0];
+    expect(r.hist.length).toBe(1);
+    expect(q0).toBeGreaterThan(0);
+    // After the run has started, a switch is live again (no restart).
+    r.play();
+    r.advance(0.2);
+    const n = r.hist.length;
+    r.setParam('sw', 'charge');
+    expect(r.hist.length).toBe(n);
+  });
+});
