@@ -3,14 +3,14 @@
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { BOX, KQ, POINT_POOL, V, clearOf, layoutParam, pointCoords, pointSources, pointWorld, presetParam, presetTag } from '../field/charges';
 import { FieldLayers, palette } from '../field/layers';
-import { chargeGlyph, Memo, SURFACE, srcKey, type Tray } from '../field/render';
+import { chargeGlyph, freeSpot, Memo, SURFACE, srcKey, type Tray } from '../field/render';
 import { slotHandles } from '../field/slots';
 import { extendPath, workAlong } from './physics';
 
 type P = { preset: string; view: string; lines: boolean; dV: number; Q: number[] };
 type S = { t: number; tray?: Tray; A: Vec2; path: number[] };
 
-const START: Vec2 = { x: -0.15, y: 0.45 };
+const START: Vec2 = { x: -0.15, y: 0.58 };
 const MAX_PTS = 6000;
 
 const params: ParamSchema<P> = {
@@ -60,12 +60,16 @@ export const potential: Scene<P, S> = {
     }
     for (const c of src) chargeGlyph(g, c, c.s);
 
-    g.circle(s.A, 5, { fill: '#1a1a1a' });
-    g.text(s.A, 'A', { size: 13, color: '#1a1a1a', align: 'right', baseline: 'middle', dx: -11, dy: -12 });
+    // Labels A (above left) and q0 (below right) move to a free diagonal when a charge is closer.
     const q = end(s);
+    const charges: Vec2[] = src.map((c) => ({ x: c.x, y: c.y }));
+    const a = freeSpot(g, s.A, [...charges, q], 2, 11, 12);
+    const q0 = freeSpot(g, q, [...charges, s.A, a.at], 1, 11, 11);
+    g.circle(s.A, 5, { fill: '#1a1a1a' });
+    g.text(a.at, 'A', { size: 13, color: '#1a1a1a', align: a.align, baseline: 'middle' });
     g.circle(q, 7, { fill: '#ffffff', color: '#1a1a1a', width: 1.5 });
     g.text(q, '+', { size: 12, color: '#1a1a1a', align: 'center', baseline: 'middle', dy: 0.5 });
-    g.text(q, '*q*_{0}', { size: 13, color: '#1a1a1a', align: 'left', baseline: 'middle', dx: 11, dy: 11 });
+    g.text(q0.at, '*q*_{0}', { size: 13, color: '#1a1a1a', align: q0.align, baseline: 'middle' });
     palette(g, s, POINT_POOL, pointCoords(p), chargeGlyph);
   },
 

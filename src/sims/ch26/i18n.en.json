@@ -18,5 +18,5 @@
   "ch26.obs.T": "Higher temperature: more frequent collisions, smaller $v_d$, larger $R$",
   "ch26.assume.speed": "Drift speed is hugely exaggerated: in copper $v_d \\sim 10^{-4}$ m/s while the electron (Fermi) speed is $\\sim 10^{6}$ m/s",
   "ch26.assume.model": "Drude model: fixed speed and random direction after each collision, exponentially distributed free times (mean $\\tau \\propto 1/T$), 2D section, no electron-electron interaction",
-  "ch26.assume.units": "Each drawn electron stands for many electrons. Its charge is set so that a 4 cm, 2 mm², 300 K wire has 10 Ω. The count uses 8 times as many electrons as are drawn, to cut the thermal noise; $\\bar I$ is shown from 3 s on"
+  "ch26.assume.units": "Each drawn electron stands for many electrons. Its charge is set so that a 4 cm, 2 mm², 300 K wire has 10 Ω. The count uses 8 times as many electrons as are drawn, to cut the thermal noise; the $\\bar I = Q/t$ graph starts at 1 s (four mean free times at 300 K) and rises onto the prediction as the drift builds up, the readout $I$ from 3 s on. Dots are drawn smaller on a small stage"
 }
