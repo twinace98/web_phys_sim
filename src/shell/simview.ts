@@ -642,7 +642,7 @@ export class SimView {
 
     if (this.timeVal) this.timeVal.textContent = this.ui.cursorT.toFixed(2);
     (scene.readouts ?? []).forEach((spec, i) => {
-      this.readoutVals[i].textContent = fmt(spec.value(s, p), spec.sig ?? 3);
+      this.readoutVals[i].textContent = fmt(spec.value(s, p), spec.sig ?? 3, spec.zeroTol);
     });
     if (this.playBtn && this.shownPlaying !== r.playing) {
       this.shownPlaying = r.playing;

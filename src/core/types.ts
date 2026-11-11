@@ -167,6 +167,8 @@ export interface ReadoutSpec<S, P extends Params> {
   unit: string;
   value: (s: S, p: P) => number;
   sig?: number;
+  /** Values below this print as 0 (default 1e-9); 0 keeps tiny values such as 10⁻³⁴ m. */
+  zeroTol?: number;
 }
 
 export interface PlotHandle<P extends Params> {
