@@ -4,7 +4,7 @@ import { fmt, fmtTick } from '../core/format';
 import { getLang, onLangChange, t } from '../core/i18n';
 import { defaults, fromQuery, toQuery } from '../core/params';
 import { Runner } from '../core/runner';
-import type { Params, ParamSpec, Scene, SimPage, UiState } from '../core/types';
+import { timeUnit, type Params, type ParamSpec, type Scene, type SimPage, type UiState } from '../core/types';
 import { chapterHash } from '../core/url';
 import { Viewport } from '../core/viewport';
 import { CanvasDraw } from '../draw/draw';
@@ -208,7 +208,7 @@ export class SimView {
       this.timeVal = h('span', { class: 'val' });
       const time = h('span', { class: 'ro' });
       time.innerHTML = `${tex('t')} = `;
-      time.append(this.timeVal, ' s');
+      time.append(this.timeVal, ` ${timeUnit(this.scene.time, r.params)}`);
       bar.append(
         this.playBtn,
         iconButton(ICON.step, `${t('ui.step')} (→)`, () => {

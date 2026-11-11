@@ -88,6 +88,14 @@ export interface TimeSpec {
   window?: number;
   /** Sim seconds per wall second at 1x (default 1). */
   scale?: number;
+  /** Display unit of sim time (default 's'), e.g. 'ps' or '10³ y'; may depend on parameters. */
+  unit?: string | ((p: Params) => string);
+}
+
+/** Display unit of a scene's sim time. */
+export function timeUnit(time: TimeSpec | undefined, p: Params): string {
+  const u = time?.unit;
+  return typeof u === 'function' ? u(p) : (u ?? 's');
 }
 
 export interface WorldSpec {
