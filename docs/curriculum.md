@@ -78,11 +78,11 @@
 | 34 | Images | 탭 1 렌즈 · 탭 2 거울: 물체 드래그 → 주요 광선 3개, 실상·허상, $1/p + 1/i = 1/f$ | E7 |
 | 35 | Interference | 탭 1 이중슬릿 간섭: 2D 파동 전파와 스크린 세기 누적, 경로차 $\Delta L/\lambda$, $\Delta y = \lambda D/d$ | E3 |
 | 36 | Diffraction | 탭 1 단일슬릿 회절 (호이겐스 점원 쌍, 첫 극소) · 탭 2 위상자 사슬 (닫힌 원 = 극소) | E3 |
-| 37 | Relativity | 두 관측자 시점의 시간 팽창·길이 수축 | 전용 |
-| 38 | Photons and Matter Waves | 파속의 입자성, 드브로이 파장 | E3, E4 |
-| 39 | More About Matter Waves | 1D 무한/유한/조화/이중 우물 | E4 |
-| 40 | All About Atoms | 슈테른-게를라흐 축 변경 실험 | E5 |
-| 41 | Conduction of Electricity in Solids | 밴드갭과 금속/반도체/절연체 | E4 |
+| 37 | Relativity | 탭 1 시간 팽창 (두 기준계 빛 시계) · 탭 2 길이 수축 · 탭 3 시공간 도표 (사건 드래그, 동시선) · 탭 4 동시성의 상대성 (기차 섬광) | 전용 |
+| 38 | Photons and Matter Waves | 탭 1 파속 (평면파 합성, 군속도 = 입자 속도, $\Delta x\,\Delta k$) · 탭 2 드브로이 파장 (전자·중성자·$\text{C}_{60}$·야구공) | E3, E4 |
+| 39 | More About Matter Waves | 탭 1 퍼텐셜 우물 (무한·유한·조화·이중, 준위와 파동함수) · 탭 2 중첩 상태 (확률밀도 진동, 터널링) | E4 |
+| 40 | All About Atoms | 탭 1 슈테른-게를라흐 실험 (고전 예측 vs 두 줄) · 탭 2 연속 측정 (z→x→z 정보 소거) · 탭 3 측정 확률 ($\cos^2(\theta/2)$ 누적) | E5 |
+| 41 | Conduction of Electricity in Solids | 탭 1 띠 형성 (우물 $N$개 → 띠, 밴드갭) · 탭 2 띠 채움과 분류 (금속·반도체·절연체, 페르미-디랙) · 탭 3 전기 전도 ($E(k)$ 분포 이동, 찬 띠 전류 0) · 탭 4 도핑 (n형·p형, 온도별 운반자 밀도) | E4 |
 | 42 | Nuclear Physics | 탭 1 방사성 붕괴 (핵 격자의 무작위 붕괴, $N(t)$ 계단 vs $N_0 e^{-\lambda t}$, 반감기 표식, $^{14}\text{C}$·$^{131}\text{I}$·$^{238}\text{U}$ 시간축 자동 축척) | E5 |
 
 ---

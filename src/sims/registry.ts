@@ -62,11 +62,11 @@ export const CHAPTERS: ChapterMeta[] = [
   c(34, 4, '상', 'Images', '렌즈, 거울', 'Lenses, mirrors', () => import('./ch34').then((m) => m.default)),
   c(35, 4, '간섭', 'Interference', '이중슬릿 간섭', 'Double-slit interference', () => import('./ch35').then((m) => m.default)),
   c(36, 4, '회절', 'Diffraction', '단일슬릿 회절, 위상자 사슬', 'Single-slit diffraction, phasor chain', () => import('./ch36').then((m) => m.default)),
-  c(37, 5, '상대성 이론', 'Relativity', '시간 팽창, 길이 수축', 'Time dilation, length contraction'),
-  c(38, 5, '광자와 물질파', 'Photons and Matter Waves', '파속, 드브로이 파장', 'Wave packets, de Broglie wavelength'),
-  c(39, 5, '물질파 심화', 'More About Matter Waves', '퍼텐셜 우물, 에너지 준위', 'Potential wells, energy levels'),
-  c(40, 5, '원자', 'All About Atoms', '슈테른-게를라흐 실험', 'Stern-Gerlach experiment'),
-  c(41, 5, '고체의 전기 전도', 'Conduction of Electricity in Solids', '에너지 띠, 반도체', 'Energy bands, semiconductors'),
+  c(37, 5, '상대성 이론', 'Relativity', '시간 팽창, 길이 수축, 시공간 도표, 동시성', 'Time dilation, length contraction, spacetime diagram, simultaneity', () => import('./ch37').then((m) => m.default)),
+  c(38, 5, '광자와 물질파', 'Photons and Matter Waves', '파속, 드브로이 파장', 'Wave packets, de Broglie wavelength', () => import('./ch38').then((m) => m.default)),
+  c(39, 5, '물질파 심화', 'More About Matter Waves', '퍼텐셜 우물, 에너지 준위, 중첩 상태', 'Potential wells, energy levels, superposition', () => import('./ch39').then((m) => m.default)),
+  c(40, 5, '원자', 'All About Atoms', '슈테른-게를라흐 실험, 연속 측정, 측정 확률', 'Stern-Gerlach experiment, sequential measurements, measurement probability', () => import('./ch40').then((m) => m.default)),
+  c(41, 5, '고체의 전기 전도', 'Conduction of Electricity in Solids', '띠 형성, 띠 채움, 전기 전도, 도핑', 'Band formation, band filling, conduction, doping', () => import('./ch41').then((m) => m.default)),
   c(42, 5, '핵물리', 'Nuclear Physics', '방사성 붕괴, 반감기', 'Radioactive decay, half-life', () => import('./ch42').then((m) => m.default)),
 ];
 
