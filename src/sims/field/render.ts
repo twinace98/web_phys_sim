@@ -325,13 +325,16 @@ export function knob(g: Draw, p: Vec2, kind: 'edge' | 'centre' = 'edge'): void {
 /**
  * Component arrows along a closed path: at each sample, an arrow of signed size `v` along `dir`
  * (normal or tangent), vermilion if v > 0 (out of the surface / along the loop) and blue if not.
- * Lengths are linear in v, the largest |v| drawn `maxPx` long.
+ * Lengths are linear in v up to the 90th percentile of |v|, which is drawn `maxPx` long.
  */
 export function componentArrows(g: Draw, samples: { p: V2; dir: V2; v: number }[], maxPx = 26): void {
-  const vmax = Math.max(...samples.map((s) => Math.abs(s.v)), 1e-30);
+  // Scale by the 90th percentile so one sample next to a source does not flatten the rest;
+  // larger values are capped at maxPx.
+  const mags = samples.map((s) => Math.abs(s.v)).sort((a, b) => a - b);
+  const vmax = Math.max(mags[Math.floor(0.9 * (mags.length - 1))] ?? 0, 1e-30);
   const { ctx } = g;
   for (const s of samples) {
-    const len = (Math.abs(s.v) / vmax) * maxPx * theme.scale;
+    const len = Math.min(1, Math.abs(s.v) / vmax) * maxPx * theme.scale;
     if (len < 2.5 * theme.scale) continue;
     const sg = s.v > 0 ? 1 : -1;
     const [x, y] = g.vp.toPx(s.p[0], s.p[1]);
