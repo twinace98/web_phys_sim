@@ -60,7 +60,10 @@ function model(p: P) {
     const k = (0.4 * (box.x1 - box.x0)) / pt;
     const after = mo.at.map((q) => q.m * q.v[1]);
     const up = Math.max(0, ...after) * k;
-    const o = { x: box.x0 + 0.1 * (box.x1 - box.x0), y: box.y0 - 0.45 - up };
+    // Gap under the table scales with the width (hence the drawing scale): its title, 18 px
+    // above the diagram, then stays clear of the lowest puck and its trail on a phone too.
+    const gap = Math.max(0.45, 0.12 * (box.x1 - box.x0));
+    const o = { x: box.x0 + 0.1 * (box.x1 - box.x0), y: box.y0 - gap - up };
     memo = { mo, box, dia: { o, k, up } };
     memoKey = key;
   }

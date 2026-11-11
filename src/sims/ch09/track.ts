@@ -171,17 +171,28 @@ function spring(g: Draw, a: number, b: number, y: number): void {
   g.polyline(pts, { color: '#5c5c5c', width: 1.25 });
 }
 
-function cart(g: Draw, xc: number, w: number, fill: string, name: string): void {
+/** Smallest drawn side of the lighter cart [px]: a long trip must not shrink the carts to a few px. */
+const MIN_SIDE_PX = 24;
+
+/**
+ * Drawing magnification of both carts (1 when they are big enough). Area stays proportional to
+ * mass, and each cart grows away from the other (cart 1 to the left of its right face, cart 2 to
+ * the right of its left face), so contact and the spring gap stay where the physics puts them.
+ */
+const magnify = (g: Draw, tr: Track) => Math.max(1, g.px(MIN_SIDE_PX) / Math.min(tr.w1, tr.w2));
+
+/** Square cart standing on the track between x0 and x0 + w. */
+function cart(g: Draw, x0: number, w: number, fill: string, name: string): void {
   g.polygon(
     [
-      { x: xc - w / 2, y: 0 },
-      { x: xc + w / 2, y: 0 },
-      { x: xc + w / 2, y: w },
-      { x: xc - w / 2, y: w },
+      { x: x0, y: 0 },
+      { x: x0 + w, y: 0 },
+      { x: x0 + w, y: w },
+      { x: x0, y: w },
     ],
     { fill, fillAlpha: 0.9 },
   );
-  g.text({ x: xc, y: w / 2 }, name, { size: 12, color: '#ffffff', align: 'center', baseline: 'middle', weight: 600 });
+  g.text({ x: x0 + w / 2, y: w / 2 }, name, { size: 12, color: '#ffffff', align: 'center', baseline: 'middle', weight: 600 });
 }
 
 /** Momentum arrow with its label beyond the tip; nothing when p is (nearly) zero. */
@@ -221,24 +232,33 @@ export const track: Scene<P, S> = {
   draw: (g, s, p) => {
     const { tr, span, kp } = model(p);
     const [lo, hi] = span;
+    const k = sample(p, s.t);
+    // Centre-of-mass marker just under the track, so it never covers a cart; the tick numbers
+    // it passes over are left out.
+    const rCm = 6;
+    const cmY = -g.px(rCm + 1.5);
     g.line({ x: lo, y: 0 }, { x: hi, y: 0 }, { role: 'axis', width: 1.5 });
     for (const x of niceTicks(lo, hi, 10)) {
       g.line({ x, y: 0 }, { x, y: -g.px(5) }, { role: 'axis', width: 1 });
-      g.text({ x, y: 0 }, fmtTick(x), { size: 11, color: TICK, align: 'center', dy: 17 });
+      if (Math.abs(x - k.xcm) > g.px(rCm + 14)) g.text({ x, y: 0 }, fmtTick(x), { size: 11, color: TICK, align: 'center', dy: 17 });
     }
 
-    const k = sample(p, s.t);
-    if (tr.kind === 'explode' && s.t < tr.tSep) spring(g, k.x1 + tr.w1 / 2, k.x2 - tr.w2 / 2, Math.min(tr.w1, tr.w2) / 2);
-    cart(g, k.x1, tr.w1, C1, '1');
-    cart(g, k.x2, tr.w2, C2, '2');
-    cmMark(g, { x: k.xcm, y: 0 });
+    const f = magnify(g, tr);
+    const s1 = tr.w1 * f;
+    const s2 = tr.w2 * f;
+    const r1 = k.x1 + tr.w1 / 2; // right face of cart 1
+    const l2 = k.x2 - tr.w2 / 2; // left face of cart 2
+    if (tr.kind === 'explode' && s.t < tr.tSep) spring(g, r1, l2, Math.min(s1, s2) / 2);
+    cart(g, r1 - s1, s1, C1, '1');
+    cart(g, l2, s2, C2, '2');
+    cmMark(g, { x: k.xcm, y: cmY }, rCm);
 
     if (p.arrows) {
       // Three lanes above the carts: p1, p2 and their sum, all on the same scale.
-      const y0 = Math.max(tr.w1, tr.w2) + g.px(16);
+      const y0 = Math.max(s1, s2) + g.px(16);
       const dy = g.px(20);
-      pArrow(g, { x: k.x1, y: y0 }, k.p1 * kp, C1, '*p*_{1}', 2.25);
-      pArrow(g, { x: k.x2, y: y0 + dy }, k.p2 * kp, C2, '*p*_{2}', 2.25);
+      pArrow(g, { x: r1 - s1 / 2, y: y0 }, k.p1 * kp, C1, '*p*_{1}', 2.25);
+      pArrow(g, { x: l2 + s2 / 2, y: y0 + dy }, k.p2 * kp, C2, '*p*_{2}', 2.25);
       pArrow(g, { x: k.xcm, y: y0 + 2 * dy }, k.pt * kp, '#1a1a1a', '*p*_{tot}', 2.75);
     }
   },

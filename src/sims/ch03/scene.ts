@@ -49,22 +49,6 @@ function drawAxes(g: Draw, phi: number, tickLabels: boolean): void {
   }
 }
 
-/** Text placed `d` px from `at` along unit direction `dir`, growing away from `at`. */
-function sideText(g: Draw, at: Vec2, dir: Vec2, d: number, text: string, role: Role): void {
-  const align = dir.x > 0.35 ? 'left' : dir.x < -0.35 ? 'right' : 'center';
-  g.text({ x: at.x + dir.x * g.px(d), y: at.y + dir.y * g.px(d) }, text, { size: 15, role, align, baseline: 'middle' });
-}
-
-/** Label at the middle of the arrow from `from` along `vec`, on the side away from `away`. */
-function midLabel(g: Draw, from: Vec2, vec: Vec2, text: string, role: Role, away: Vec2): void {
-  const len = Math.hypot(vec.x, vec.y);
-  if (len < 1e-9) return;
-  const m = { x: from.x + vec.x / 2, y: from.y + vec.y / 2 };
-  let n = { x: -vec.y / len, y: vec.x / len };
-  if ((m.x - away.x) * n.x + (m.y - away.y) * n.y < 0) n = { x: -n.x, y: -n.y };
-  sideText(g, m, n, 12, text, role);
-}
-
 /** Faint disc marking a draggable tip; drawn under the arrow so it never hides the head. */
 const halo = (g: Draw, at: Vec2, role: Role) => g.circle(at, 14, { fill: role, alpha: 0.13 });
 
@@ -295,9 +279,33 @@ export const sumScene: Scene<PS, { t: number }> = {
     g.arrow(O, P(s), { role: 'fg', width: 3 });
     g.arrow(O, P(a), { role: 'position', width: 2.5 });
     g.arrow(O, P(b), { role: 'energyU', width: 2.5 });
-    midLabel(g, O, P(a), `*A* = ${fmt(lenA)}`, 'position', centre);
-    midLabel(g, O, P(b), `*B* = ${fmt(lenB)}`, 'energyU', centre);
-    if (lenC > 1e-9) sideText(g, P(s), { x: s[0] / lenC, y: s[1] / lenC }, 14, `*C* = ${fmt(lenC)}`, 'fg');
+    // C beyond its tip; A and B beside their arrows, away from the parallelogram, pushed out
+    // until the text box clears every arrow, dashed side, axis and label already placed.
+    const lay = new LabelLayout(g);
+    lay.seg({ x: -L, y: 0 }, { x: L, y: 0 });
+    lay.seg({ x: 0, y: -L }, { x: 0, y: L });
+    lay.seg(O, P(a));
+    lay.seg(O, P(b));
+    lay.seg(O, P(s));
+    lay.seg(P(a), P(s));
+    lay.seg(P(b), P(s));
+    if (lenC > 1e-9) {
+      const u = { x: s[0] / lenC, y: s[1] / lenC };
+      const [cx, cy] = lay.px(P(s));
+      const spot = (d: number) => {
+        const x = cx + u.x * d * theme.scale;
+        const y = cy - u.y * d * theme.scale;
+        return { x, y, align: (u.x > 0.35 ? 'left' : u.x < -0.35 ? 'right' : 'center') as 'left' | 'right' | 'center' };
+      };
+      lay.place([spot(14), spot(22), spot(32)], `*C* = ${fmt(lenC)}`, 'fg');
+    }
+    const D = [12, 20, 30, 42, 56];
+    const away = (v: V2): Vec2 => {
+      const m = P(v, 0.5);
+      return { x: m.x - centre.x, y: m.y - centre.y };
+    };
+    if (lenA > 1e-9) lay.beside(O, P(a), away(a), `*A* = ${fmt(lenA)}`, 'position', D);
+    if (lenB > 1e-9) lay.beside(O, P(b), away(b), `*B* = ${fmt(lenB)}`, 'energyU', D);
   },
 
   overlay: (_s, p) => componentPanel([p.A[0], p.A[1]], [p.B[0], p.B[1]]),

@@ -10,10 +10,16 @@ type P = { frame: string; heading: number; vb: number; u: number };
 const W = 20; // river width [m]
 const DEG = Math.PI / 180;
 const KV = 2.4; // world m per (m/s)
+/** Phone: the river fills the tall stage and the camera follows the boat along the bank. */
+const KV_NARROW = 4;
+const WIN_NARROW = 1.15 * W; // visible length of river [m]
 const BANK = '#5c5c5c';
 const WATER = '#eef5fb';
 const RIPPLE = '#b9d4ea';
 const POST = '#9a9a9a';
+
+const narrow = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+const kvOf = () => (narrow() ? KV_NARROW : KV);
 
 const riverOf = (p: P): River => ({ W, vb: p.vb, u: p.u, theta: p.heading * DEG });
 
@@ -98,6 +104,43 @@ export function velocityPanel(p: P): string {
   return `\\begin{array}{l} ${eq} \\\\ \\begin{array}{ll} ${row('x', 0)} \\\\ ${row('y', 1)} \\end{array} \\end{array}`;
 }
 
+/**
+ * Narrow screens: x of the window centre at time t. It follows the boat and its velocity
+ * triangle but stops at the ends of the whole crossing, so the start stays in view when it can.
+ */
+function cameraX(p: P, t: number): number {
+  const [x0, x1] = xSpan(p);
+  if (x1 - x0 <= WIN_NARROW) return (x0 + x1) / 2;
+  const r = riverOf(p);
+  const vb = vBW(r);
+  const vg = vBG(r);
+  const v = p.frame !== 'water' ? vg : vb;
+  const px = v[0] * t;
+  const k = KV_NARROW;
+  const lo = px + Math.min(0, vb[0] * k, vg[0] * k);
+  const hi = px + Math.max(0, vb[0] * k, vg[0] * k);
+  const c = (lo + hi) / 2;
+  return Math.min(Math.max(c, x0 + WIN_NARROW / 2), x1 - WIN_NARROW / 2);
+}
+
+/** The same drawing API with every world point shifted by dx along x. */
+function shifted(g: Draw, dx: number): Draw {
+  const m = (q: Vec2): Vec2 => ({ x: q.x + dx, y: q.y });
+  return {
+    ctx: g.ctx,
+    vp: g.vp,
+    px: (n) => g.px(n),
+    line: (a, b, st) => g.line(m(a), m(b), st),
+    polyline: (pts, st) => g.polyline(pts.map(m), st),
+    arrow: (from, vec, st) => g.arrow(m(from), vec, st),
+    circle: (c, r, st) => g.circle(m(c), r, st),
+    polygon: (pts, st) => g.polygon(pts.map(m), st),
+    arc: (c, r, a0, a1, st) => g.arc(m(c), r, a0, a1, st),
+    text: (q, str, st) => g.text(m(q), str, st),
+    screenText: (x, y, str, st) => g.screenText(x, y, str, st),
+  };
+}
+
 /** Boat outline pointing along its heading (unit vector d), centred at c. */
 function boat(c: Vec2, d: Vec2): Vec2[] {
   const n = { x: -d.y, y: d.x };
@@ -112,10 +155,10 @@ function boat(c: Vec2, d: Vec2): Vec2[] {
  * vector triangle), so the three labels never sit inside the triangle or on another arrow.
  * When `opp` lies on the arrow's line, `side` (+1 left of a→b on screen, −1 right) decides.
  */
-function edgeLabel(g: Draw, a: Vec2, b: Vec2, opp: Vec2, side: 1 | -1, text: string, role: Role): void {
-  const [ax, ay] = g.vp.toPx(a.x, a.y);
-  const [bx, by] = g.vp.toPx(b.x, b.y);
-  const [ox, oy] = g.vp.toPx(opp.x, opp.y);
+function edgeLabel(g: Draw, dx: number, a: Vec2, b: Vec2, opp: Vec2, side: 1 | -1, text: string, role: Role): void {
+  const [ax, ay] = g.vp.toPx(a.x + dx, a.y);
+  const [bx, by] = g.vp.toPx(b.x + dx, b.y);
+  const [ox, oy] = g.vp.toPx(opp.x + dx, opp.y);
   const len = Math.hypot(bx - ax, by - ay);
   if (len < 1e-6) return;
   let nx = (by - ay) / len;
@@ -139,8 +182,13 @@ export const relative: Scene<P, { t: number; n: number }> = {
   params,
   time: { h: 1 / 120, recordEvery: 4, frameStep: 0.1, tEnd: (p) => crossingTime(riverOf(p as P)) },
   world: (p) => {
-    const [x0, x1] = xSpan(p);
     // On arrival the velocity triangle (up to v_BW·KV tall) and its labels stand above the far bank.
+    if (narrow()) {
+      // Tall stage: a window of the river, as wide as the stage allows; the camera pans (draw).
+      const top = W + p.vb * KV_NARROW + 0.15 * W;
+      return { x: [-WIN_NARROW / 2, WIN_NARROW / 2], y: [-0.25 * W, top], aspect: 'contain', padPx: 12 };
+    }
+    const [x0, x1] = xSpan(p);
     const top = Math.max(1.25 * W, W + p.vb * KV + 0.1 * W);
     return { x: [x0, x1], y: [-0.25 * W, top], aspect: 'contain', padPx: 16 };
   },
@@ -150,7 +198,10 @@ export const relative: Scene<P, { t: number; n: number }> = {
     s.t = Math.min(s.n / 120, crossingTime(riverOf(p)));
   },
 
-  draw: (g, s, p) => {
+  draw: (g0, s, p) => {
+    const dx = narrow() ? -cameraX(p, s.t) : 0;
+    const g = dx ? shifted(g0, dx) : g0;
+    const KV = kvOf();
     const r = riverOf(p);
     const ground = p.frame !== 'water';
     const [x0, x1] = xSpan(p);
@@ -205,9 +256,9 @@ export const relative: Scene<P, { t: number; n: number }> = {
       g.arrow(pos, { x: vb[0] * KV, y: vb[1] * KV }, { role: 'position', width: 2.25 });
       if (r.u > 0) g.arrow(tipA, { x: vw[0] * KV, y: 0 }, { role: 'energyU', width: 2.25 });
       g.arrow(pos, { x: vg[0] * KV, y: vg[1] * KV }, { role: 'fg', width: 2.5 });
-      edgeLabel(g, pos, tipA, tipC, -1, '*v*_{BW}', 'position');
-      if (r.u > 0) edgeLabel(g, tipA, tipC, pos, 1, '*v*_{WG}', 'energyU');
-      edgeLabel(g, pos, tipC, tipA, 1, '*v*_{BG}', 'fg');
+      edgeLabel(g0, dx, pos, tipA, tipC, -1, '*v*_{BW}', 'position');
+      if (r.u > 0) edgeLabel(g0, dx, tipA, tipC, pos, 1, '*v*_{WG}', 'energyU');
+      edgeLabel(g0, dx, pos, tipC, tipA, 1, '*v*_{BG}', 'fg');
     } else {
       g.arrow(pos, { x: vb[0] * KV, y: vb[1] * KV }, { role: 'position', width: 2.25, label: '*v*_{BW}' });
     }

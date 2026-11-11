@@ -88,7 +88,8 @@ function drawPull(g: Draw, s: FrictionState): void {
   if (s.F > 0) g.arrow({ x: c.x + B / 2, y: B / 2 }, { x: s.F * KF, y: 0 }, { role: 'force', width: 2, label: '*F*' });
   if (s.f > 0) {
     g.arrow({ x: c.x - B / 2, y: 0.02 }, { x: -s.f * KF, y: 0 }, { role: 'force', width: 2.5 });
-    g.text({ x: c.x - B / 2 - s.f * KF, y: 0 }, fLabel(s), { size: 13, role: 'force', align: 'center', dy: -12 });
+    // Left of the tip, so a short arrow (ice) never puts its label on the block.
+    g.text({ x: c.x - B / 2 - s.f * KF, y: 0 }, fLabel(s), { size: 13, role: 'force', align: 'right', dx: -4, dy: -12 });
   }
 }
 
@@ -113,11 +114,12 @@ function drawTilt(g: Draw, s: FrictionState): void {
   g.arrow(mid, { x: 0, y: -M * G * KF }, { role: 'force', width: 2, label: '*m**g*' });
   g.arrow(mid, { x: n.x * s.N * KF, y: n.y * s.N * KF }, { role: 'force', width: 2, label: '*N*' });
   if (s.f > 0) {
-    // Friction runs along the board: label above the tip, off the board line.
+    // Friction runs along the board: label above the tip, off the board line, growing up the
+    // slope so a short arrow never puts it on the block.
     const from = add(add(c, u, B / 2), n, 0.02);
     const vec = { x: u.x * s.f * KF, y: u.y * s.f * KF };
     g.arrow(from, vec, { role: 'force', width: 2.5 });
-    g.text(add(add(from, vec), n, g.px(13)), fLabel(s), { size: 13, role: 'force', align: 'center', baseline: 'middle' });
+    g.text(add(add(add(from, vec), n, g.px(13)), u, g.px(2)), fLabel(s), { size: 13, role: 'force', align: 'left', baseline: 'middle' });
   }
 }
 
