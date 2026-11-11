@@ -73,11 +73,11 @@
 | 29 | Magnetic Fields Due to Currents | 비오-사바르, 앙페르 법칙 | E2 |
 | 30 | Induction and Inductance | 패러데이·렌츠, 맥스웰 방정식 각각의 의미 | E2 |
 | 31 | Electromagnetic Oscillations and AC | 탭 1 자유 진동 (LC 에너지 교환, 용수철 대응, 감쇠) · 탭 2 교류 회로 (위상차의 원인, 기울기·넓이 표시, 위상자, 공명 곡선) | E6 |
-| 32 | Maxwell's Equations; Magnetism of Matter | 자성의 기원, 스핀 정렬 | E5 |
-| 33 | Electromagnetic Waves | 말뤼스 법칙, 굴절·전반사 | E7 |
-| 34 | Images | 렌즈·거울 광선 작도 | E7 |
-| 35 | Interference | 이중슬릿 파동 전파와 스크린 기록 | E3 |
-| 36 | Diffraction | 단일슬릿 회절의 원인 | E3 |
+| 32 | Maxwell's Equations; Magnetism of Matter | 탭 1 자성의 기원 (전류 고리 = 자기쌍극자, 스핀 모멘트) · 탭 2 자성체 비교 (상자성·강자성·반자성 화살표 격자, $M$–$B$ 히스테리시스, 퀴리 온도) | E5 |
+| 33 | Electromagnetic Waves | 탭 1 편광 (말뤼스 법칙, 편광판 세 장) · 탭 2 굴절과 전반사 (프레넬 세기, 임계각) · 탭 3 광섬유 (수용각) | E7 |
+| 34 | Images | 탭 1 렌즈 · 탭 2 거울: 물체 드래그 → 주요 광선 3개, 실상·허상, $1/p + 1/i = 1/f$ | E7 |
+| 35 | Interference | 탭 1 이중슬릿 간섭: 2D 파동 전파와 스크린 세기 누적, 경로차 $\Delta L/\lambda$, $\Delta y = \lambda D/d$ | E3 |
+| 36 | Diffraction | 탭 1 단일슬릿 회절 (호이겐스 점원 쌍, 첫 극소) · 탭 2 위상자 사슬 (닫힌 원 = 극소) | E3 |
 | 37 | Relativity | 두 관측자 시점의 시간 팽창·길이 수축 | 전용 |
 | 38 | Photons and Matter Waves | 파속의 입자성, 드브로이 파장 | E3, E4 |
 | 39 | More About Matter Waves | 1D 무한/유한/조화/이중 우물 | E4 |
