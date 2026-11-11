@@ -2,7 +2,8 @@
 import { fmt, fmtTick } from '../../core/format';
 import type { ParamSchema, Role, Scene, SceneCtx, SelectParam, Vec2, WorldSpec } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { ROLE_COLOR } from '../../draw/theme';
+import { ROLE_COLOR, theme } from '../../draw/theme';
+import { LabelLayout } from './labels';
 import { add, axes, clampWithPartner, components, placeTip, setComponent, type V2 } from './physics';
 
 const DEG = Math.PI / 180;
@@ -136,28 +137,67 @@ export const componentsScene: Scene<PC, { t: number }> = {
 
     g.arrow(O, fx, { role: 'position', width: 2 });
     g.arrow(O, fy, { role: 'position', width: 2 });
-    if (Math.abs(c.ax) > 0.2) sideText(g, P(ex, c.ax / 2), P(ey, -sign(c.ay)), 26, `*A*_{*x*} = ${fmt(c.ax)}`, 'position');
-    if (Math.abs(c.ay) > 0.2) sideText(g, P(ey, c.ay / 2), P(ex, -sign(c.ax)), 22, `*A*_{*y*} = ${fmt(c.ay)}`, 'position');
 
     g.arc(O, 30, phi, phi + c.theta, { color: GREY, width: 1.25 });
-    // Inside the wedge when it is wide enough. A narrow wedge has no room, so the label goes
-    // to the middle of the neighbouring quadrant (between A and the next axis), farther out.
     const label = `*θ* = ${fmt(c.theta / DEG)}°`;
-    if (Math.abs(c.theta) > 30 * DEG) {
-      const mid = phi + c.theta / 2;
-      g.text({ x: Math.cos(mid) * g.px(38), y: Math.sin(mid) * g.px(38) }, label, {
-        size: 13,
-        color: GREY,
-        align: Math.cos(mid) >= 0 ? 'left' : 'right',
-        baseline: 'middle',
-      });
-    } else {
-      const mid = phi + (c.theta + sign(c.theta) * 90 * DEG) / 2;
-      g.text({ x: Math.cos(mid) * g.px(72), y: Math.sin(mid) * g.px(72) }, label, { size: 13, color: GREY, align: 'center', baseline: 'middle' });
-    }
 
     g.arrow(O, tip, { role: 'position', width: 3 });
-    midLabel(g, O, tip, `*A* = ${fmt(c.mag)}`, 'position', { x: (fx.x + tip.x) / 3, y: (fx.y + tip.y) / 3 });
+
+    // Labels: each beside its arrow, pushed along the normal (or to the other side) until it
+    // clears the arrows, both axes and the labels already placed.
+    const lay = new LabelLayout(g);
+    lay.seg(P(ex, -L), P(ex, L));
+    lay.seg(P(ey, -L), P(ey, L));
+    lay.seg(O, tip);
+    lay.seg(O, fx);
+    lay.seg(O, fy);
+    lay.seg(tip, fx);
+    lay.seg(tip, fy);
+    // Tick labels of both axes (as drawn by drawAxes) are obstacles too.
+    for (const [e, n] of [
+      [ex, ey],
+      [ey, ex],
+    ] as const) {
+      for (let k = -4; k <= 4; k += 2) {
+        if (k === 0) continue;
+        const [qx, qy] = lay.px(plus(P(e, k), P(n, -g.px(13))));
+        lay.boxes.push(lay.box(fmtTick(k), qx, qy, 'center', 10));
+      }
+    }
+    // θ inside the wedge when it is wide enough, else in the neighbouring quadrant (between A
+    // and the next axis), farther out; the first spot clear of the arrows and tick labels.
+    const wide = Math.abs(c.theta) > 30 * DEG;
+    const inner = phi + c.theta / 2;
+    const outer = phi + (c.theta + sign(c.theta) * 90 * DEG) / 2;
+    const spots: [number, number][] = wide
+      ? [
+          [inner, 38],
+          [inner, 50],
+          [inner, 64],
+          [outer, 72],
+          [outer, 92],
+        ]
+      : [
+          [outer, 72],
+          [outer, 92],
+          [outer, 112],
+        ];
+    const [ox, oy] = lay.px(O);
+    lay.place(
+      spots.map(([ang, d]) => {
+        const x = ox + Math.cos(ang) * d * theme.scale;
+        const y = oy - Math.sin(ang) * d * theme.scale;
+        const cs = Math.cos(ang);
+        return { x, y, align: cs > 0.35 ? 'left' : cs < -0.35 ? 'right' : 'center' };
+      }),
+      label,
+      GREY,
+      13,
+    );
+    const D = [14, 24, 36, 50, 64];
+    lay.beside(O, tip, { x: (tip.x - fx.x), y: (tip.y - fx.y) }, `*A* = ${fmt(c.mag)}`, 'position', D);
+    if (Math.abs(c.ax) > 0.2) lay.beside(O, fx, P(ey, -sign(c.ay)), `*A*_{*x*} = ${fmt(c.ax)}`, 'position', D);
+    if (Math.abs(c.ay) > 0.2) lay.beside(O, fy, P(ex, -sign(c.ax)), `*A*_{*y*} = ${fmt(c.ay)}`, 'position', D);
   },
 
   handles: [

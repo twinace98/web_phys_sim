@@ -30,5 +30,7 @@
   "plot.area": "area",
   "ui.resize": "Resize",
   "ui.speed.desc": "Playback speed multiplier",
-  "info.controls": "Controls"
+  "info.controls": "Controls",
+  "ui.loadError": "The page could not be loaded.",
+  "ui.reload": "Reload"
 }

@@ -329,6 +329,7 @@ canvas.stage {
   background: #fff;
   border-left: 1px solid var(--line);
   overflow-y: auto;
+  overflow-x: hidden;
   transform: translateX(100%);
   visibility: hidden;
   transition: transform 0.16s ease, visibility 0s 0.16s;
@@ -486,6 +487,10 @@ canvas.stage {
 }
 .eqs .katex-display {
   margin: 6px 0;
+  /* A long display equation scrolls inside the panel instead of being cut at its right edge. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
 }
 .eqs .katex-display > .katex {
   text-align: left;
@@ -515,6 +520,22 @@ kbd {
   color: var(--muted);
   font-size: 0.9em;
   margin-top: 10px;
+}
+/* Chapter could not be loaded, even after one reload. */
+.load-error {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--muted);
+}
+.load-error button {
+  padding: 6px 16px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+.load-error button:hover {
+  background: var(--hover);
 }
 .reduce-motion .panel {
   transition: none;

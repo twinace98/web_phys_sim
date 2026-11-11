@@ -27,6 +27,36 @@ export interface PlotFrame<P extends Params> {
 }
 
 const TICK_COLOR = '#6b6b6b';
+
+type Box = { x0: number; y0: number; x1: number; y1: number };
+type Cand = { x: number; y: number; align: 'left' | 'right' };
+
+/** Does segment (ax, ay)–(bx, by) meet the box? (Liang–Barsky.) */
+function segHitsBox(ax: number, ay: number, bx: number, by: number, b: Box): boolean {
+  const dx = bx - ax;
+  const dy = by - ay;
+  let u0 = 0;
+  let u1 = 1;
+  const edges: [number, number][] = [
+    [-dx, ax - b.x0],
+    [dx, b.x1 - ax],
+    [-dy, ay - b.y0],
+    [dy, b.y1 - ay],
+  ];
+  for (const [pp, q] of edges) {
+    if (pp === 0) {
+      if (q < 0) return false;
+    } else {
+      const u = q / pp;
+      if (pp < 0) u0 = Math.max(u0, u);
+      else u1 = Math.min(u1, u);
+      if (u0 > u1) return false;
+    }
+  }
+  return true;
+}
+
+const overlaps = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 const ZERO_COLOR = '#c4c4c4';
 
 class PlotView implements PlotDraw {
@@ -35,6 +65,10 @@ class PlotView implements PlotDraw {
   readonly ctx: CanvasRenderingContext2D;
   readonly label: HTMLDivElement;
   showTime = false;
+  /** Label boxes placed in the current frame (collision avoidance). */
+  boxes: Box[] = [];
+  /** Candidate chosen last frame per label key, so labels do not flicker between ties. */
+  lastPick = new Map<string, number>();
   w = 0;
   h = 0;
   private dpr = 1;
@@ -75,7 +109,8 @@ class PlotView implements PlotDraw {
     this.R = this.w - 14 * s;
     // Top margin reserves a row for the axis label so it never covers data.
     this.T = 26 * s;
-    this.B = this.h - (this.showTime ? 24 : 6) * s;
+    // The time axis has two rows below it: tick labels, then the axis label (clear of every curve).
+    this.B = this.h - (this.showTime ? 36 : 6) * s;
     this.label.style.left = `${this.L + 6 * s}px`;
   }
 
@@ -106,6 +141,7 @@ class PlotView implements PlotDraw {
   begin(): void {
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.ctx.clearRect(0, 0, this.w, this.h);
+    this.boxes = [];
   }
 
   clip(): void {
@@ -155,6 +191,7 @@ export class PlotGroup<P extends Params> {
   private scrubPointer: number | null = null;
   private hover: { view: PlotView; i: number; handle: PlotHandle<P> } | null = null;
   private hatch = new Map<string, CanvasPattern | null>();
+  private hist: History<unknown> | null = null;
 
   constructor(private readonly host: PlotHost<P>) {
     this.el = document.createElement('div');
@@ -176,6 +213,7 @@ export class PlotGroup<P extends Params> {
 
   render(f: PlotFrame<P>): void {
     const { hist, p, ui, idx } = f;
+    this.hist = hist;
     const ts = hist.col('t');
     const scene = this.host.scene;
     const items: { src: PlotView; ov: Overlay }[] = [];
@@ -248,7 +286,7 @@ export class PlotGroup<P extends Params> {
         ctx.stroke();
         drawRich(ctx, fmtTick(t), px, v.B + 15 * s, { size: 11, color: TICK_COLOR, align: 'center' });
       }
-      drawRich(ctx, `*t* (${unit})`, v.R, v.B - 6 * s, { size: 12, color: TICK_COLOR, align: 'right' });
+      drawRich(ctx, `*t* (${unit})`, v.R, v.B + 31 * s, { size: 12, color: TICK_COLOR, align: 'right' });
     }
     ctx.restore();
   }
@@ -347,7 +385,15 @@ export class PlotGroup<P extends Params> {
   private areaLabel(v: PlotView, ov: AreaOverlay, hist: History<unknown>, idx: number, p: P): void {
     const tc = hist.col('t')[idx];
     const txt = `${tr('plot.area')} = ${fmt(this.areaValue(ov, hist, idx, p))} ${ov.unit}`;
-    this.label(v, txt, v.X(tc), v.T + 12 * theme.scale, ov.role);
+    const s = theme.scale;
+    const x = v.X(tc);
+    // Top corner beside the cursor first, then the bottom corner.
+    this.place(v, `area:${ov.channel}`, txt, ov.role, [
+      { x: x + 8 * s, y: v.T + 12 * s, align: 'left' },
+      { x: x - 8 * s, y: v.T + 12 * s, align: 'right' },
+      { x: x + 8 * s, y: v.B - 4 * s, align: 'left' },
+      { x: x - 8 * s, y: v.B - 4 * s, align: 'right' },
+    ]);
   }
 
   /** Bar on the target plot: change of the target channel since the first sample. */
@@ -385,7 +431,17 @@ export class PlotGroup<P extends Params> {
       ctx.stroke();
     }
     ctx.restore();
-    this.label(v, `${ov.symbol} = ${fmt(area)} ${ov.unit}`, x, (ya + yb) / 2, ov.role);
+    const ym = (ya + yb) / 2 + 4 * s;
+    const yTop = Math.min(ya, yb) - 6 * s;
+    const yBot = Math.max(ya, yb) + 16 * s;
+    this.place(v, `bar:${ov.channel}`, `${ov.symbol} = ${fmt(area)} ${ov.unit}`, ov.role, [
+      { x: x + 8 * s, y: ym, align: 'left' },
+      { x: x - 8 * s, y: ym, align: 'right' },
+      { x: x + 8 * s, y: yTop, align: 'left' },
+      { x: x - 8 * s, y: yTop, align: 'right' },
+      { x: x + 8 * s, y: yBot, align: 'left' },
+      { x: x - 8 * s, y: yBot, align: 'right' },
+    ]);
   }
 
   private tangent(v: PlotView, ov: TangentOverlay, hist: History<unknown>, idx: number): void {
@@ -415,10 +471,16 @@ export class PlotGroup<P extends Params> {
     ctx.restore();
     v.dot(tc, yc, { role: ov.role, r: 3.5 });
     const txt = `${tr('plot.slope')} = ${fmt(k)} ${ov.unit}`;
-    const w = measureRich(v.ctx, txt, { size: 12 }) + 8 * theme.scale;
-    const right = Math.min(bx, v.R) + w < v.R;
-    const x = right ? Math.min(bx, v.R) + 6 : Math.max(ax, v.L) - 6;
-    this.textBox(v, txt, x, (right ? by : ay) - 8 * theme.scale, ov.role, right ? 'left' : 'right');
+    const s = theme.scale;
+    // Beside either end of the tangent, above or below: the first spot clear of curves and labels.
+    const xr = Math.min(bx, v.R) + 6;
+    const xl = Math.max(ax, v.L) - 6;
+    this.place(v, `tan:${ov.channel}`, txt, ov.role, [
+      { x: xr, y: by - 8 * s, align: 'left' },
+      { x: xr, y: by + 18 * s, align: 'left' },
+      { x: xl, y: ay - 8 * s, align: 'right' },
+      { x: xl, y: ay + 18 * s, align: 'right' },
+    ]);
   }
 
   private tangentTarget(v: PlotView, ov: TangentOverlay, hist: History<unknown>, idx: number): void {
@@ -428,12 +490,62 @@ export class PlotGroup<P extends Params> {
     v.dot(tc, y, { role: ov.role, r: 5 });
   }
 
-  /** Label beside x: to the right if it fits, otherwise to the left. */
-  private label(v: PlotView, txt: string, x: number, y: number, role: Stroke['role']): void {
+  /** Box of a label drawn by textBox at (x, y). */
+  private boxOf(v: PlotView, txt: string, c: Cand): Box {
     const s = theme.scale;
-    const w = measureRich(v.ctx, txt, { size: 12 });
-    const right = x + 8 * s + w < v.R;
-    this.textBox(v, txt, right ? x + 8 * s : x - 8 * s, y, role, right ? 'left' : 'right');
+    const w = measureRich(v.ctx, txt, { size: 12, weight: 500 });
+    const yy = Math.min(Math.max(c.y, v.T + 10 * s), v.B - 4 * s);
+    const x0 = c.align === 'left' ? c.x - 3 : c.x - w - 3;
+    return { x0, y0: yy - 11 * s, x1: x0 + w + 6, y1: yy + 4 * s };
+  }
+
+  /** Curve segments of this plot's traces that pass through the box. */
+  private curveHits(v: PlotView, b: Box): number {
+    const hist = this.hist;
+    if (!hist) return 0;
+    const ts = hist.col('t');
+    const n = ts.length;
+    // Samples are time-ordered: start one sample left of the box.
+    const tLeft = v.tAt(b.x0);
+    let lo = 0;
+    let hi = n - 1;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (ts[mid] <= tLeft) lo = mid;
+      else hi = mid;
+    }
+    let hits = 0;
+    for (const tr of v.spec.traces) {
+      const ys = hist.col(tr.channel);
+      for (let i = Math.max(1, lo); i < n; i++) {
+        const ax = v.X(ts[i - 1]);
+        if (ax > b.x1) break;
+        if (segHitsBox(ax, v.Y(ys[i - 1]), v.X(ts[i]), v.Y(ys[i]), b)) hits += 1;
+      }
+    }
+    return hits;
+  }
+
+  /**
+   * Draw a label at the first candidate that stays inside the plot and clear of the traces and
+   * of labels already placed; keep last frame's choice while it is as good as the best one.
+   */
+  private place(v: PlotView, key: string, txt: string, role: Stroke['role'], cands: Cand[]): void {
+    const score = (c: Cand) => {
+      const b = this.boxOf(v, txt, c);
+      let n = b.x0 < v.L - 2 || b.x1 > v.R + 2 ? 1e6 : 0;
+      for (const o of v.boxes) if (overlaps(b, o)) n += 1e3;
+      return n + this.curveHits(v, b);
+    };
+    const scores = cands.map(score);
+    let best = 0;
+    for (let i = 1; i < cands.length; i++) if (scores[i] < scores[best]) best = i;
+    const prev = v.lastPick.get(key);
+    if (prev !== undefined && prev < cands.length && scores[prev] <= scores[best]) best = prev;
+    v.lastPick.set(key, best);
+    const c = cands[best];
+    v.boxes.push(this.boxOf(v, txt, c));
+    this.textBox(v, txt, c.x, c.y, role, c.align);
   }
 
   /** Text on a white backing so it stays legible over curves; y is clamped into the plot. */

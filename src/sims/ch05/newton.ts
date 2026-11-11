@@ -107,7 +107,8 @@ export const newton: Scene<P, S> = {
     if (p.strobe) {
       for (let k = 0; k * STROBE_DT <= s.t + 1e-9; k++) {
         const q = stateAt(p, k * STROBE_DT);
-        g.line({ x: q.x, y: 0 }, { x: q.x, y: g.px(7) }, { role: 'position', width: 1.5 });
+        // Open dots, unlike the axis ticks below the track.
+        g.circle({ x: q.x, y: 0 }, 4, { fill: '#ffffff', role: 'position', width: 1.25 });
       }
     }
 

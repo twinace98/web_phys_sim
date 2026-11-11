@@ -1,6 +1,6 @@
 // Chapter page: header, stage, control bar, plots, settings drawer, info panel
 // (docs/design.md §2). Controls are generated from the scene's parameter schema.
-import { fmt, fmtTick } from '../core/format';
+import { clockDecimals, fmt, fmtClock, fmtTick } from '../core/format';
 import { getLang, onLangChange, t } from '../core/i18n';
 import { defaults, fromQuery, toQuery } from '../core/params';
 import { Runner } from '../core/runner';
@@ -11,6 +11,7 @@ import { CanvasDraw } from '../draw/draw';
 import { PlotGroup } from '../plot/plot';
 import type { ChapterMeta } from '../sims/registry';
 import { h, iconButton, rich, tex } from './dom';
+import { nearestHandle } from './hit';
 import { ICON } from './icons';
 import { isLecture, onLectureChange, setLecture, toggleLang } from './prefs';
 import { StagePanel, resizableSidePanel, restoreSize } from './resize';
@@ -29,6 +30,18 @@ const snap = (v: number, min: number, step: number) => Number((min + Math.round(
 const withUnit = (v: string, unit?: string) => (!unit ? v : unit === '°' ? `${v}°` : `${v} ${unit}`);
 
 type Panel = 'none' | 'settings' | 'info';
+
+/** Shrink each display equation that is wider than its box to fit, at most to 80 %. */
+function fitEquations(box: HTMLElement): void {
+  for (const d of box.querySelectorAll<HTMLElement>('.katex-display')) {
+    const k = d.firstElementChild as HTMLElement | null;
+    if (!k) continue;
+    k.style.fontSize = '';
+    const avail = d.clientWidth;
+    const need = k.scrollWidth;
+    if (avail > 0 && need > avail) k.style.fontSize = `${Math.max(0.8, avail / need)}em`;
+  }
+}
 
 export class SimView {
   private sceneIdx: number;
@@ -53,9 +66,12 @@ export class SimView {
   private shownPlaying: boolean | null = null;
   private timeVal: HTMLElement | null = null;
   private readoutVals: HTMLElement[] = [];
+  private readoutUnits: HTMLElement[] = [];
   private stagePanel: StagePanel | null = null;
 
   private ro: ResizeObserver | null = null;
+  private eqRo: ResizeObserver | null = null;
+  private eqBox: HTMLElement | null = null;
   private raf = 0;
   private last = 0;
   private urlTimer = 0;
@@ -95,6 +111,7 @@ export class SimView {
     cancelAnimationFrame(this.raf);
     window.clearTimeout(this.urlTimer);
     this.ro?.disconnect();
+    this.eqRo?.disconnect();
     for (const f of this.off) f();
     this.root.replaceChildren();
   }
@@ -244,13 +261,16 @@ export class SimView {
 
     const ros = h('div', { class: 'readouts' });
     this.readoutVals = [];
+    this.readoutUnits = [];
     for (const spec of this.scene.readouts ?? []) {
       const val = h('span', { class: 'val' });
       const el = h('span', { class: 'ro' });
       el.innerHTML = `${tex(spec.label)} = `;
-      el.append(val, ` ${spec.unit}`);
+      const unit = h('span', null, spec.unit ? ` ${spec.unit}` : '');
+      el.append(val, unit);
       ros.append(el);
       this.readoutVals.push(val);
+      this.readoutUnits.push(unit);
     }
     bar.append(ros);
     return bar;
@@ -378,6 +398,7 @@ export class SimView {
   private buildInfo(): HTMLElement {
     const info = this.scene.info;
     const { panel, body } = this.sidePanel('info', t('ui.info'), t(this.scene.title));
+    this.eqBox = null;
     const list = (title: string, keys: string[]) => {
       if (!keys.length) return;
       const ul = h('ul');
@@ -390,6 +411,19 @@ export class SimView {
       const eq = h('div', { class: 'eqs' });
       eq.innerHTML = info.equations.map((e) => tex(e, true)).join('');
       body.append(h('h3', null, t('info.equations')), eq);
+      // A display equation wider than the panel shrinks (down to 80 %), then scrolls (CSS).
+      this.eqRo?.disconnect();
+      this.eqBox = eq;
+      // KaTeX fonts may arrive after the first layout: refit once they are in.
+      void document.fonts?.ready.then(() => fitEquations(eq));
+      let lastW = -1;
+      this.eqRo = new ResizeObserver(() => {
+        // Refit on width changes only: the refit itself changes the height.
+        if (eq.clientWidth === lastW) return;
+        lastW = eq.clientWidth;
+        fitEquations(eq);
+      });
+      this.eqRo.observe(eq);
     }
     list(t('info.assumptions'), info.assumptions ?? []);
     const schema = this.scene.params as Record<string, ParamSpec>;
@@ -492,6 +526,7 @@ export class SimView {
     restoreSize(this.info);
     this.settings.classList.toggle('open', this.panel === 'settings');
     this.info.classList.toggle('open', this.panel === 'info');
+    if (this.panel === 'info' && this.eqBox) fitEquations(this.eqBox);
   }
 
   private setScrub(tt: number | null): void {
@@ -595,15 +630,13 @@ export class SimView {
   /** Index of the scene handle under the pointer, or −1. */
   private hitHandle(e: PointerEvent, list: { hd: NonNullable<Scene['handles']>[number]; i: number }[]): number {
     const r = this.stageCanvas.getBoundingClientRect();
-    const px = e.clientX - r.left;
-    const py = e.clientY - r.top;
-    for (const { hd, i } of list) {
+    const touch = e.pointerType !== 'mouse';
+    const pts = list.map(({ hd, i }) => {
       const p = hd.pos(this.runner.state, this.runner.params);
-      const [hx, hy] = this.vp.toPx(p.x, p.y);
-      const rad = Math.max(hd.radiusPx, e.pointerType === 'mouse' ? 0 : 24);
-      if (Math.hypot(px - hx, py - hy) <= rad) return i;
-    }
-    return -1;
+      const [x, y] = this.vp.toPx(p.x, p.y);
+      return { i, x, y, r: hd.radiusPx };
+    });
+    return nearestHandle(pts, e.clientX - r.left, e.clientY - r.top, touch);
   }
 
   // ------------------------------------------------------------------ frame
@@ -662,9 +695,18 @@ export class SimView {
       this.plots.render({ hist, p, ui: this.ui, idx, tRange });
     }
 
-    if (this.timeVal) this.timeVal.textContent = this.ui.cursorT.toFixed(2);
+    // The clock shows the time of the state on the stage and in the readouts (not the last
+    // recorded sample, which lags by up to recordEvery steps).
+    if (this.timeVal) {
+      const time = scene.time!;
+      const span = r.tEnd ?? time.window ?? 10;
+      this.timeVal.textContent = fmtClock(s.t, clockDecimals(time.frameStep, span));
+    }
     (scene.readouts ?? []).forEach((spec, i) => {
-      this.readoutVals[i].textContent = fmt(spec.value(s, p), spec.sig ?? 3, spec.zeroTol);
+      // An undefined value reads "–" alone: no unit after it.
+      const v = spec.value(s, p);
+      this.readoutVals[i].textContent = fmt(v, spec.sig ?? 3, spec.zeroTol);
+      this.readoutUnits[i].hidden = !Number.isFinite(v);
     });
     if (this.playBtn && this.shownPlaying !== r.playing) {
       this.shownPlaying = r.playing;

@@ -8,7 +8,17 @@ type P = { r: number; v: number; hodo: boolean };
 
 const R_MAX = 3;
 const KV = 0.35; // world m per (m/s), same on the path and in the velocity circle
-const KA = 0.2; // world m per (m/s²)
+const KA = 0.3; // world m per (m/s²) for small a
+const A_MIN_PX = 18; // shortest a arrow on screen
+
+/**
+ * Length of the a arrow [world m]: KA·a for small a, saturating at 0.55 r so it (and its label) never reaches the
+ * centre (a = v²/r spans 0.33–9 m/s²). Monotonic, so a larger a always draws longer.
+ */
+export function aArrowLen(a: number, r: number): number {
+  const cap = 0.55 * r;
+  return cap * (1 - Math.exp((-KA * a) / cap));
+}
 const HX = R_MAX + 2.2; // centre of the velocity circle
 const GREY = '#9a9a9a';
 const LABEL = '#6b6b6b';
@@ -77,7 +87,19 @@ export const circular: Scene<P, { t: number }> = {
     g.text({ x: k.x / 2 + Math.cos(ang) * g.px(12), y: k.y / 2 + Math.sin(ang) * g.px(12) }, '*r*', { size: 13, color: LABEL, align: 'center', baseline: 'middle' });
 
     g.arrow(P0, { x: k.vx * KV, y: k.vy * KV }, { role: 'velocity', width: 2.5, label: '*v*' });
-    g.arrow(P0, { x: k.ax * KA, y: k.ay * KA }, { role: 'acceleration', width: 2.5, label: '*a*' });
+    const aMag = Math.hypot(k.ax, k.ay);
+    const aLen = Math.max(aArrowLen(aMag, c.r), g.px(A_MIN_PX));
+    const aVec: Vec2 = aMag > 0 ? { x: (k.ax / aMag) * aLen, y: (k.ay / aMag) * aLen } : { x: 0, y: 0 };
+    // a label beside the middle of the arrow, on the side away from v (and from the r label), so
+    // a short arrow on a small circle never puts it on the centre.
+    g.arrow(P0, aVec, { role: 'acceleration', width: 2.5 });
+    const vMag = Math.hypot(k.vx, k.vy) || 1;
+    g.text({ x: P0.x + aVec.x / 2 - (k.vx / vMag) * g.px(11), y: P0.y + aVec.y / 2 - (k.vy / vMag) * g.px(11) }, '*a*', {
+      size: 13,
+      role: 'acceleration',
+      align: 'center',
+      baseline: 'middle',
+    });
     g.circle(P0, 8, { fill: 'position' });
 
     if (p.hodo) {
@@ -91,7 +113,7 @@ export const circular: Scene<P, { t: number }> = {
       g.circle(H, 3, { fill: GREY });
       const tip: Vec2 = { x: HX + k.vx * KV, y: k.vy * KV };
       g.arrow(H, { x: k.vx * KV, y: k.vy * KV }, { role: 'velocity', width: 2.5, label: '*v*' });
-      g.arrow(tip, { x: k.ax * KA, y: k.ay * KA }, { role: 'acceleration', width: 2, label: '*a*' });
+      g.arrow(tip, aVec, { role: 'acceleration', width: 2, label: '*a*' });
       g.text({ x: HX, y: rv }, t('ch04.c.hodo.title'), { size: 12, color: LABEL, align: 'center', dy: -40 });
     }
   },
@@ -106,5 +128,6 @@ export const circular: Scene<P, { t: number }> = {
     goals: ['ch04.c.goal.dir', 'ch04.c.goal.a'],
     observe: ['ch04.c.obs.perp', 'ch04.c.obs.hodo', 'ch04.c.obs.scale', 'ch04.c.obs.T'],
     equations: ['a = \\frac{v^2}{r}, \\quad \\vec a \\perp \\vec v', 'T = \\frac{2\\pi r}{v}'],
+    assumptions: ['ch04.c.assume'],
   },
 };

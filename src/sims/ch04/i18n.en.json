@@ -41,6 +41,7 @@
   "ch04.c.obs.hodo": "Velocity circle: the tip of $\\vec v$ runs around a circle of circumference $2\\pi v$ once per period $T$, in the direction of $\\vec a$, so $a = 2\\pi v / T = v^2/r$",
   "ch04.c.obs.scale": "Same $r$, double $v$: $a$ is 4 times larger. Same $v$, double $r$: $a$ halves",
   "ch04.c.obs.T": "Period $T = 2\\pi r / v$",
+  "ch04.c.assume": "Acceleration arrows: length compressed at large $a$ so they never reach the centre. Order and direction are kept; exact values in the readouts",
   "ch04.r.scene": "Relative motion",
   "ch04.r.p.frame": "Frame",
   "ch04.r.d.frame": "View from the ground, or moving along with the water",

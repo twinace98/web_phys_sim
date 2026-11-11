@@ -5,7 +5,8 @@ import { fmt, fmtTick, niceTicks } from '../../core/format';
 import { t as tr } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { color, withAlpha } from '../../draw/theme';
+import { color, theme, withAlpha } from '../../draw/theme';
+import { LabelLayout } from '../ch03/labels';
 import { F_MAX, SEG, TRACK, force, kinetic, makeSetup, trajectory, work, type Preset, type Setup, type Trajectory } from './physics';
 
 type P = { preset: string; bars: boolean; custom: number[] };
@@ -272,8 +273,26 @@ export const workEnergy: Scene<P, S> = {
         g.ctx.restore();
       }
     }
-    const areaTxt = `${tr('plot.area')} = ${fmt(W)} J`;
-    g.text({ x: ub, y: F_BAND[1] }, areaTxt, { size: 12, role: 'force', align: ub > TRACK * 0.7 ? 'right' : 'left', dx: ub > TRACK * 0.7 ? -8 : 8, dy: 4, weight: 500 });
+    // Area label beside the guide line at the top of the F band, else at its bottom: the first
+    // spot clear of the F(x) curve and the drag pills.
+    const lay = new LabelLayout(g);
+    lay.polyline(fPts);
+    if (p.preset === 'custom') {
+      for (let i = 0; i < SEG; i++) {
+        const [hx, hy] = g.vp.toPx(U(su, ((i + 0.5) * TRACK) / SEG), yF(m, p.custom[i]));
+        lay.boxes.push({ x0: hx - 15, y0: hy - 6, x1: hx + 15, y1: hy + 6 });
+      }
+    }
+    const [gx, gTop] = g.vp.toPx(ub, F_BAND[1]);
+    const [, gBot] = g.vp.toPx(ub, F_BAND[0]);
+    const sc = theme.scale;
+    const rightFirst = ub <= TRACK * 0.7;
+    const sides: ('left' | 'right')[] = rightFirst ? ['left', 'right'] : ['right', 'left'];
+    const cands: { x: number; y: number; align: 'left' | 'right' }[] = [];
+    for (const y of [gTop - 4 * sc, gTop + 12 * sc, gBot - 6 * sc]) {
+      for (const al of sides) cands.push({ x: gx + (al === 'left' ? 8 : -8) * sc, y, align: al });
+    }
+    lay.place(cands, `${tr('plot.area')} = ${fmt(W)} J`, 'force', 12, 500);
 
     // K(x) graph: the path so far, K0 reference and the ΔK bar at the block.
     bandAxis(g, 0, m.K, (v) => yK(m, v), '*K* (J)', K_BAND[1]);
@@ -285,8 +304,16 @@ export const workEnergy: Scene<P, S> = {
     g.polyline(kPts, { role: 'energyK', width: 2 });
     g.line({ x: ub, y: yK(m, K0) }, { x: ub, y: yK(m, K) }, { role: 'energyK', width: 3.5 });
     g.circle({ x: ub, y: yK(m, K) }, 4, { fill: 'energyK' });
-    const right = ub < TRACK * 0.7;
-    g.text({ x: ub, y: (yK(m, K0) + yK(m, K)) / 2 }, `Δ*K* = ${fmt(K - K0)} J`, { size: 12, role: 'energyK', align: right ? 'left' : 'right', baseline: 'middle', dx: right ? 9 : -9, weight: 500 });
+    // ΔK label beside the bar, on the side clear of the K(x) path (the spring preset turns back).
+    lay.polyline(kPts);
+    const [kx, k0y] = g.vp.toPx(ub, yK(m, K0));
+    const [, k1y] = g.vp.toPx(ub, yK(m, K));
+    const kSides: ('left' | 'right')[] = ub < TRACK * 0.7 ? ['left', 'right'] : ['right', 'left'];
+    const kc: { x: number; y: number; align: 'left' | 'right' }[] = [];
+    for (const y of [(k0y + k1y) / 2, Math.min(k0y, k1y) - 10 * sc, Math.max(k0y, k1y) + 10 * sc]) {
+      for (const al of kSides) kc.push({ x: kx + (al === 'left' ? 9 : -9) * sc, y, align: al });
+    }
+    lay.place(kc, `Δ*K* = ${fmt(K - K0)} J`, 'energyK', 12, 500);
 
     // Bars: W_net and ΔK from a common zero.
     if (p.bars) {

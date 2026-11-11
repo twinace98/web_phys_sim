@@ -43,6 +43,12 @@ function model(p: P) {
   return memo;
 }
 
+/** Velocity arrow scale [m per m/s]: the fastest instant (landing) gets 0.2 of the view span. */
+function arrowScale(p: P, span: number): number {
+  const { l, vyEnd } = model(p);
+  return (0.2 * span) / Math.max(Math.hypot(v0x(l), vyEnd), l.v0, 1e-9);
+}
+
 /** Range including zero with an 8 % margin and a minimum span. */
 function padded(lo0: number, hi0: number, minSpan: number): [number, number] {
   let lo = Math.min(lo0, 0);
@@ -125,18 +131,21 @@ const params: ParamSchema<P> = {
 function drawAxes(g: Draw, R: number, H: number, x0: number): void {
   g.line({ x: x0, y: 0 }, { x: R * 1.04, y: 0 }, { role: 'axis', width: 1.25 });
   g.line({ x: 0, y: 0 }, { x: 0, y: H * 1.06 }, { role: 'axis', width: 1.25 });
-  for (const x of niceTicks(0, R, 6)) {
+  // As many ticks as fit: about one per 45 px, so labels never run together on a phone.
+  const fit = (span: number, perPx: number, max: number) => Math.max(2, Math.min(max, Math.floor(span / g.px(perPx))));
+  for (const x of niceTicks(0, R, fit(R, 45, 6))) {
     if (x === 0) continue;
     g.line({ x, y: 0 }, { x, y: -g.px(5) }, { role: 'axis', width: 1 });
     g.text({ x, y: 0 }, fmtTick(x), { size: 11, color: TICK, align: 'center', dy: 17 });
   }
-  for (const y of niceTicks(0, H, 5)) {
+  for (const y of niceTicks(0, H, fit(H, 28, 5))) {
     if (y === 0) continue;
     g.line({ x: 0, y }, { x: -g.px(5), y }, { role: 'axis', width: 1 });
     g.text({ x: 0, y }, fmtTick(y), { size: 11, color: TICK, align: 'right', baseline: 'middle', dx: -8 });
   }
   g.text({ x: 0, y: 0 }, '0', { size: 11, color: TICK, align: 'right', dx: -6, dy: 15 });
-  g.text({ x: R * 1.04, y: 0 }, '*x* (m)', { size: 12, color: TICK, align: 'right', dy: 34 });
+  // Ends left of the landing point: the landing v arrow points down and to the right.
+  g.text({ x: R, y: 0 }, '*x* (m)', { size: 12, color: TICK, align: 'right', dx: -6, dy: 34 });
   g.text({ x: 0, y: H * 1.06 }, '*y* (m)', { size: 12, color: TICK, align: 'center', dy: -10 });
 }
 
@@ -148,12 +157,17 @@ export const projectile: Scene<P, S> = {
   time: { h: 1 / RATE, recordEvery: 2, frameStep: 0.1, tEnd: (p) => model(p as P).T },
 
   world: (p) => {
-    const { R, H } = model(p);
+    const { l, R, H, vyEnd } = model(p);
     // θ = 0 at h = 0 lands at once (R = H = 0): keep a sensible, non-empty view.
     const span = Math.max(R, H, 5);
     const xMax = Math.max(R, 0.5 * span);
     const yMax = Math.max(H, 0.3 * span);
-    return { x: [-0.14 * span, xMax + 0.08 * span], y: [-0.13 * span, yMax + 0.1 * span], aspect: 'contain', padPx: 20 };
+    // On landing the v arrow (and v_y on the y axis) reach farthest right and down; their
+    // labels need about 0.06 span more.
+    const k = arrowScale(p, span);
+    const right = Math.max(xMax + 0.08 * span, R + v0x(l) * k + 0.07 * span);
+    const bottom = Math.min(-0.13 * span, vyEnd * k - 0.07 * span);
+    return { x: [-0.14 * span, right], y: [bottom, yMax + 0.1 * span], aspect: 'contain', padPx: 20 };
   },
 
   init: (p) => ({ t: 0, n: 0, ...stateAt(model(p).l, 0) }),
@@ -214,7 +228,7 @@ export const projectile: Scene<P, S> = {
     g.circle(sy, 6.5, { fill: 'position', alpha: 0.4 });
 
     if (p.vectors) {
-      const k = (0.2 * span) / l.v0;
+      const k = arrowScale(p, span);
       // Component labels sit beside the arrow tips, clear of the axis tick labels.
       const lbl = { size: 13, role: 'velocity' as const };
       g.arrow(sx, { x: s.vx * k, y: 0 }, { role: 'velocity', width: 2 });

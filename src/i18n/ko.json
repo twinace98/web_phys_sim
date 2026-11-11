@@ -30,5 +30,7 @@
   "plot.area": "넓이",
   "ui.resize": "크기 조절",
   "ui.speed.desc": "재생 속도 배율",
-  "info.controls": "조작"
+  "info.controls": "조작",
+  "ui.loadError": "페이지를 불러오지 못했습니다.",
+  "ui.reload": "새로고침"
 }

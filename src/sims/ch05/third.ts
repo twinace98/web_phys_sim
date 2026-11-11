@@ -28,6 +28,10 @@ const TC = 1;
 const CART_W = 46; // px
 const CART_H = 26; // px
 const SPRING = '#5c5c5c';
+/** Longest v arrow, as a fraction of the half track. */
+const V_LEN = 0.25;
+/** Force arrow length [px], the same for both carts (equal magnitudes). */
+const F_LEN = 40;
 
 const cartsOf = (p: P): Carts => ({ mA: p.mA, mB: p.mB, F: p.F, tc: TC });
 
@@ -139,8 +143,10 @@ export const third: Scene<P, S> = {
   time: { h: 1 / RATE, recordEvery: 1, frameStep: 0.1, tEnd: T_END },
 
   world: (p) => {
-    const L = half(p) * 1.25;
-    return { x: [-L, L], y: [-1, 1], aspect: 'fit-x', padPx: 28 };
+    // Cart A ends at −half with its body W px further out and its v arrow (V_LEN·half from the
+    // cart centre) plus label beyond: world margin for the arrow, px padding for body and label.
+    const L = half(p) * (1 + V_LEN + 0.04);
+    return { x: [-L, L], y: [-1, 1], aspect: 'fit-x', padPx: 28 + CART_W / 2 + 16 };
   },
 
   init: (p) => ({ t: 0, n: 0, ...stateAt(p, 0) }),
@@ -155,7 +161,8 @@ export const third: Scene<P, S> = {
   snapshot: (s) => ({ ...s }),
 
   draw: (g, s, p) => {
-    const L = half(p) * 1.15;
+    const hw = half(p);
+    const L = hw * (1 + V_LEN);
     drawTrack(g, -L, L);
     const W = g.px(CART_W);
     // A sits left of its contact face xA, B right of xB; the spring hangs from A.
@@ -163,25 +170,26 @@ export const third: Scene<P, S> = {
     cart(g, s.xA - W, s.xA, 'A');
     cart(g, s.xB, s.xB + W, 'B');
 
-    const span = 2 * L;
-    const fk = (0.1 * span) / 4; // world m per N
-    const yF = g.px(19);
+    // Contact forces: each drawn on the cart it acts on, from the contact face, pointing away
+    // from the other cart (B pushes A to the left, A pushes B to the right). Just above the carts.
+    const yF = g.px(CART_H + 14);
     if (s.FB !== 0) {
-      g.arrow({ x: s.xA - W, y: yF }, { x: s.FA * fk, y: 0 }, { role: 'force', width: 2.5 });
-      g.text({ x: s.xA - W + s.FA * fk, y: yF }, '*F*_{AB}', { size: 13, role: 'force', align: 'right', baseline: 'middle', dx: -12 });
-      g.arrow({ x: s.xB + W, y: yF }, { x: s.FB * fk, y: 0 }, { role: 'force', width: 2.5 });
-      g.text({ x: s.xB + W + s.FB * fk, y: yF }, '*F*_{BA}', { size: 13, role: 'force', align: 'left', baseline: 'middle', dx: 12 });
+      const f = g.px(F_LEN);
+      g.arrow({ x: s.xA, y: yF }, { x: Math.sign(s.FA) * f, y: 0 }, { role: 'force', width: 2.5 });
+      g.text({ x: s.xA + Math.sign(s.FA) * f, y: yF }, '*F*_{AB}', { size: 13, role: 'force', align: 'right', baseline: 'middle', dx: -6 });
+      g.arrow({ x: s.xB, y: yF }, { x: Math.sign(s.FB) * f, y: 0 }, { role: 'force', width: 2.5 });
+      g.text({ x: s.xB + Math.sign(s.FB) * f, y: yF }, '*F*_{BA}', { size: 13, role: 'force', align: 'left', baseline: 'middle', dx: 6 });
     }
     const vMax = Math.max((p.F / Math.min(p.mA, p.mB)) * TC, 0.1);
     const aMax = p.F / Math.min(p.mA, p.mB);
-    const yv = g.px(CART_H + 26);
-    const ya = g.px(CART_H + 48);
+    const yv = g.px(CART_H + 36);
+    const ya = g.px(CART_H + 58);
     for (const [x, v, a] of [
       [s.xA - W / 2, s.vA, s.aA],
       [s.xB + W / 2, s.vB, s.aB],
     ] as const) {
-      if (Math.abs(v) > 1e-9) g.arrow({ x, y: yv }, { x: (v / vMax) * 0.12 * span, y: 0 }, { role: 'velocity', label: '*v*' });
-      if (Math.abs(a) > 1e-9) g.arrow({ x, y: ya }, { x: (a / aMax) * 0.08 * span, y: 0 }, { role: 'acceleration', label: '*a*' });
+      if (Math.abs(v) > 1e-9) g.arrow({ x, y: yv }, { x: (v / vMax) * V_LEN * hw, y: 0 }, { role: 'velocity', label: '*v*' });
+      if (Math.abs(a) > 1e-9) g.arrow({ x, y: ya }, { x: (a / aMax) * 0.18 * hw, y: 0 }, { role: 'acceleration', label: '*a*' });
     }
   },
 
