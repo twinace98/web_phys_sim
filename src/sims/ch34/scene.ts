@@ -210,9 +210,12 @@ function makeScene(el: Element): Scene<P, { t: number }> {
           g.ctx.clip();
           upright(g, { x: xi, y: 0 }, hi, IMG, i < 0);
           g.ctx.restore();
-          // Real/virtual and upright/inverted on the far side of the axis from the image.
+          // Real/virtual and upright/inverted beside the image, on the side away from the element:
+          // the rays (or their extensions) reach the image from the element's side.
           const label = `${t(i > 0 ? 'ch34.real' : 'ch34.virtual')} · ${t(hi > 0 ? 'ch34.upright' : 'ch34.inverted')}`;
-          g.text({ x: xi, y: 0 }, label, { size: 13, color: IMG, align: 'center', dy: hi > 0 ? 36 : -28 });
+          const side = xi >= 0 ? 1 : -1;
+          const ly = Math.max(-YW + 1, Math.min(YW - 1, hi / 2));
+          boxText(g, { x: xi, y: ly }, label, { size: 13, color: IMG, align: side > 0 ? 'left' : 'right', dx: side * 12 });
         }
       }
     },
