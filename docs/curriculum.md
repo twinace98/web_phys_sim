@@ -56,10 +56,10 @@
 | 10 | Rotation | 관성모멘트의 거리 제곱 의존, 평행축 정리 | E1 |
 | 11 | Rolling, Torque, and Angular Momentum | 회전 반경 변화와 각운동량 보존 | E1 |
 | 13 | Gravitation | 초기 위치·속도에 따른 궤도와 탈출 여부 | E1 |
-| 14 | Fluids | 연속방정식, 베르누이 원리 | 전용 |
-| 15 | Oscillations | 단순조화운동 = 등속원운동의 투영 | E1 |
-| 16 | Waves I | 진행파 반사 → 정상파 | E3 |
-| 17 | Waves II | 맥놀이, 도플러 효과 | E3 |
+| 14 | Fluids | 탭 1 벤투리관: 추적 입자 간격 (연속방정식), 압력계 수위 (베르누이), 구간별 $Av$·압력 합 표 | 전용 |
+| 15 | Oscillations | 탭 1 단순조화운동 (등속원운동의 투영, x·v·a·에너지 그래프, 위상 공간) · 탭 2 단진자 (큰 진폭에서 주기 증가) | E1 |
+| 16 | Waves I | 탭 1 반사와 정상파 (고정단·자유단, 펄스·연속파, 마디·포락선) · 탭 2 공명 (구동 진동수 스윕, 공명 곡선) | E3 |
+| 17 | Waves II | 탭 1 맥놀이 (두 파형·합성파·포락선, 소리 재생) · 탭 2 도플러 효과 (움직이는 음원·관측자, 마하 원뿔) | E3 |
 | 18 | Temperature, Heat, and the First Law | 열·일·내부에너지, 경로 의존성 | 전용 |
 | 19 | The Kinetic Theory of Gases | 입자 충돌의 합 = 압력 | E5 |
 | 20 | Entropy and the Second Law | 미시상태 수와 엔트로피, 비가역성 | E5 |
