@@ -47,7 +47,7 @@ describe('ch42 radioactive decay', () => {
   it('scene: same seed, same run; time unit follows the isotope; runs to 5 half-lives', () => {
     const p = defaults(decayScene.params);
     const run = () => {
-      const r = new Runner(decayScene, p);
+      const r = new Runner(decayScene, p, 1);
       r.play();
       for (let i = 0; i < 400 && r.playing; i++) r.advance(0.1);
       return r;

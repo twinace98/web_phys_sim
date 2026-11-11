@@ -1,7 +1,7 @@
 // Fixed-step time loop, DOM-free so it can be unit-tested (docs/design.md §5.1).
 // Static scenes (no `time`) never advance.
 import { History } from './history';
-import { Rng } from './rng';
+import { freshSeed, Rng } from './rng';
 import type { Params, Scene, SceneCtx } from './types';
 
 const MAX_STEPS_PER_CALL = 50000;
@@ -18,7 +18,8 @@ export class Runner<P extends Params = Params, S extends { t: number } = { t: nu
   constructor(
     readonly scene: Scene<P, S>,
     public params: P,
-    public seed = 1,
+    /** Fixed seed (tests). Absent → a new random seed at every reset, so runs never repeat. */
+    readonly fixedSeed?: number,
   ) {
     this.reset();
   }
@@ -38,7 +39,11 @@ export class Runner<P extends Params = Params, S extends { t: number } = { t: nu
     return e !== undefined && this.state.t >= e - 1e-9;
   }
 
+  /** Seed of the current run. */
+  seed = 0;
+
   reset(): void {
+    this.seed = this.fixedSeed ?? freshSeed();
     this.rng = new Rng(this.seed);
     this.state = this.scene.init(this.params, this.rng);
     this.hist.clear();
