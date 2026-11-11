@@ -1,0 +1,12 @@
+{
+  "field.preset.single": "Single charge",
+  "field.preset.dipole": "Dipole",
+  "field.preset.like": "Like pair",
+  "field.preset.plates": "Parallel plates",
+  "field.shape.circle": "Circle",
+  "field.shape.square": "Square",
+  "field.shape.free": "Free curve",
+  "field.view.lines": "Field lines",
+  "field.view.vectors": "Vector arrows",
+  "field.view.off": "Off"
+}
