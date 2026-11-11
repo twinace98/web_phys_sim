@@ -1,0 +1,22 @@
+{
+  "ch26.scene": "Electron scattering and resistance",
+  "ch26.p.V": "Voltage",
+  "ch26.d.V": "Potential difference $V$ across the wire; 0 means no field",
+  "ch26.p.T": "Temperature",
+  "ch26.d.T": "Hotter ions vibrate more and scatter electrons more often (shorter mean free time $\\tau$)",
+  "ch26.p.L": "Length",
+  "ch26.d.L": "Length $L$ of the wire",
+  "ch26.p.A": "Cross-section",
+  "ch26.d.A": "Cross-sectional area $A$ of the wire (height in the drawing)",
+  "ch26.goal.drift": "Electrons in a field accelerate between collisions and get a random direction at each one; on average they move at a steady drift velocity $v_d$",
+  "ch26.goal.R": "Scattering is the origin of resistance: $R = \\rho L/A$, with resistivity $\\rho$ proportional to the collision rate",
+  "ch26.obs.zero": "Zero voltage: electrons move fast but in random directions, so the net charge through the cross-section stays at 0",
+  "ch26.obs.drift": "With a voltage: the path of the outlined electron bends against $\\vec E$ between collisions, and the whole population creeps to the left",
+  "ch26.obs.count": "The slope of the net charge $Q(t)$ through the orange dashed cross-section is the current $I$; over a longer run $\\bar I = Q/t$ settles on the prediction (dashed)",
+  "ch26.obs.ohm": "Measure at several voltages: the points on the $I$-$V$ chart lie on a straight line through the origin (Ohm's law)",
+  "ch26.obs.LA": "Double the length: $R$ doubles. Double the cross-section: $R$ halves. Lines of wires measured earlier stay in grey",
+  "ch26.obs.T": "Higher temperature: more frequent collisions, smaller $v_d$, larger $R$",
+  "ch26.assume.speed": "Drift speed is hugely exaggerated: in copper $v_d \\sim 10^{-4}$ m/s while the electron (Fermi) speed is $\\sim 10^{6}$ m/s",
+  "ch26.assume.model": "Drude model: fixed speed and random direction after each collision, exponentially distributed free times (mean $\\tau \\propto 1/T$), 2D section, no electron-electron interaction",
+  "ch26.assume.units": "Each drawn electron stands for many electrons. Its charge is set so that a 4 cm, 2 mm², 300 K wire has 10 Ω"
+}

@@ -18,6 +18,14 @@ import { StagePanel, resizableSidePanel, restoreSize } from './resize';
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
 
 /** "30°" but "2 m/s": no space before the degree sign. */
+/** Value shown with as many decimals as the control's step has. */
+const fmtStep = (v: number, step: number) => {
+  const d = Math.min(4, Math.max(0, -Math.floor(Math.log10(step) + 1e-9)));
+  const frac = step * 10 ** d;
+  const dec = Math.abs(frac - Math.round(frac)) > 1e-9 ? d + 1 : d;
+  return v.toFixed(dec).replace('-', '−');
+};
+const snap = (v: number, min: number, step: number) => Number((min + Math.round((v - min) / step) * step).toFixed(10));
 const withUnit = (v: string, unit?: string) => (!unit ? v : unit === '°' ? `${v}°` : `${v} ${unit}`);
 
 type Panel = 'none' | 'settings' | 'info';
@@ -208,7 +216,7 @@ export class SimView {
       this.timeVal = h('span', { class: 'val' });
       const time = h('span', { class: 'ro' });
       time.innerHTML = `${tex('t')} = `;
-      time.append(this.timeVal, ` ${this.scene.time?.unit ?? 's'}`);
+      time.append(this.timeVal, ` ${r.scene.time?.unit ?? 's'}`);
       bar.append(
         this.playBtn,
         iconButton(ICON.step, `${t('ui.step')} (→)`, () => {
@@ -276,20 +284,48 @@ export class SimView {
           s.addEventListener('change', () => this.setParam(key, Number(s.value)));
           input = s;
         } else {
-          const out = h('span', { class: 'val' }, withUnit(fmt(value as number), spec.unit));
-          const s = h('input', {
-            type: 'range',
-            min: String(spec.min ?? 0),
-            max: String(spec.max ?? 1),
-            step: String(spec.step ?? 0.01),
-            value: String(value),
-            'aria-label': plain,
-          });
-          s.addEventListener('input', () => {
-            out.textContent = withUnit(fmt(Number(s.value)), spec.unit);
-            this.setParam(key, Number(s.value), false);
-          });
-          input = h('span', { class: 'slider' }, s, out);
+          const min = spec.min ?? 0;
+          const max = spec.max ?? 1;
+          const step = spec.step ?? (spec.control === 'stepper' ? 1 : 0.01);
+          const show = (v: number) => withUnit(fmtStep(v, step), spec.unit);
+          const out = h('span', { class: 'val' }, show(value as number));
+          if (spec.control === 'stepper') {
+            let v = value as number;
+            const btn = (sign: -1 | 1) => {
+              const b = h('button', { type: 'button', class: 'step-btn', 'aria-label': `${plain} ${sign > 0 ? '+' : '−'}` }, sign > 0 ? '+' : '−');
+              b.addEventListener('click', (e) => {
+                e.preventDefault();
+                const nv = Math.min(max, Math.max(min, snap(v + sign * step, min, step)));
+                if (nv === v) return;
+                v = nv;
+                out.textContent = show(v);
+                dec.disabled = v <= min;
+                inc.disabled = v >= max;
+                this.setParam(key, v, false);
+              });
+              return b;
+            };
+            const dec = btn(-1);
+            const inc = btn(1);
+            dec.disabled = v <= min;
+            inc.disabled = v >= max;
+            input = h('span', { class: 'stepper', title: tip }, dec, out, inc);
+          } else {
+            const s = h('input', {
+              type: 'range',
+              min: String(min),
+              max: String(max),
+              step: String(step),
+              value: String(value),
+              'aria-label': plain,
+              title: tip,
+            });
+            s.addEventListener('input', () => {
+              out.textContent = show(Number(s.value));
+              this.setParam(key, Number(s.value), false);
+            });
+            input = h('span', { class: 'slider' }, s, out);
+          }
         }
         break;
       }

@@ -1,0 +1,19 @@
+{
+  "ch07.scene": "Work-kinetic energy theorem",
+  "ch07.p.preset": "Force $F(x)$",
+  "ch07.d.preset": "How the net force on the block changes with position",
+  "ch07.preset.const": "Constant",
+  "ch07.preset.spring": "Spring (−kx)",
+  "ch07.preset.pw": "Piecewise",
+  "ch07.preset.custom": "Custom",
+  "ch07.p.bars": "Bars ($W_\\text{net}$, $\\Delta K$)",
+  "ch07.d.bars": "Shows the work done by the net force and the change in kinetic energy as two bars side by side",
+  "ch07.p.custom": "Force on each segment",
+  "ch07.goal.area": "Work = area under the $F(x)$ graph (negative where force and displacement point opposite ways)",
+  "ch07.goal.theorem": "Work-kinetic energy theorem: the work done by the net force $W_\\text{net}$ = the change in kinetic energy $\\Delta K$",
+  "ch07.obs.equal": "The area under $F(x)$, the $\\Delta K$ bar on $K(x)$ and the two bars on the right always agree",
+  "ch07.obs.neg": "Piecewise: where the force opposes the motion the area is negative (hatched) and $K$ decreases",
+  "ch07.obs.spring": "Spring: positive work for $x < 0$ raises $K$, negative work for $x > 0$ lowers it, and on the way back $K$ rises again",
+  "ch07.obs.custom": "Custom: drag the handles on the $F(x)$ graph up or down to set the force on each segment. If $K$ reaches 0 the block turns back",
+  "ch07.assume": "Block mass 2 kg, frictionless horizontal track, initial speed 1 m/s (spring: $k = 2$ N/m, starts at rest at $x = -2$ m, one period shown)"
+}
