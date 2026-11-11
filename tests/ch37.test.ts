@@ -1,5 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import { bounce, contracted, gamma, interval, inverse, lorentz, movingPeriod, restPeriod, ticks, trainEvents } from '../src/sims/ch37/physics';
+import { arrowTail, lightClocks, rods, views } from '../src/sims/ch37/scene';
+import { probe } from './stage-probe';
+
+describe('ch37 velocity arrows stay inside their view', () => {
+  it('clocks and rods, β up to 0.99, desktop and phone: label inside the view box', () => {
+    for (const scene of [lightClocks, rods])
+      for (const [w, h] of [
+        [1280, 704],
+        [390, 670],
+      ])
+        for (const beta of [0.3, 0.8, 0.99])
+          for (let t = 0; t <= 12; t += 0.05) {
+            const g = probe(scene, { t, n: 0 }, { beta }, w, h);
+            const boxes = views(g);
+            const labels = g.marks.filter((m) => m.kind === 'arrow-label');
+            expect(labels.length).toBe(2);
+            for (const m of labels) {
+              const inside = boxes.some((b) => m.x - m.w / 2 >= b.l && m.x + m.w / 2 <= b.r && m.y >= b.t && m.y <= b.b);
+              expect(inside, `${scene.id} β=${beta} t=${t.toFixed(2)} ${w}×${h} label at ${m.x.toFixed(0)}`).toBe(true);
+            }
+          }
+  });
+
+  it('arrowTail keeps a leftward arrow and its label clear of the left edge', () => {
+    const box = { l: 654, t: 64, r: 1264, b: 736 };
+    expect(arrowTail(box, 640, -1, 56)).toBeGreaterThanOrEqual(654 + 6 + 56 + 18);
+    expect(arrowTail(box, 900, -1, 56)).toBe(900);
+    expect(arrowTail(box, 1270, 1, 56)).toBeLessThanOrEqual(1264 - 6 - 56 - 18);
+  });
+});
 
 describe('ch37 Lorentz transformation', () => {
   it('γ: 1.25 at β = 0.6, 5/3 at 0.8', () => {

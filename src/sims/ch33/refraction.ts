@@ -227,6 +227,43 @@ export function traceFibre(p: PF): { guided: Seg[]; escaped: Seg[] } {
   return { guided, escaped };
 }
 
+/**
+ * n1 and n2 left of the entry face, beside the core and the cladding. On a small stage the
+ * core is too thin for a label beside it, clear of the input ray and its knob: the labels
+ * then stack above the fibre, each with a leader into its layer (near the face, where no ray
+ * or leaking branch passes).
+ */
+export function indexLabels(g: Draw, f: Fibre): 'beside' | 'leader' {
+  const n1 = `*n*_{1} = ${f.n1.toFixed(2)}`;
+  const n2 = `*n*_{2} = ${f.n2.toFixed(2)}`;
+  if (CR / g.px(1) >= 24) {
+    g.text({ x: X0, y: CR / 2 }, n1, { size: 13, align: 'right', baseline: 'middle', dx: -8 });
+    g.text({ x: X0, y: (CR + CL) / 2 }, n2, { size: 13, align: 'right', baseline: 'middle', dx: -8 });
+    return 'beside';
+  }
+  const lead = { color: TICK, width: 1 };
+  const rows: [string, number, number, number][] = [
+    // label, row height above the fibre [px], leader x past the face [px], leader end y
+    [n1, 14, 4, 0.75 * CR],
+    [n2, 34, 10, (CR + CL) / 2],
+  ];
+  for (const [s, dy, dx, yEnd] of rows) {
+    const y = CL + g.px(dy);
+    const xl = X0 + g.px(dx);
+    g.polyline(
+      [
+        { x: X0 - g.px(6), y },
+        { x: xl, y },
+        { x: xl, y: yEnd },
+      ],
+      lead,
+    );
+    g.circle({ x: xl, y: yEnd }, 2, { fill: TICK });
+    g.text({ x: X0, y }, s, { size: 13, align: 'right', baseline: 'middle', dx: -9 });
+  }
+  return 'leader';
+}
+
 export const fibre: Scene<PF, { t: number }> = {
   id: 'fibre',
   title: 'ch33.scene.fibre',
@@ -238,9 +275,7 @@ export const fibre: Scene<PF, { t: number }> = {
     const f = fibreOf(p);
     g.polygon(rect(X0, -CL, XF, CL), { fill: MEDIUM, fillAlpha: tint(f.n2), color: '#9a9a9a', width: 1 });
     g.polygon(rect(X0, -CR, XF, CR), { fill: MEDIUM, fillAlpha: tint(f.n1), color: '#5c5c5c', width: 1.25 });
-    // n1 beside the core, lifted clear of the dashed normal on small stages.
-    g.text({ x: X0, y: Math.max(CR / 2, g.px(12)) }, `*n*_{1} = ${f.n1.toFixed(2)}`, { size: 13, align: 'right', baseline: 'middle', dx: -8 });
-    g.text({ x: X0, y: (CR + CL) / 2 }, `*n*_{2} = ${f.n2.toFixed(2)}`, { size: 13, align: 'right', baseline: 'middle', dx: -8 });
+    indexLabels(g, f);
 
     const a = p.alpha * DEG;
     const S = { x: X0 - LIN * Math.cos(a), y: -LIN * Math.sin(a) };

@@ -2,7 +2,7 @@
 // hence a magnetic dipole μ (opposite to L, the electron is negative); the electron's spin
 // carries its own moment μ_s, opposite to S.
 import { t } from '../../core/i18n';
-import type { ParamSchema, Scene, Vec2 } from '../../core/types';
+import type { ParamSchema, Scene, Vec2, WorldSpec } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { TICK } from '../inset/inset';
 import { A0, V1, orbit } from './physics';
@@ -16,10 +16,20 @@ const MU = '#009E73';
 const GREY = '#8c8c8c';
 const L_COL = '#5c5c5c';
 
-const OC: Vec2 = { x: -5, y: 0 }; // orbit centre
 const RX = 3.3;
 const RY = 1.0;
-const SC: Vec2 = { x: 5.2, y: 0 }; // spinning electron
+
+const narrow = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+
+/**
+ * Orbit centre OC and spinning electron SC: side by side on a wide stage, stacked (orbit on
+ * top) on a narrow one, where side by side would leave both figures small in a tall stage.
+ */
+export function layout(isNarrow: boolean): { OC: Vec2; SC: Vec2; world: WorldSpec } {
+  return isNarrow
+    ? { OC: { x: 0, y: 4.6 }, SC: { x: 0, y: -4.4 }, world: { x: [-4.9, 5.1], y: [-8.8, 8.2], aspect: 'contain', padPx: 12 } }
+    : { OC: { x: -5, y: 0 }, SC: { x: 5.2, y: 0 }, world: { x: [-10, 10.2], y: [-4.4, 3.6], aspect: 'contain', padPx: 12 } };
+}
 
 const params: ParamSchema<P> = {
   dir: {
@@ -91,13 +101,14 @@ export const origin: Scene<P, { t: number }> = {
   title: 'ch32.o.scene',
   params,
   time: { h: 0.0005, recordEvery: 50, frameStep: 0.01, scale: 0.05, unit: 'fs' },
-  world: () => ({ x: [-10, 10.2], y: [-4.4, 3.6], aspect: 'contain', padPx: 12 }),
+  world: () => layout(narrow()).world,
   init: () => ({ t: 0 }),
   step: (s, h) => {
     s.t += h;
   },
 
   draw: (g, s, p) => {
+    const { OC, SC } = layout(narrow());
     // ---- orbit: electron, current I, moment μ, angular momentum L
     const d = p.dir === 'ccw' ? 1 : -1;
     const phi = -Math.PI / 2 + (d * 2 * Math.PI * s.t) / T_FS;
@@ -119,7 +130,7 @@ export const origin: Scene<P, { t: number }> = {
     const vl = Math.hypot(ve.x, ve.y);
     g.arrow(e, { x: (ve.x / vl) * 1.1, y: (ve.y / vl) * 1.1 }, { role: 'velocity', width: 2, label: '*v*' });
     charge(g, e, 7, -1);
-    g.text({ x: OC.x, y: -4.4 }, t('ch32.o.orbit'), { size: 14, color: TICK, align: 'center', dy: -6 });
+    g.text({ x: OC.x, y: OC.y - 4.4 }, t('ch32.o.orbit'), { size: 14, color: TICK, align: 'center', dy: -6 });
 
     // ---- spin: S and its moment μ_s
     const u = p.spin === 'up' ? 1 : -1;
@@ -136,7 +147,7 @@ export const origin: Scene<P, { t: number }> = {
     const fr = onEllipse(SC, 1.55, 0.42, -Math.PI / 2);
     g.arrow({ x: fr.x - u * 0.3, y: fr.y }, { x: u * 0.6, y: 0 }, { color: GREY, width: 1.75 });
     vec(g, { x: SC.x, y: SC.y - 1.0 * u }, -1.8 * u, MU, '*μ*_{s}', false);
-    g.text({ x: SC.x, y: -4.4 }, t('ch32.o.spin'), { size: 14, color: TICK, align: 'center', dy: -6 });
+    g.text({ x: SC.x, y: SC.y - 4.4 }, t('ch32.o.spin'), { size: 14, color: TICK, align: 'center', dy: -6 });
   },
 
   readouts: [

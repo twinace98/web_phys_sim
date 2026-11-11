@@ -150,10 +150,10 @@ export const decayScene: Scene<P, S> = {
     const sc = theme.scale;
     // Labels: kT½ in a row along the top of the plot, where neither the expected curve nor the
     // count (both ≤ N0/2 for t ≥ T½) can reach them; each vertical guide runs up to its label.
-    // N0/2^k at the left end of each level, skipped when levels crowd together.
+    // N0/2^k under each level line, ending just before its kT½ guide: left of kT½ both the expected
+    // curve and the count lie above that level. Skipped where the next level is too close.
     const baseY = pd.toPx(0, 0)[1];
     const topY = pd.toPx(0, p.N0 * 1.08)[1];
-    let prevY = -Infinity;
     for (let k = 1; k <= 3; k++) {
       const t = k * half;
       const n = p.N0 / 2 ** k;
@@ -168,10 +168,9 @@ export const decayScene: Scene<P, S> = {
       const [x0] = pd.toPx(0, n);
       const txt = `*N*_{0}/${2 ** k}`;
       const w = measureRich(ctx, txt, { size: 11 });
-      if (y - prevY >= 15 * sc && baseY - y >= 15 * sc && x - x0 > w + 10 * sc) {
-        drawRich(ctx, txt, x0 + 4 * sc, y - 4 * sc, { size: 11, color: TICK });
-        prevY = y;
-      }
+      const gapBelow = pd.toPx(0, n / 2)[1] - y;
+      const lx = Math.max(x0 + 4 * sc, x - w - 5 * sc);
+      if (gapBelow >= 15 * sc && x - x0 > w + 9 * sc) drawRich(ctx, txt, lx, y + 3 * sc, { size: 11, color: TICK, baseline: 'top' });
     }
     pd.polyline(pts, { color: '#1a1a1a', width: 1.5, dash: [6, 4] });
   },

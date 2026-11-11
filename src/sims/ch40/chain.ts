@@ -129,9 +129,14 @@ export function drawChain(g: Draw, box: Box, devices: Device[], geo: Geometry, s
       f.line(x0, 0, x0 + geo.w, sy(up) * EXIT, { color: BEAM, width: 2 });
       if (i === last) f.line(x0 + geo.w, sy(up) * EXIT, X_DET, sy(up) * DET_Y, { color: BEAM, width: 2 });
     }
+    if (i < last) {
+      // The exit not passed on runs into a blocker.
+      const by = devices[i].pass === '+' ? -1 : 1;
+      f.line(x0 + geo.w, by * EXIT, x0 + geo.w + 0.35 * ((0.84 - 0.12) / n - geo.w), by * STOP, { color: BEAM, width: 2 });
+    }
   }
   // Devices.
-  devices.forEach((d, i) => {
+  devices.forEach((_d, i) => {
     const x0 = geo.x0[i];
     f.polygon(
       [
@@ -142,6 +147,17 @@ export function drawChain(g: Draw, box: Box, devices: Device[], geo: Geometry, s
       ],
       { fill: DEVICE_FILL, color: DEVICE_EDGE, width: 1.25 },
     );
+  });
+  // Atoms in flight, under the labels; smaller when the beams are dense with them.
+  const rAtom = s.flying.length > 300 ? 1.8 : 2.5;
+  for (const a of s.flying) {
+    const x = X_SRC + ((s.t - a.te) / FLIGHT) * (X_DET - X_SRC);
+    if (x < X_SRC) continue;
+    const [px, py] = along(geo.path(a.fate), x);
+    g.circle(f.P(px, py), rAtom, { fill: ATOM });
+  }
+  devices.forEach((d, i) => {
+    const x0 = geo.x0[i];
     const cx = f.X(x0 + geo.w / 2);
     textPx(g, cx, f.Y(0.22) - 10, `SG-${axisName(d.theta)}`, { size: 13, color: '#1a1a1a', align: 'center' });
     // Axis icon: the measuring direction in the zx plane (z up, x right).
@@ -151,10 +167,10 @@ export function drawChain(g: Draw, box: Box, devices: Device[], geo: Geometry, s
     const ux = Math.sin(d.theta);
     const uz = Math.cos(d.theta);
     g.arrow(W2(g, cx - ux * r * 0.9, cy + uz * r * 0.9), { x: g.px(2 * ux * r * 0.9), y: g.px(2 * uz * r * 0.9) }, { color: '#5c5c5c', width: 1.5 });
-    // Exit signs.
+    // Exit signs, outside the diverging beams.
     for (const up of [true, false]) {
       const ex = f.X(x0 + geo.w) + 4;
-      const ey = f.Y(sy(up) * EXIT) + (up ? -8 : 10);
+      const ey = f.Y(sy(up) * EXIT) + (up ? -9 : 11);
       textPx(g, ex, ey, up ? '+' : '−', { size: 12, color: up ? UP_COLOR : DOWN_COLOR, baseline: 'middle' });
     }
     // Blocked exit.
@@ -163,10 +179,10 @@ export function drawChain(g: Draw, box: Box, devices: Device[], geo: Geometry, s
       const by = d.pass === '+' ? -1 : 1;
       const s2 = (0.84 - 0.12) / n;
       const xb = x0 + geo.w + 0.35 * (s2 - geo.w);
-      f.line(x0 + geo.w, by * EXIT, xb, by * STOP, { color: BEAM, width: 2 });
       linePx(g, f.X(xb) - 1, f.Y(by * STOP) - 9, f.X(xb) + 1, f.Y(by * STOP) + 9, { color: '#1a1a1a', width: 4 });
       const c = s.counts[i][by > 0 ? 0 : 1];
-      textPx(g, f.X(xb) + 8, f.Y(by * STOP), String(c), { size: 11, color: TICK, baseline: 'middle' });
+      // Count beside the blocker, on its outer side (away from the passed beam).
+      textPx(g, f.X(xb) + 7, f.Y(by * STOP) - by * 9, String(c), { size: 11, color: TICK, baseline: 'middle' });
     }
   });
   // Source.
@@ -197,13 +213,6 @@ export function drawChain(g: Draw, box: Box, devices: Device[], geo: Geometry, s
     const yt = bt + (probs[0] / pin) * (bb - bt);
     linePx(g, bx - 9, yt, bx + 9, yt, { color: '#1a1a1a', width: 2 });
     textPx(g, bx + 13, yt, fmt(probs[0] / pin, 2), { size: 11, color: '#1a1a1a', baseline: 'middle' });
-  }
-  // Atoms in flight.
-  for (const a of s.flying) {
-    const x = X_SRC + ((s.t - a.te) / FLIGHT) * (X_DET - X_SRC);
-    if (x < X_SRC) continue;
-    const [px, py] = along(geo.path(a.fate), x);
-    g.circle(f.P(px, py), 2.5, { fill: ATOM });
   }
   return f;
 }
