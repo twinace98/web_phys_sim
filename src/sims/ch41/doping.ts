@@ -176,8 +176,8 @@ export const doping: Scene<P, { t: number }> = {
   },
 
   readouts: [
-    { label: 'n', unit: 'cm⁻³', value: (_s, p) => carriersOf(p).n },
-    { label: 'p', unit: 'cm⁻³', value: (_s, p) => carriersOf(p).p },
+    { label: 'n', unit: 'cm⁻³', value: (_s, p) => carriersOf(p).n, zeroTol: 0 },
+    { label: 'p', unit: 'cm⁻³', value: (_s, p) => carriersOf(p).p, zeroTol: 0 },
   ],
 
   info: {

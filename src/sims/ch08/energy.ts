@@ -102,7 +102,7 @@ export const energyScene: Scene<P, S> = {
   layout: 'side',
   params,
   // The runner and the shell treat an undefined end as "no end" (rolling window).
-  time: { h: 1 / RATE, recordEvery: 2, frameStep: 0.05, window: 10, tEnd: (p) => endTime(p as P) as number },
+  time: { h: 1 / RATE, recordEvery: 2, frameStep: 0.05, window: 10, tEnd: (p) => endTime(p as P) },
 
   world: () => ({ x: [-3.75, 5.3], y: [-1.6, 4.6], aspect: 'contain', padPx: 14 }),
 

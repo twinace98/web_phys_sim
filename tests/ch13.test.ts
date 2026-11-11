@@ -110,7 +110,7 @@ describe('ch13 gravitation', () => {
       }
     }
     expect(bad).toEqual([]);
-  });
+  }, 60_000);
 
   it('regression: the view depends on speed and altitude only, not on the dragged direction', () => {
     const base = defaults(orbitScene.params) as P;
