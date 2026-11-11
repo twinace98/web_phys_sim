@@ -17,7 +17,16 @@ const RAY = 5.2;
 /** Phasor chain: origin and total length when straight. */
 const CX = 9.2;
 const CHAIN = 16;
-const PLOT = { x0: 29, y0: -4.5, x1: 37.5, y1: 4.5 };
+/**
+ * Fewest sources: φ/2π reaches a sin 40° / λ = 6.43 at most, so with N ≥ 8 no principal
+ * maximum of the N-source grating (φ = 2πN) falls in range and the minima a sin θ = mλ
+ * are those of (sin α/α)².
+ */
+export const N_MIN = 8;
+
+const narrow = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+/** I(θ) graph right of the chain, or under the slit and chain on narrow screens. */
+const plotRect = () => (narrow() ? { x0: 4.5, y0: -20, x1: 25, y1: -11.5 } : { x0: 29, y0: -4.5, x1: 37.5, y1: 4.5 });
 
 const params: ParamSchema<P> = {
   theta: {
@@ -66,7 +75,7 @@ const params: ParamSchema<P> = {
     group: 'advanced',
     live: true,
     control: 'stepper',
-    min: 2,
+    min: N_MIN,
     max: 20,
     step: 1,
     default: 10,
@@ -77,7 +86,7 @@ const phiOf = (p: P, th = p.theta) => edgePhase(p.a, p.lambda / 1000, th * DEG);
 /** Phase step between neighbouring sources is φ/N; N sources spaced a/N give φ_N = φ across the slit. */
 const intensity = (p: P, th = p.theta) => sourcesIntensity(p.N, phiOf(p, th));
 
-const plot = (g: Draw) => new Inset(g, PLOT, [-TH_MAX, TH_MAX], [0, 1.1]);
+const plot = (g: Draw) => new Inset(g, plotRect(), [-TH_MAX, TH_MAX], [0, 1.1]);
 
 function drawSlit(g: Draw, p: P): void {
   const N = p.N;
@@ -185,7 +194,8 @@ export const phasor: Scene<P, { t: number }> = {
   id: 'phasor',
   title: 'ch36.ph.scene',
   params,
-  world: () => ({ x: [-0.4, 38.5], y: [-9, 9], aspect: 'contain', padPx: 16 }),
+  world: () =>
+    narrow() ? { x: [-0.4, 27.6], y: [-22.4, 9], aspect: 'contain', padPx: 12 } : { x: [-0.4, 38.5], y: [-9, 9], aspect: 'contain', padPx: 16 },
   init: () => ({ t: 0 }),
 
   draw: (g, _s, p) => {
@@ -196,13 +206,14 @@ export const phasor: Scene<P, { t: number }> = {
 
   handles: [
     {
-      pos: (_s, p) => ({
-        x: PLOT.x0 + ((p.theta + TH_MAX) / (2 * TH_MAX)) * (PLOT.x1 - PLOT.x0),
-        y: PLOT.y0 + (intensity(p) / 1.1) * (PLOT.y1 - PLOT.y0),
-      }),
+      pos: (_s, p) => {
+        const r = plotRect();
+        return { x: r.x0 + ((p.theta + TH_MAX) / (2 * TH_MAX)) * (r.x1 - r.x0), y: r.y0 + (intensity(p) / 1.1) * (r.y1 - r.y0) };
+      },
       radiusPx: 14,
       onDrag: (ctx, _s, w) => {
-        const raw = -TH_MAX + ((w.x - PLOT.x0) / (PLOT.x1 - PLOT.x0)) * 2 * TH_MAX;
+        const r = plotRect();
+        const raw = -TH_MAX + ((w.x - r.x0) / (r.x1 - r.x0)) * 2 * TH_MAX;
         const th = Math.round(Math.min(TH_MAX, Math.max(-TH_MAX, raw)) * 10) / 10;
         if (th !== ctx.params.theta) ctx.set('theta', th);
       },
