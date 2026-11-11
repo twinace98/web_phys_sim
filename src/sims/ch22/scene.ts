@@ -43,16 +43,37 @@ const testPos = (p: P): Vec2 => {
   return { x, y };
 };
 
-function drawForces(g: Draw, p: P): void {
+/** Force arrows on the test charge [world vectors]: the individual forces (if few) and the net. */
+function forceArrows(g: Draw, p: P): { parts: Vec2[]; net: Vec2 } {
   const src = pointSources(p);
   const at = testPos(p);
   const { parts, net } = coulombForces(src, at.x, at.y, 1);
   const big = Math.max(Math.hypot(net[0], net[1]), ...parts.map((f) => Math.hypot(f[0], f[1])), 1e-30);
   const k = g.px(90) / big;
-  if (src.length <= MAX_PARTS) {
-    for (const f of parts) g.arrow(at, { x: f[0] * k, y: f[1] * k }, { color: FORCE, width: 1.5, alpha: 0.6 });
+  return { parts: src.length <= MAX_PARTS ? parts.map((f) => ({ x: f[0] * k, y: f[1] * k })) : [], net: { x: net[0] * k, y: net[1] * k } };
+}
+
+/** Points the grid arrows must keep clear of: along every force arrow, and the two labels. */
+function forceAvoid(g: Draw, p: P): { x: number; y: number; s: number }[] {
+  const at = testPos(p);
+  const { parts, net } = forceArrows(g, p);
+  const out: { x: number; y: number; s: number }[] = [{ ...at, s: 0 }];
+  for (const v of [...parts, net]) {
+    const n = Math.ceil(Math.hypot(v.x, v.y) / g.px(10));
+    for (let i = 1; i <= n; i++) out.push({ x: at.x + (v.x * i) / n, y: at.y + (v.y * i) / n, s: 0 });
   }
-  g.arrow(at, { x: net[0] * k, y: net[1] * k }, { color: FORCE, width: 3, label: '*F*' });
+  // F label just beyond the net-force tip, q0 label below left of the charge.
+  const nl = Math.hypot(net.x, net.y) || 1;
+  out.push({ x: at.x + net.x + (net.x / nl) * g.px(14), y: at.y + net.y + (net.y / nl) * g.px(14), s: 0 });
+  out.push({ x: at.x - g.px(20), y: at.y - g.px(12), s: 0 });
+  return out;
+}
+
+function drawForces(g: Draw, p: P): void {
+  const at = testPos(p);
+  const { parts, net } = forceArrows(g, p);
+  for (const f of parts) g.arrow(at, f, { color: FORCE, width: 1.5, alpha: 0.6 });
+  g.arrow(at, net, { color: FORCE, width: 3, label: '*F*' });
 }
 
 export const field: Scene<P, S> = {
@@ -65,7 +86,8 @@ export const field: Scene<P, S> = {
   draw: (g, s, p) => {
     const src = pointSources(p);
     const at = testPos(p);
-    const avoid = p.test ? [{ ...at, s: 0 }] : [];
+    // Grid arrows leave room for the test charge, its force arrows and their labels.
+    const avoid = p.test ? (src.length ? forceAvoid(g, p) : [{ ...at, s: 0 }]) : [];
     if (p.view !== 'vectors') layers.lines(g, src);
     if (p.view !== 'lines') layers.vectors(g, src, avoid);
     if (p.test && src.length) drawForces(g, p);

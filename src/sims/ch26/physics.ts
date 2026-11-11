@@ -9,8 +9,13 @@ import type { Rng } from '../../core/rng';
 
 /** Speed of every electron right after a collision [cm/s]. */
 export const V_TH = 2;
-/** Electrons per unit drawn area. */
+/** Electrons drawn per unit drawn area. */
 export const DENSITY = 24;
+/**
+ * Simulated electrons per drawn one. The current is counted over all of them: the thermal
+ * counting noise falls as 1/√N, so even 0.1 V gives a usable reading in 30 s.
+ */
+export const SAMPLE = 8;
 /** Electron acceleration per (V / cm) [cm/s² per V/cm]. */
 export const ACCEL = 6;
 /** Mean free time at 300 K [s]; τ ∝ 1/T (phonon scattering). */
@@ -37,13 +42,13 @@ export const accelOf = (w: Wire, V: number) => (ACCEL * V) / w.L;
 export const driftSpeed = (w: Wire, V: number) => accelOf(w, V) * tauOf(w.T);
 
 /** Charge carried by one model electron [C], fixed by the reference wire (I_ref = 1 V / R_ref). */
-export const Q_E = 1 / REF.R / (DENSITY * heightOf(REF.A) * driftSpeed(REF, 1));
+export const Q_E = 1 / REF.R / (DENSITY * SAMPLE * heightOf(REF.A) * driftSpeed(REF, 1));
 
 /** Current [A] predicted by the model: I = n q h v_d. */
-export const currentOf = (w: Wire, V: number) => DENSITY * Q_E * heightOf(w.A) * driftSpeed(w, V);
+export const currentOf = (w: Wire, V: number) => DENSITY * SAMPLE * Q_E * heightOf(w.A) * driftSpeed(w, V);
 
 /** Resistance [Ω] = V / I, independent of V (Ohm's law); ∝ L / A and ∝ T. */
-export const resistanceOf = (w: Wire) => 1 / (DENSITY * Q_E * heightOf(w.A) * ((ACCEL / w.L) * tauOf(w.T)));
+export const resistanceOf = (w: Wire) => 1 / (DENSITY * SAMPLE * Q_E * heightOf(w.A) * ((ACCEL / w.L) * tauOf(w.T)));
 
 export interface Gas {
   n: number;
@@ -63,7 +68,7 @@ const freeTime = (rng: Rng, tau: number) => -tau * Math.log(1 - rng.next());
 
 export function makeGas(w: Wire, rng: Rng): Gas {
   const h = heightOf(w.A);
-  const n = Math.round(DENSITY * w.L * h);
+  const n = Math.round(DENSITY * SAMPLE * w.L * h);
   const g: Gas = {
     n,
     x: new Float64Array(n),

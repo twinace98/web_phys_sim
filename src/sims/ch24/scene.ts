@@ -5,7 +5,7 @@ import { BOX, KQ, POINT_POOL, V, clearOf, layoutParam, pointCoords, pointSources
 import { FieldLayers, palette } from '../field/layers';
 import { chargeGlyph, Memo, SURFACE, srcKey, type Tray } from '../field/render';
 import { slotHandles } from '../field/slots';
-import { workAlong } from './physics';
+import { extendPath, workAlong } from './physics';
 
 type P = { preset: string; view: string; lines: boolean; dV: number; Q: number[] };
 type S = { t: number; tray?: Tray; A: Vec2; path: number[] };
@@ -50,7 +50,8 @@ export const potential: Scene<P, S> = {
     const src = pointSources(p);
     if (p.view !== 'eq') layers.heatmap(g, src, 25 / KQ, 600 / KQ);
     if (p.lines) layers.lines(g, src, '#c4c4c4', 1);
-    if (p.view !== 'heat') layers.equipotentials(g, src, KQ, p.dV);
+    // Heat map alone still shows the V = 0 level as a dashed line.
+    layers.equipotentials(g, src, KQ, p.dV, p.view === 'heat' ? 0 : 12);
 
     if (s.path.length >= 4) {
       const pts: Vec2[] = [];
@@ -75,10 +76,12 @@ export const potential: Scene<P, S> = {
       pos: (s) => end(s),
       onDrag: (_ctx, s, w) => {
         const src = pointSources(_ctx.params);
-        const [x, y] = clearOf(src, Math.min(BOX[2], Math.max(BOX[0], w.x)), Math.min(BOX[3], Math.max(BOX[1], w.y)));
+        const x = Math.min(BOX[2], Math.max(BOX[0], w.x));
+        const y = Math.min(BOX[3], Math.max(BOX[1], w.y));
         const q = end(s);
-        if (Math.hypot(x - q.x, y - q.y) < 0.002 || s.path.length >= 2 * MAX_PTS) return;
-        s.path.push(x, y);
+        if (Math.hypot(x - q.x, y - q.y) < 0.002) return;
+        // Fast drags may jump across a charge: the path goes round it, never through it.
+        extendPath(src, s.path, x, y, 0.05, MAX_PTS);
       },
     },
     {

@@ -28,9 +28,12 @@ const WIRE = '#3a3a3a';
 const MARK = '#7a7a7a';
 
 const rcOf = (p: P): RC => ({ R: p.R * 1e3, C: p.C * 1e-6, emf: EMF });
-/** Loop rule: i = (q_final − q) / τ, valid at any instant whatever the history. */
-const currentOf = (c: RC, s: S) => {
-  const i = (finalCharge(c, s.mode === 'charge') - s.q) / tau(c);
+/**
+ * Loop rule: i = (q_final − q) / τ, valid at any instant whatever the history. Uses the switch
+ * position of the parameters, so a switch thrown while paused shows at once.
+ */
+const currentOf = (c: RC, s: S, sw: string) => {
+  const i = (finalCharge(c, sw === 'charge') - s.q) / tau(c);
   return Math.abs(i) < 1e-7 * (c.emf / c.R) ? 0 : i; // rounding noise once settled
 };
 
@@ -203,6 +206,21 @@ const span = (lo: number, hi: number): [number, number] => {
   return [lo - m, hi + m];
 };
 
+/**
+ * Extremes of the recorded channels since the last reset. Changing C keeps q (charge cannot
+ * jump), so V_C = q/C and i can leave the ranges of the new setting: the plots widen to keep
+ * the whole run in view.
+ */
+type Env = Record<'vc' | 'i' | 'q', [number, number]>;
+let env: Env = { vc: [0, 0], i: [0, 0], q: [0, 0] };
+function grow(rec: { vc: number; i: number; q: number }): void {
+  for (const k of ['vc', 'i', 'q'] as const) {
+    if (!Number.isFinite(rec[k])) continue;
+    env[k][0] = Math.min(env[k][0], rec[k]);
+    env[k][1] = Math.max(env[k][1], rec[k]);
+  }
+}
+
 export const rcCircuit: Scene<P, S> = {
   id: 'rc',
   title: 'ch27.scene',
@@ -210,7 +228,10 @@ export const rcCircuit: Scene<P, S> = {
   time: { h: 1 / RATE, recordEvery: 2, frameStep: 0.1, window: 20 },
   world: () => ({ x: [-0.4, 10.6], y: [0.2, 6.3], aspect: 'contain', padPx: 20 }),
 
-  init: (p) => ({ t: 0, n: 0, q: 0, mode: p.sw, rc: `${p.R}|${p.C}`, ts: 0, q0: 0 }),
+  init: (p) => {
+    env = { vc: [0, 0], i: [0, 0], q: [0, 0] };
+    return { t: 0, n: 0, q: 0, mode: p.sw, rc: `${p.R}|${p.C}`, ts: 0, q0: 0 };
+  },
 
   step: (s, _h, p) => {
     const rc = `${p.R}|${p.C}`;
@@ -227,8 +248,10 @@ export const rcCircuit: Scene<P, S> = {
 
   record: (s, p) => {
     const c = rcOf(p);
-    const i = currentOf(c, s);
-    return { t: s.t, vc: s.q / c.C, i: i * 1e3, q: s.q * 1e3 };
+    const i = currentOf(c, s, s.mode);
+    const rec = { t: s.t, vc: s.q / c.C, i: i * 1e3, q: s.q * 1e3 };
+    grow(rec);
+    return rec;
   },
   snapshot: (s) => ({ ...s }),
 
@@ -243,8 +266,11 @@ export const rcCircuit: Scene<P, S> = {
     const qmax = c.C * c.emf;
     const shift = (s.q / qmax) * 6;
     const gapD = 0.45;
+    const bm = (TOP + BOT) / 2;
     for (let d = (((shift % gapD) + gapD) % gapD) + 0.05; d < pa.total - 0.05; d += gapD) {
       const pt = pointAt(pa, d);
+      // No dots across the battery symbol (between and just beyond its plates).
+      if (Math.abs(pt.x - BAT_X) < 1e-6 && Math.abs(pt.y - bm) < 0.3) continue;
       g.circle(pt, 2.6, { fill: 'positive', alpha: 0.75 });
     }
 
@@ -267,19 +293,22 @@ export const rcCircuit: Scene<P, S> = {
       id: 'vc',
       label: 'V_C\\,(\\mathrm{V})',
       traces: [{ channel: 'vc', role: 'position' }],
-      yRange: () => span(0, EMF),
+      yRange: () => span(Math.min(0, env.vc[0]), Math.max(EMF, env.vc[1])),
     },
     {
       id: 'i',
       label: 'i\\,(\\mathrm{mA})',
       traces: [{ channel: 'i', role: 'velocity' }],
-      yRange: (p) => span(-EMF / p.R, EMF / p.R),
+      yRange: (p) => {
+        const m = Math.max(EMF / p.R, -env.i[0], env.i[1]);
+        return span(-m, m);
+      },
     },
     {
       id: 'q',
       label: 'q\\,(\\mathrm{mC})',
       traces: [{ channel: 'q', role: 'position' }],
-      yRange: (p) => span(0, (EMF * p.C) / 1e3),
+      yRange: (p) => span(Math.min(0, env.q[0]), Math.max((EMF * p.C) / 1e3, env.q[1])),
     },
   ],
 
@@ -288,7 +317,7 @@ export const rcCircuit: Scene<P, S> = {
   readouts: [
     { label: '\\tau', unit: 's', value: (_s, p) => tau(rcOf(p)) },
     { label: 'V_C', unit: 'V', value: (s, p) => s.q / rcOf(p).C },
-    { label: 'i', unit: 'mA', value: (s, p) => currentOf(rcOf(p), s) * 1e3 },
+    { label: 'i', unit: 'mA', value: (s, p) => currentOf(rcOf(p), s, p.sw) * 1e3 },
   ],
 
   info: {

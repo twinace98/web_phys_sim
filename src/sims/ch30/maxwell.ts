@@ -142,9 +142,12 @@ function drawGaussB(g: Draw, p: P): void {
 function drawFaraday(g: Draw, p: P): void {
   const disc: Vec2[] = circlePoly(0, 0, R_B, 96).map(([x, y]) => ({ x, y }));
   g.polygon(disc, { fill: '#000000', fillAlpha: 0.035, color: '#c8c8c8', width: 1 });
-  for (const [x, y] of [[0, 0], ...circlePoly(0, 0, 0.2, 6)] as V2[]) wireGlyph(g, { x, y }, 1, 0.75, 6, GREY);
+  // ⊙ symbols of B, left out where the dragged loop runs over them; the E arrows keep clear.
+  const glyphs: Vec2[] = ([[0, 0], ...circlePoly(0, 0, 0.2, 6)] as V2[]).map(([x, y]) => ({ x, y }));
+  const [lx, ly, lr] = Gin(p);
+  for (const q of glyphs) if (Math.abs(Math.hypot(q.x - lx, q.y - ly) - lr) > g.px(12)) wireGlyph(g, q, 1, 0.75, 6, GREY);
   g.text({ x: -R_B * 0.72, y: R_B * 0.72 }, '*B*', { size: 14, color: GREY, align: 'right', baseline: 'bottom', dx: -4 });
-  const arrows = eVec.get(`${vpKey(g)}|${p.dBdt}`, () => vectorGrid(g, (x, y) => inducedE(x, y, p.dBdt), [{ x: 0, y: 0 }], 34, 10));
+  const arrows = eVec.get(`${vpKey(g)}|${p.dBdt}`, () => vectorGrid(g, (x, y) => inducedE(x, y, p.dBdt), glyphs, 34, 22));
   drawVectorGrid(g, arrows);
   const pl = poly(p);
   drawSurface(g, pl);

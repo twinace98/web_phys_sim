@@ -96,7 +96,8 @@ export function pathScene(cfg: PathSceneCfg): Scene<PathP, S> {
       group: cfg.viewMain ? 'main' : 'advanced',
       live: true,
       default: 'lines',
-      options: (['lines', 'vectors', 'off'] as const).map((v) => ({ value: v, label: `field.view.${v}` })),
+      // Korean has separate words for electric (전기력선) and magnetic (자기력선) field lines.
+      options: (['lines', 'vectors', 'off'] as const).map((v) => ({ value: v, label: v === 'lines' && cfg.kernel === 'wire' ? 'field.view.blines' : `field.view.${v}` })),
     },
     Q: { kind: 'array', label: `${p}.p.layout`, group: 'hidden', live: true, default: cfg.pool.blank(), min: -99, max: 99 },
     G: { kind: 'array', label: `${p}.p.G`, group: 'hidden', live: true, default: [...cfg.G0[cfg.defaultPreset], tagOf(names, cfg.defaultPreset)], min: -2, max: 2 },

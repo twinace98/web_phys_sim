@@ -66,4 +66,38 @@ describe('ch27 RC circuit', () => {
     expect(run.state.q).toBeCloseTo(chargeAt(c1, true, q1, run.state.t - run.state.ts), 12);
     expect(run.state.t - run.state.ts).toBeGreaterThan(0.95);
   });
+
+  it('switching while paused updates the current readout at once (discharge current < 0)', () => {
+    const p = defaults(rcCircuit.params);
+    const run = new Runner(rcCircuit, p);
+    run.play();
+    run.advance(2);
+    run.pause();
+    const iReadout = rcCircuit.readouts!.find((r) => r.label === 'i')!;
+    expect(iReadout.value(run.state, run.params)).toBeGreaterThan(0);
+    run.setParam('sw', 'discharge');
+    const q = run.state.q;
+    // Loop rule for the new position: i = −q/τ, before any step.
+    expect(iReadout.value(run.state, run.params)).toBeCloseTo((-q / tau(c)) * 1e3, 9);
+    expect(iReadout.value(run.state, run.params)).toBeLessThan(0);
+  });
+
+  it('the plots widen to keep the run in view when C or R changes mid-run', () => {
+    for (const [k, v] of [['C', 100], ['R', 4], ['R', 0.5], ['C', 1000]] as const) {
+      const run = new Runner(rcCircuit, { ...defaults(rcCircuit.params), C: k === 'C' && v === 1000 ? 100 : 1000 });
+      run.play();
+      for (let i = 0; i < 600; i++) {
+        if (i === 300) run.setParam(k, v);
+        run.advance(1 / 120);
+      }
+      for (const pl of rcCircuit.plots!) {
+        const [lo, hi] = pl.yRange(run.params);
+        for (const x of run.hist.col(pl.traces[0].channel)) {
+          expect(Number.isFinite(x)).toBe(true);
+          expect(x).toBeGreaterThanOrEqual(lo);
+          expect(x).toBeLessThanOrEqual(hi);
+        }
+      }
+    }
+  });
 });

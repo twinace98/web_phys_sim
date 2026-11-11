@@ -30,5 +30,5 @@
   "ch28.c.obs.spiral": "Inside a dee the proton moves on a half circle; the time for a half circle does not depend on the radius",
   "ch28.c.obs.detune": "$f \\neq f_c$: the phase at each crossing drifts, acceleration turns into deceleration, the spiral winds back in and the energy stays far below the in-tune value",
   "ch28.c.obs.V0": "A larger gap voltage gives taller steps and fewer turns; the exit energy is the same, $K_\\text{max} = (qBR)^2/2m$ = 120 keV",
-  "ch28.c.assume": "Proton, $B$ = 1 T, dee radius 5 cm, gap 6 mm (drawn wider than in real machines), gap voltage set high to keep the number of turns small; fringe fields neglected; non-relativistic"
+  "ch28.c.assume": "Proton, $B$ = 1 T, dee radius $R$ = 5 cm, gap 6 mm (drawn wider than in real machines), gap voltage set high to keep the number of turns small; the magnet pole is a little wider than the dees; when the orbit radius reaches $R$ a deflector extracts the proton (straight line afterwards); fringe fields neglected; non-relativistic"
 }

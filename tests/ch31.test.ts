@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { freeScene } from '../src/sims/ch31/free';
 import { acAt, currentAmp, energies, freeAt, impedance, omega0, phase, type Drive, type RLC } from '../src/sims/ch31/physics';
 
 const L = 10e-3;
@@ -95,5 +96,20 @@ describe('ch31 driven RLC', () => {
     for (const r of [0.5, 0.8, 1.25, 2]) expect(currentAmp(c, { em: 10, wd: r * w0 })).toBeLessThan(currentAmp(c, dr));
     expect(phase(c, 0.5 * w0)).toBeLessThan(0);
     expect(phase(c, 2 * w0)).toBeGreaterThan(0);
+  });
+
+  it("free scene shows the damped period T' = 2π/ω', and – when not oscillating", () => {
+    const T = freeScene.readouts!.find((r) => r.label === "T'")!;
+    const base = { R: 0, L: 10, C: 10, spring: true };
+    const s0 = { t: 0, n: 0 };
+    // R = 0: T' = T0 = 2π√(LC) = 1.987 ms.
+    expect(T.value(s0, base)).toBeCloseTo(2 * Math.PI * Math.sqrt(10e-3 * 10e-6) * 1e3, 9);
+    // R = 20 Ω: ω' = √(1/LC − (R/2L)²) = √(10⁷ − 10⁶) rad/s, T' = 2.094 ms.
+    expect(T.value(s0, { ...base, R: 20 })).toBeCloseTo(((2 * Math.PI) / Math.sqrt(1e7 - 1e6)) * 1e3, 9);
+    // Critical (R = 2√(L/C) = 63.2 Ω for 10 mH, 10 μF) and overdamped: no period.
+    expect(T.value(s0, { ...base, R: 64 })).toBeNaN();
+    expect(T.value(s0, { ...base, R: 100 })).toBeNaN();
+    expect(T.value(s0, { ...base, R: 63, L: 5, C: 20 })).toBeNaN();
+    expect(Number.isFinite(T.value(s0, { ...base, R: 63 }))).toBe(true);
   });
 });
