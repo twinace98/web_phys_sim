@@ -61,12 +61,12 @@ describe('ch13 gravitation', () => {
     // Tangential launch at 0.85 v_esc: launch point is the periapsis; apoapsis = r0 f²/(1 − f²).
     expect(Math.max(...r) / (r0 / 1e6)).toBeCloseTo(0.7225 / 0.2775, 3);
 
-    const crash = new Runner(orbitScene, { ...p, speed: '0.5' });
+    const crash = new Runner(orbitScene, { ...p, speed: 0.5 });
     crash.play();
     for (let i = 0; i < 2000 && crash.playing; i++) crash.advance(0.1);
     expect(crash.hist.col('r').at(-1)! * 1e6).toBeCloseTo(R_EARTH, 0);
 
-    const esc = new Runner(orbitScene, { ...p, speed: '1.2', dir: 30 });
+    const esc = new Runner(orbitScene, { ...p, speed: 1.2, dir: 30 });
     esc.play();
     for (let i = 0; i < 4000 && esc.playing; i++) esc.advance(0.1);
     expect(esc.hist.col('r').at(-1)!).toBeGreaterThan(1.8 * (r0 / 1e6));

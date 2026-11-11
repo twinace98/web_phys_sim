@@ -51,8 +51,8 @@ const params: ParamSchema<P> = {
       { value: 'both', label: 'ch11.c.mode.both' },
     ],
   },
-  m: { kind: 'number', label: 'ch11.c.p.m', desc: 'ch11.c.d.m', group: 'main', live: false, control: 'select', choices: [1, 2, 4], default: 2, unit: 'kg' },
-  wOut: { kind: 'number', label: 'ch11.c.p.wOut', desc: 'ch11.c.d.wOut', group: 'advanced', live: false, control: 'select', choices: [1, 1.5, 2], default: 1.5, unit: 'rad/s' },
+  m: { kind: 'number', label: 'ch11.c.p.m', desc: 'ch11.c.d.m', group: 'main', live: false, control: 'slider', min: 0.5, max: 4, step: 0.1, default: 2, unit: 'kg' },
+  wOut: { kind: 'number', label: 'ch11.c.p.wOut', desc: 'ch11.c.d.wOut', group: 'advanced', live: false, control: 'slider', min: 1, max: 2, step: 0.1, default: 1.5, unit: 'rad/s' },
 };
 
 function disc(g: Draw, c: Vec2, r: number, fill: string, alpha = 1): void {

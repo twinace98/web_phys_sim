@@ -17,10 +17,10 @@ const GREY = '#9a9a9a';
 const LABEL = '#6b6b6b';
 
 const params: ParamSchema<P> = {
-  rA: { kind: 'number', label: 'ch10.p.rA', desc: 'ch10.d.rA', group: 'main', live: false, control: 'select', choices: [0.25, 0.5, 0.75, 1], default: 0.5, unit: 'm' },
-  rB: { kind: 'number', label: 'ch10.p.rB', desc: 'ch10.d.rB', group: 'main', live: false, control: 'select', choices: [0.25, 0.5, 0.75, 1], default: 1, unit: 'm' },
-  m: { kind: 'number', label: 'ch10.p.m', desc: 'ch10.d.m', group: 'advanced', live: false, control: 'select', choices: [0.5, 1, 2], default: 1, unit: 'kg' },
-  tau: { kind: 'number', label: 'ch10.p.tau', desc: 'ch10.d.tau', group: 'advanced', live: false, control: 'select', choices: [0.25, 0.5, 1], default: 0.5, unit: 'N·m' },
+  rA: { kind: 'number', label: 'ch10.p.rA', desc: 'ch10.d.rA', group: 'main', live: false, control: 'slider', min: 0.2, max: 1, step: 0.05, default: 0.5, unit: 'm' },
+  rB: { kind: 'number', label: 'ch10.p.rB', desc: 'ch10.d.rB', group: 'main', live: false, control: 'slider', min: 0.2, max: 1, step: 0.05, default: 1, unit: 'm' },
+  m: { kind: 'number', label: 'ch10.p.m', desc: 'ch10.d.m', group: 'advanced', live: false, control: 'slider', min: 0.5, max: 2, step: 0.1, default: 1, unit: 'kg' },
+  tau: { kind: 'number', label: 'ch10.p.tau', desc: 'ch10.d.tau', group: 'advanced', live: false, control: 'slider', min: 0.1, max: 1, step: 0.05, default: 0.5, unit: 'N·m' },
 };
 
 /** Run length: 6 s, shorter if the faster rotor would pass 15 rad/s. */

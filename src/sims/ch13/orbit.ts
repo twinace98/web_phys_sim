@@ -7,7 +7,7 @@ import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
 import { GM, R_EARTH, classify, elements, energy, escapeSpeed, radius, speed, yoshida, type Body, type OrbitKind, type V2 } from './physics';
 
-type P = { speed: string; alt: number; dir: number; predict: boolean; areas: boolean; ueff: boolean };
+type P = { speed: number; alt: number; dir: number; predict: boolean; areas: boolean; ueff: boolean };
 
 interface S {
   t: number;
@@ -19,12 +19,12 @@ const SUB = 8; // Yoshida substeps per physics step (2.5 s)
 const MASS = 1000; // probe mass [kg], for K, U, E in GJ
 const MM = 1e6; // world unit: 10³ km
 const DEG = Math.PI / 180;
-const FRACTION: Record<string, number> = { '0.5': 0.5, '0.6': 0.6, circ: Math.SQRT1_2, '0.85': 0.85, esc: 1, '1.2': 1.2 };
 const EARTH_FILL = '#dce8f2';
 const EARTH_LINE = '#8fb3cf';
 const SECTOR_FILL = ['#E69F00', '#56B4E9'];
 
-const fraction = (p: P) => FRACTION[p.speed] ?? 0.85;
+/** v0 / v_esc; 0.71 on the slider means exactly the circular speed 1/√2. */
+const fraction = (p: P) => (Math.abs(p.speed - Math.SQRT1_2) < 0.005 ? Math.SQRT1_2 : p.speed);
 const r0Of = (p: P) => R_EARTH + p.alt * 1e3;
 
 /** Launch on the left of the Earth; dir = angle from the counter-clockwise tangent towards outward radial. */
@@ -89,11 +89,12 @@ function model(p: P): Model {
   const key = `${p.speed}|${p.alt}|${p.dir}`;
   if (key === memoKey && memo) return memo;
   const b0 = launch(p);
-  const kind = p.speed === 'esc' ? 'parabola' : classify(b0);
+  const kind = p.speed === 1 ? 'parabola' : classify(b0);
   const el = elements(b0);
   const r0 = r0Of(p);
   const tCirc = 2 * Math.PI * Math.sqrt(r0 ** 3 / GM);
-  const tMax = kind === 'ellipse' ? 3 * el.period : 4 * tCirc;
+  // Three orbits, but never more than 40 circular periods (orbits just below escape are huge).
+  const tMax = kind === 'ellipse' ? Math.min(3 * el.period, 40 * tCirc) : 4 * tCirc;
   const nMax = Math.ceil(tMax / H);
   const xs = new Float64Array(2 * (nMax + 1));
   const vs = new Float64Array(2 * (nMax + 1));
@@ -151,23 +152,8 @@ function bodyAt(p: P, n: number): Body {
 const w = (x: number[] | Float64Array, i: number): Vec2 => ({ x: x[i] / MM, y: x[i + 1] / MM });
 
 const params: ParamSchema<P> = {
-  speed: {
-    kind: 'select',
-    label: 'ch13.p.speed',
-    desc: 'ch13.d.speed',
-    group: 'main',
-    live: false,
-    default: '0.85',
-    options: [
-      { value: '0.5', label: 'ch13.speed.05' },
-      { value: '0.6', label: 'ch13.speed.06' },
-      { value: 'circ', label: 'ch13.speed.circ' },
-      { value: '0.85', label: 'ch13.speed.085' },
-      { value: 'esc', label: 'ch13.speed.esc' },
-      { value: '1.2', label: 'ch13.speed.12' },
-    ],
-  },
-  alt: { kind: 'number', label: 'ch13.p.alt', desc: 'ch13.d.alt', group: 'main', live: false, control: 'select', choices: [2000, 6000, 12000], default: 6000, unit: 'km' },
+  speed: { kind: 'number', label: 'ch13.p.speed', desc: 'ch13.d.speed', group: 'main', live: false, control: 'slider', min: 0.3, max: 1.4, step: 0.01, default: 0.85 },
+  alt: { kind: 'number', label: 'ch13.p.alt', desc: 'ch13.d.alt', group: 'main', live: false, control: 'slider', min: 1000, max: 15000, step: 500, default: 6000, unit: 'km' },
   dir: { kind: 'number', label: 'ch13.p.dir', group: 'hidden', live: false, control: 'slider', min: -90, max: 90, default: 0 },
   predict: { kind: 'toggle', label: 'ch13.p.predict', desc: 'ch13.d.predict', group: 'advanced', live: true, default: true },
   areas: { kind: 'toggle', label: 'ch13.p.areas', desc: 'ch13.d.areas', group: 'advanced', live: true, default: false },

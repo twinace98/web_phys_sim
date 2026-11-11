@@ -67,9 +67,9 @@ const params: ParamSchema<P> = {
       { value: 'both', label: 'ch11.mode.both' },
     ],
   },
-  rIn: { kind: 'number', label: 'ch11.p.rIn', desc: 'ch11.d.rIn', group: 'main', live: false, control: 'select', choices: [0.3, 0.4, 0.5, 0.7], default: 0.5, unit: 'm' },
-  wOut: { kind: 'number', label: 'ch11.p.wOut', desc: 'ch11.d.wOut', group: 'advanced', live: false, control: 'select', choices: [1, 2, 3], default: 2, unit: 'rad/s' },
-  m: { kind: 'number', label: 'ch11.p.m', desc: 'ch11.d.m', group: 'advanced', live: false, control: 'select', choices: [0.1, 0.2, 0.5], default: 0.2, unit: 'kg' },
+  rIn: { kind: 'number', label: 'ch11.p.rIn', desc: 'ch11.d.rIn', group: 'main', live: false, control: 'slider', min: 0.3, max: 0.8, step: 0.05, default: 0.5, unit: 'm' },
+  wOut: { kind: 'number', label: 'ch11.p.wOut', desc: 'ch11.d.wOut', group: 'advanced', live: false, control: 'slider', min: 1, max: 3, step: 0.1, default: 2, unit: 'rad/s' },
+  m: { kind: 'number', label: 'ch11.p.m', desc: 'ch11.d.m', group: 'advanced', live: false, control: 'slider', min: 0.1, max: 0.5, step: 0.05, default: 0.2, unit: 'kg' },
   areas: { kind: 'toggle', label: 'ch11.p.areas', desc: 'ch11.d.areas', group: 'advanced', live: true, default: true },
 };
 
