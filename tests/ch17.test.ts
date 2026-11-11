@@ -31,6 +31,33 @@ describe('ch17 beats', () => {
     expect(Math.max(...y)).toBeGreaterThan(1.99);
     expect(r.hist.length).toBeLessThan(10000);
   });
+
+  it('plots draw resolved waveforms at 20 Hz and envelope bands at 440 Hz (no solid colour block)', () => {
+    // A 600 px plot showing 2 s: 20 Hz has 14 px per cycle, 440 Hz only 0.7 px.
+    const draw = (f1: number) => {
+      const lines: number[] = [];
+      let fills = 0;
+      const ctx = new Proxy({} as Record<string, unknown>, {
+        get: (_t, k) => (k === 'fill' ? () => fills++ : () => {}),
+        set: () => true,
+      });
+      const pd = {
+        ctx,
+        toPx: (t: number, y: number): [number, number] => [t * 300, -y * 50],
+        polyline: (pts: [number, number][]) => lines.push(pts.length),
+        dot: () => {},
+      };
+      const p = { ...defaults(beats.params), f1, df: 1 };
+      for (const id of ['y1', 'y2', 'y']) beats.drawPlot!(id, pd as never, p, { t: 2, cursorT: 2, scrubbing: false, lecture: false });
+      return { lines, fills };
+    };
+    const lo = draw(20);
+    expect(lo.fills).toBe(0);
+    expect(Math.max(...lo.lines)).toBeGreaterThan(900);
+    const hi = draw(440);
+    expect(hi.fills).toBe(3);
+    expect(Math.max(...hi.lines)).toBeLessThanOrEqual(401);
+  });
 });
 
 describe('ch17 Doppler', () => {

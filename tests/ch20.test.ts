@@ -16,7 +16,7 @@ import {
   mostProbable,
   sumRange,
 } from '../src/sims/ch20/physics';
-import { heatScene } from '../src/sims/ch20/heat';
+import { equilibrium, heatScene } from '../src/sims/ch20/heat';
 import { cycle, entropy, heatSplit, temp } from '../src/sims/ch18/physics';
 
 describe('ch20 counting', () => {
@@ -110,6 +110,44 @@ describe('ch20 dynamics', () => {
       return r.state.qA;
     };
     expect(run()).toBe(run());
+  });
+
+  it('heat scene: the Q arrow does not flicker with few quanta, and points from hot to cold early on', () => {
+    for (const [na, q] of [
+      [30, 20],
+      [10, 20],
+      [90, 20],
+      [50, 30],
+    ]) {
+      let flips = 0;
+      let oldFlips = 0;
+      for (let seed = 1; seed <= 4; seed++) {
+        const p = { ...defaults(heatScene.params), na, q };
+        const r = new Runner(heatScene, p, seed);
+        // All quanta start in A: heat flows A → B wherever that start is clearly off equilibrium
+        // (not for na = 90, q = 20, where A already holds 18 quanta on average).
+        const eq = equilibrium(p);
+        expect(r.state.flow).toBe((q - eq.mean) / eq.sd > 2.5 ? 1 : 0);
+        if (na <= 50) expect(r.state.flow).toBe(1);
+        r.play();
+        let prev = r.state.flow;
+        let prevOld = true;
+        for (let i = 0; i < 60 * 30; i++) {
+          r.advance(1 / 30);
+          if (r.state.flow !== prev) flips++;
+          prev = r.state.flow;
+          // The former rule: arrow shown whenever the instantaneous difference exceeds 12 %.
+          const tA = kTeps(na, r.state.qA);
+          const tB = kTeps(100 - na, q - r.state.qA);
+          const on = Math.abs(tA - tB) > 0.12 * Math.max(tA, tB);
+          if (on !== prevOld) oldFlips++;
+          prevOld = on;
+        }
+      }
+      // 4 runs of 60 s: the former rule switched 570–720 times at q = 20; now a handful.
+      expect(flips).toBeLessThan(20);
+      expect(flips).toBeLessThan(oldFlips / 10);
+    }
   });
 });
 

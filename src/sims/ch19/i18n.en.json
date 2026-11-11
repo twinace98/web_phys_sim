@@ -21,5 +21,6 @@
   "ch19.obs.hist": "Even when every molecule starts at the same speed, collisions turn the speed distribution into the 2D Maxwell-Boltzmann distribution (dashed)",
   "ch19.assume.2d": "2D gas: pressure = force per unit wall length (mN/m = pN/nm), area $A = L^2$",
   "ch19.assume.disk": "Hard disks the size of helium atoms (diameter 0.26 nm, mass $6.65\\times10^{-27}$ kg), perfectly elastic collisions, smooth walls",
-  "ch19.assume.dense": "Because the disks take up area, at high density the measured pressure is a little above the ideal-gas value (about 10 % at $N = 400$, $L = 20$ nm)"
+  "ch19.assume.dense": "Because the disks take up area, the measured pressure is a little above the ideal-gas value: about 9 % at $N = 150$, $L = 15$ nm and about 4 % at the defaults ($N = 100$, $L = 20$ nm)",
+  "ch19.assume.win": "During the first 10 ps both pressure plots divide the impulse so far by 10 ps, so they start from 0"
 }

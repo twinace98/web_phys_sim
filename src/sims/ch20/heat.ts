@@ -16,6 +16,10 @@ interface S {
   qA: number;
   /** The run's seeded generator: random moves stay reproducible. */
   rng: Rng;
+  /** q_A smoothed over FLOW_TAU. */
+  qSmooth: number;
+  /** Heat arrow: +1 A → B, −1 B → A, 0 none (switched with hysteresis on qSmooth). */
+  flow: number;
 }
 
 const A_COL = ROLE_COLOR.position;
@@ -24,7 +28,6 @@ const B_COL = ROLE_COLOR.energyU;
 const N_TOT = 100;
 const MOVES = 6;
 const ROWS = 5;
-
 const sizes = (p: P): [number, number] => [p.na, N_TOT - p.na];
 const ent = (p: P, qA: number) => {
   const [NA, NB] = sizes(p);
@@ -32,6 +35,47 @@ const ent = (p: P, qA: number) => {
   const b = lnOmega(NB, p.q - qA);
   return { a, b, tot: a + b };
 };
+
+/** Smoothing time of q_A for the Q arrow [s]. */
+const FLOW_TAU = 1;
+/** The arrow appears when the smoothed q_A is this many equilibrium standard deviations from the most probable value… */
+const FLOW_ON = 2.5;
+/** …and disappears again within this many. */
+const FLOW_OFF = 1.5;
+
+/** Equilibrium distribution of q_A, P ∝ Ω_A Ω_B: its mean and standard deviation. */
+let eqKey = '';
+let eqStat = { mean: 0, sd: 1 };
+export function equilibrium(p: P): { mean: number; sd: number } {
+  const key = `${p.na}|${p.q}`;
+  if (key !== eqKey) {
+    eqKey = key;
+    const top = sTotMax(p);
+    let z = 0;
+    let m1 = 0;
+    let m2 = 0;
+    for (let qa = 0; qa <= p.q; qa++) {
+      const w = Math.exp(ent(p, qa).tot - top);
+      z += w;
+      m1 += w * qa;
+      m2 += w * qa * qa;
+    }
+    const mean = m1 / z;
+    eqStat = { mean, sd: Math.max(0.5, Math.sqrt(Math.max(0, m2 / z - mean * mean))) };
+  }
+  return eqStat;
+}
+
+/**
+ * Heat arrow from the smoothed q_A: shown only while A is clearly away from equilibrium (more quanta
+ * than the most probable share → A hotter → heat A → B). Hysteresis keeps it from flickering.
+ */
+export function nextFlow(flow: number, qSmooth: number, eq: { mean: number; sd: number }): number {
+  const z = (qSmooth - eq.mean) / eq.sd;
+  if (Math.abs(z) > FLOW_ON) return Math.sign(z);
+  if (Math.abs(z) < FLOW_OFF || Math.sign(z) !== flow) return 0;
+  return flow;
+}
 
 let memoKey = '';
 let memoSmax = 1;
@@ -129,13 +173,11 @@ function drawSolids(g: Draw, r: Rect, s: S, p: P): void {
     const qB = p.q - s.qA;
     d.text({ x: xA, y: yTop }, `A: *q*_{A} = ${s.qA}`, { size: 13, color: A_COL, align: 'left', dy: -8 });
     d.text({ x: xB, y: yTop }, `B: *q*_{B} = ${qB}`, { size: 13, color: B_COL, align: 'left', dy: -8 });
-    const tA = kTeps(NA, s.qA);
-    const tB = kTeps(NB, qB);
-    if (Math.abs(tA - tB) > 0.12 * Math.max(tA, tB)) {
+    if (s.flow !== 0) {
       const yc = yTop - (cs * ROWS) / 2;
       const xm = x0 + cs * (cA + gapC / 2);
       const len = cs * gapC * 0.7;
-      const dir = tA > tB ? 1 : -1;
+      const dir = s.flow;
       d.arrow({ x: xm - (dir * len) / 2, y: yc }, { x: dir * len, y: 0 }, { color: QC, width: 2.5 });
       d.text({ x: xm, y: yc }, '*Q*', { size: 14, color: QC, align: 'center', dy: -12 });
     }
@@ -185,7 +227,10 @@ function drawCurves(g: Draw, r: Rect, s: S, p: P): void {
       c.d.circle(c.P(s.qA, e.tot), 4.5, { fill: '#1a1a1a' });
     });
     const eq = ent(p, peak);
-    c.d.text(c.P(peak, eq.tot), '*S*_{tot}', { size: 13, color: '#1a1a1a', align: 'center', dy: -10 });
+    // Above the peak, but clear of the axis label at the top-left and of the right edge.
+    const at = c.P(peak, eq.tot);
+    at.x = Math.min(Math.max(at.x, c.L + 52), c.R - 16);
+    c.d.text(at, '*S*_{tot}', { size: 13, color: '#1a1a1a', align: 'center', dy: -10 });
     // S_A and S_B meet S_tot at the ends, so their labels go under the curves.
     c.d.text(c.P(p.q, ent(p, p.q).a), '*S*_{A}', { size: 13, color: A_COL, align: 'right', dy: 18 });
     c.d.text(c.P(0, ent(p, 0).b), '*S*_{B}', { size: 13, color: B_COL, align: 'left', dx: 6, dy: 18 });
@@ -203,12 +248,15 @@ export const heatScene: Scene<P, S> = {
     const osc = new Int32Array(NA + NB);
     if (p.start === 'B') fillUniform(osc, NA, NA + NB, p.q, rng);
     else fillUniform(osc, 0, NA, p.q, rng);
-    return { t: 0, osc, qA: sumRange(osc, 0, NA), rng };
+    const qA = sumRange(osc, 0, NA);
+    return { t: 0, osc, qA, rng, qSmooth: qA, flow: nextFlow(0, qA, equilibrium(p)) };
   },
   step: (s, h, p) => {
     s.t += h;
     for (let k = 0; k < MOVES; k++) exchange(s.osc, s.rng);
     s.qA = sumRange(s.osc, 0, sizes(p)[0]);
+    s.qSmooth += (s.qA - s.qSmooth) * Math.min(1, h / FLOW_TAU);
+    s.flow = nextFlow(s.flow, s.qSmooth, equilibrium(p));
   },
   record: (s, p) => {
     const [NA, NB] = sizes(p);
@@ -262,6 +310,6 @@ export const heatScene: Scene<P, S> = {
       '\\Omega_\\text{tot} = \\Omega_\\text{A}\\,\\Omega_\\text{B}, \\quad S_\\text{tot} = S_\\text{A} + S_\\text{B}',
       '\\frac{1}{T} = \\frac{\\partial S}{\\partial E}, \\quad E = q\\,\\varepsilon',
     ],
-    assumptions: ['ch20.h.assume.model', 'ch20.h.assume.T'],
+    assumptions: ['ch20.h.assume.model', 'ch20.h.assume.T', 'ch20.h.assume.arrow'],
   },
 };

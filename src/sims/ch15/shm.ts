@@ -2,7 +2,7 @@
 // mass on a spring (middle) and phase space (right) share one horizontal projection line.
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { omega0, oscAt, period, type OscState, type Oscillator } from './physics';
+import { omega0, omegaD, oscAt, period, type OscState, type Oscillator } from './physics';
 
 type P = { A: number; k: number; m: number; zeta: number; vectors: boolean };
 type S = { t: number } & OscState;
@@ -207,7 +207,8 @@ export const shm: Scene<P, S> = {
   ],
 
   readouts: [
-    { label: '\\omega', unit: 'rad/s', value: (_s, p) => omega0(oscOf(p)) },
+    // With damping both show the damped oscillation: ω = ω_d and T = 2π/ω_d.
+    { label: '\\omega', unit: 'rad/s', value: (_s, p) => omegaD(oscOf(p)) },
     { label: 'T', unit: 's', value: (_s, p) => period(oscOf(p)) },
     { label: 'E', unit: 'J', value: (s) => s.E },
   ],
@@ -220,6 +221,6 @@ export const shm: Scene<P, S> = {
       '\\omega = \\sqrt{k/m}, \\quad T = 2\\pi\\sqrt{m/k}',
       'E = \\tfrac{1}{2}mv^2 + \\tfrac{1}{2}kx^2 = \\tfrac{1}{2}kA^2',
     ],
-    assumptions: ['ch15.assume.spring', 'ch15.assume.scale'],
+    assumptions: ['ch15.assume.spring', 'ch15.assume.scale', 'ch15.assume.damp'],
   },
 };

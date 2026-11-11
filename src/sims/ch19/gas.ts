@@ -5,7 +5,7 @@ import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { drawRich } from '../../draw/text';
 import { ROLE_COLOR, theme } from '../../draw/theme';
 import { chart, inPanel, split, stageRect, TICK, type Rect } from '../ch18/panels';
-import { J_PER_V, SIGMA, idealForce, idealPressure, initGas, sigmaV, speedPdf, stepGas, type Gas } from './physics';
+import { J_PER_V, SIGMA, WIN, idealForce, idealPressure, impulseTop, initGas, pCum, pWin, pressureTop, sigmaV, speedPdf, stepGas, type Gas } from './physics';
 
 type P = { N: number; T: number; L: number; init: string; arrows: boolean };
 
@@ -18,8 +18,6 @@ interface S {
 }
 
 const T_END = 200;
-/** Moving-average window for the force on the wall [ps]. */
-const WIN = 10;
 const BINS = 24;
 const HIST_DT = 0.5;
 const HIST_TAU = 10;
@@ -42,18 +40,6 @@ function sampleHist(s: S, p: P, first: boolean): void {
   for (let k = 0; k < BINS; k++) s.hist[k] = (1 - a) * s.hist[k] + a * c[k];
 }
 
-/** Mean pressure since t = 0: J / (L t). */
-const pCum = (s: S) => (s.t > 1 ? s.gas.J / (s.gas.L * s.t) : 0);
-
-/** Pressure from the impulses of the last WIN ps. */
-function pWin(s: S): number {
-  const w = Math.min(WIN, s.t);
-  if (w < 1) return 0;
-  let j = 0;
-  for (const h of s.gas.hits) if (h.t > s.t - WIN) j += h.J;
-  return j / (s.gas.L * w);
-}
-
 const params: ParamSchema<P> = {
   N: {
     kind: 'number',
@@ -62,8 +48,8 @@ const params: ParamSchema<P> = {
     group: 'main',
     live: false,
     control: 'slider',
-    min: 10,
-    max: 400,
+    min: 20,
+    max: 150,
     step: 10,
     default: 100,
   },
@@ -74,7 +60,7 @@ const params: ParamSchema<P> = {
     group: 'main',
     live: false,
     control: 'slider',
-    min: 50,
+    min: 100,
     max: 1200,
     step: 10,
     default: 300,
@@ -87,7 +73,7 @@ const params: ParamSchema<P> = {
     group: 'advanced',
     live: false,
     control: 'slider',
-    min: 10,
+    min: 15,
     max: 30,
     step: 1,
     default: 20,
@@ -196,7 +182,7 @@ export const gasScene: Scene<P, S> = {
       sampleHist(s, p, false);
     }
   },
-  record: (s) => ({ t: s.t, J: s.gas.J, pw: pWin(s), pc: pCum(s) }),
+  record: (s) => ({ t: s.t, J: s.gas.J, pw: pWin(s.gas), pc: pCum(s.gas) }),
 
   draw: (g, s, p) => {
     const full = stageRect(g);
@@ -210,19 +196,19 @@ export const gasScene: Scene<P, S> = {
       id: 'J',
       label: 'J\\,(\\mathrm{pN\\cdot ps})',
       traces: [{ channel: 'J', role: 'force' }],
-      yRange: (p) => [0, 1.3 * idealForce(p.N, p.L, p.T) * T_END],
+      yRange: (p) => [0, impulseTop(p.N, p.L, p.T, T_END)],
     },
     {
       id: 'pw',
       label: '\\bar p_{\\,10\\,\\mathrm{ps}}\\,(\\mathrm{mN/m})',
       traces: [{ channel: 'pw', role: 'force' }],
-      yRange: (p) => [0, 2.4 * idealPressure(p.N, p.L, p.T)],
+      yRange: (p) => [0, pressureTop(p.N, p.L, p.T)],
     },
     {
       id: 'pc',
       label: 'J/(L\\,t)\\,(\\mathrm{mN/m})',
       traces: [{ channel: 'pc', role: 'fg' }],
-      yRange: (p) => [0, 2.4 * idealPressure(p.N, p.L, p.T)],
+      yRange: (p) => [0, pressureTop(p.N, p.L, p.T)],
     },
   ],
 
@@ -240,7 +226,7 @@ export const gasScene: Scene<P, S> = {
   },
 
   readouts: [
-    { label: 'J/(L\\,t)', unit: 'mN/m', value: (s) => pCum(s) },
+    { label: 'J/(L\\,t)', unit: 'mN/m', value: (s) => pCum(s.gas) },
     { label: 'NkT/A', unit: 'mN/m', value: (_s, p) => idealPressure(p.N, p.L, p.T) },
   ],
 
@@ -248,6 +234,6 @@ export const gasScene: Scene<P, S> = {
     goals: ['ch19.goal.sum', 'ch19.goal.ideal'],
     observe: ['ch19.obs.J', 'ch19.obs.fluct', 'ch19.obs.N', 'ch19.obs.T', 'ch19.obs.hist'],
     equations: ['\\Delta p_x = 2mv_x', 'p = \\frac{F}{L} = \\frac{1}{L\\,t}\\sum 2mv_x', 'pA = NkT \\quad (\\text{2D})', 'f(v) = \\frac{mv}{kT}\\,e^{-mv^2/2kT}'],
-    assumptions: ['ch19.assume.2d', 'ch19.assume.disk', 'ch19.assume.dense'],
+    assumptions: ['ch19.assume.2d', 'ch19.assume.disk', 'ch19.assume.dense', 'ch19.assume.win'],
   },
 };
