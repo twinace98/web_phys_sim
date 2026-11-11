@@ -1,0 +1,19 @@
+{
+  "ch27.scene": "RC circuit",
+  "ch27.p.sw": "Switch",
+  "ch27.d.sw": "Charge from the battery, or discharge through the resistor with the battery out. Switching while running takes effect at that instant",
+  "ch27.sw.charge": "Charge",
+  "ch27.sw.discharge": "Discharge",
+  "ch27.p.R": "Resistance",
+  "ch27.d.R": "Resistance $R$ of the circuit",
+  "ch27.p.C": "Capacitance",
+  "ch27.d.C": "Capacitance $C$ of the capacitor",
+  "ch27.goal.exp": "Charging and discharging an RC circuit: charge and current change exponentially",
+  "ch27.goal.tau": "One time constant $\\tau = RC$ sets how fast",
+  "ch27.obs.tau": "At $t = \\tau$ the charge has covered 63 % of the way to its final value and the current has dropped to 37 %",
+  "ch27.obs.tangent": "The tangent at the switching instant (dashed) reaches the final value at $t = \\tau$",
+  "ch27.obs.i": "The current starts at its maximum $\\mathcal{E}/R$ and falls to 0: as the capacitor voltage approaches the emf, less voltage is left across $R$",
+  "ch27.obs.switch": "Switch to discharge halfway: discharge starts from the charge at that instant and the current reverses ($i < 0$)",
+  "ch27.obs.RC": "Doubling $R$ or $C$ doubles $\\tau$ and stretches the curves in time by 2",
+  "ch27.assume": "Battery emf 12 V; internal and wire resistance neglected. Moving dots show the flow of positive charge (conventional current)"
+}
