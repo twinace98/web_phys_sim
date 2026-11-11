@@ -39,5 +39,5 @@
   "ch37.s.obs.ground": "Ground frame (top): the rear end moves toward the light and the front end away from it, so the rear is reached first",
   "ch37.s.obs.dt": "The ground-frame time difference is $\\Delta t = \\gamma v L_0/c^2$, larger for larger β",
   "ch37.s.obs.diagram": "Plot the two arrival events on the spacetime diagram tab for the same result",
-  "ch37.s.assume.train": "Train proper length 4 ls; the flash goes off at the centre ($x = x' = 0$) at $t = t' = 0$; the light is absorbed at the ends"
+  "ch37.s.assume.train": "Train proper length 4 ls; the flash goes off at the centre ($x = x' = 0$) at $t = t' = 0$; the light is absorbed at the ends; ground posts are 1 ls apart in S and $1/\\gamma$ ls apart in the train frame (length contraction)"
 }

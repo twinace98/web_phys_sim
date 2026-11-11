@@ -182,10 +182,12 @@ export function drawChain(g: Draw, box: Box, devices: Device[], geo: Geometry, s
   }
   // Fraction bar between the detectors: + part blue, − part orange; tick = prediction.
   const pin = probs[0] + probs[1];
-  if (pin > 0) {
+  // Gap kept from each detector: 26 px, less on a short stage; no bar if it would invert.
+  const inset = Math.min(26, (f.Y(-DET_Y) - f.Y(DET_Y) - 24) / 2);
+  if (pin > 0 && inset >= 14) {
     const bx = f.X(X_DET) + 4;
-    const bt = f.Y(DET_Y) + 26;
-    const bb = f.Y(-DET_Y) - 26;
+    const bt = f.Y(DET_Y) + inset;
+    const bb = f.Y(-DET_Y) - inset;
     const frac = tot ? cl[0] / tot : 0;
     const split = bt + frac * (bb - bt);
     if (tot) {

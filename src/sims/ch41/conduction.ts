@@ -124,7 +124,7 @@ export const conduction: Scene<P, S> = {
   plots: [
     {
       id: 'J',
-      label: 'J\\;(\\text{arb.})',
+      label: 'J',
       traces: [{ channel: 'J', role: 'position' }],
       yRange: () => [-0.05, 0.2],
     },
@@ -138,7 +138,7 @@ export const conduction: Scene<P, S> = {
   info: {
     goals: ['ch41.c.goal.shift', 'ch41.c.goal.full'],
     observe: ['ch41.c.obs.half', 'ch41.c.obs.full', 'ch41.c.obs.nearly', 'ch41.c.obs.off', 'ch41.c.obs.v'],
-    equations: ['\\hbar\\frac{dk}{dt} = -eE - \\frac{\\hbar\\,\\Delta k}{\\tau}', 'v = \\frac{1}{\\hbar}\\frac{dE}{dk}, \\quad J = -e\\sum_\\text{occ} v'],
+    equations: ['\\hbar\\frac{dk}{dt} = -eE - \\frac{\\hbar\\,\\Delta k}{\\tau}', 'v = \\frac{1}{\\hbar}\\frac{dE}{dk}, \\quad J = -e\\sum_{k} f_k\\, v_k'],
     assumptions: ['ch41.c.assume.band', 'ch41.c.assume.shift', 'ch41.c.assume.spin'],
   },
 };

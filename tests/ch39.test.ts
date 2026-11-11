@@ -56,7 +56,7 @@ describe('ch39 superposition', () => {
     expect(q.xc).toBeCloseTo(0, 6);
   });
 
-  it('falls back to available states when the well holds fewer', () => {
+  it('guard: an index past the last state (unreachable from the controls) is clamped, never read out of range', () => {
     const m = model({ ...p, pot: 'finite', U0: 1, L: 0.5 });
     expect(m.st.E.length).toBe(1);
     const q = supStates(m, '23');
