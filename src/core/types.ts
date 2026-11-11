@@ -88,6 +88,8 @@ export interface TimeSpec {
   window?: number;
   /** Sim seconds per wall second at 1x (default 1). */
   scale?: number;
+  /** Unit of the scene clock t, e.g. 'ms' or 'ns' (default 's'). Shown by the clock and the plot time axis. */
+  unit?: string;
 }
 
 export interface WorldSpec {

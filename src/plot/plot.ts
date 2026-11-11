@@ -248,7 +248,7 @@ export class PlotGroup<P extends Params> {
         ctx.stroke();
         drawRich(ctx, fmtTick(t), px, v.B + 15 * s, { size: 11, color: TICK_COLOR, align: 'center' });
       }
-      drawRich(ctx, '*t* (s)', v.R, v.B - 6 * s, { size: 12, color: TICK_COLOR, align: 'right' });
+      drawRich(ctx, `*t* (${this.host.scene.time?.unit ?? 's'})`, v.R, v.B - 6 * s, { size: 12, color: TICK_COLOR, align: 'right' });
     }
     ctx.restore();
   }
