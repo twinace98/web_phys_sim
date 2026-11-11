@@ -17,7 +17,7 @@
   "ch28.l.obs.r": "Speed comparison: faster particles move on larger circles",
   "ch28.l.obs.T": "Speed comparison: all three particles return to the start together, so the period does not depend on speed",
   "ch28.l.obs.sign": "Protons and alpha particles circle counter-clockwise, electrons clockwise (sign of the charge)",
-  "ch28.l.obs.B": "Double $B$ while running: half the radius and half the period",
+  "ch28.l.obs.B": "Double $B$ while running: the readouts $r$ and $T$ halve, and the circles shrink",
   "ch28.l.assume": "Uniform field in vacuum; gravity and radiation neglected; non-relativistic speeds (at most $0.01c$). Time runs slowed down, in ns",
   "ch28.scene.cyclotron": "Cyclotron",
   "ch28.c.p.ratio": "Oscillator $f/f_c$",
@@ -30,5 +30,5 @@
   "ch28.c.obs.spiral": "Inside a dee the proton moves on a half circle; the time for a half circle does not depend on the radius",
   "ch28.c.obs.detune": "$f \\neq f_c$: the phase at each crossing drifts, acceleration turns into deceleration, the spiral winds back in and the energy stays far below the in-tune value",
   "ch28.c.obs.V0": "A larger gap voltage gives taller steps and fewer turns; the exit energy is the same, $K_\\text{max} = (qBR)^2/2m$ = 120 keV",
-  "ch28.c.assume": "Proton, $B$ = 1 T, dee radius 5 cm, gap 6 mm (drawn wider than in real machines), gap voltage set high to keep the number of turns small; fringe fields neglected; non-relativistic"
+  "ch28.c.assume": "Proton, $B$ = 1 T, dee radius $R$ = 5 cm, gap 6 mm (drawn wider than in real machines), gap voltage set high to keep the number of turns small; the magnet pole is a little wider than the dees; when the orbit radius reaches $R$ a deflector extracts the proton (straight line afterwards); fringe fields neglected; non-relativistic"
 }

@@ -35,6 +35,6 @@
   "ch06.c.obs.string": "Ball on a string: the tension $T$ is the centripetal force; gravity and the normal force cancel",
   "ch06.c.obs.flat": "Flat curve: static friction $f_s$ is the centripetal force",
   "ch06.c.obs.tilt": "Banked curve and conical pendulum: the horizontal component of the tilted force ($N\\sin\\theta$, $T\\sin\\theta$) is the centripetal force; the vertical component balances $mg$",
-  "ch06.c.obs.cut": "Cut string or icy road: once the inward force is gone the object moves straight along the tangent; without an inward net force there is no circular motion",
+  "ch06.c.obs.cut": "Cut string or icy road: once the inward force is gone the object moves straight along the tangent; without an inward net force there is no circular motion. The cut conical pendulum also falls under gravity alone (side view; its tangential motion is perpendicular to the view)",
   "ch06.c.assume": "Ball on a string: 0.5 kg, radius 1 m, 3 m/s, frictionless table. Curves: 1000 kg, radius 20 m, flat curve at 10 m/s, banked curve at 20° at its design speed (no friction). Conical pendulum: 1 m string at 30°. The top views share one drawn radius; force arrows are scaled relative to $mg$"
 }

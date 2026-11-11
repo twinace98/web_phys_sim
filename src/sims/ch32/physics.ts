@@ -54,6 +54,56 @@ export function sweep(L: Lattice, J: number, h: number, T: number, rnd: () => nu
   }
 }
 
+let mark = new Uint8Array(0);
+let stack = new Int32Array(0);
+let members = new Int32Array(0);
+
+/**
+ * One Wolff cluster move: grow a cluster of parallel neighbours (bond probability
+ * 1 − e^{−2J/T}) from a random seed, then flip it with the Metropolis probability for the
+ * field energy 2h Σ s. Detailed balance holds; it removes critical slowing down near T_c.
+ */
+export function wolff(L: Lattice, J: number, h: number, T: number, rnd: () => number): void {
+  const { nx, ny, s } = L;
+  const n = nx * ny;
+  if (mark.length < n) {
+    mark = new Uint8Array(n);
+    stack = new Int32Array(n);
+    members = new Int32Array(n);
+  }
+  const p = 1 - Math.exp((-2 * J) / T);
+  const seed = Math.floor(rnd() * n);
+  const s0 = s[seed];
+  let top = 0;
+  let size = 0;
+  stack[top++] = seed;
+  members[size++] = seed;
+  mark[seed] = 1;
+  const visit = (j: number) => {
+    if (!mark[j] && s[j] === s0 && rnd() < p) {
+      mark[j] = 1;
+      stack[top++] = j;
+      members[size++] = j;
+    }
+  };
+  while (top > 0) {
+    const i = stack[--top];
+    const x = i % nx;
+    const y = (i - x) / nx;
+    visit(y * nx + ((x + 1) % nx));
+    visit(y * nx + ((x + nx - 1) % nx));
+    visit(((y + 1) % ny) * nx + x);
+    visit(((y + ny - 1) % ny) * nx + x);
+  }
+  const dE = 2 * h * s0 * size;
+  const flip = dE <= 0 || rnd() < Math.exp(-dE / T);
+  for (let k = 0; k < size; k++) {
+    const i = members[k];
+    mark[i] = 0;
+    if (flip) s[i] = -s0 as 1 | -1;
+  }
+}
+
 export function magnetization(L: Lattice): number {
   let m = 0;
   for (const v of L.s) m += v;

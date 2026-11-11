@@ -317,8 +317,17 @@ export function drawSurface(g: Draw, poly: readonly V2[]): void {
 /** Small draggable knob on a surface. */
 export function knob(g: Draw, p: Vec2, kind: 'edge' | 'centre' = 'edge'): void {
   if (kind === 'centre') {
-    g.circle(p, 5, { fill: '#ffffff', color: SURFACE, width: 1.75 });
-    g.circle(p, 1.6, { fill: SURFACE });
+    // A diamond, not a dotted circle: ⊙ means a field or current out of the page (Ch 29, 30).
+    const d = g.px(6.5);
+    g.polygon(
+      [
+        { x: p.x, y: p.y + d },
+        { x: p.x + d, y: p.y },
+        { x: p.x, y: p.y - d },
+        { x: p.x - d, y: p.y },
+      ],
+      { fill: '#ffffff', color: SURFACE, width: 1.75 },
+    );
   } else g.circle(p, 5.5, { fill: '#ffffff', color: SURFACE, width: 2 });
 }
 
@@ -398,4 +407,34 @@ export function tag(g: Draw, p: Vec2, s: string, col: string, dx = 0, dy = 0, al
   const { ctx } = g;
   const [x, y] = g.vp.toPx(p.x, p.y);
   drawRich(ctx, s, x + dx * theme.scale, y + dy * theme.scale, { size: 13, color: color(col), align, baseline: 'middle' });
+}
+
+/** A label spot beside a point: world-space anchor plus the text alignment that keeps it outside. */
+export interface Spot {
+  at: Vec2;
+  align: CanvasTextAlign;
+}
+
+/**
+ * Label spot for a marker at `p`: of the four diagonal spots (offset dxPx, dyPx), the one farthest
+ * from the blockers (charges, arrow samples). Earlier candidates win ties, so `prefer` (0: below
+ * left, 1: below right, 2: above left, 3: above right) stays put unless something is in the way.
+ */
+export function freeSpot(g: Draw, p: Vec2, blockers: readonly Vec2[], prefer = 0, dxPx = 12, dyPx = 12): Spot {
+  const all: Spot[] = [
+    { at: { x: p.x - g.px(dxPx), y: p.y - g.px(dyPx) }, align: 'right' },
+    { at: { x: p.x + g.px(dxPx), y: p.y - g.px(dyPx) }, align: 'left' },
+    { at: { x: p.x - g.px(dxPx), y: p.y + g.px(dyPx) }, align: 'right' },
+    { at: { x: p.x + g.px(dxPx), y: p.y + g.px(dyPx) }, align: 'left' },
+  ];
+  const order = [all[prefer], ...all.filter((_, i) => i !== prefer)];
+  // Distance measured to the label's middle (about 9 px beyond the anchor, on the text side).
+  const clear = (s: Spot) => {
+    const cx = s.at.x + (s.align === 'left' ? 1 : -1) * g.px(9);
+    return Math.min(Infinity, ...blockers.map((b) => Math.hypot(b.x - cx, b.y - s.at.y)));
+  };
+  // Only a clearly better spot (by 4 px) replaces the preferred one, so the label does not jitter.
+  let best = order[0];
+  for (const s of order.slice(1)) if (clear(s) > clear(best) + g.px(4)) best = s;
+  return best;
 }

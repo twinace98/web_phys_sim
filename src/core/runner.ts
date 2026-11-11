@@ -93,6 +93,12 @@ export class Runner<P extends Params = Params, S extends { t: number } = { t: nu
   /** Returns true if the change reset the scene. */
   setParam<K extends keyof P>(key: K, value: P[K]): boolean {
     this.params = { ...this.params, [key]: value };
+    // Before the first step a live change quietly restarts too, so the start state and the t = 0
+    // sample follow the new value (e.g. an RC circuit switched to discharge before play starts charged).
+    if (this.scene.params[key].live && this.scene.time && this.steps === 0) {
+      this.reset();
+      return false;
+    }
     if (!this.scene.params[key].live) {
       this.reset();
       return true;

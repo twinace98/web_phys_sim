@@ -2,6 +2,7 @@
 import { fmtTick, niceTicks } from '../../core/format';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
+import { theme } from '../../draw/theme';
 import { G, flightTime, maxHeight, range, stateAt, v0x, v0y, type Launch } from './physics';
 
 type P = {
@@ -41,6 +42,12 @@ function model(p: P) {
     memoKey = key;
   }
   return memo;
+}
+
+/** Velocity arrow scale [m per m/s]: the fastest instant (landing) gets 0.2 of the view span. */
+function arrowScale(p: P, span: number): number {
+  const { l, vyEnd } = model(p);
+  return (0.2 * span) / Math.max(Math.hypot(v0x(l), vyEnd), l.v0, 1e-9);
 }
 
 /** Range including zero with an 8 % margin and a minimum span. */
@@ -125,18 +132,22 @@ const params: ParamSchema<P> = {
 function drawAxes(g: Draw, R: number, H: number, x0: number): void {
   g.line({ x: x0, y: 0 }, { x: R * 1.04, y: 0 }, { role: 'axis', width: 1.25 });
   g.line({ x: 0, y: 0 }, { x: 0, y: H * 1.06 }, { role: 'axis', width: 1.25 });
-  for (const x of niceTicks(0, R, 6)) {
+  // As many ticks as fit: about one per 45 px, so labels never run together on a phone.
+  const fit = (span: number, perPx: number, max: number) => Math.max(2, Math.min(max, Math.floor(span / g.px(perPx))));
+  for (const x of niceTicks(0, R, fit(R, 45, 6))) {
     if (x === 0) continue;
     g.line({ x, y: 0 }, { x, y: -g.px(5) }, { role: 'axis', width: 1 });
     g.text({ x, y: 0 }, fmtTick(x), { size: 11, color: TICK, align: 'center', dy: 17 });
   }
-  for (const y of niceTicks(0, H, 5)) {
+  for (const y of niceTicks(0, H, fit(H, 28, 5))) {
     if (y === 0) continue;
     g.line({ x: 0, y }, { x: -g.px(5), y }, { role: 'axis', width: 1 });
-    g.text({ x: 0, y }, fmtTick(y), { size: 11, color: TICK, align: 'right', baseline: 'middle', dx: -8 });
+    // dx clears the y-shadow dot (radius 6.5 px) that slides along the axis.
+    g.text({ x: 0, y }, fmtTick(y), { size: 11, color: TICK, align: 'right', baseline: 'middle', dx: -14 });
   }
   g.text({ x: 0, y: 0 }, '0', { size: 11, color: TICK, align: 'right', dx: -6, dy: 15 });
-  g.text({ x: R * 1.04, y: 0 }, '*x* (m)', { size: 12, color: TICK, align: 'right', dy: 34 });
+  // Ends left of the landing point: the landing v arrow points down and to the right.
+  g.text({ x: R, y: 0 }, '*x* (m)', { size: 12, color: TICK, align: 'right', dx: -6, dy: 34 });
   g.text({ x: 0, y: H * 1.06 }, '*y* (m)', { size: 12, color: TICK, align: 'center', dy: -10 });
 }
 
@@ -148,12 +159,17 @@ export const projectile: Scene<P, S> = {
   time: { h: 1 / RATE, recordEvery: 2, frameStep: 0.1, tEnd: (p) => model(p as P).T },
 
   world: (p) => {
-    const { R, H } = model(p);
+    const { l, R, H, vyEnd } = model(p);
     // θ = 0 at h = 0 lands at once (R = H = 0): keep a sensible, non-empty view.
     const span = Math.max(R, H, 5);
     const xMax = Math.max(R, 0.5 * span);
     const yMax = Math.max(H, 0.3 * span);
-    return { x: [-0.14 * span, xMax + 0.08 * span], y: [-0.13 * span, yMax + 0.1 * span], aspect: 'contain', padPx: 20 };
+    // On landing the v arrow (and v_y on the y axis) reach farthest right and down; their
+    // labels need about 0.06 span more.
+    const k = arrowScale(p, span);
+    const right = Math.max(xMax + 0.08 * span, R + v0x(l) * k + 0.07 * span);
+    const bottom = Math.min(-0.13 * span, vyEnd * k - 0.07 * span);
+    return { x: [-0.14 * span, right], y: [bottom, yMax + 0.1 * span], aspect: 'contain', padPx: 20 };
   },
 
   init: (p) => ({ t: 0, n: 0, ...stateAt(model(p).l, 0) }),
@@ -214,14 +230,27 @@ export const projectile: Scene<P, S> = {
     g.circle(sy, 6.5, { fill: 'position', alpha: 0.4 });
 
     if (p.vectors) {
-      const k = (0.2 * span) / l.v0;
-      // Component labels sit beside the arrow tips, clear of the axis tick labels.
-      const lbl = { size: 13, role: 'velocity' as const };
+      const k = arrowScale(p, span);
+      const lbl = { size: 13, role: 'velocity' as const, align: 'center' as const, baseline: 'middle' as const };
       g.arrow(sx, { x: s.vx * k, y: 0 }, { role: 'velocity', width: 2 });
-      g.text({ x: s.x + s.vx * k, y: 0 }, '*v*_{*x*}', { ...lbl, align: 'center', dy: -10 });
       g.arrow(sy, { x: 0, y: s.vy * k }, { role: 'velocity', width: 2 });
-      if (Math.abs(s.vy * k) > g.px(4)) g.text({ x: 0, y: s.y + s.vy * k }, '*v*_{*y*}', { ...lbl, align: 'left', baseline: 'middle', dx: 9 });
-      g.arrow(ball, { x: s.vx * k, y: s.vy * k }, { role: 'velocity', width: 2.5, label: '*v*' });
+      if (Math.abs(s.vy * k) > g.px(4)) g.text({ x: 0, y: s.y + s.vy * k }, '*v*_{*y*}', { ...lbl, align: 'left', dx: 9 });
+      g.arrow(ball, { x: s.vx * k, y: s.vy * k }, { role: 'velocity', width: 2.5 });
+      // v beyond its tip; v_x above its tip, clear of the axis tick labels. When the ball is near
+      // the x axis and v is nearly horizontal the two tips meet: the upper label moves further up.
+      const sc = theme.scale;
+      const [bx, by] = g.vp.toPx(ball.x, ball.y);
+      const [tx, ty] = g.vp.toPx(ball.x + s.vx * k, ball.y + s.vy * k);
+      const [xx, xy] = g.vp.toPx(s.x + s.vx * k, 0);
+      const len = Math.hypot(tx - bx, ty - by);
+      const lv = len > 0.5 ? { x: (tx + ((tx - bx) / len) * 10 * sc) / sc, y: (ty + ((ty - by) / len) * 10 * sc) / sc } : null;
+      const lx = { x: xx / sc, y: xy / sc - 15 };
+      if (lv && Math.abs(lv.x - lx.x) < 26 && Math.abs(lv.y - lx.y) < 16) {
+        if (lv.y >= lx.y) lx.y = lv.y - 16;
+        else lv.y = lx.y - 16;
+      }
+      g.screenText(lx.x, lx.y, '*v*_{*x*}', lbl);
+      if (lv) g.screenText(lv.x, lv.y, '*v*', lbl);
     }
     g.circle(ball, 8, { fill: 'position' });
   },

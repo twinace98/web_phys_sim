@@ -71,6 +71,27 @@ describe('ch15 simple harmonic motion', () => {
     expect(Math.abs(r.state.t - T)).toBeLessThan(1 / 480 + 1e-9);
     expect(r.state.x).toBeCloseTo(p.A * Math.cos(Math.sqrt(p.k / p.m) * r.state.t), 12);
   });
+
+  it('phase space (v horizontal, x vertical) is traced counterclockwise, with and without damping', () => {
+    // Counterclockwise in the (v, x) plane: v·dx/dt − x·dv/dt = v² − x a > 0.
+    for (const zeta of [0, 0.05, 0.2]) {
+      const o = osc(0.2, 20, 1, zeta);
+      for (let t = 0.01; t < 4; t += 0.037) {
+        const s = oscAt(o, t);
+        expect(s.v * s.v - s.x * s.a).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('readouts ω and T describe the same oscillation: ωT = 2π, also when damped', () => {
+    for (const zeta of [0, 0.1, 0.2]) {
+      const p = { ...defaults(shm.params), m: 2, k: 5, zeta };
+      const s = new Runner(shm, p).state;
+      const [w, T] = shm.readouts!.slice(0, 2).map((ro) => ro.value(s, p));
+      expect(w * T).toBeCloseTo(2 * Math.PI, 12);
+      expect(w).toBeCloseTo(Math.sqrt(5 / 2) * Math.sqrt(1 - zeta * zeta), 12);
+    }
+  });
 });
 
 describe('ch15 simple pendulum', () => {

@@ -25,7 +25,7 @@
   "ch09.p.arrows": "Momentum arrows",
   "ch09.d.arrows": "$p_1$, $p_2$ above the carts and $p_\\text{tot}$ above the centre of mass",
   "ch09.p.b": "Impact parameter $b$",
-  "ch09.d.b": "Distance between the line of motion of puck 1 and the centre of puck 2; 0 is head-on",
+  "ch09.d.b": "Distance between the line of motion of puck 1 and the centre of puck 2; 0 is head-on, at most 0.29 m (the pucks always collide, whatever the mass)",
   "ch09.k.diagram": "Momentum sum",
   "ch09.t.goal.p": "With no external force the total momentum $p_1 + p_2$ is the same before and after the collision",
   "ch09.t.goal.K": "Kinetic energy is conserved only in an elastic collision: momentum conservation and energy conservation are separate statements",
@@ -34,12 +34,12 @@
   "ch09.t.obs.stick": "Perfectly inelastic: the carts stick and move together at $v_\\text{cm}$; the largest loss of $K_\\text{tot}$",
   "ch09.t.obs.explode": "Explosion: carts at rest fly apart in opposite directions, $p_\\text{tot} = 0$ throughout while $K_\\text{tot}$ rises",
   "ch09.t.obs.cm": "Centre of mass (⊕): moves at constant velocity before and after the collision; $x_\\text{cm}(t)$ is a straight line",
-  "ch09.t.assume": "Frictionless level track; the collision is instantaneous; cart size drawn according to mass",
+  "ch09.t.assume": "Frictionless level track; the collision is instantaneous; cart size drawn according to mass. In the graphs the cart 1 curve has a pale band, so it stays visible under another curve (e.g. $K_1 = K_2$ in an equal-mass explosion)",
   "ch09.k.goal.vec": "Momentum is a vector: $\\vec p_1 + \\vec p_2$ is the same before and after the collision",
   "ch09.k.goal.comp": "The $x$ and $y$ components are conserved separately",
   "ch09.k.obs.diagram": "Momentum sum: $\\vec p_1$ and $\\vec p_2$ added tail to head reach the same $\\vec p_\\text{tot}$ after the collision",
   "ch09.k.obs.right": "Equal masses, elastic (default): after the collision the pucks move off at 90° to each other",
   "ch09.k.obs.headon": "$b = 0$: a head-on collision, the same as the 1D case",
   "ch09.k.obs.stick": "Perfectly inelastic: the pucks stick and move on at the centre-of-mass velocity",
-  "ch09.k.assume": "Frictionless table; smooth pucks (the impulse acts along the line of centres); puck rotation ignored; puck size drawn according to mass"
+  "ch09.k.assume": "Frictionless table; smooth pucks (the impulse acts along the line of centres); puck rotation ignored; puck size drawn according to mass. In the graphs the puck 1 curve has a pale band, so it stays visible under another curve"
 }

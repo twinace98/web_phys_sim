@@ -4,7 +4,7 @@ import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { BOX, E, POINT_POOL, layoutParam, pointCoords, pointSources, pointWorld, presetParam, presetTag, clearOf } from '../field/charges';
 import { FieldLayers, palette } from '../field/layers';
-import { chargeGlyph, type Tray } from '../field/render';
+import { chargeGlyph, freeSpot, type Spot, type Tray } from '../field/render';
 import { slotHandles } from '../field/slots';
 import { coulombForces } from './physics';
 
@@ -32,7 +32,7 @@ const params: ParamSchema<P> = {
   },
   test: { kind: 'toggle', label: 'ch22.p.test', desc: 'ch22.d.test', group: 'advanced', live: true, default: true },
   Q: layoutParam('ch22'),
-  T: { kind: 'array', label: 'ch22.p.T', group: 'hidden', live: true, default: [0, 0.4], min: BOX[0], max: BOX[2] },
+  T: { kind: 'array', label: 'ch22.p.T', group: 'hidden', live: true, default: [0, 0.55], min: BOX[0], max: BOX[2] },
 };
 
 const layers = new FieldLayers('point');
@@ -43,16 +43,49 @@ const testPos = (p: P): Vec2 => {
   return { x, y };
 };
 
-function drawForces(g: Draw, p: P): void {
+/** Force arrows on the test charge [world vectors]: the individual forces (if few) and the net. */
+function forceArrows(g: Draw, p: P): { parts: Vec2[]; net: Vec2 } {
   const src = pointSources(p);
   const at = testPos(p);
   const { parts, net } = coulombForces(src, at.x, at.y, 1);
   const big = Math.max(Math.hypot(net[0], net[1]), ...parts.map((f) => Math.hypot(f[0], f[1])), 1e-30);
   const k = g.px(90) / big;
-  if (src.length <= MAX_PARTS) {
-    for (const f of parts) g.arrow(at, { x: f[0] * k, y: f[1] * k }, { color: FORCE, width: 1.5, alpha: 0.6 });
+  return { parts: src.length <= MAX_PARTS ? parts.map((f) => ({ x: f[0] * k, y: f[1] * k })) : [], net: { x: net[0] * k, y: net[1] * k } };
+}
+
+/** q0 label spot: below left of the test charge unless a charge or a force arrow is closer there. */
+function q0Spot(g: Draw, p: P): Spot {
+  const at = testPos(p);
+  const blockers: Vec2[] = pointSources(p).map((c) => ({ x: c.x, y: c.y }));
+  if (blockers.length) {
+    const { parts, net } = forceArrows(g, p);
+    for (const v of [...parts, net]) for (let i = 1; i <= 6; i++) blockers.push({ x: at.x + (v.x * i) / 6, y: at.y + (v.y * i) / 6 });
   }
-  g.arrow(at, { x: net[0] * k, y: net[1] * k }, { color: FORCE, width: 3, label: '*F*' });
+  return freeSpot(g, at, blockers, 0, 12, 12);
+}
+
+/** Points the grid arrows must keep clear of: along every force arrow, and the two labels. */
+function forceAvoid(g: Draw, p: P): { x: number; y: number; s: number }[] {
+  const at = testPos(p);
+  const { parts, net } = forceArrows(g, p);
+  const out: { x: number; y: number; s: number }[] = [{ ...at, s: 0 }];
+  for (const v of [...parts, net]) {
+    const n = Math.ceil(Math.hypot(v.x, v.y) / g.px(10));
+    for (let i = 1; i <= n; i++) out.push({ x: at.x + (v.x * i) / n, y: at.y + (v.y * i) / n, s: 0 });
+  }
+  // F label just beyond the net-force tip, q0 label beside the charge.
+  const nl = Math.hypot(net.x, net.y) || 1;
+  out.push({ x: at.x + net.x + (net.x / nl) * g.px(14), y: at.y + net.y + (net.y / nl) * g.px(14), s: 0 });
+  const q0 = q0Spot(g, p);
+  out.push({ x: q0.at.x + (q0.align === 'left' ? 1 : -1) * g.px(8), y: q0.at.y, s: 0 });
+  return out;
+}
+
+function drawForces(g: Draw, p: P): void {
+  const at = testPos(p);
+  const { parts, net } = forceArrows(g, p);
+  for (const f of parts) g.arrow(at, f, { color: FORCE, width: 1.5, alpha: 0.6 });
+  g.arrow(at, net, { color: FORCE, width: 3, label: '*F*' });
 }
 
 export const field: Scene<P, S> = {
@@ -65,7 +98,8 @@ export const field: Scene<P, S> = {
   draw: (g, s, p) => {
     const src = pointSources(p);
     const at = testPos(p);
-    const avoid = p.test ? [{ ...at, s: 0 }] : [];
+    // Grid arrows leave room for the test charge, its force arrows and their labels.
+    const avoid = p.test ? (src.length ? forceAvoid(g, p) : [{ ...at, s: 0 }]) : [];
     if (p.view !== 'vectors') layers.lines(g, src);
     if (p.view !== 'lines') layers.vectors(g, src, avoid);
     if (p.test && src.length) drawForces(g, p);
@@ -73,7 +107,8 @@ export const field: Scene<P, S> = {
     if (p.test) {
       g.circle(at, 7, { fill: '#ffffff', color: '#1a1a1a', width: 1.5 });
       g.text(at, '+', { size: 12, color: '#1a1a1a', align: 'center', baseline: 'middle', dy: 0.5 });
-      g.text(at, '*q*_{0}', { size: 13, color: '#1a1a1a', align: 'right', baseline: 'middle', dx: -12, dy: 12 });
+      const q0 = q0Spot(g, p);
+      g.text(q0.at, '*q*_{0}', { size: 13, color: '#1a1a1a', align: q0.align, baseline: 'middle' });
     }
     palette(g, s, POINT_POOL, pointCoords(p), chargeGlyph);
   },

@@ -42,5 +42,6 @@
   "ch32.m.obs.dia": "Diamagnet: small moments are induced opposite to $B$ (Lenz's law, Ch 30), independent of temperature, gone when $B$ is off",
   "ch32.m.assume.model": "2D square lattice; each moment points only up or down; the neighbour alignment and thermal agitation are computed by a Monte Carlo method",
   "ch32.m.assume.units": "$B$ and $M$ are relative ($M_s$: all moments aligned); time advances in full lattice updates",
-  "ch32.m.assume.dia": "The diamagnetic response is drawn much larger than real ($\\chi \\sim 10^{-5}$)"
+  "ch32.m.assume.dia": "The diamagnetic response is drawn much larger than real ($\\chi \\sim 10^{-5}$; here at most $M/M_s = -0.3$); arrow length $\\propto M/M_s$",
+  "ch32.m.assume.relax": "Ferromagnet at $T/T_C \\ge 1$: the lattice is updated 20 times per field step (single moments and cluster flips), so it stays near equilibrium and a finite sweep rate leaves no spurious loop"
 }

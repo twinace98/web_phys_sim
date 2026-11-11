@@ -148,25 +148,29 @@ export const decayScene: Scene<P, S> = {
     const guide = { color: '#9a9a9a', width: 1, dash: [3, 4] };
     const { ctx } = pd;
     const sc = theme.scale;
-    // Labels: kT½ just above the guide corner (the curve falls away to the right there),
-    // N0/2^k at the left end of each level, skipped when levels crowd together.
+    // Labels: kT½ in a row along the top of the plot, where neither the expected curve nor the
+    // count (both ≤ N0/2 for t ≥ T½) can reach them; each vertical guide runs up to its label.
+    // N0/2^k under each level line, ending just before its kT½ guide: left of kT½ both the expected
+    // curve and the count lie above that level. Skipped where the next level is too close.
     const baseY = pd.toPx(0, 0)[1];
-    let prevY = -Infinity;
+    const topY = pd.toPx(0, p.N0 * 1.08)[1];
     for (let k = 1; k <= 3; k++) {
       const t = k * half;
       const n = p.N0 / 2 ** k;
       pd.polyline([[0, n], [t, n]], guide);
-      pd.polyline([[t, 0], [t, n]], guide);
       const [x, y] = pd.toPx(t, n);
       const lbl = k === 1 ? '*T*_{1/2}' : `${k}*T*_{1/2}`;
-      drawRich(ctx, lbl, x + 4 * sc, y - 5 * sc, { size: 11, color: TICK });
+      const lw = measureRich(ctx, lbl, { size: 11 });
+      const ly = topY + 12 * sc;
+      const yGuide = (p.N0 * 1.08 * (baseY - (ly + 4 * sc))) / (baseY - topY);
+      pd.polyline([[t, 0], [t, yGuide]], guide);
+      drawRich(ctx, lbl, x - lw / 2, ly, { size: 11, color: TICK });
       const [x0] = pd.toPx(0, n);
       const txt = `*N*_{0}/${2 ** k}`;
       const w = measureRich(ctx, txt, { size: 11 });
-      if (y - prevY >= 15 * sc && baseY - y >= 15 * sc && x - x0 > w + 10 * sc) {
-        drawRich(ctx, txt, x0 + 4 * sc, y - 4 * sc, { size: 11, color: TICK });
-        prevY = y;
-      }
+      const gapBelow = pd.toPx(0, n / 2)[1] - y;
+      const lx = Math.max(x0 + 4 * sc, x - w - 5 * sc);
+      if (gapBelow >= 15 * sc && x - x0 > w + 9 * sc) drawRich(ctx, txt, lx, y + 3 * sc, { size: 11, color: TICK, baseline: 'top' });
     }
     pd.polyline(pts, { color: '#1a1a1a', width: 1.5, dash: [6, 4] });
   },

@@ -1,7 +1,8 @@
 // Ch 4 scene: relative motion. A boat crosses a river: v_BG = v_BW + v_WG.
 // The same crossing is drawn from the ground frame or from the water frame.
-import type { ParamSchema, Scene, Vec2 } from '../../core/types';
-import { ROLE_COLOR } from '../../draw/theme';
+import type { ParamSchema, Role, Scene, Vec2 } from '../../core/types';
+import type { Draw } from '../../draw/draw';
+import { ROLE_COLOR, theme } from '../../draw/theme';
 import { crossingTime, vBG, vBW, vWG, type River } from './physics';
 
 type P = { frame: string; heading: number; vb: number; u: number };
@@ -9,10 +10,16 @@ type P = { frame: string; heading: number; vb: number; u: number };
 const W = 20; // river width [m]
 const DEG = Math.PI / 180;
 const KV = 2.4; // world m per (m/s)
+/** Phone: the river fills the tall stage and the camera follows the boat along the bank. */
+const KV_NARROW = 4;
+const WIN_NARROW = 1.15 * W; // visible length of river [m]
 const BANK = '#5c5c5c';
 const WATER = '#eef5fb';
 const RIPPLE = '#b9d4ea';
 const POST = '#9a9a9a';
+
+const narrow = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+const kvOf = () => (narrow() ? KV_NARROW : KV);
 
 const riverOf = (p: P): River => ({ W, vb: p.vb, u: p.u, theta: p.heading * DEG });
 
@@ -47,7 +54,7 @@ const params: ParamSchema<P> = {
     min: 0,
     max: 60,
     step: 1,
-    default: 0,
+    default: 30,
     unit: '°',
   },
   vb: {
@@ -97,6 +104,43 @@ export function velocityPanel(p: P): string {
   return `\\begin{array}{l} ${eq} \\\\ \\begin{array}{ll} ${row('x', 0)} \\\\ ${row('y', 1)} \\end{array} \\end{array}`;
 }
 
+/**
+ * Narrow screens: x of the window centre at time t. It follows the boat and its velocity
+ * triangle but stops at the ends of the whole crossing, so the start stays in view when it can.
+ */
+function cameraX(p: P, t: number): number {
+  const [x0, x1] = xSpan(p);
+  if (x1 - x0 <= WIN_NARROW) return (x0 + x1) / 2;
+  const r = riverOf(p);
+  const vb = vBW(r);
+  const vg = vBG(r);
+  const v = p.frame !== 'water' ? vg : vb;
+  const px = v[0] * t;
+  const k = KV_NARROW;
+  const lo = px + Math.min(0, vb[0] * k, vg[0] * k);
+  const hi = px + Math.max(0, vb[0] * k, vg[0] * k);
+  const c = (lo + hi) / 2;
+  return Math.min(Math.max(c, x0 + WIN_NARROW / 2), x1 - WIN_NARROW / 2);
+}
+
+/** The same drawing API with every world point shifted by dx along x. */
+function shifted(g: Draw, dx: number): Draw {
+  const m = (q: Vec2): Vec2 => ({ x: q.x + dx, y: q.y });
+  return {
+    ctx: g.ctx,
+    vp: g.vp,
+    px: (n) => g.px(n),
+    line: (a, b, st) => g.line(m(a), m(b), st),
+    polyline: (pts, st) => g.polyline(pts.map(m), st),
+    arrow: (from, vec, st) => g.arrow(m(from), vec, st),
+    circle: (c, r, st) => g.circle(m(c), r, st),
+    polygon: (pts, st) => g.polygon(pts.map(m), st),
+    arc: (c, r, a0, a1, st) => g.arc(m(c), r, a0, a1, st),
+    text: (q, str, st) => g.text(m(q), str, st),
+    screenText: (x, y, str, st) => g.screenText(x, y, str, st),
+  };
+}
+
 /** Boat outline pointing along its heading (unit vector d), centred at c. */
 function boat(c: Vec2, d: Vec2): Vec2[] {
   const n = { x: -d.y, y: d.x };
@@ -106,14 +150,47 @@ function boat(c: Vec2, d: Vec2): Vec2[] {
   return [at(L, 0), at(0.2, B), at(-L, B), at(-L, -B), at(0.2, -B)];
 }
 
+/**
+ * Label beside the middle of the arrow a→b, on the side away from `opp` (the third corner of the
+ * vector triangle), so the three labels never sit inside the triangle or on another arrow.
+ * When `opp` lies on the arrow's line, `side` (+1 left of a→b on screen, −1 right) decides.
+ */
+function edgeLabel(g: Draw, dx: number, a: Vec2, b: Vec2, opp: Vec2, side: 1 | -1, text: string, role: Role): void {
+  const [ax, ay] = g.vp.toPx(a.x + dx, a.y);
+  const [bx, by] = g.vp.toPx(b.x + dx, b.y);
+  const [ox, oy] = g.vp.toPx(opp.x + dx, opp.y);
+  const len = Math.hypot(bx - ax, by - ay);
+  if (len < 1e-6) return;
+  let nx = (by - ay) / len;
+  let ny = -(bx - ax) / len;
+  const mx = (ax + bx) / 2;
+  const my = (ay + by) / 2;
+  const dOpp = (ox - mx) * nx + (oy - my) * ny;
+  const flip = Math.abs(dOpp) > 6 * theme.scale ? dOpp > 0 : side < 0;
+  if (flip) {
+    nx = -nx;
+    ny = -ny;
+  }
+  const align = nx > 0.35 ? 'left' : nx < -0.35 ? 'right' : 'center';
+  const d = (align === 'center' ? 13 : 9) * theme.scale;
+  g.screenText((mx + nx * d) / theme.scale, (my + ny * d) / theme.scale, text, { size: 13, role, align, baseline: 'middle' });
+}
+
 export const relative: Scene<P, { t: number; n: number }> = {
   id: 'relative',
   title: 'ch04.r.scene',
   params,
   time: { h: 1 / 120, recordEvery: 4, frameStep: 0.1, tEnd: (p) => crossingTime(riverOf(p as P)) },
   world: (p) => {
+    // On arrival the velocity triangle (up to v_BW·KV tall) and its labels stand above the far bank.
+    if (narrow()) {
+      // Tall stage: a window of the river, as wide as the stage allows; the camera pans (draw).
+      const top = W + p.vb * KV_NARROW + 0.15 * W;
+      return { x: [-WIN_NARROW / 2, WIN_NARROW / 2], y: [-0.25 * W, top], aspect: 'contain', padPx: 12 };
+    }
     const [x0, x1] = xSpan(p);
-    return { x: [x0, x1], y: [-0.25 * W, 1.25 * W], aspect: 'contain', padPx: 16 };
+    const top = Math.max(1.25 * W, W + p.vb * KV + 0.1 * W);
+    return { x: [x0, x1], y: [-0.25 * W, top], aspect: 'contain', padPx: 16 };
   },
   init: () => ({ t: 0, n: 0 }),
   step: (s, _h, p) => {
@@ -121,13 +198,20 @@ export const relative: Scene<P, { t: number; n: number }> = {
     s.t = Math.min(s.n / 120, crossingTime(riverOf(p)));
   },
 
-  draw: (g, s, p) => {
+  draw: (g0, s, p) => {
+    const dx = narrow() ? -cameraX(p, s.t) : 0;
+    const g = dx ? shifted(g0, dx) : g0;
+    const KV = kvOf();
     const r = riverOf(p);
     const ground = p.frame !== 'water';
     const [x0, x1] = xSpan(p);
     const t = s.t;
-    const L = x0 - 0.5 * W;
-    const R = x1 + 0.5 * W;
+    // Water, banks, ripples and posts all span the whole visible stage width (plus a margin),
+    // so no dash or post runs past the end of the water on a wide stage.
+    const [vl] = g0.vp.toWorld(0, 0);
+    const [vr] = g0.vp.toWorld(g0.vp.w, 0);
+    const L = Math.min(x0, vl - dx) - 0.5 * W;
+    const R = Math.max(x1, vr - dx) + 0.5 * W;
 
     g.polygon(
       [
@@ -170,15 +254,19 @@ export const relative: Scene<P, { t: number; n: number }> = {
     g.polygon(boat(pos, { x: vb[0] / len, y: vb[1] / len }), { fill: 'position', fillAlpha: 0.85 });
 
     const tipA: Vec2 = { x: pos.x + vb[0] * KV, y: pos.y + vb[1] * KV };
-    g.arrow(pos, { x: vb[0] * KV, y: vb[1] * KV }, { role: 'position', width: 2.25, label: '*v*_{BW}' });
+    const tipC: Vec2 = { x: pos.x + vg[0] * KV, y: pos.y + vg[1] * KV };
     if (ground) {
-      if (r.u > 0) {
-        // Label under the middle of v_WG: its tip coincides with the tip of v_BG.
-        g.arrow(tipA, { x: vw[0] * KV, y: 0 }, { role: 'energyU', width: 2.25 });
-        g.text({ x: tipA.x + (vw[0] * KV) / 2, y: tipA.y }, '*v*_{WG}', { size: 13, role: 'energyU', align: 'center', dy: 16 });
-      }
-      g.arrow(pos, { x: vg[0] * KV, y: vg[1] * KV }, { role: 'fg', width: 2.5, label: '*v*_{BG}' });
-    } else if (r.u > 0) {
+      // Triangle P → A (v_BW), A → C (v_WG), P → C (v_BG): each label on the outer side of its arrow.
+      g.arrow(pos, { x: vb[0] * KV, y: vb[1] * KV }, { role: 'position', width: 2.25 });
+      if (r.u > 0) g.arrow(tipA, { x: vw[0] * KV, y: 0 }, { role: 'energyU', width: 2.25 });
+      g.arrow(pos, { x: vg[0] * KV, y: vg[1] * KV }, { role: 'fg', width: 2.5 });
+      edgeLabel(g0, dx, pos, tipA, tipC, -1, '*v*_{BW}', 'position');
+      if (r.u > 0) edgeLabel(g0, dx, tipA, tipC, pos, 1, '*v*_{WG}', 'energyU');
+      edgeLabel(g0, dx, pos, tipC, tipA, 1, '*v*_{BG}', 'fg');
+    } else {
+      g.arrow(pos, { x: vb[0] * KV, y: vb[1] * KV }, { role: 'position', width: 2.25, label: '*v*_{BW}' });
+    }
+    if (!ground && r.u > 0) {
       // Seen from the water, the banks move at −v_WG.
       g.arrow({ x: bank, y: -0.12 * W }, { x: -r.u * KV, y: 0 }, { role: 'energyU', width: 2 });
       g.text({ x: bank - (r.u * KV) / 2, y: -0.12 * W }, '−*v*_{WG}', { size: 13, role: 'energyU', align: 'center', dy: 16 });

@@ -56,6 +56,10 @@ export interface NumberParam extends ParamBase {
    * stepper: integer-like count changed by ±step (`min`, `max`, `step`).
    */
   control: 'select' | 'slider' | 'stepper';
+  /** slider only: logarithmic track between min and max (both > 0); value rounded to `sig` figures. */
+  log?: boolean;
+  /** log slider: significant figures of the value (default 2). */
+  sig?: number;
   choices?: number[];
   min?: number;
   max?: number;
@@ -87,7 +91,7 @@ export interface TimeSpec {
   /** Sim seconds advanced by the step button. */
   frameStep: number;
   /** Auto-pause at this sim time; may depend on parameters (e.g. a flight time). */
-  tEnd?: number | ((p: Params) => number);
+  tEnd?: number | ((p: Params) => number | undefined);
   /** Rolling plot window [sim s] when there is no tEnd. */
   window?: number;
   /** Sim seconds per wall second at 1x (default 1). */

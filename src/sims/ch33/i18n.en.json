@@ -9,7 +9,7 @@
   "ch33.p.obs.half": "Unpolarized light ($\\vec E$ in every direction) leaves the first polarizer vertically polarized, at half the intensity",
   "ch33.p.obs.dial": "Double arrows in the circles: the $\\vec E$ oscillation seen head-on; length = amplitude ($\\propto \\sqrt{I}$)",
   "ch33.p.obs.cross": "Rotation 90°: crossed polarizers, no light gets through",
-  "ch33.p.obs.three": "Three polarizers, rotation 45°: the middle one turns the polarization by 45° and $I = I_0/8$ gets through. At 0° or 90° the output is 0 again",
+  "ch33.p.obs.three": "Three polarizers, rotation 45°: the middle one turns the polarization by 45° and $I_3 = I_0/8$ gets through. At 0° or 90° the output is 0 again",
   "ch33.p.assume.ideal": "Ideal polarizers: the component along the axis passes fully, the perpendicular one is absorbed",
   "ch33.scene.refraction": "Refraction and total reflection",
   "ch33.p.n1": "Incident medium",
@@ -41,7 +41,7 @@
   "ch33.f.goal.tir": "An optical fibre guides light by repeated total internal reflection at the core wall, without loss",
   "ch33.f.goal.accept": "The wall angle $\\theta$ exceeds the critical angle only if the entry angle $\\alpha$ is below the acceptance angle $\\alpha_\\text{max}$",
   "ch33.f.obs.guided": "Default ($\\alpha = 15°$): wall angle 80° > critical angle 76.7°, so the light is totally reflected all the way",
-  "ch33.f.obs.leak": "Entry angle above the acceptance angle (about 20°): at every wall some light escapes into the cladding and the guided ray fades",
+  "ch33.f.obs.leak": "Entry angle above the acceptance angle (about 20°): at every core wall some light refracts into the cladding and the core ray fades. At the cladding's outer surface (to air) that light is totally reflected again ($\\alpha = 80°$: 50.8° > 43.2°), so it travels on in the cladding (cladding mode). Light entering through the end face never leaves through the side",
   "ch33.f.obs.clad": "Air cladding: a large index step makes the acceptance angle 90°, so any entry angle is guided",
-  "ch33.f.assume.flat": "Straight fibre; refraction at the outer edge of the cladding is not drawn; the fibre diameter is enlarged"
+  "ch33.f.assume.flat": "Straight fibre, bare cladding in air (in real fibres a coating absorbs the cladding light); every boundary splits a ray into Fresnel-reflected and refracted parts; the fibre diameter is enlarged"
 }

@@ -16,6 +16,7 @@
   "ch17.b.assume.amp": "Both waves have the same amplitude ($A = 1$, arbitrary units)",
   "ch17.b.assume.slow": "Graphs are drawn at 1/4 of real speed; the sound plays at the real frequencies",
   "ch17.b.assume.arrows": "Arrows above: the two amplitudes seen in a frame turning at the mean frequency $(f_1 + f_2)/2$",
+  "ch17.b.assume.env": "When $f_1$ is so high that a cycle is too short to resolve on the plot, each wave is drawn as the band between its envelopes",
   "ch17.d.scene": "Doppler effect",
   "ch17.d.p.who": "Moving",
   "ch17.d.d.who": "The source moves (observers at rest) or the observers move (source at rest)",

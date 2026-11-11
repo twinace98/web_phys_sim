@@ -3,7 +3,7 @@
 import { t as tr } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { C1, C2, cmMark, padded, trioLabel } from './common';
+import { C1, C2, cmMark, halo, padded, trioLabel } from './common';
 import { kinetic2, motion2D, state2D, type Kind2D, type Motion2D, type Puck } from './physics';
 
 type P = { kind: string; b: number; m2: number; v1: number; e: number };
@@ -18,10 +18,41 @@ const T_C = 2;
 const T_END = 5;
 const BLACK = '#1a1a1a';
 const radius = (m: number) => 0.18 * Math.sqrt(m);
+const M2_MIN = 0.5;
+/** Largest impact parameter that still gives a clear (not grazing) hit: 0.95 (R1 + R2). */
+export const bMax = (m2: number) => 0.95 * (radius(1) + radius(m2));
+/** Slider maximum: bMax at the smallest m2 (0.29 m), so every b on the slider hits for every m2. */
+const B_SLIDER = Math.floor(bMax(M2_MIN) * 100) / 100;
+/** b actually used: clamped to bMax (only a hand-edited URL can exceed it). */
+export const bOf = (p: P) => Math.min(Math.max(p.b, 0), bMax(p.m2));
+
+/** Smallest drawn radius of the lighter puck [px]: room for its 1 / 2 label, clear of the CM mark. */
+export const MIN_R_PX = 11;
+
+/**
+ * Drawing magnification of both pucks (1 when they are big enough); area stays proportional to
+ * mass. Each puck also moves away from the contact point by (f − 1) R along the line of centres
+ * at contact, so the enlarged discs touch exactly where and when the physical ones do, and never
+ * overlap before or after (a constant shift per puck: velocities and paths keep their shape).
+ */
+export function magnify(g: Draw, p: P): { f: number; d1: Vec2; d2: Vec2; dcm: Vec2 } {
+  const R1 = radius(1);
+  const R2 = radius(p.m2);
+  const f = Math.max(1, g.px(MIN_R_PX) / Math.min(R1, R2));
+  const n = model(p).n;
+  const d1 = { x: (f - 1) * R1 * n.x, y: (f - 1) * R1 * n.y };
+  const d2 = { x: -(f - 1) * R2 * n.x, y: -(f - 1) * R2 * n.y };
+  const M = 1 + p.m2;
+  return { f, d1, d2, dcm: { x: (d1.x + p.m2 * d2.x) / M, y: (d1.y + p.m2 * d2.y) / M } };
+}
+
+const shift = (q: Vec2, d: Vec2): Vec2 => ({ x: q.x + d.x, y: q.y + d.y });
 
 let memoKey = '';
 let memo: {
   mo: Motion2D;
+  /** Unit vector from puck 2 to puck 1 at contact. */
+  n: Vec2;
   box: { x0: number; x1: number; y0: number; y1: number };
   /** Momentum diagram: origin and scale [world m per kg·m/s]. */
   dia: { o: Vec2; k: number; up: number };
@@ -33,9 +64,10 @@ function model(p: P) {
     const R1 = radius(1);
     const R2 = radius(p.m2);
     const s = R1 + R2;
-    // Placed so that the pucks touch at t = T_C (if the offset b lets them touch at all).
-    const dx = Math.sqrt(Math.max(0, s * s - p.b * p.b));
-    const a: Puck = { m: 1, R: R1, x: [-dx - p.v1 * T_C, p.b], v: [p.v1, 0] };
+    // Placed so that the pucks touch at t = T_C.
+    const b = bOf(p);
+    const dx = Math.sqrt(Math.max(0, s * s - b * b));
+    const a: Puck = { m: 1, R: R1, x: [-dx - p.v1 * T_C, b], v: [p.v1, 0] };
     const c: Puck = { m: p.m2, R: R2, x: [0, 0], v: [0, 0] };
     const mo = motion2D(a, c, p.kind as Kind2D, p.e);
     const xs: number[] = [];
@@ -52,8 +84,11 @@ function model(p: P) {
     const k = (0.4 * (box.x1 - box.x0)) / pt;
     const after = mo.at.map((q) => q.m * q.v[1]);
     const up = Math.max(0, ...after) * k;
-    const o = { x: box.x0 + 0.1 * (box.x1 - box.x0), y: box.y0 - 0.45 - up };
-    memo = { mo, box, dia: { o, k, up } };
+    // Gap under the table scales with the width (hence the drawing scale): its title, 18 px
+    // above the diagram, then stays clear of the lowest puck and its trail on a phone too.
+    const gap = Math.max(0.45, 0.12 * (box.x1 - box.x0));
+    const o = { x: box.x0 + 0.1 * (box.x1 - box.x0), y: box.y0 - gap - up };
+    memo = { mo, n: { x: -dx / s, y: b / s }, box, dia: { o, k, up } };
     memoKey = key;
   }
   return memo;
@@ -100,8 +135,8 @@ const params: ParamSchema<P> = {
       { value: 'stick', label: 'ch09.kind.stick' },
     ],
   },
-  b: { kind: 'number', label: 'ch09.p.b', desc: 'ch09.d.b', group: 'main', live: false, control: 'slider', min: 0, max: 0.4, step: 0.01, default: 0.2, unit: 'm' },
-  m2: { kind: 'number', label: 'ch09.p.m2', desc: 'ch09.d.m2p', group: 'advanced', live: false, control: 'slider', min: 0.5, max: 2, step: 0.1, default: 1, unit: 'kg' },
+  b: { kind: 'number', label: 'ch09.p.b', desc: 'ch09.d.b', group: 'main', live: false, control: 'slider', min: 0, max: B_SLIDER, step: 0.01, default: 0.2, unit: 'm' },
+  m2: { kind: 'number', label: 'ch09.p.m2', desc: 'ch09.d.m2p', group: 'advanced', live: false, control: 'slider', min: M2_MIN, max: 2, step: 0.1, default: 1, unit: 'kg' },
   v1: { kind: 'number', label: 'ch09.p.v1', desc: 'ch09.d.v1p', group: 'advanced', live: false, control: 'slider', min: 0.5, max: 2, step: 0.1, default: 1.5, unit: 'm/s' },
   e: {
     kind: 'number',
@@ -118,10 +153,11 @@ const params: ParamSchema<P> = {
   },
 };
 
-function puck(g: Draw, q: Puck, fill: string, name: string): void {
-  const c = { x: q.x[0], y: q.x[1] };
-  g.polygon(circlePts(c, q.R), { fill, fillAlpha: 0.9 });
-  if (q.R > g.px(9)) g.text(c, name, { size: 12, color: '#ffffff', align: 'center', baseline: 'middle', weight: 600 });
+/** Puck drawn with radius f R, its centre shifted by d. */
+function puck(g: Draw, q: Puck, f: number, d: Vec2, fill: string, name: string): void {
+  const c = { x: q.x[0] + d.x, y: q.x[1] + d.y };
+  g.polygon(circlePts(c, f * q.R), { fill, fillAlpha: 0.9 });
+  if (f * q.R > g.px(9)) g.text(c, name, { size: 12, color: '#ffffff', align: 'center', baseline: 'middle', weight: 600 });
 }
 
 function circlePts(c: Vec2, r: number): Vec2[] {
@@ -178,7 +214,7 @@ export const puckScene: Scene<P, S> = {
     const { box, dia } = model(p);
     const w = box.x1 - box.x0;
     const bottom = dia.o.y - dia.up - 0.25;
-    return { x: [box.x0 - 0.05 * w, box.x1 + 0.05 * w], y: [bottom, box.y1 + 0.2], aspect: 'contain', padPx: 16 };
+    return { x: [box.x0 - 0.05 * w, box.x1 + 0.05 * w], y: [bottom, box.y1 + 0.2], aspect: 'contain', padPx: 16 + MIN_R_PX };
   },
 
   init: () => ({ t: 0, n: 0 }),
@@ -207,26 +243,30 @@ export const puckScene: Scene<P, S> = {
   draw: (g, s, p) => {
     const { mo, dia } = model(p);
     const k = sample(p, s.t);
-    // Paths so far: straight segments joined at the collision.
+    const mg = magnify(g, p);
+    // Paths so far: straight segments joined at the collision (shifted with their drawn puck).
     const path = (i: 0 | 1): Vec2[] => {
       const pts: Vec2[] = [];
       for (const t of [0, Math.min(mo.tc, s.t), s.t]) {
         const q = state2D(mo, t)[i];
-        pts.push({ x: q.x[0], y: q.x[1] });
+        pts.push(shift({ x: q.x[0], y: q.x[1] }, i === 0 ? mg.d1 : mg.d2));
       }
       return pts;
     };
     g.polyline(path(0), { color: C1, width: 1.25, dash: [4, 4], alpha: 0.7 });
     g.polyline(path(1), { color: C2, width: 1.25, dash: [4, 4], alpha: 0.7 });
     const M = k.a.m + k.b.m;
-    const cm = (q: [Puck, Puck]): Vec2 => ({ x: (q[0].m * q[0].x[0] + q[1].m * q[1].x[0]) / M, y: (q[0].m * q[0].x[1] + q[1].m * q[1].x[1]) / M });
+    const cm = (q: [Puck, Puck]): Vec2 =>
+      shift({ x: (q[0].m * q[0].x[0] + q[1].m * q[1].x[0]) / M, y: (q[0].m * q[0].x[1] + q[1].m * q[1].x[1]) / M }, mg.dcm);
     g.line(cm(state2D(mo, 0)), cm([k.a, k.b]), { color: BLACK, width: 1, dash: [2, 4], alpha: 0.6 });
-    puck(g, k.a, C1, '1');
-    puck(g, k.b, C2, '2');
+    puck(g, k.a, mg.f, mg.d1, C1, '1');
+    puck(g, k.b, mg.f, mg.d2, C2, '2');
     cmMark(g, cm([k.a, k.b]), 6);
 
-    diagram(g, dia.o, dia.k, k.p1, k.p2);
-    g.text({ x: dia.o.x, y: dia.o.y + dia.up }, tr('ch09.k.diagram'), { size: 12, color: '#6b6b6b', align: 'left', dy: -18 });
+    // Diagram lowered by the stage's extra padding, room for the magnified pucks above its title.
+    const o = { x: dia.o.x, y: dia.o.y - g.px(MIN_R_PX) };
+    diagram(g, o, dia.k, k.p1, k.p2);
+    g.text({ x: o.x, y: o.y + dia.up }, tr('ch09.k.diagram'), { size: 12, color: '#6b6b6b', align: 'left', dy: -18 });
   },
 
   plots: [
@@ -261,6 +301,14 @@ export const puckScene: Scene<P, S> = {
       yRange: (p) => padded(ranges(p).K, 1),
     },
   ],
+
+  drawPlot: (id, pd, p, ui) => {
+    const f = (t: number) => {
+      const k = sample(p, t);
+      return id === 'px' ? k.p1[0] : id === 'py' ? k.p1[1] : k.K1;
+    };
+    halo(pd, f, ui.t, [model(p).mo.tc]);
+  },
 
   readouts: [
     { label: 'p_{\\mathrm{tot},x}', unit: 'kg·m/s', value: (s, p) => sample(p, s.t).p1[0] + sample(p, s.t).p2[0] },

@@ -15,7 +15,6 @@ interface S {
 
 const RATE = 120;
 const M = 1e6; // speed unit [m/s]
-const TRAIL = 260; // trail points kept (every 2nd step): a bit more than one turn at B = 1
 
 const ptOf = (p: P): Particle => PARTICLES[p.particle] ?? PARTICLES.proton;
 const isElectron = (p: P) => p.particle === 'electron';
@@ -25,6 +24,11 @@ const Bof = (p: P) => (isElectron(p) ? p.Be : p.Bi) * unitB(p);
 const speeds = (p: P) => (p.compare ? [1, 2, 3] : [p.v]).map((v) => v * M);
 /** Largest radius the controls allow (v = 3, B = 0.5): fixes the view per species. */
 const rMax = (p: P) => radius(ptOf(p), 3 * M, 0.5 * unitB(p));
+/**
+ * Half-width of the view [cm], fixed per species by rMax at the weakest field: the drawn radius
+ * falls exactly as 1/B, so doubling B visibly halves every circle.
+ */
+export const viewR = (p: P) => rMax(p) * 100;
 /** ns of sim time per wall second: one turn in 3 s at B = 1 unit. */
 const nsPerSec = (p: P) => (period(ptOf(p), unitB(p)) * 1e9) / 3;
 
@@ -86,7 +90,7 @@ export const lorentzScene: Scene<P, S> = {
   time: { h: 1 / RATE, recordEvery: 4, frameStep: 0.05, unit: 'ns' },
 
   world: (p) => {
-    const R = rMax(p) * 100;
+    const R = viewR(p);
     const pos = ptOf(p).q > 0;
     return { x: [-1.15 * R, 1.15 * R], y: pos ? [-0.3 * R, 2.12 * R] : [-2.12 * R, 0.3 * R], aspect: 'contain', padPx: 16 };
   },
@@ -109,13 +113,15 @@ export const lorentzScene: Scene<P, S> = {
       if (s.n % 2 === 0) {
         const tr = s.trails[i];
         tr.push(k.x, k.y);
-        if (tr.length > 2 * TRAIL) tr.splice(0, 2);
+        // Keep a little more than one full turn at the current field, so the circle always closes.
+        const keep = Math.ceil((1.08 * period(pt, Bof(p)) * 1e9) / (2 * dtNs)) + 2;
+        if (tr.length > 2 * keep) tr.splice(0, tr.length - 2 * keep);
       }
     });
   },
 
   draw: (g, s, p) => {
-    const R = rMax(p) * 100;
+    const R = viewR(p);
     const pt = ptOf(p);
     const pos = pt.q > 0;
     // The field fills the whole visible stage.
@@ -126,10 +132,10 @@ export const lorentzScene: Scene<P, S> = {
     // Source at the launch point.
     g.polygon(
       [
-        { x: -0.16 * R, y: -g.px(5) },
+        { x: -0.11 * R, y: -g.px(5) },
         { x: -g.px(9), y: -g.px(5) },
         { x: -g.px(9), y: g.px(5) },
-        { x: -0.16 * R, y: g.px(5) },
+        { x: -0.11 * R, y: g.px(5) },
       ],
       { fill: '#8a8a8a' },
     );
@@ -145,24 +151,41 @@ export const lorentzScene: Scene<P, S> = {
     const Fref = Math.abs(pt.q) * 3 * M * unitB(p);
     const kF = (0.28 * R) / Fref;
     const last = s.ps.length - 1;
-    s.ps.forEach((k, i) => {
+    const arrows = s.ps.map((k) => {
       const c = cm(k);
-      const [fx, fy] = lorentz(k, pt, -B);
-      const main = i === last;
-      g.arrow(c, { x: k.vx * kV, y: k.vy * kV }, { role: 'velocity', width: 2.25, label: main ? '*v*' : undefined });
-      g.arrow(c, { x: fx * kF, y: fy * kF }, { role: 'force', width: 2.25 });
-      if (main) {
-        // Beside the middle of F, on the side away from v: clear of the slower particles inside.
-        const sp = Math.hypot(k.vx, k.vy);
-        g.text({ x: c.x + (fx * kF) / 2 - (k.vx / sp) * g.px(13), y: c.y + (fy * kF) / 2 - (k.vy / sp) * g.px(13) }, '*F*', {
-          size: 13,
-          role: 'force',
-          align: 'center',
-          baseline: 'middle',
-        });
-      }
-      particle(g, c, pos, 7);
+      const [fx0, fy0] = lorentz(k, pt, -B);
+      // F ∝ vB while r ∝ v/B: at high B the arrow would reach past the centre. Cap it at 0.7 r
+      // (the cap scales with v too, so the three speeds keep their ratio).
+      const rCm = radius(pt, Math.hypot(k.vx, k.vy), B) * 100;
+      const f = Math.min(1, (0.7 * rCm) / Math.max(1e-30, Math.hypot(fx0, fy0) * kF));
+      return { c, v: { x: k.vx * kV, y: k.vy * kV }, F: { x: fx0 * f * kF, y: fy0 * f * kF } };
     });
+    arrows.forEach((a, i) => {
+      g.arrow(a.c, a.v, { role: 'velocity', width: 2.25, label: i === last ? '*v*' : undefined });
+      g.arrow(a.c, a.F, { role: 'force', width: 2.25 });
+    });
+    // F label beside the fastest particle's F arrow: of the spots at either side of its middle and
+    // beyond its tip, the one farthest from every particle and arrow.
+    const m = arrows[last];
+    const fl = Math.hypot(m.F.x, m.F.y) || 1;
+    const u = { x: m.F.x / fl, y: m.F.y / fl };
+    const mid = { x: m.c.x + m.F.x / 2, y: m.c.y + m.F.y / 2 };
+    const off = g.px(13);
+    const cands: Vec2[] = [
+      { x: mid.x - u.y * off, y: mid.y + u.x * off },
+      { x: mid.x + u.y * off, y: mid.y - u.x * off },
+      { x: m.c.x + m.F.x + u.x * off, y: m.c.y + m.F.y + u.y * off },
+    ];
+    const marks: Vec2[] = [];
+    for (const a of arrows)
+      for (let j = 0; j <= 6; j++) {
+        marks.push({ x: a.c.x + (a.v.x * j) / 6, y: a.c.y + (a.v.y * j) / 6 });
+        if (a !== m) marks.push({ x: a.c.x + (a.F.x * j) / 6, y: a.c.y + (a.F.y * j) / 6 });
+      }
+    const clear = (q: Vec2) => Math.min(...marks.map((k) => Math.hypot(k.x - q.x, k.y - q.y)));
+    const at = cands.reduce((b, q) => (clear(q) > clear(b) + g.px(1) ? q : b));
+    g.text(at, '*F*', { size: 13, role: 'force', align: 'center', baseline: 'middle' });
+    for (const a of arrows) particle(g, a.c, pos, 7);
   },
 
   readouts: [

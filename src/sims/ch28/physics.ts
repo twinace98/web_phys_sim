@@ -84,47 +84,28 @@ export interface Run {
   K: Float64Array;
   /** First time with r > rStop, or the end time. */
   tStop: number;
+  /** Extraction time (orbit radius reached R) [s], or Infinity if never extracted. */
+  tExit: number;
+  /** Kinetic energy at extraction [J] (0 if never extracted). */
+  kExit: number;
+  /** Starting point of the proton [m] (on the gap mid-line, x = 0). */
+  y0: number;
   n: number;
 }
 
-/**
- * Boris integration from rest at the centre. B fills the disc r ≤ R (dees and gap);
- * E = V(t)/gap along x in the gap |x| < gap/2. Outside the disc the particle moves freely.
- */
-export function runCyclotron(c: Cyclotron, tMax: number, dt: number, every: number, rStop: number): Run {
-  const steps = Math.ceil(tMax / dt);
-  const n = Math.floor(steps / every) + 1;
-  const run: Run = {
-    t: new Float64Array(n),
-    x: new Float64Array(n),
-    y: new Float64Array(n),
-    vx: new Float64Array(n),
-    vy: new Float64Array(n),
-    K: new Float64Array(n),
-    tStop: tMax,
-    n: 0,
-  };
+/** One Boris integration; `onStep` returns true to stop. */
+function integrate(c: Cyclotron, y0: number, steps: number, dt: number, onStep: (k: number, x: number, y: number, vx: number, vy: number, out: boolean) => boolean): void {
   const qm = c.pt.q / c.pt.m;
+  const w = cyclotronOmega(c);
   let x = 0;
-  let y = 0;
+  let y = y0;
   let vx = 0;
   let vy = 0;
-  const push = (t: number) => {
-    const i = run.n++;
-    run.t[i] = t;
-    run.x[i] = x;
-    run.y[i] = y;
-    run.vx[i] = vx;
-    run.vy[i] = vy;
-    run.K[i] = 0.5 * c.pt.m * (vx * vx + vy * vy);
-  };
-  push(0);
-  let stopped = false;
+  let out = false;
   for (let k = 1; k <= steps; k++) {
     const tm = (k - 0.5) * dt;
-    const inDisc = x * x + y * y <= c.R * c.R;
-    const Ex = inDisc && Math.abs(x) < c.gap / 2 ? gapVoltage(c, tm) / c.gap : 0;
-    const Bz = inDisc ? -c.B : 0;
+    const Ex = !out && Math.abs(x) < c.gap / 2 ? gapVoltage(c, tm) / c.gap : 0;
+    const Bz = out ? 0 : -c.B;
     // Boris: half electric kick, magnetic rotation, half electric kick.
     vx += 0.5 * qm * Ex * dt;
     const tz = 0.5 * qm * Bz * dt;
@@ -136,12 +117,77 @@ export function runCyclotron(c: Cyclotron, tMax: number, dt: number, every: numb
     vx += 0.5 * qm * Ex * dt;
     x += vx * dt;
     y += vy * dt;
+    // Extraction: once the orbit radius m v / |q| B reaches the dee radius, a deflector takes
+    // the particle out of the field; it then moves in a straight line.
+    if (!out && Math.hypot(vx, vy) >= w * c.R) out = true;
+    if (onStep(k, x, y, vx, vy, out)) return;
+  }
+}
+
+/**
+ * Boris integration from rest on the gap mid-line. B (into the page) fills the pole face,
+ * a little larger than the dees; E = V(t)/gap along x in the gap |x| < gap/2. The particle is
+ * extracted when its orbit radius reaches R, so it leaves with K = (qBR)²/2m for any V0.
+ * The start is shifted along y so the orbits are centred on the dees (a trial run from the
+ * centre finds the drift of the orbit centre; the motion is unchanged by a shift in y).
+ */
+export function runCyclotron(c: Cyclotron, tMax: number, dt: number, every: number, rStop: number): Run {
+  const steps = Math.ceil(tMax / dt);
+  const w = cyclotronOmega(c);
+  // Trial run from the centre: orbit centre (x − v_y/ω, y + v_x/ω) at extraction; a particle
+  // that is never extracted (detuned) is centred on the y extent of its path instead.
+  let cy = 0;
+  let yLo = 0;
+  let yHi = 0;
+  let extracted = false;
+  integrate(c, 0, steps, dt, (_k, _x, y, vx, _vy, out) => {
+    yLo = Math.min(yLo, y);
+    yHi = Math.max(yHi, y);
+    if (out) {
+      extracted = true;
+      cy = y + vx / w;
+    }
+    return out;
+  });
+  const y0 = extracted ? -cy : -(yLo + yHi) / 2;
+
+  const n = Math.floor(steps / every) + 1;
+  const run: Run = {
+    t: new Float64Array(n),
+    x: new Float64Array(n),
+    y: new Float64Array(n),
+    vx: new Float64Array(n),
+    vy: new Float64Array(n),
+    K: new Float64Array(n),
+    tStop: tMax,
+    tExit: Infinity,
+    kExit: 0,
+    y0,
+    n: 0,
+  };
+  const push = (t: number, x: number, y: number, vx: number, vy: number) => {
+    const i = run.n++;
+    run.t[i] = t;
+    run.x[i] = x;
+    run.y[i] = y;
+    run.vx[i] = vx;
+    run.vy[i] = vy;
+    run.K[i] = 0.5 * c.pt.m * (vx * vx + vy * vy);
+  };
+  push(0, 0, y0, 0, 0);
+  let stopped = false;
+  integrate(c, y0, steps, dt, (k, x, y, vx, vy, out) => {
+    if (out && run.tExit === Infinity) {
+      run.tExit = k * dt;
+      run.kExit = 0.5 * c.pt.m * (vx * vx + vy * vy);
+    }
     if (!stopped && x * x + y * y > rStop * rStop) {
       stopped = true;
       run.tStop = k * dt;
     }
-    if (k % every === 0 && run.n < n) push(k * dt);
-  }
+    if (k % every === 0 && run.n < n) push(k * dt, x, y, vx, vy);
+    return false;
+  });
   return run;
 }
 

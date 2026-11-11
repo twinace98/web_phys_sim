@@ -119,3 +119,49 @@ export function boxText(
   ctx.restore();
   drawRich(ctx, s, x, y, { size, color: color(st.color ?? 'fg'), align, baseline: 'middle' });
 }
+
+/** Does the segment cross the rectangle? (Liang-Barsky clipping.) */
+export function segHitsRect(ax: number, ay: number, bx: number, by: number, l: number, t: number, r: number, b: number): boolean {
+  const dx = bx - ax;
+  const dy = by - ay;
+  let u0 = 0;
+  let u1 = 1;
+  for (const [pp, q] of [
+    [-dx, ax - l],
+    [dx, r - ax],
+    [-dy, ay - t],
+    [dy, b - ay],
+  ]) {
+    if (pp === 0) {
+      if (q < 0) return false;
+      continue;
+    }
+    const u = q / pp;
+    if (pp < 0) u0 = Math.max(u0, u);
+    else u1 = Math.min(u1, u);
+    if (u0 > u1) return false;
+  }
+  return true;
+}
+
+/** Pixel-space things a label must not cover (segments and boxes, each with a weight), for placing it. */
+export class Obstacles {
+  segs: [number, number, number, number, number][] = [];
+  boxes: [number, number, number, number, number][] = [];
+  constructor(readonly g: Draw) {}
+  seg(a: Vec2, b: Vec2, w = 1): void {
+    const [ax, ay] = this.g.vp.toPx(a.x, a.y);
+    const [bx, by] = this.g.vp.toPx(b.x, b.y);
+    this.segs.push([ax, ay, bx, by, w]);
+  }
+  box(l: number, t: number, r: number, b: number, w = 1): void {
+    this.boxes.push([l, t, r, b, w]);
+  }
+  /** Summed weight of everything the pixel rectangle touches. */
+  cost(l: number, t: number, r: number, b: number): number {
+    let c = 0;
+    for (const [ax, ay, bx, by, w] of this.segs) if (segHitsRect(ax, ay, bx, by, l, t, r, b)) c += w;
+    for (const [bl, bt, br, bb, w] of this.boxes) if (bl < r && br > l && bt < b && bb > t) c += w;
+    return c;
+  }
+}

@@ -1,7 +1,7 @@
 // Ch 39 scenes: bound states of 1D wells drawn as an energy diagram (U(x), levels, ψ or |ψ|²),
 // and the time evolution of a two-state superposition.
 import { fmt } from '../../core/format';
-import type { ParamSchema, Scene } from '../../core/types';
+import type { ParamSchema, ParamSpec, Scene } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
 import { Frame, PX_WORLD, linePx, textPx, type Box } from '../modern/frame';
@@ -9,7 +9,7 @@ import { allowed, wellModel, type WellKind, type WellModel, type WellParams } fr
 
 type Common = { pot: string; L: number; U0: number; hw: number; Ub: number; b: number };
 type PW = Common & { show: string };
-type PS = Common & { pair: string };
+type PS = Common & { pair: string; pairH: string };
 
 /** ħ in eV·fs. */
 export const HBAR_EVFS = 0.6582119569;
@@ -18,8 +18,12 @@ const PSI = ROLE_COLOR.position;
 const LEVEL = '#1a1a1a';
 const FORBID = '#9a9a9a';
 
-/** live: the static wells scene follows changes at once; the superposition scene restarts. */
-const common = (live: boolean): ParamSchema<Common> => ({
+/**
+ * live: the static wells scene follows changes at once; the superposition scene restarts.
+ * The superposition scene narrows the width and depth ranges (Lmin, U0min) so that every
+ * potential always holds at least three bound states and every pair can be formed.
+ */
+const common = (live: boolean, Lmin = 0.5, U0min = 0.5): ParamSchema<Common> => ({
   pot: {
     kind: 'select',
     label: 'ch39.p.pot',
@@ -41,7 +45,7 @@ const common = (live: boolean): ParamSchema<Common> => ({
     group: 'advanced',
     live,
     control: 'slider',
-    min: 0.5,
+    min: Lmin,
     max: 1.5,
     step: 0.05,
     default: 1,
@@ -55,7 +59,7 @@ const common = (live: boolean): ParamSchema<Common> => ({
     group: 'advanced',
     live,
     control: 'slider',
-    min: 0.5,
+    min: U0min,
     max: 4.5,
     step: 0.1,
     default: 2,
@@ -255,8 +259,8 @@ export const wells: Scene<PW, { t: number }> = {
     goals: ['ch39.w.goal.quant', 'ch39.w.goal.shape'],
     observe: ['ch39.w.obs.inf', 'ch39.w.obs.fin', 'ch39.w.obs.harm', 'ch39.w.obs.double', 'ch39.w.obs.nodes'],
     equations: [
-      'E_n = \\frac{h^2}{8mL^2}\\,n^2 \\quad (\\text{infinite well})',
-      'E_n = \\left(n + \\tfrac{1}{2}\\right)\\hbar\\omega \\quad (\\text{harmonic})',
+      'E_n = \\frac{h^2}{8mL^2}\\,n^2, \\quad n = 1, 2, 3, \\dots',
+      'E_n = \\left(n + \\tfrac{1}{2}\\right)\\hbar\\omega, \\quad n = 0, 1, 2, \\dots',
       '-\\frac{\\hbar^2}{2m}\\frac{d^2\\psi}{dx^2} + U(x)\\,\\psi = E\\,\\psi',
     ],
     assumptions: ['ch39.assume.electron', 'ch39.assume.fd', 'ch39.assume.amp'],
@@ -265,22 +269,33 @@ export const wells: Scene<PW, { t: number }> = {
 
 // ------------------------------------------------------------------ superposition
 
+/** Superposition ranges: narrowest well and shallowest finite well that still hold three states. */
+export const SUP_L_MIN = 1;
+export const SUP_U0_MIN = 1.8;
+
+/**
+ * Pair of states, named by their quantum numbers: n = 1, 2, 3 for the wells, n = 0, 1, 2 for
+ * the oscillator (so the names match the level labels E_n).
+ */
+const pairParam = (harmonic: boolean): ParamSpec => ({
+  kind: 'select',
+  label: 'ch39.p.pair',
+  desc: 'ch39.d.pair',
+  group: 'main',
+  live: false,
+  default: harmonic ? '01' : '12',
+  options: (harmonic ? ['01', '02', '12'] : ['12', '13', '23']).map((v) => ({ value: v, label: `ch39.pair.${v}` })),
+  visibleIf: (p) => (p.pot === 'harmonic') === harmonic,
+});
+
 const supParams: ParamSchema<PS> = {
-  ...common(false),
-  pair: {
-    kind: 'select',
-    label: 'ch39.p.pair',
-    desc: 'ch39.d.pair',
-    group: 'main',
-    live: false,
-    default: '12',
-    options: [
-      { value: '12', label: 'ch39.pair.12' },
-      { value: '13', label: 'ch39.pair.13' },
-      { value: '23', label: 'ch39.pair.23' },
-    ],
-  },
+  ...common(false, SUP_L_MIN, SUP_U0_MIN),
+  pair: pairParam(false),
+  pairH: pairParam(true),
 };
+
+/** The pair in effect: the oscillator has its own selector (0 + 1, ...). */
+export const pairOf = (p: PS) => (p.pot === 'harmonic' ? p.pairH : p.pair);
 
 interface Sup {
   a: number;
@@ -292,16 +307,15 @@ interface Sup {
   xc: number;
 }
 
-/** The two states to superpose (falls back to lower states when the well holds fewer). */
+/**
+ * The two states to superpose; `pair` holds their quantum numbers (first level = m.n0). The
+ * superposition ranges guarantee three bound states, so both always exist; an index past the
+ * last state (not reachable from the controls) is clamped rather than read out of range.
+ */
 export function supStates(m: WellModel, pair: string): Sup {
-  const n = m.st.E.length;
-  let a = Number(pair[0]) - 1;
-  let b = Number(pair[1]) - 1;
-  if (b >= n) {
-    b = n - 1;
-    a = Math.min(a, b - 1);
-  }
-  if (a < 0) a = 0;
+  const last = m.st.E.length - 1;
+  const a = Math.min(Number(pair[0]) - m.n0, last);
+  const b = Math.min(Number(pair[1]) - m.n0, last);
   const { st } = m;
   const pa = st.psi[a];
   const pb = st.psi[b];
@@ -317,7 +331,7 @@ export function supStates(m: WellModel, pair: string): Sup {
   return { a, b, w: single ? 0 : (st.E[b] - st.E[a]) / HBAR_EVFS, xm: single ? xa * st.dx : 0.5 * (xa + xb) * st.dx, xc: single ? 0 : xab * st.dx };
 }
 
-const supOf = (p: PS) => supStates(model(p), p.pair);
+const supOf = (p: PS) => supStates(model(p), pairOf(p));
 
 export const superposition: Scene<PS, { t: number; n: number }> = {
   id: 'superposition',
@@ -339,7 +353,7 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
 
   draw: (g, s, p) => {
     const m = model(p);
-    const q = supStates(m, p.pair);
+    const q = supStates(m, pairOf(p));
     const { st } = m;
     const narrow = g.vp.w < 640;
     const f = new Frame(g, diagramBox(g, true), m.xr, m.yr);
@@ -390,7 +404,7 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
       traces: [{ channel: 'xm', role: 'position' }],
       yRange: (p) => {
         const m = model(p);
-        const q = supStates(m, p.pair);
+        const q = supStates(m, pairOf(p));
         const r = Math.max(Math.abs(q.xc) * 1.25, 0.1);
         return [q.xm - r, q.xm + r];
       },
@@ -404,12 +418,12 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
 
   info: {
     goals: ['ch39.s.goal.osc', 'ch39.s.goal.period'],
-    observe: ['ch39.s.obs.slosh', 'ch39.s.obs.parity', 'ch39.s.obs.tunnel', 'ch39.s.obs.stationary'],
+    observe: ['ch39.s.obs.slosh', 'ch39.s.obs.parity', 'ch39.s.obs.tunnel'],
     equations: [
       '\\Psi(x,t) = \\tfrac{1}{\\sqrt2}\\left(\\psi_a e^{-iE_at/\\hbar} + \\psi_b e^{-iE_bt/\\hbar}\\right)',
       '|\\Psi|^2 = \\tfrac12\\left(\\psi_a^2 + \\psi_b^2 + 2\\psi_a\\psi_b\\cos\\frac{(E_b - E_a)t}{\\hbar}\\right)',
       'T = \\frac{h}{E_b - E_a}',
     ],
-    assumptions: ['ch39.assume.electron', 'ch39.assume.fd', 'ch39.assume.supamp'],
+    assumptions: ['ch39.assume.electron', 'ch39.assume.fd', 'ch39.assume.supamp', 'ch39.s.assume.range'],
   },
 };

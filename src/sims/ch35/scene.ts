@@ -10,6 +10,7 @@ import {
   H_FS,
   STRIP,
   Y0,
+  Y1,
   clampY,
   dimLine,
   drawBarrier,
@@ -24,7 +25,7 @@ import {
   type SlitState,
 } from '../wave2d/slits';
 import { drawWave } from '../wave2d/view';
-import { brightAt, fringeSpacing, pathDiff } from './physics';
+import { brightAt, pathDiff } from './physics';
 
 type P = { d: number; lambda: number; D: number; a: number; yp: number };
 
@@ -33,6 +34,13 @@ const apsOf = (p: P): Aperture[] => [
   { yc: -p.d / 2, w: p.a },
 ];
 const field = (p: P) => fieldFor(p.lambda, apsOf(p), p.D);
+
+/**
+ * First bright fringe above the centre (ΔL = λ exactly, the maximum the wave field shows):
+ * the Δy mark and readout. λD/d is its small-angle limit and differs by up to 13 % at the
+ * slider extremes (λ = 700 nm, d = 1.5 μm).
+ */
+export const firstBright = (p: P) => brightAt(1, p.lambda / 1000, p.d, p.D);
 
 const params: ParamSchema<P> = {
   d: {
@@ -119,11 +127,14 @@ export const doubleSlit: Scene<P, SlitState> = {
     const I = relIntensity(s, f);
     const inset = drawScreen(g, p.D, f, I, rgb);
 
-    // Predicted fringe spacing beside the graph: from the central maximum to the first.
-    const dy = fringeSpacing(p.lambda / 1000, p.D, p.d);
-    const bx = inset.r.x1 + 0.9;
-    for (const y of [0, dy]) g.line({ x: inset.r.x0, y }, { x: bx, y }, { color: '#b5b5b5', width: 1, dash: [3, 4] });
-    dimLine(g, { x: bx, y: 0 }, { x: bx, y: dy }, 'Δ*y*', 20, 0);
+    // Fringe spacing beside the graph: from the central maximum to the first bright fringe
+    // (omitted when that fringe lies beyond the screen).
+    const dy = firstBright(p);
+    if (dy < Y1) {
+      const bx = inset.r.x1 + 0.9;
+      for (const y of [0, dy]) g.line({ x: inset.r.x0, y }, { x: bx, y }, { color: '#b5b5b5', width: 1, dash: [3, 4] });
+      dimLine(g, { x: bx, y: 0 }, { x: bx, y: dy }, 'Δ*y*', 20, 0);
+    }
 
     dimLine(g, { x: -1.1, y: -p.d / 2 }, { x: -1.1, y: p.d / 2 }, '*d*', -16, 0);
     dimLine(g, { x: 0, y: Y0 - 1.2 }, { x: p.D, y: Y0 - 1.2 }, '*D*', 0, 0);
@@ -149,7 +160,7 @@ export const doubleSlit: Scene<P, SlitState> = {
   ],
 
   readouts: [
-    { label: '\\Delta y = \\lambda D/d', unit: 'μm', value: (_s, p) => fringeSpacing(p.lambda / 1000, p.D, p.d) },
+    { label: '\\Delta y', unit: 'μm', value: (_s, p) => firstBright(p) },
     { label: '\\Delta L/\\lambda', unit: '', value: (_s, p) => pathDiff(p.d, p.D, p.yp) / (p.lambda / 1000) },
   ],
 
@@ -159,7 +170,7 @@ export const doubleSlit: Scene<P, SlitState> = {
     equations: [
       '\\Delta L = d\\sin\\theta',
       'd\\sin\\theta = m\\lambda \\;\\; (I_\\text{max}), \\quad d\\sin\\theta = (m + \\tfrac12)\\lambda \\;\\; (I = 0)',
-      '\\Delta y = \\frac{\\lambda D}{d}',
+      '\\Delta y \\approx \\frac{\\lambda D}{d} \\quad (\\Delta y \\ll D)',
     ],
     assumptions: ['ch35.assume.model', 'ch35.assume.scale', 'ch35.assume.colour'],
   },

@@ -3,7 +3,8 @@
 import { fmt, fmtTick, niceTicks } from '../../core/format';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { ROLE_COLOR } from '../../draw/theme';
+import { measureRich } from '../../draw/text';
+import { ROLE_COLOR, theme } from '../../draw/theme';
 import { inertiaCm, parallelAxis, type Shape } from './physics';
 
 type P = { shape: string; d: number };
@@ -34,7 +35,7 @@ const params: ParamSchema<P> = {
       { value: 'rod', label: 'ch10.shape.rod' },
     ],
   },
-  d: { kind: 'number', label: 'ch10.p.d', group: 'hidden', live: true, control: 'slider', min: -R, max: R, default: 0.3 },
+  d: { kind: 'number', label: 'ch10.p.d', desc: 'ch10.d.d', group: 'hidden', live: true, control: 'slider', min: -R, max: R, default: 0.3 },
 };
 
 const gx = (d: number) => GX + Math.abs(d) * SX;
@@ -57,6 +58,32 @@ function body(g: Draw, shape: Shape): void {
       { fill: BODY, fillAlpha: 0.85 },
     );
   }
+}
+
+/** Baseline of the d label below the d segment [px], clear of the axis halo (16 px). */
+const D_DY = 30;
+
+/**
+ * "d = …" under the middle of the d segment. For a ring or disk it stays inside the rim with a
+ * 4 px margin to the stroke, shifted toward the centre if needed; when even that does not fit
+ * (a small phone stage), it goes below the body. Returns where it went.
+ */
+export function dLabel(g: Draw, shape: Shape, d: number): { x: number; y: number; dy: number; w: number } {
+  const s = `*d* = ${fmt(Math.abs(d), 2)} m`;
+  const w = measureRich(g.ctx, s, { size: 13 }) / theme.scale;
+  let at = { x: d / 2, y: 0, dy: D_DY };
+  if (shape !== 'rod') {
+    const rIn = R / g.px(1) - (shape === 'ring' ? 3 : 1) - 4; // inner edge of the stroke, minus margin [px]
+    const yFar = D_DY + 4; // lowest point of the glyphs below the centre [px]
+    const half = Math.sqrt(Math.max(0, rIn * rIn - yFar * yFar));
+    const room = half - w / 2;
+    if (room >= 0) {
+      const cx = Math.min(room, Math.max(-room, d / 2 / g.px(1)));
+      at = { x: g.px(cx), y: 0, dy: D_DY };
+    } else at = { x: 0, y: -R, dy: 20 };
+  }
+  g.text({ x: at.x, y: at.y }, s, { size: 13, color: '#1a1a1a', align: 'center', dy: at.dy });
+  return { ...at, w };
 }
 
 /** Axis perpendicular to the page: circle with a dot, plus a faint rotation arrow. */
@@ -115,7 +142,11 @@ function graph(g: Draw, Icm: number, d: number): void {
   const left = Math.abs(d) > 0.4;
   const st = { size: 13, align: left ? ('right' as const) : ('left' as const), baseline: 'middle' as const, dx: left ? -8 : 8 };
   g.text({ x: X, y: (GY + gy(Icm)) / 2 }, '*I*_{cm}', { ...st, role: 'position' });
-  if (gy(I) - gy(Icm) > g.px(16)) g.text({ x: X, y: (gy(Icm) + gy(I)) / 2 }, '*Md*^{2}', { ...st, role: 'energyU' });
+  // A short M d² bar has no room beside it (the label would sit on the I_cm line and under the
+  // curve): then the label goes up-left of the point, where the curve is lower.
+  const bar = gy(I) - gy(Icm);
+  if (bar > g.px(30)) g.text({ x: X, y: (gy(Icm) + gy(I)) / 2 }, '*Md*^{2}', { ...st, role: 'energyU' });
+  else if (bar > g.px(3)) g.text({ x: X, y: gy(I) }, '*Md*^{2}', { size: 13, align: 'right', baseline: 'bottom', dx: -8, dy: -4, role: 'energyU' });
 }
 
 export const parallelScene: Scene<P, { t: number }> = {
@@ -133,7 +164,7 @@ export const parallelScene: Scene<P, { t: number }> = {
     const A: Vec2 = { x: p.d, y: 0 };
     if (Math.abs(p.d) > 1e-6) {
       g.line(C, A, { color: '#1a1a1a', width: 1, dash: [3, 3] });
-      g.text({ x: p.d / 2, y: 0 }, `*d* = ${fmt(Math.abs(p.d), 2)} m`, { size: 13, color: '#1a1a1a', align: 'center', dy: 30 });
+      dLabel(g, shape, p.d);
     }
     cmMark(g, C);
     axis(g, A);

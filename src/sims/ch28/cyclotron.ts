@@ -4,7 +4,7 @@
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { withAlpha, ROLE_COLOR } from '../../draw/theme';
 import { fieldGrid, particle } from './common';
-import { PARTICLES, cyclotronOmega, gapVoltage, runCyclotron, sampleRun, type Cyclotron, type Run } from './physics';
+import { PARTICLES, cyclotronOmega, gapVoltage, maxEnergy, runCyclotron, sampleRun, type Cyclotron, type Run } from './physics';
 
 type P = { ratio: number; V0: number };
 
@@ -24,20 +24,24 @@ const EDGE = '#9a9a9a';
 const cfgOf = (p: P): Cyclotron => ({ pt: PARTICLES.proton, B, R, gap: GAP, V0: p.V0 * 1e3, ratio: p.ratio });
 const TC = (2 * Math.PI) / cyclotronOmega(cfgOf({ ratio: 1, V0: 10 })); // [s]
 const NS_PER_SEC = (TC * 1e9) / 1.2; // one turn in 1.2 s at 1×
-const T_MAX = 12 * TC;
+const KMAX_KEV = maxEnergy(cfgOf({ ratio: 1, V0: 10 })) / KEV;
+/** Run length: 12 turns, or long enough to reach R at about qV0 per crossing, plus the exit. */
+const tMax = (p: P) => Math.max(12, KMAX_KEV / (2 * p.V0) + 3) * TC;
+/** Pole face (B region) radius: a little larger than the dees, as in a real magnet. */
+const POLE = 1.12 * R;
 
 let memoKey = '';
 let memo: Run | null = null;
 function runOf(p: P): Run {
   const key = `${p.ratio}|${p.V0}`;
   if (key !== memoKey || !memo) {
-    memo = runCyclotron(cfgOf(p), T_MAX, 1e-11, 10, 1.3 * R);
+    memo = runCyclotron(cfgOf(p), tMax(p), 1e-11, 10, 1.3 * R);
     memoKey = key;
   }
   return memo;
 }
-/** End of the run [ns]: the proton has left the view, or 12 cyclotron periods. */
-const tEndNs = (p: P) => Math.min(T_MAX, runOf(p).tStop) * 1e9;
+/** End of the run [ns]: the proton has left the view, or the run length. */
+const tEndNs = (p: P) => Math.min(tMax(p), runOf(p).tStop) * 1e9;
 
 const params: ParamSchema<P> = {
   ratio: {
@@ -104,7 +108,14 @@ export const cyclotronScene: Scene<P, S> = {
     const tS = s.t * 1e-9;
     const Rc = R * 100;
     for (const d of DEES) g.polygon(d, { fill: DEE, color: EDGE, width: 1.25 });
-    fieldGrid(g, -Rc, Rc, -Rc, Rc, 46, (q) => Math.hypot(q.x, q.y) < Rc - g.px(8) && Math.abs(q.x) > (GAP * 100) / 2 + g.px(8));
+    // B fills the pole face, a little larger than the dees; no symbols in the gap itself.
+    const Rp = POLE * 100;
+    fieldGrid(g, -Rp, Rp, -Rp, Rp, 46, (q) => {
+      const r = Math.hypot(q.x, q.y);
+      if (r > Rp - g.px(6)) return false;
+      if (r < Rc + g.px(8) && r > Rc - g.px(8)) return false;
+      return r > Rc || Math.abs(q.x) > (GAP * 100) / 2 + g.px(8);
+    });
 
     // Dee polarity: the left dee is positive when V > 0, so E in the gap points along +x.
     const v = gapVoltage(c, tS) / c.V0;
@@ -127,7 +138,6 @@ export const cyclotronScene: Scene<P, S> = {
     for (const y of [-0.4 * Rc, 0.4 * Rc]) {
       if (Math.abs(v) > 0.05) g.arrow({ x: -v * gx * 1.6, y }, { x: 2 * v * gx * 1.6, y: 0 }, { role: 'field', width: 1.75 });
     }
-    g.text({ x: 0, y: 0.4 * Rc }, '*E*', { size: 13, role: 'field', align: 'center', dy: -12 });
 
     // Path so far (from the precomputed run) and the proton.
     const end = sampleRun(run, tS);
@@ -136,6 +146,20 @@ export const cyclotronScene: Scene<P, S> = {
     for (let i = 0; i <= end.i; i += stride) pts.push({ x: run.x[i] * 100, y: run.y[i] * 100 });
     pts.push({ x: end.x * 100, y: end.y * 100 });
     g.polyline(pts, { role: 'position', width: 1.5, alpha: 0.7 });
+    // E label above the upper gap arrow, on a white patch so the spiral never runs through it.
+    const lp = { x: 0, y: 0.4 * Rc + g.px(14) };
+    const hw = g.px(7);
+    const hh = g.px(9);
+    g.polygon(
+      [
+        { x: lp.x - hw, y: lp.y - hh },
+        { x: lp.x + hw, y: lp.y - hh },
+        { x: lp.x + hw, y: lp.y + hh },
+        { x: lp.x - hw, y: lp.y + hh },
+      ],
+      { fill: '#ffffff' },
+    );
+    g.text(lp, '*E*', { size: 13, role: 'field', align: 'center', baseline: 'middle' });
     particle(g, { x: end.x * 100, y: end.y * 100 }, true, 6);
   },
 

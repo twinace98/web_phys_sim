@@ -181,3 +181,40 @@ export function speeds(g: Gas): number[] {
   for (let i = 0; i < g.N; i++) out.push(Math.hypot(g.vx[i], g.vy[i]));
   return out;
 }
+
+// ------------------------------------------------------------------ pressure estimates
+
+/** Moving-average window for the force on the wall [ps]. */
+export const WIN = 10;
+
+/** Pressure from the impulses of the last WIN ps [mN/m]; before t = WIN the window still counts WIN ps. */
+export function pWin(g: Gas): number {
+  let j = 0;
+  for (const h of g.hits) if (h.t > g.t - WIN) j += h.J;
+  return j / (g.L * WIN);
+}
+
+/** Mean pressure since t = 0, J / (L t) [mN/m]; the first WIN ps are divided by WIN so a lone early bounce is no spike. */
+export const pCum = (g: Gas) => g.J / (g.L * Math.max(g.t, WIN));
+
+/** Expected right-wall bounces per ps in equilibrium: N ⟨|v_x|⟩ / 2L with ⟨|v_x|⟩ = √(2kT/πm). */
+export const hitRate = (N: number, L: number, T: number) => (N * sigmaV(T) * Math.sqrt(2 / Math.PI)) / (2 * L);
+
+/**
+ * Relative standard deviation of the impulse summed over a time span with n expected bounces:
+ * Poisson count times a flux-weighted |v_x| (⟨v²⟩/⟨v⟩² = 4/π) gives √(4/π) / √n.
+ */
+export const impulseCv = (n: number) => Math.sqrt(4 / Math.PI / Math.max(n, 1e-9));
+
+/**
+ * Top of the pressure plots: ideal value plus the finite-size excess, four standard deviations of a
+ * WIN-ps window, and a Poisson tail term for windows with only a few bounces.
+ */
+export function pressureTop(N: number, L: number, T: number): number {
+  const n = hitRate(N, L, T) * WIN;
+  return idealPressure(N, L, T) * Math.max(2, 1.2 + 4 * impulseCv(n) + 1.5 / n);
+}
+
+/** Top of the cumulative-impulse plot over a run of tEnd ps. */
+export const impulseTop = (N: number, L: number, T: number, tEnd: number) =>
+  idealForce(N, L, T) * tEnd * Math.max(1.3, 1.15 + 3.5 * impulseCv(hitRate(N, L, T) * tEnd));

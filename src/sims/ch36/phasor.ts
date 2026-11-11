@@ -3,7 +3,7 @@
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
-import { Inset, TICK } from '../inset/inset';
+import { Inset, Obstacles, TICK } from '../inset/inset';
 import { edgePhase, firstMin, phasorChain, sourcesIntensity } from './physics';
 
 type P = { theta: number; a: number; lambda: number; N: number };
@@ -14,10 +14,20 @@ const TH_MAX = 40;
 const SX = 1.6;
 const SH = 7;
 const RAY = 5.2;
-/** Phasor chain: origin and total length when straight. */
+/** Phasor chain: leftmost origin, total length when straight, and its least gap to the rays [units]. */
 const CX = 9.2;
 const CHAIN = 16;
-const PLOT = { x0: 29, y0: -4.5, x1: 37.5, y1: 4.5 };
+const GAP = 1.1;
+/**
+ * Fewest sources: φ/2π reaches a sin 40° / λ = 6.43 at most, so with N ≥ 8 no principal
+ * maximum of the N-source grating (φ = 2πN) falls in range and the minima a sin θ = mλ
+ * are those of (sin α/α)².
+ */
+export const N_MIN = 8;
+
+const narrow = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+/** I(θ) graph right of the chain, or under the slit and chain on narrow screens. */
+const plotRect = () => (narrow() ? { x0: 4.5, y0: -20, x1: 25, y1: -11.5 } : { x0: 32, y0: -4.5, x1: 40.5, y1: 4.5 });
 
 const params: ParamSchema<P> = {
   theta: {
@@ -66,7 +76,7 @@ const params: ParamSchema<P> = {
     group: 'advanced',
     live: true,
     control: 'stepper',
-    min: 2,
+    min: N_MIN,
     max: 20,
     step: 1,
     default: 10,
@@ -77,11 +87,44 @@ const phiOf = (p: P, th = p.theta) => edgePhase(p.a, p.lambda / 1000, th * DEG);
 /** Phase step between neighbouring sources is φ/N; N sources spaced a/N give φ_N = φ across the slit. */
 const intensity = (p: P, th = p.theta) => sourcesIntensity(p.N, phiOf(p, th));
 
-const plot = (g: Draw) => new Inset(g, PLOT, [-TH_MAX, TH_MAX], [0, 1.1]);
+const plot = (g: Draw) => new Inset(g, plotRect(), [-TH_MAX, TH_MAX], [0, 1.1]);
 
-function drawSlit(g: Draw, p: P): void {
+/** Source heights, ray direction, ray ends on the common wavefront, and the dashed wavefront line. */
+export function slitGeometry(p: P) {
   const N = p.N;
   const ys = Array.from({ length: N }, (_, i) => SH / 2 - ((i + 0.5) * SH) / N);
+  const th = p.theta * DEG;
+  const u = { x: Math.cos(th), y: Math.sin(th) };
+  // Rays end on a common wavefront (perpendicular to u) that the top ray reaches after RAY.
+  const c = SX * u.x + ys[0] * u.y + RAY;
+  const ends = ys.map((y): Vec2 => {
+    const L = c - (SX * u.x + y * u.y);
+    return { x: SX + L * u.x, y: y + L * u.y };
+  });
+  const top: Vec2 = { x: SX + RAY * u.x, y: ys[0] + RAY * u.y };
+  const n = { x: -u.y, y: u.x };
+  const span = SH + 1.2;
+  const front: [Vec2, Vec2] = [
+    { x: top.x + n.x, y: top.y + n.y },
+    { x: top.x - n.x * span, y: top.y - n.y * span },
+  ];
+  return { ys, th, u, ends, front };
+}
+
+/**
+ * x of the chain's origin: CX, or further right when the chain would reach back over the rays
+ * and the wavefront (a near-closed chain at large θ), keeping a gap of GAP.
+ */
+export function chainOrigin(p: P): number {
+  const { ends, front } = slitGeometry(p);
+  const right = Math.max(...ends.map((e) => e.x), front[0].x, front[1].x);
+  const left = Math.min(...phasorChain(p.N, phiOf(p), CHAIN / p.N).map((q) => q[0]));
+  return Math.max(CX, right + GAP - left);
+}
+
+function drawSlit(g: Draw, p: P, obs: Obstacles): void {
+  const N = p.N;
+  const { ys, th, u, ends, front } = slitGeometry(p);
   const wall = (ya: number, yb: number) =>
     g.polygon(
       [
@@ -94,19 +137,13 @@ function drawSlit(g: Draw, p: P): void {
     );
   wall(SH / 2, 8.5);
   wall(-8.5, -SH / 2);
-  const th = p.theta * DEG;
-  const u = { x: Math.cos(th), y: Math.sin(th) };
-  // Rays end on a common wavefront (perpendicular to u) that the top ray reaches after RAY.
-  const c = SX * u.x + ys[0] * u.y + RAY;
   ys.forEach((y, i) => {
-    const L = c - (SX * u.x + y * u.y);
     const col = i < N / 2 ? ROLE_COLOR.position : ROLE_COLOR.energyU;
-    g.line({ x: SX, y }, { x: SX + L * u.x, y: y + L * u.y }, { color: col, width: 1.25, alpha: 0.75 });
+    g.line({ x: SX, y }, ends[i], { color: col, width: 1.25, alpha: 0.75 });
+    obs.seg({ x: SX, y }, ends[i]);
   });
-  const top: Vec2 = { x: SX + RAY * u.x, y: ys[0] + RAY * u.y };
-  const n = { x: -u.y, y: u.x };
-  const span = SH + 1.2;
-  g.line({ x: top.x + n.x, y: top.y + n.y }, { x: top.x - n.x * span, y: top.y - n.y * span }, { color: TICK, width: 1, dash: [4, 4] });
+  g.line(front[0], front[1], { color: TICK, width: 1, dash: [4, 4] });
+  obs.seg(front[0], front[1]);
   // Extra path a sin θ, on the ray that travels farther (bottom for θ > 0, top for θ < 0).
   const extra = Math.abs((ys[0] - ys[N - 1]) * u.y);
   if (extra > g.px(3)) {
@@ -128,31 +165,45 @@ function drawSlit(g: Draw, p: P): void {
   g.text({ x: SX - 0.3, y: 0 }, '*a*', { size: 14, color: TICK, align: 'right', baseline: 'middle', dx: -8 });
 }
 
-function drawChain(g: Draw, p: P): void {
+function drawChain(g: Draw, p: P, obs: Obstacles): void {
   const N = p.N;
   const len = CHAIN / N;
   const pts = phasorChain(N, phiOf(p), len);
-  const O = { x: CX, y: 0 };
-  const at = ([x, y]: [number, number]): Vec2 => ({ x: CX + x, y });
-  g.line(O, { x: CX + CHAIN, y: 0 }, { color: '#c8c8c8', width: 1, dash: [3, 4] });
-  g.text({ x: CX + CHAIN, y: 0 }, '*E*_{m}', { size: 13, color: TICK, align: 'left', baseline: 'middle', dx: 8 });
+  const cx0 = chainOrigin(p);
+  const O = { x: cx0, y: 0 };
+  const at = ([x, y]: [number, number]): Vec2 => ({ x: cx0 + x, y });
+  g.line(O, { x: cx0 + CHAIN, y: 0 }, { color: '#c8c8c8', width: 1, dash: [3, 4] });
+  obs.seg(O, { x: cx0 + CHAIN, y: 0 }, 0.3);
+  // E_m after the end of the line, or above its end when the chain sits far right and the
+  // label would reach the I(θ) plot (wide) or the stage edge (narrow).
+  const limit = narrow() ? g.vp.toWorld(g.vp.w - 4, 0)[0] : plotRect().x0 - g.px(14);
+  const after = cx0 + CHAIN + g.px(36) <= limit;
+  const emAt = { x: cx0 + CHAIN, y: 0 };
+  if (after) g.text(emAt, '*E*_{m}', { size: 13, color: TICK, align: 'left', baseline: 'middle', dx: 8 });
+  else g.text(emAt, '*E*_{m}', { size: 13, color: TICK, align: 'right', baseline: 'middle', dy: -12 });
+  const [ex, ey] = g.vp.toPx(emAt.x, emAt.y);
+  if (after) obs.box(ex + 4, ey - 10, ex + 34, ey + 10, 2);
+  else obs.box(ex - 30, ey - 22, ex + 2, ey - 2, 2);
   for (let k = 0; k < N; k++) {
     const a = at(pts[k]);
     const b = at(pts[k + 1]);
     g.arrow(a, { x: b.x - a.x, y: b.y - a.y }, { role: k < N / 2 ? 'position' : 'energyU', width: 2 });
+    obs.seg(a, b, 2);
   }
   const end = at(pts[N]);
   const R = { x: end.x - O.x, y: end.y - O.y };
   if (Math.hypot(R.x, R.y) > g.px(6)) g.arrow(O, R, { role: 'fg', width: 3 });
+  obs.seg(O, end, 2);
   g.circle(O, 3, { fill: 'fg' });
-  // Label the resultant beside its middle, on the side away from the chain's centre.
+  // Label the resultant beside its middle (or beside O when it is short), on the side away from
+  // the chain's centre if that is clear, otherwise at the nearest spot that covers nothing.
   let cx = 0;
   let cy = 0;
   for (const q of pts) {
     cx += q[0] / pts.length;
     cy += q[1] / pts.length;
   }
-  const C = { x: CX + cx, y: cy };
+  const C = { x: cx0 + cx, y: cy };
   const mid = { x: O.x + R.x / 2, y: O.y + R.y / 2 };
   const rl = Math.hypot(R.x, R.y);
   let n = rl > g.px(24) ? { x: -R.y / rl, y: R.x / rl } : { x: O.x - C.x, y: O.y - C.y };
@@ -160,7 +211,27 @@ function drawChain(g: Draw, p: P): void {
   n = { x: n.x / nl, y: n.y / nl };
   if ((mid.x - C.x) * n.x + (mid.y - C.y) * n.y < 0) n = { x: -n.x, y: -n.y };
   const lp = rl > g.px(24) ? mid : O;
-  g.text({ x: lp.x + n.x * g.px(20), y: lp.y + n.y * g.px(20) }, '*E*_{*θ*}', { size: 14, align: 'center', baseline: 'middle' });
+  const [lx, ly] = g.vp.toPx(lp.x, lp.y);
+  const hw = 12;
+  const hh = 11;
+  let best: [number, number] = [lx + n.x * 20, ly - n.y * 20];
+  let bestScore = Infinity;
+  // Directions: the preferred normal first, then around the circle; distances 20 to 92 px.
+  const a0 = Math.atan2(-n.y, n.x);
+  for (const d of [20, 30, 44, 64, 92])
+    for (let k = 0; k < 12; k++) {
+      const a = a0 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 6);
+      const x = lx + Math.cos(a) * d;
+      const y = ly + Math.sin(a) * d;
+      let score = 10 * obs.cost(x - hw, y - hh, x + hw, y + hh) + d / 20 + Math.ceil(k / 2) * 0.1;
+      if (x - hw < 2 || x + hw > g.vp.w - 2 || y - hh < 2 || y + hh > g.vp.h - 2) score += 1000;
+      if (score < bestScore) {
+        bestScore = score;
+        best = [x, y];
+      }
+    }
+  const [wx, wy] = g.vp.toWorld(best[0], best[1]);
+  g.text({ x: wx, y: wy }, '*E*_{*θ*}', { size: 14, align: 'center', baseline: 'middle' });
 }
 
 function drawPlot(g: Draw, p: P): void {
@@ -185,24 +256,27 @@ export const phasor: Scene<P, { t: number }> = {
   id: 'phasor',
   title: 'ch36.ph.scene',
   params,
-  world: () => ({ x: [-0.4, 38.5], y: [-9, 9], aspect: 'contain', padPx: 16 }),
+  world: () =>
+    narrow() ? { x: [-0.4, 31.6], y: [-22.4, 9], aspect: 'contain', padPx: 12 } : { x: [-0.4, 41.5], y: [-9, 9], aspect: 'contain', padPx: 16 },
   init: () => ({ t: 0 }),
 
   draw: (g, _s, p) => {
-    drawSlit(g, p);
-    drawChain(g, p);
+    const obs = new Obstacles(g);
+    drawSlit(g, p, obs);
+    drawChain(g, p, obs);
     drawPlot(g, p);
   },
 
   handles: [
     {
-      pos: (_s, p) => ({
-        x: PLOT.x0 + ((p.theta + TH_MAX) / (2 * TH_MAX)) * (PLOT.x1 - PLOT.x0),
-        y: PLOT.y0 + (intensity(p) / 1.1) * (PLOT.y1 - PLOT.y0),
-      }),
+      pos: (_s, p) => {
+        const r = plotRect();
+        return { x: r.x0 + ((p.theta + TH_MAX) / (2 * TH_MAX)) * (r.x1 - r.x0), y: r.y0 + (intensity(p) / 1.1) * (r.y1 - r.y0) };
+      },
       radiusPx: 14,
       onDrag: (ctx, _s, w) => {
-        const raw = -TH_MAX + ((w.x - PLOT.x0) / (PLOT.x1 - PLOT.x0)) * 2 * TH_MAX;
+        const r = plotRect();
+        const raw = -TH_MAX + ((w.x - r.x0) / (r.x1 - r.x0)) * 2 * TH_MAX;
         const th = Math.round(Math.min(TH_MAX, Math.max(-TH_MAX, raw)) * 10) / 10;
         if (th !== ctx.params.theta) ctx.set('theta', th);
       },

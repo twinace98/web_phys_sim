@@ -22,7 +22,7 @@
   "ch39.p.b": "Barrier width",
   "ch39.d.b": "Width of the barrier between the two wells",
   "ch39.p.pair": "Superposition",
-  "ch39.d.pair": "The two stationary states mixed in equal parts",
+  "ch39.d.pair": "The two stationary states mixed in equal parts, named by their quantum numbers $n$ (the oscillator starts at $n = 0$)",
   "ch39.pair.12": "1 + 2",
   "ch39.pair.13": "1 + 3",
   "ch39.pair.23": "2 + 3",
@@ -35,12 +35,14 @@
   "ch39.w.obs.nodes": "State $n$ has $n - 1$ nodes; higher energy means shorter wavelength",
   "ch39.s.goal.osc": "Mixing two stationary states of different energy makes the probability density oscillate",
   "ch39.s.goal.period": "The period is $T = h/(E_b - E_a)$: a larger energy difference oscillates faster",
-  "ch39.s.obs.slosh": "1 + 2: the density sloshes from side to side and $\\langle x\\rangle$ oscillates",
-  "ch39.s.obs.parity": "1 + 3 in a symmetric potential: both states have the same symmetry, so $\\langle x\\rangle$ stays at 0 while the shape breathes",
+  "ch39.s.obs.slosh": "1 + 2 (oscillator: 0 + 1): the density sloshes from side to side and $\\langle x\\rangle$ oscillates",
+  "ch39.s.obs.parity": "1 + 3 (oscillator: 0 + 2) in a symmetric potential: both states have the same symmetry, so $\\langle x\\rangle$ stays at 0 while the shape breathes",
   "ch39.s.obs.tunnel": "Double well 1 + 2: the particle tunnels back and forth through the barrier; a smaller pair splitting gives a longer period",
-  "ch39.s.obs.stationary": "A single stationary state has a density that never changes",
   "ch39.assume.electron": "Particle: an electron ($m = m_e$) in one dimension",
   "ch39.assume.fd": "The Schrödinger equation is solved numerically by finite differences; the finite well has hard walls 2.5 nm beyond each edge",
   "ch39.assume.amp": "Wave-function heights are in arbitrary units (every state drawn the same height); the baseline sits at the state's energy",
-  "ch39.assume.supamp": "Density height in arbitrary units; baseline at the mean energy $(E_a + E_b)/2$"
+  "ch39.assume.supamp": "Density height in arbitrary units; baseline at the mean energy $(E_a + E_b)/2$",
+  "ch39.pair.01": "0 + 1",
+  "ch39.pair.02": "0 + 2",
+  "ch39.s.assume.range": "Ranges in this tab: well width at least 1.0 nm, finite-well depth at least 1.8 eV, so every potential holds three or more bound states and all three pairs exist"
 }

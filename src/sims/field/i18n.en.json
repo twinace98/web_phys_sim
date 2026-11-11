@@ -7,6 +7,7 @@
   "field.shape.square": "Square",
   "field.shape.free": "Free curve",
   "field.view.lines": "Field lines",
+  "field.view.blines": "Field lines",
   "field.view.vectors": "Vector arrows",
   "field.view.off": "Off"
 }

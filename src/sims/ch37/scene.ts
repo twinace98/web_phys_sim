@@ -5,9 +5,9 @@ import { fmt } from '../../core/format';
 import { t } from '../../core/i18n';
 import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { ROLE_COLOR } from '../../draw/theme';
+import { ROLE_COLOR, theme } from '../../draw/theme';
 import { measureRich } from '../../draw/text';
-import { Frame, PX_WORLD, TICK, canvasBox, linePx, split, textPx, type Box } from '../modern/frame';
+import { Frame, PX_WORLD, TICK, W, canvasBox, linePx, split, textPx, type Box } from '../modern/frame';
 import { bounce, contracted, gamma, lorentz, movingPeriod, restPeriod, ticks, trainEvents } from './physics';
 
 /** Frame colours: S blue, S' orange (as A and B in Ch 3). */
@@ -31,7 +31,7 @@ const betaParam = (def: number, min: number, max: number, live = false): NumberP
 });
 
 /** Two views: side by side on wide screens, stacked on narrow ones. */
-function views(g: Draw): [Box, Box] {
+export function views(g: Draw): [Box, Box] {
   const o = canvasBox(g);
   const wide = g.vp.w > g.vp.h * 1.25;
   return split({ l: o.l + 16, t: o.t + 16, r: o.r - 16, b: o.b - 16 }, wide, 0.5, wide ? 28 : 20);
@@ -55,6 +55,25 @@ function viewTitle(g: Draw, box: Box, key: string, colour: string): void {
 
 /** x wrapped into [lo, hi). */
 const wrapTo = (x: number, lo: number, hi: number) => lo + ((((x - lo) % (hi - lo)) + (hi - lo)) % (hi - lo));
+
+/**
+ * Tail x [CSS px] of a velocity arrow drawn from xPx in direction dir with length len, shifted so
+ * the arrow and its label (about 18 px past the head) stay inside the box. Near the edge where
+ * the object leaves the view, the arrow stays at the edge.
+ */
+export function arrowTail(box: Box, xPx: number, dir: 1 | -1, len: number): number {
+  const room = 18 * theme.scale;
+  const lo = box.l + 6 + (dir < 0 ? len + room : 0);
+  const hi = box.r - 6 - (dir > 0 ? len + room : 0);
+  return Math.min(hi, Math.max(lo, xPx));
+}
+
+/** Velocity arrow of a moving object at data x, kept inside the box with its label. */
+function vArrow(g: Draw, f: Frame, x: number, y: number, dir: 1 | -1, beta: number): void {
+  const len = (16 + 40 * beta) * theme.scale;
+  const x0 = arrowTail(f.box, f.X(x), dir, len);
+  g.arrow(W(g, x0, f.Y(y)), { x: dir * g.px(16 + 40 * beta), y: 0 }, { role: 'velocity', width: 2, label: '*v*' });
+}
 
 // ------------------------------------------------------------------ light clocks
 
@@ -100,7 +119,7 @@ function clockView(g: Draw, box: Box, time: number, beta: number, own: string, o
   f.polyline(seg, { color: TRAIL, width: 1.25 });
   const xm = xAt(time);
   drawClock(g, f, xm, yBot, other, time, P, ticks(time, P));
-  g.arrow(f.P(xm, yBot - 0.45), { x: dir * g.px(16 + 40 * beta), y: 0 }, { role: 'velocity', width: 2, label: '*v*' });
+  vArrow(g, f, xm, yBot - 0.45, dir, beta);
 }
 
 export const lightClocks: Scene<PB, { t: number; n: number }> = {
@@ -169,7 +188,7 @@ function rodView(g: Draw, box: Box, time: number, beta: number, own: string, oth
   f.text(1, yTop + 0.3, `*L*_{0} = ${fmt(L_ROD, 3)} ls`, { size: 13, color: own, dy: -8 });
   f.text(-0.3, yBot - 0.1, `*L* = ${fmt(Lc, 3)} ls`, { size: 13, color: other, dy: 18 });
   const xm = wrapTo(xs + Lc / 2, -0.5, W + 0.5);
-  f.clip(() => g.arrow(f.P(xm, yBot + 0.6), { x: dir * g.px(16 + 40 * beta), y: 0 }, { role: 'velocity', width: 2, label: '*v*' }));
+  vArrow(g, f, xm, yBot + 0.6, dir, beta);
 }
 
 export const rods: Scene<PB, { t: number; n: number }> = {
@@ -341,6 +360,18 @@ type PT = { beta: number };
 const L_TRAIN = 4;
 const tEndTrain = (p: PT) => trainEvents(L_TRAIN, p.beta).frontS + 0.8;
 
+/** Ground posts 1 ls apart in S (x = k). In S' at time t' they sit at x' = k/γ − βt'. */
+export function groundPosts(xr: [number, number], time: number, beta: number, inS: boolean): number[] {
+  const sp = inS ? 1 : 1 / gamma(beta);
+  const shift = inS ? 0 : -beta * time;
+  const out: number[] = [];
+  for (let k = Math.floor((xr[0] - shift) / sp) - 1; k <= (xr[1] - shift) / sp + 1; k++) {
+    const x = k * sp + shift;
+    if (x >= xr[0] && x <= xr[1]) out.push(x);
+  }
+  return out;
+}
+
 function trainView(g: Draw, box: Box, time: number, p: PT, inS: boolean, xr: [number, number]): void {
   const f = isoFrame(g, box, xr[0], xr[1], 0.3);
   const b = p.beta;
@@ -348,13 +379,9 @@ function trainView(g: Draw, box: Box, time: number, p: PT, inS: boolean, xr: [nu
   const xc = inS ? b * time : 0;
   const yG = -0.25;
   const ev = trainEvents(L_TRAIN, b);
-  // Ground with posts; they move left in the train frame.
+  // Ground with posts; in the train frame they move left and their spacing is contracted.
   f.line(xr[0], yG, xr[1], yG, { color: '#8c8c8c', width: 1.5 });
-  const shift = inS ? 0 : -b * time;
-  for (let k = Math.floor(xr[0] - shift) - 1; k <= xr[1] - shift + 1; k++) {
-    const x = k + shift;
-    if (x >= xr[0] && x <= xr[1]) f.line(x, yG, x, yG - 0.15, { color: '#8c8c8c', width: 1 });
-  }
+  for (const x of groundPosts(xr, time, b, inS)) f.line(x, yG, x, yG - 0.15, { color: '#8c8c8c', width: 1 });
   // Flash point on the ground (fixed in S).
   const xFlash = inS ? 0 : -b * time;
   g.polygon([f.P(xFlash, yG), f.P(xFlash - 0.07, yG - 0.14), f.P(xFlash + 0.07, yG - 0.14)], { fill: '#8c8c8c' });

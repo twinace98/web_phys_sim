@@ -144,7 +144,7 @@ export const bandsScene: Scene<P, { t: number }> = {
   info: {
     goals: ['ch41.b.goal.split', 'ch41.b.goal.gap'],
     observe: ['ch41.b.obs.two', 'ch41.b.obs.N', 'ch41.b.obs.b', 'ch41.b.obs.upper'],
-    equations: ['N \\text{ wells} \\;\\to\\; N \\text{ levels per band}', '\\cos qd = \\cos ka\\cosh\\kappa b + \\frac{\\kappa^2 - k^2}{2k\\kappa}\\sin ka\\sinh\\kappa b'],
+    equations: ['E_1 \\;\\to\\; E_{1,1}, E_{1,2}, \\dots, E_{1,N}', '\\cos qd = \\cos ka\\cosh\\kappa b + \\frac{\\kappa^2 - k^2}{2k\\kappa}\\sin ka\\sinh\\kappa b'],
     assumptions: ['ch41.b.assume.model', 'ch41.b.assume.kp'],
   },
 };

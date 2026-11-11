@@ -46,7 +46,9 @@ function drawBox(g: Draw, r: Rect, s: S, p: P): void {
     d.polyline(box, { color: WALL, width: 2.5 });
     if (s.t === 0) d.line({ x: 1, y: 0 }, { x: 1, y: 1 }, { color: WALL, width: 4 });
     else d.line({ x: 1, y: 0 }, { x: 1, y: 1 }, { color: '#c8c8c8', width: 1, dash: [4, 5] });
-    const rPx = p.N <= 10 ? 7 : p.N <= 100 ? 4 : 2.2;
+    // Radius in box units (box height 1), so particles shrink with the box on a narrow screen.
+    const rBox = p.N <= 10 ? 0.025 : p.N <= 100 ? 0.014 : 0.0078;
+    const rPx = Math.max(1.2, rBox / d.px(1));
     const pt = s.part;
     for (let i = 0; i < pt.N; i++) d.circle({ x: pt.x[i], y: pt.y[i] }, rPx, { fill: BLUE });
     d.text({ x: 0.5, y: 1 }, `*n* = ${s.n}`, { size: 13, color: '#1a1a1a', align: 'center', dy: -8 });

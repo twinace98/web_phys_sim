@@ -11,6 +11,8 @@
   "ch10.d.tau": "Constant torque applied equally to both rotors",
   "ch10.p.shape": "Body",
   "ch10.d.shape": "Ring, disk and rod with the same mass 2 kg and radius 0.5 m (rod 1 m long)",
+  "ch10.p.d": "Axis offset $d$",
+  "ch10.d.d": "Distance from the centre of mass to the rotation axis; drag the axis ⊙",
   "ch10.shape.ring": "Ring",
   "ch10.shape.disk": "Disk",
   "ch10.shape.rod": "Rod",

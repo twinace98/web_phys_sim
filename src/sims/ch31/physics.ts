@@ -14,6 +14,15 @@ export interface RLC {
 export const omega0 = (c: RLC) => 1 / Math.sqrt(c.L * c.C);
 /** Damping constant γ = R / 2L. */
 export const gamma = (c: RLC) => c.R / (2 * c.L);
+/**
+ * Damped angular frequency ω' = √(1/LC − (R/2L)²); NaN when critically damped or overdamped
+ * (no oscillation, no period). The same tolerance as freeAt decides the regime.
+ */
+export function omegaDamped(c: RLC): number {
+  const w0 = omega0(c);
+  const d = gamma(c) ** 2 - w0 * w0;
+  return d < -1e-9 * w0 * w0 ? Math.sqrt(-d) : NaN;
+}
 
 /** Charge and current of the free circuit (under-, critically or over-damped). */
 export function freeAt(c: RLC, q0: number, t: number): { q: number; i: number } {

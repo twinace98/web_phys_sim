@@ -6,7 +6,8 @@
   "field.shape.circle": "원",
   "field.shape.square": "정사각형",
   "field.shape.free": "자유 곡선",
-  "field.view.lines": "장선",
+  "field.view.lines": "전기력선",
+  "field.view.blines": "자기력선",
   "field.view.vectors": "벡터 화살표",
   "field.view.off": "끄기"
 }

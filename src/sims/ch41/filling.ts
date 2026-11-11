@@ -205,7 +205,7 @@ export const filling: Scene<P, { t: number }> = {
   },
 
   readouts: [
-    { label: 'E_\\text{g}', unit: 'eV', value: (_s, p) => (p.mat === 'metal' ? 0 : MATERIALS[p.mat as Exclude<MaterialId, 'metal'>].Eg) },
+    { label: 'E_\\text{g}', unit: 'eV', value: (_s, p) => (p.mat === 'metal' ? NaN : MATERIALS[p.mat as Exclude<MaterialId, 'metal'>].Eg) },
     { label: 'n', unit: 'cm⁻³', value: (_s, p) => layout(p.mat as MaterialId, p.T).n },
   ],
 

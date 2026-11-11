@@ -3,14 +3,14 @@
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { BOX, KQ, POINT_POOL, V, clearOf, layoutParam, pointCoords, pointSources, pointWorld, presetParam, presetTag } from '../field/charges';
 import { FieldLayers, palette } from '../field/layers';
-import { chargeGlyph, Memo, SURFACE, srcKey, type Tray } from '../field/render';
+import { chargeGlyph, freeSpot, Memo, SURFACE, srcKey, type Tray } from '../field/render';
 import { slotHandles } from '../field/slots';
-import { workAlong } from './physics';
+import { extendPath, workAlong } from './physics';
 
 type P = { preset: string; view: string; lines: boolean; dV: number; Q: number[] };
 type S = { t: number; tray?: Tray; A: Vec2; path: number[] };
 
-const START: Vec2 = { x: -0.15, y: 0.45 };
+const START: Vec2 = { x: -0.15, y: 0.58 };
 const MAX_PTS = 6000;
 
 const params: ParamSchema<P> = {
@@ -50,7 +50,8 @@ export const potential: Scene<P, S> = {
     const src = pointSources(p);
     if (p.view !== 'eq') layers.heatmap(g, src, 25 / KQ, 600 / KQ);
     if (p.lines) layers.lines(g, src, '#c4c4c4', 1);
-    if (p.view !== 'heat') layers.equipotentials(g, src, KQ, p.dV);
+    // Heat map alone still shows the V = 0 level as a dashed line.
+    layers.equipotentials(g, src, KQ, p.dV, p.view === 'heat' ? 0 : 12);
 
     if (s.path.length >= 4) {
       const pts: Vec2[] = [];
@@ -59,12 +60,16 @@ export const potential: Scene<P, S> = {
     }
     for (const c of src) chargeGlyph(g, c, c.s);
 
-    g.circle(s.A, 5, { fill: '#1a1a1a' });
-    g.text(s.A, 'A', { size: 13, color: '#1a1a1a', align: 'right', baseline: 'middle', dx: -11, dy: -12 });
+    // Labels A (above left) and q0 (below right) move to a free diagonal when a charge is closer.
     const q = end(s);
+    const charges: Vec2[] = src.map((c) => ({ x: c.x, y: c.y }));
+    const a = freeSpot(g, s.A, [...charges, q], 2, 11, 12);
+    const q0 = freeSpot(g, q, [...charges, s.A, a.at], 1, 11, 11);
+    g.circle(s.A, 5, { fill: '#1a1a1a' });
+    g.text(a.at, 'A', { size: 13, color: '#1a1a1a', align: a.align, baseline: 'middle' });
     g.circle(q, 7, { fill: '#ffffff', color: '#1a1a1a', width: 1.5 });
     g.text(q, '+', { size: 12, color: '#1a1a1a', align: 'center', baseline: 'middle', dy: 0.5 });
-    g.text(q, '*q*_{0}', { size: 13, color: '#1a1a1a', align: 'left', baseline: 'middle', dx: 11, dy: 11 });
+    g.text(q0.at, '*q*_{0}', { size: 13, color: '#1a1a1a', align: q0.align, baseline: 'middle' });
     palette(g, s, POINT_POOL, pointCoords(p), chargeGlyph);
   },
 
@@ -75,10 +80,12 @@ export const potential: Scene<P, S> = {
       pos: (s) => end(s),
       onDrag: (_ctx, s, w) => {
         const src = pointSources(_ctx.params);
-        const [x, y] = clearOf(src, Math.min(BOX[2], Math.max(BOX[0], w.x)), Math.min(BOX[3], Math.max(BOX[1], w.y)));
+        const x = Math.min(BOX[2], Math.max(BOX[0], w.x));
+        const y = Math.min(BOX[3], Math.max(BOX[1], w.y));
         const q = end(s);
-        if (Math.hypot(x - q.x, y - q.y) < 0.002 || s.path.length >= 2 * MAX_PTS) return;
-        s.path.push(x, y);
+        if (Math.hypot(x - q.x, y - q.y) < 0.002) return;
+        // Fast drags may jump across a charge: the path goes round it, never through it.
+        extendPath(src, s.path, x, y, 0.05, MAX_PTS);
       },
     },
     {

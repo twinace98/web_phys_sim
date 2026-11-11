@@ -61,3 +61,19 @@ export function niceTicks(lo: number, hi: number, target = 4): number[] {
   }
   return out;
 }
+
+/**
+ * Clock text: decimals fine enough that one step-button press (`frameStep`) shows, and about
+ * three significant figures over the run (`span`: end time or plot window); at most 3 decimals.
+ * So 23960 s of an orbit reads "23960", a 3 s throw "1.24".
+ */
+export function clockDecimals(frameStep: number, span: number): number {
+  const byStep = frameStep > 0 ? Math.ceil(-Math.log10(frameStep) - 1e-9) : 0;
+  const bySpan = span > 0 ? 2 - Math.floor(Math.log10(span) + 1e-9) : 0;
+  return Math.min(3, Math.max(0, byStep, bySpan));
+}
+
+export function fmtClock(t: number, decimals: number): string {
+  const a = Math.abs(t) < 0.5 * 10 ** -decimals ? 0 : t;
+  return a.toFixed(decimals).replace('-', '−');
+}

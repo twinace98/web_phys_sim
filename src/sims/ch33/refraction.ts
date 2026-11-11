@@ -190,41 +190,129 @@ const fibreParams: ParamSchema<PF> = {
   },
 };
 
-interface Seg {
+export type Layer = 'core' | 'clad' | 'out';
+
+export interface Seg {
   a: Vec2;
   b: Vec2;
   I: number;
+  /** Medium the segment runs in. */
+  layer: Layer;
 }
 
-/** Trace the guided ray and every partly escaping branch along the core. */
-export function traceFibre(p: PF): { guided: Seg[]; escaped: Seg[] } {
-  const f = fibreOf(p);
-  const beta = coreAngle(f, p.alpha * DEG);
-  const inc = wallIncidence(f, p.alpha * DEG);
-  const R = reflectance(f.n1, f.n2, inc);
-  const tOut = snell(f.n1, f.n2, inc);
-  const guided: Seg[] = [];
-  const escaped: Seg[] = [];
-  let pos: Vec2 = { x: X0, y: 0 };
-  let dy = 1;
-  let I = 1 - reflectance(1, N_CORE, p.alpha * DEG);
-  for (let k = 0; k < 400 && pos.x < XF && I > 0.004; k++) {
-    if (beta < 1e-6) {
-      guided.push({ a: pos, b: { x: XF, y: 0 }, I });
-      break;
+/** A boundary hit: where, the incidence angle from the normal, both media, and the refraction angle. */
+export interface Hit {
+  at: Vec2;
+  inc: number;
+  from: Layer;
+  to: Layer;
+  nFrom: number;
+  nTo: number;
+  /** Refraction angle, NaN under total internal reflection (then only the reflected branch). */
+  out: number;
+}
+
+const MAX_SEGS = 1200;
+const I_MIN = 0.004;
+
+/**
+ * Ray tree in a straight fibre: core |y| < CR (n1), cladding CR < |y| < CL (n2), outside (n0).
+ * Every boundary splits a ray into a Fresnel-reflected branch and a Snell-refracted one (only the
+ * reflected one under total internal reflection), so n·cos(angle to the axis) is the same in
+ * every layer. A ray ends at the far end XF or, outside the fibre, at the stage edge. Branches
+ * weaker than the line-drawing threshold are dropped; the strongest are traced first.
+ */
+export function traceRays(f: Fibre, alpha: number): { segs: Seg[]; hits: Hit[] } {
+  const nOf = (L: Layer) => (L === 'core' ? f.n1 : L === 'clad' ? f.n2 : f.n0);
+  const beta = coreAngle(f, alpha);
+  type Ray = { p: Vec2; ux: number; uy: number; I: number; L: Layer };
+  const queue: Ray[] = [{ p: { x: X0, y: 0 }, ux: Math.cos(beta), uy: Math.sin(beta), I: 1 - reflectance(f.n0, f.n1, alpha), L: 'core' }];
+  const segs: Seg[] = [];
+  const hits: Hit[] = [];
+  while (queue.length && segs.length < MAX_SEGS) {
+    let k = 0;
+    for (let i = 1; i < queue.length; i++) if (queue[i].I > queue[k].I) k = i;
+    const { p, ux, uy, I, L } = queue.splice(k, 1)[0];
+    if (L === 'out') {
+      // Straight on to the stage edge.
+      const tx = (FX - p.x) / ux;
+      const ty = Math.abs(uy) < 1e-12 ? Infinity : (Math.sign(uy) * FY - p.y) / uy;
+      const t = Math.max(0, Math.min(tx, ty));
+      segs.push({ a: p, b: { x: p.x + ux * t, y: p.y + uy * t }, I, layer: L });
+      continue;
     }
-    const yWall = dy * CR;
-    const hit = { x: pos.x + Math.abs(yWall - pos.y) / Math.tan(beta), y: yWall };
-    guided.push({ a: pos, b: hit, I });
-    if (!Number.isNaN(tOut)) {
-      const L = (CL - CR) / Math.cos(tOut) + 2;
-      escaped.push({ a: hit, b: { x: hit.x + L * Math.sin(tOut), y: hit.y + dy * L * Math.cos(tOut) }, I: I * (1 - R) });
+    // Next boundary along the ray: the core wall, or the inner or outer cladding edge.
+    const s = Math.sign(uy);
+    let yB = NaN;
+    let to: Layer = L;
+    if (s !== 0 && L === 'core') {
+      yB = s * CR;
+      to = 'clad';
+    } else if (s !== 0) {
+      const outward = Math.sign(p.y) === s;
+      yB = outward ? s * CL : -s * CR;
+      to = outward ? 'out' : 'core';
     }
-    I *= R;
-    pos = hit;
-    dy = -dy;
+    const xB = Number.isNaN(yB) ? Infinity : p.x + ((yB - p.y) / uy) * ux;
+    if (xB >= XF) {
+      segs.push({ a: p, b: { x: XF, y: p.y + ((XF - p.x) / ux) * uy }, I, layer: L });
+      continue;
+    }
+    const at = { x: xB, y: yB };
+    segs.push({ a: p, b: at, I, layer: L });
+    const nFrom = nOf(L);
+    const nTo = nOf(to);
+    const inc = Math.acos(Math.min(1, Math.abs(uy)));
+    const out = snell(nFrom, nTo, inc);
+    const R = reflectance(nFrom, nTo, inc);
+    hits.push({ at, inc, from: L, to, nFrom, nTo, out });
+    if (I * R > I_MIN) queue.push({ p: at, ux, uy: -uy, I: I * R, L });
+    if (!Number.isNaN(out) && I * (1 - R) > I_MIN) queue.push({ p: at, ux: Math.sin(out), uy: s * Math.cos(out), I: I * (1 - R), L: to });
   }
-  return { guided, escaped };
+  return { segs, hits };
+}
+
+/** The scene's ray tree split into core segments and those that left the core. */
+export function traceFibre(p: PF): { guided: Seg[]; escaped: Seg[]; hits: Hit[] } {
+  const { segs, hits } = traceRays(fibreOf(p), p.alpha * DEG);
+  return { guided: segs.filter((s) => s.layer === 'core'), escaped: segs.filter((s) => s.layer !== 'core'), hits };
+}
+
+/**
+ * n1 and n2 left of the entry face, beside the core and the cladding. On a small stage the
+ * core is too thin for a label beside it, clear of the input ray and its knob: the labels
+ * then stack above the fibre, each with a leader into its layer (near the face, where no ray
+ * or leaking branch passes).
+ */
+export function indexLabels(g: Draw, f: Fibre): 'beside' | 'leader' {
+  const n1 = `*n*_{1} = ${f.n1.toFixed(2)}`;
+  const n2 = `*n*_{2} = ${f.n2.toFixed(2)}`;
+  if (CR / g.px(1) >= 24) {
+    g.text({ x: X0, y: CR / 2 }, n1, { size: 13, align: 'right', baseline: 'middle', dx: -8 });
+    g.text({ x: X0, y: (CR + CL) / 2 }, n2, { size: 13, align: 'right', baseline: 'middle', dx: -8 });
+    return 'beside';
+  }
+  const lead = { color: TICK, width: 1 };
+  const rows: [string, number, number, number][] = [
+    // label, row height above the fibre [px], leader x past the face [px], leader end y
+    [n1, 14, 4, 0.75 * CR],
+    [n2, 34, 10, (CR + CL) / 2],
+  ];
+  for (const [s, dy, dx, yEnd] of rows) {
+    const y = CL + g.px(dy);
+    const xl = X0 + g.px(dx);
+    g.polyline(
+      [
+        { x: X0 - g.px(6), y },
+        { x: xl, y },
+        { x: xl, y: yEnd },
+      ],
+      lead,
+    );
+    g.circle({ x: xl, y: yEnd }, 2, { fill: TICK });
+    g.text({ x: X0, y }, s, { size: 13, align: 'right', baseline: 'middle', dx: -9 });
+  }
+  return 'leader';
 }
 
 export const fibre: Scene<PF, { t: number }> = {
@@ -238,8 +326,7 @@ export const fibre: Scene<PF, { t: number }> = {
     const f = fibreOf(p);
     g.polygon(rect(X0, -CL, XF, CL), { fill: MEDIUM, fillAlpha: tint(f.n2), color: '#9a9a9a', width: 1 });
     g.polygon(rect(X0, -CR, XF, CR), { fill: MEDIUM, fillAlpha: tint(f.n1), color: '#5c5c5c', width: 1.25 });
-    g.text({ x: X0, y: CR / 2 }, `*n*_{1} = ${f.n1.toFixed(2)}`, { size: 13, align: 'right', baseline: 'middle', dx: -8 });
-    g.text({ x: X0, y: (CR + CL) / 2 }, `*n*_{2} = ${f.n2.toFixed(2)}`, { size: 13, align: 'right', baseline: 'middle', dx: -8 });
+    indexLabels(g, f);
 
     const a = p.alpha * DEG;
     const S = { x: X0 - LIN * Math.cos(a), y: -LIN * Math.sin(a) };
@@ -251,9 +338,15 @@ export const fibre: Scene<PF, { t: number }> = {
       for (const sg of guided) ray(g, sg.a, sg.b, sg.I);
     });
     g.circle(S, 9, { fill: '#ffffff', color: RAY, width: 2 });
+    // Angle arc and label well inside the handle's radius LIN, so the knob never covers them.
+    const lin = LIN / g.px(1);
+    const arcR = Math.min(40, 0.4 * lin);
+    const labR = Math.min(56, 0.58 * lin);
     if (a > 1.5 * DEG) {
-      g.arc({ x: X0, y: 0 }, 40, Math.PI, Math.PI + a, { color: TICK, width: 1.25 });
-      g.text({ x: X0 - Math.cos(a / 2) * g.px(56), y: -Math.sin(a / 2) * g.px(56) }, '*α*', { size: 13, color: TICK, align: 'center', baseline: 'middle' });
+      g.arc({ x: X0, y: 0 }, arcR, Math.PI, Math.PI + a, { color: TICK, width: 1.25 });
+      // Inside the wedge when it is wide enough for the glyph, otherwise just below the ray.
+      const la = 2 * labR * Math.sin(a / 2) >= 24 ? a / 2 : a + 20 * DEG;
+      g.text({ x: X0 - Math.cos(la) * g.px(labR), y: -Math.sin(la) * g.px(labR) }, '*α*', { size: 13, color: TICK, align: 'center', baseline: 'middle' });
     }
   },
 

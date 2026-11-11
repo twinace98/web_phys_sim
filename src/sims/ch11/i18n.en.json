@@ -20,7 +20,7 @@
   "ch11.s.obs.work": "$K(t)$ rises when the string is pulled in and falls when it is let out; the rise equals the work done by the pulling force",
   "ch11.s.obs.area": "Swept areas: sectors swept in equal times have equal areas, whether long and thin or short and wide (the same principle as Kepler's second law, Ch 13)",
   "ch11.s.obs.release": "Let out: as the radius grows, $\\omega$ falls while $L$ stays the same",
-  "ch11.s.assume": "Frictionless table, massless string, point-like puck; the string is worked so that the radius changes smoothly over a fixed time; seen from above",
+  "ch11.s.assume": "Frictionless table, massless string, point-like puck; the string is worked so that the radius changes smoothly over a fixed time; seen from above. The tension $T \\propto 1/r^3$ changes by up to 37 times, so its arrow is proportional to $T$ above a minimum length",
   "ch11.c.scene": "Spinning chair",
   "ch11.c.p.mode": "Arms",
   "ch11.c.d.mode": "Pull the arms holding the dumbbells in towards the body, or stretch them out",

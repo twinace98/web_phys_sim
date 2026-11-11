@@ -23,6 +23,8 @@ interface S {
 const RATE = 240;
 const STROBE_DT = 0.1;
 const TICK = '#6b6b6b';
+/** Longest v arrow, as a fraction of the view height H. */
+const V_LEN = 0.25;
 
 let memoKey = '';
 let memo: { pr: Profile; rg: Ranges } | null = null;
@@ -91,7 +93,9 @@ export const freefall: Scene<P, S> = {
 
   world: (p) => {
     const H = top(p);
-    return { x: [-0.5 * H, 0.5 * H], y: [-0.08 * H, 1.1 * H], aspect: 'contain', padPx: 24 };
+    // On landing the v arrow (up to V_LEN·H) and its label hang below the ground.
+    const bottom = p.vectors ? V_LEN + 0.07 : 0.08;
+    return { x: [-0.5 * H, 0.5 * H], y: [-bottom * H, 1.1 * H], aspect: 'contain', padPx: 24 };
   },
 
   init: (p) => {
@@ -137,7 +141,7 @@ export const freefall: Scene<P, S> = {
 
     if (p.vectors) {
       const vMax = Math.max(Math.abs(rg.v[0]), Math.abs(rg.v[1]), 1);
-      g.arrow({ x: g.px(22), y: s.y }, { x: 0, y: (s.v / vMax) * 0.25 * H }, { role: 'velocity', width: 2, label: '*v*' });
+      g.arrow({ x: g.px(22), y: s.y }, { x: 0, y: (s.v / vMax) * V_LEN * H }, { role: 'velocity', width: 2, label: '*v*' });
       g.arrow({ x: g.px(44), y: s.y }, { x: 0, y: (s.a / G_EARTH) * 0.12 * H }, { role: 'acceleration', width: 2, label: '*a*' });
     }
     g.circle({ x: 0, y: s.y }, 9, { fill: 'position' });

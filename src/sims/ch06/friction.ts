@@ -17,8 +17,9 @@ const K = 4; // N/s, growth rate of the pull
 const W = 6 * DEG; // rad/s, tilting rate
 const AFTER = 1.2; // s of pulling after the slip
 const BOARD = 4.2; // m
-const S0 = 3; // m, block position along the board from the hinge
-const SLIDE = 2.3; // m, sliding distance shown on the board
+const S0 = 3.5; // m, block position along the board from the hinge
+// m, sliding distance shown on the board: the block stops 1.9 m from the hinge, clear of the θ label
+const SLIDE = 1.6;
 const B = 0.5; // m, block size
 const KF = 0.8 / (M * G); // world m per N: mg is 0.8 m long
 const REF = '#8c8c8c';
@@ -87,7 +88,8 @@ function drawPull(g: Draw, s: FrictionState): void {
   if (s.F > 0) g.arrow({ x: c.x + B / 2, y: B / 2 }, { x: s.F * KF, y: 0 }, { role: 'force', width: 2, label: '*F*' });
   if (s.f > 0) {
     g.arrow({ x: c.x - B / 2, y: 0.02 }, { x: -s.f * KF, y: 0 }, { role: 'force', width: 2.5 });
-    g.text({ x: c.x - B / 2 - s.f * KF, y: 0 }, fLabel(s), { size: 13, role: 'force', align: 'center', dy: -12 });
+    // Left of the tip, so a short arrow (ice) never puts its label on the block.
+    g.text({ x: c.x - B / 2 - s.f * KF, y: 0 }, fLabel(s), { size: 13, role: 'force', align: 'right', dx: -4, dy: -12 });
   }
 }
 
@@ -96,25 +98,29 @@ function drawTilt(g: Draw, s: FrictionState): void {
   const u: Vec2 = { x: Math.cos(th), y: Math.sin(th) };
   const n: Vec2 = { x: -Math.sin(th), y: Math.cos(th) };
   const O: Vec2 = { x: 0, y: 0 };
-  g.line({ x: -0.6, y: 0 }, { x: 4.8, y: 0 }, { color: BODY, width: 2 });
+  g.line({ x: -1.25, y: 0 }, { x: 4.8, y: 0 }, { color: BODY, width: 2 });
   g.polygon([O, add(O, u, BOARD), { x: BOARD * u.x, y: 0 }], { fill: '#f1f1f1' });
   g.line(O, add(O, u, BOARD), { color: BODY, width: 3 });
   g.circle(O, 3.5, { fill: BODY });
 
-  // Angle at the hinge; the label moves below the ground line when the wedge is too thin.
-  if (th > 0.5 * DEG) {
-    g.arc(O, 44, 0, th, { color: BODY, width: 1.25 });
-    const txt = `*θ* = ${(th / DEG).toFixed(1)}°`;
-    if (th > 14 * DEG) g.text({ x: Math.cos(th / 2) * g.px(52), y: Math.sin(th / 2) * g.px(52) }, txt, { size: 13, color: BODY, baseline: 'middle' });
-    else g.text({ x: g.px(52), y: 0 }, txt, { size: 13, color: BODY, dy: 16 });
-  }
+  // Angle arc at the hinge; its label just left of the hinge, above the ground, where neither
+  // the block nor its force arrows ever go (they stay right of the hinge).
+  if (th > 0.5 * DEG) g.arc(O, 44, 0, th, { color: BODY, width: 1.25 });
+  g.text(O, `*θ* = ${(th / DEG).toFixed(1)}°`, { size: 13, color: BODY, align: 'right', baseline: 'middle', dx: -10, dy: -13 });
 
   const c = add(O, u, S0 - s.x);
   const mid = add(c, n, B / 2);
   block(g, c, u, n);
   g.arrow(mid, { x: 0, y: -M * G * KF }, { role: 'force', width: 2, label: '*m**g*' });
   g.arrow(mid, { x: n.x * s.N * KF, y: n.y * s.N * KF }, { role: 'force', width: 2, label: '*N*' });
-  if (s.f > 0) g.arrow(add(add(c, u, B / 2), n, 0.02), { x: u.x * s.f * KF, y: u.y * s.f * KF }, { role: 'force', width: 2.5, label: fLabel(s) });
+  if (s.f > 0) {
+    // Friction runs along the board: label above the tip, off the board line, growing up the
+    // slope so a short arrow never puts it on the block.
+    const from = add(add(c, u, B / 2), n, 0.02);
+    const vec = { x: u.x * s.f * KF, y: u.y * s.f * KF };
+    g.arrow(from, vec, { role: 'force', width: 2.5 });
+    g.text(add(add(add(from, vec), n, g.px(13)), u, g.px(2)), fLabel(s), { size: 13, role: 'force', align: 'left', baseline: 'middle' });
+  }
 }
 
 /** Text in plot coordinates, offset in px. */
@@ -131,7 +137,7 @@ export const friction: Scene<P, S> = {
   params,
   time: { h: 1 / RATE, recordEvery: 1, frameStep: 0.1, tEnd: (p) => tEnd(p as P) },
 
-  world: (p) => (incline(p) ? { x: [-0.7, 4.9], y: [-0.7, 3.5], aspect: 'contain', padPx: 16 } : { x: [-0.5, 4.3], y: [-1.1, 1.5], aspect: 'contain', padPx: 16 }),
+  world: (p) => (incline(p) ? { x: [-1.3, 4.9], y: [-0.7, 3.5], aspect: 'contain', padPx: 16 } : { x: [-0.5, 4.3], y: [-1.1, 1.5], aspect: 'contain', padPx: 16 }),
 
   init: (p) => ({ t: 0, n: 0, ...stateAt(p, 0) }),
 

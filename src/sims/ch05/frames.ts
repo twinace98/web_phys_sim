@@ -158,7 +158,8 @@ export const frames: Scene<P, S> = {
     const bc: Vec2 = { x: bx, y: TABLE_Y + BALL_R };
     const kv = 0.6; // world m per (m/s)
     const ka = 1.2; // world m per (m/s²)
-    if (Math.abs(b.v) > 1e-9) g.arrow({ x: bx, y: TABLE_Y + 2 * BALL_R + g.px(38) }, { x: b.v * kv, y: 0 }, { role: 'velocity', label: '*v*' });
+    const vLane = TABLE_Y + 2 * BALL_R + g.px(38);
+    if (Math.abs(b.v) > 1e-9) g.arrow({ x: bx, y: vLane }, { x: b.v * kv, y: 0 }, { role: 'velocity', label: '*v*' });
     if (Math.abs(b.a) > 1e-9) g.arrow({ x: bx, y: TABLE_Y + 2 * BALL_R + g.px(16) }, { x: b.a * ka, y: 0 }, { role: 'acceleration', label: '*a*' });
     if (inTrain && train.A > 0 && p.pseudo) {
       // Pseudo force −m a_frame on the ball (m = 1 kg): not exerted by any body.
@@ -169,7 +170,8 @@ export const frames: Scene<P, S> = {
 
     // Acceleration of the train itself, seen from the ground.
     if (!inTrain && train.A > 0) {
-      g.arrow({ x: carX, y: ROOF + g.px(16) }, { x: train.A * ka, y: 0 }, { role: 'acceleration', label: tr('ch05.f.trainA') });
+      // Above the roof, and at least one lane above the ball's v arrow (they meet on a phone).
+      g.arrow({ x: carX, y: Math.max(ROOF + g.px(16), vLane + g.px(22)) },{ x: train.A * ka, y: 0 }, { role: 'acceleration', label: tr('ch05.f.trainA') });
     }
   },
 

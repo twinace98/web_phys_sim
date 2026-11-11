@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Rng } from '../src/core/rng';
 import { Runner } from '../src/core/runner';
-import { fieldAt, magnet } from '../src/sims/ch32/magnet';
+import { CHI, fieldAt, magnet, momentAt } from '../src/sims/ch32/magnet';
 import { A0, E_CHARGE, HBAR, MU_B, M_E, TC, V1, magnetization, onsagerM, orbit, paraM, sweep, type Lattice } from '../src/sims/ch32/physics';
 
 const uniform = (n: number, v: 1 | -1): Lattice => ({ nx: n, ny: n, s: new Int8Array(n * n).fill(v) });
@@ -101,4 +101,45 @@ describe('ch32 materials scene', () => {
     expect(s.B).toBeGreaterThan(0);
     expect(s.M).toBeLessThan(0);
   });
+});
+
+describe('ch32 review fixes', () => {
+  /** ∮ M dB over the recorded trail (two field periods), relative to the saturated square loop 4 B0 per period. */
+  function loopArea(T: number, seed = 5): number {
+    const r = new Runner(magnet, { ...defaults(magnet.params), T }, seed);
+    r.play();
+    r.advance(25); // 1000 field steps: three periods and a bit
+    const tr = r.state.trail;
+    let a = 0;
+    for (let i = 2; i < tr.length; i += 2) a += 0.5 * (tr[i + 1] + tr[i - 1]) * (tr[i] - tr[i - 2]);
+    return a / 2 / (4 * 3.5);
+  }
+
+  it('the ferromagnet loop is open below T_C and closes at and above it', () => {
+    expect(Math.abs(loopArea(0.5))).toBeGreaterThan(0.3);
+    for (const T of [1.0, 1.1, 1.5, 2.0]) expect(Math.abs(loopArea(T))).toBeLessThan(0.015);
+  }, 30000);
+
+  it('diamagnet: arrows are as long as M/M_s, at most CHI', () => {
+    const r = new Runner(magnet, { ...defaults(magnet.params), mat: 'dia' });
+    r.play();
+    r.advance(75 / 40); // B at its maximum
+    const s = r.state;
+    expect(s.M).toBeCloseTo(-CHI, 2);
+    expect(momentAt(s, r.params as never, 0)).toBe(s.M);
+    expect(CHI).toBeLessThan(0.35);
+  });
+
+  it('every readout and record is finite across materials, temperatures and field modes', () => {
+    for (const mat of ['para', 'ferro', 'dia'])
+      for (const T of [0.2, 0.5, 0.95, 1, 1.35, 2])
+        for (const field of ['sweep', 'on', 'off']) {
+          const r = new Runner(magnet, { ...defaults(magnet.params), mat, T, field });
+          r.play();
+          r.advance(0.6);
+          for (const ro of magnet.readouts!) expect(Number.isFinite(ro.value(r.state, r.params))).toBe(true);
+          expect(r.state.trail.every(Number.isFinite)).toBe(true);
+          expect(Math.abs(r.state.M)).toBeLessThanOrEqual(1);
+        }
+  }, 30000);
 });
