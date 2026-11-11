@@ -65,7 +65,7 @@ const params: ParamSchema<P> = {
     desc: 'ch36.d.N',
     group: 'advanced',
     live: true,
-    control: 'slider',
+    control: 'stepper',
     min: 2,
     max: 20,
     step: 1,

@@ -25,7 +25,7 @@ const params: ParamSchema<P> = {
     desc: 'ch33.d.n',
     group: 'main',
     live: true,
-    control: 'slider',
+    control: 'stepper',
     min: 2,
     max: 3,
     step: 1,
