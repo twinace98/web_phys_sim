@@ -25,10 +25,10 @@ const speeds = (p: P) => (p.compare ? [1, 2, 3] : [p.v]).map((v) => v * M);
 /** Largest radius the controls allow (v = 3, B = 0.5): fixes the view per species. */
 const rMax = (p: P) => radius(ptOf(p), 3 * M, 0.5 * unitB(p));
 /**
- * Half-width of the view [cm]. Fixed by rMax at the weakest field; stronger fields zoom in as
- * √(B/B_min), so the drawn radius still falls (as 1/√B) but the circles never crowd onto the source.
+ * Half-width of the view [cm], fixed per species by rMax at the weakest field: the drawn radius
+ * falls exactly as 1/B, so doubling B visibly halves every circle.
  */
-export const viewR = (p: P) => rMax(p) * 100 * Math.sqrt((0.5 * unitB(p)) / Bof(p));
+export const viewR = (p: P) => rMax(p) * 100;
 /** ns of sim time per wall second: one turn in 3 s at B = 1 unit. */
 const nsPerSec = (p: P) => (period(ptOf(p), unitB(p)) * 1e9) / 3;
 

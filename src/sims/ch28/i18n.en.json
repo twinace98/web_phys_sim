@@ -18,7 +18,7 @@
   "ch28.l.obs.T": "Speed comparison: all three particles return to the start together, so the period does not depend on speed",
   "ch28.l.obs.sign": "Protons and alpha particles circle counter-clockwise, electrons clockwise (sign of the charge)",
   "ch28.l.obs.B": "Double $B$ while running: the readouts $r$ and $T$ halve, and the circles shrink",
-  "ch28.l.assume": "Uniform field in vacuum; gravity and radiation neglected; non-relativistic speeds (at most $0.01c$). Time runs slowed down, in ns. The view zooms in with the field as $\\sqrt{B}$ so that small circles stay legible: the drawn radius falls as $1/\\sqrt{B}$, the readout $r$ as $1/B$",
+  "ch28.l.assume": "Uniform field in vacuum; gravity and radiation neglected; non-relativistic speeds (at most $0.01c$). Time runs slowed down, in ns",
   "ch28.scene.cyclotron": "Cyclotron",
   "ch28.c.p.ratio": "Oscillator $f/f_c$",
   "ch28.c.d.ratio": "Frequency $f$ of the gap voltage as a multiple of the cyclotron frequency $f_c$",
