@@ -36,7 +36,7 @@ const packetParams: ParamSchema<PP> = {
     desc: 'ch38.d.M',
     group: 'main',
     live: false,
-    control: 'slider',
+    control: 'stepper',
     min: 1,
     max: 33,
     step: 1,

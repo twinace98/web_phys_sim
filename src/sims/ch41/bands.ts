@@ -20,7 +20,7 @@ const params: ParamSchema<P> = {
     desc: 'ch41.b.d.N',
     group: 'main',
     live: true,
-    control: 'slider',
+    control: 'stepper',
     min: 1,
     max: 12,
     step: 1,
