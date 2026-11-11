@@ -159,3 +159,40 @@ describe('ch06 i18n', () => {
     }
   });
 });
+
+describe('ch06 circular: after the release', () => {
+  it('regression: the released object and its velocity arrow stay on stage until the run ends', () => {
+    const base = defaults(circular.params) as any;
+    for (const [preset, extra] of [
+      ['string', { cut: true }],
+      ['cone', { cut: true }],
+      ['flat', { ice: true }],
+    ] as const) {
+      const p = { ...base, preset, ...extra };
+      const tEnd = (circular.time!.tEnd as (q: any) => number)(p);
+      const s = SETUPS[preset];
+      const k = topViewAt(s, tEnd, lapTime(s) / 4);
+      expect(k.onCircle).toBe(false);
+      // Top view in units of r; velocity arrow 0.55 long; world top 1.75 with a 16 px margin.
+      const y = k.y / s.r + (0.55 * k.vy) / s.v;
+      expect(y, preset).toBeLessThan(1.6);
+      // Before: the object travelled 1.6 r along the tangent, past the top of the stage.
+      expect(k.y / s.r, preset).toBeGreaterThan(0.6);
+    }
+  });
+
+  it('regression: the cut conical pendulum falls (free fall below the release point) instead of hanging in the air', () => {
+    const base = defaults(circular.params) as any;
+    const p = { ...base, preset: 'cone', cut: true };
+    const run = new Runner(circular, p);
+    run.play();
+    for (let i = 0; i < 400 && run.playing; i++) run.advance(0.02);
+    const s = SETUPS.cone;
+    const tau = run.state.t - lapTime(s) / 4;
+    expect(tau).toBeGreaterThan(0.15);
+    const fall = 0.5 * G * tau * tau;
+    // Drawn 1.4 world units per metre; mg arrow 0.75 long; world bottom −1.3.
+    expect(-fall * 1.4 - 0.75).toBeGreaterThan(-1.2);
+    expect(forces('cone', true).map((f) => f.name)).toEqual(['W']);
+  });
+});

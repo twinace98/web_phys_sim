@@ -16,6 +16,7 @@ const RATE = 240;
 const H = 1 / RATE;
 const R_OUT = 1;
 const SECTORS = 6;
+const T_MIN_PX = 30; // shortest tension arrow [px]; the puck (9 px radius) covers its base
 const SECTOR_FILL = ['#E69F00', '#56B4E9'];
 
 const pullOf = (p: P): Pull => ({ mode: p.mode as Mode, m: p.m, rOut: R_OUT, rIn: p.rIn, wOut: p.wOut, tRamp: 3, tHold: 2 });
@@ -139,12 +140,15 @@ export const stringScene: Scene<P, S> = {
     const vy = k.v * u.y + k.r * w * u.x;
     const kv = 0.45 / vMax;
     g.arrow(P0, { x: vx * kv, y: vy * kv }, { role: 'velocity', width: 2.5, label: '*v*' });
+    // T ∝ 1/r³ changes up to 37-fold, so a proportional arrow would vanish at the outer radius:
+    // proportional above a minimum length that stays visible beyond the puck.
     const T = tension(c, s.t);
-    const kt = (0.35 * c.rIn) / tMax;
-    const lenT = T * kt;
+    const kt = (0.6 * c.rIn) / tMax;
+    const lenT = Math.max(T * kt, g.px(T_MIN_PX));
     g.arrow(P0, { x: -u.x * lenT, y: -u.y * lenT }, { role: 'force', width: 2.5 });
-    // T label beside the middle of its arrow, on the side away from v (v points along +φ).
-    const mid = { x: P0.x - (u.x * lenT) / 2, y: P0.y - (u.y * lenT) / 2 };
+    // T label beside the middle of the visible part (outside the puck), on the side away from v.
+    const vis = (lenT + g.px(9)) / 2;
+    const mid = { x: P0.x - u.x * vis, y: P0.y - u.y * vis };
     const off = { x: u.y, y: -u.x };
     g.text({ x: mid.x + off.x * g.px(13), y: mid.y + off.y * g.px(13) }, '*T*', { size: 13, role: 'force', align: 'center', baseline: 'middle' });
     g.circle(P0, 9, { fill: 'position' });

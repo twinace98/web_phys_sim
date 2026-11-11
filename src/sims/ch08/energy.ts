@@ -46,9 +46,40 @@ const params: ParamSchema<P> = {
       { value: 'hill', label: 'ch08.e.pot.hill' },
     ],
   },
-  friction: { kind: 'toggle', label: 'ch08.e.p.friction', desc: 'ch08.e.d.friction', group: 'main', live: true, default: false },
-  x0s: { kind: 'array', label: 'ch08.e.p.x0', group: 'hidden', live: false, default: [-2.7, -2.5, 2.9], min: -3.1, max: 3.1 },
+  // Structural: the run is fixed by (potential, start, friction), so its end time is known in advance.
+  friction: { kind: 'toggle', label: 'ch08.e.p.friction', desc: 'ch08.e.d.friction', group: 'main', live: false, default: false },
+  x0s: { kind: 'array', label: 'ch08.e.p.x0', desc: 'ch08.e.d.x0', group: 'hidden', live: false, default: [-2.7, -2.5, 2.9], min: -3.1, max: 3.1 },
 };
+
+const T_MAX = 120; // s: longest run searched for an end
+
+let endKey = '';
+let endMemo: number | undefined;
+/**
+ * End of the run: the particle leaves the drawn range (over the hill), or friction holds it at rest
+ * for good. Found by running the same steps the scene runs, so the clock pauses exactly there.
+ * undefined: no end (a frictionless particle trapped in a well), rolling time window.
+ */
+export function endTime(p: P): number | undefined {
+  const key = `${idx(p)}|${x0Of(p)}|${p.friction}`;
+  if (key === endKey) return endMemo;
+  const pot = potOf(p);
+  const f = p.friction ? F_FRICTION : 0;
+  const s: S = { t: 0, x: x0Of(p), v: 0, stopped: false };
+  let end: number | undefined;
+  for (let n = 0; n <= T_MAX * RATE; n++) {
+    if (s.stopped || (f > 0 && s.v === 0 && Math.abs(pot.dU(s.x)) <= f)) {
+      // A particle that cannot move at all still gets a short run, so the time axis is not empty.
+      end = Math.max(s.t, 1);
+      break;
+    }
+    s.t += 1 / RATE;
+    stepParticle(pot, s, 1 / RATE, M, f);
+  }
+  endKey = key;
+  endMemo = end;
+  return end;
+}
 
 const energies = (s: S, p: P) => {
   const U = potOf(p).U(s.x);
@@ -70,7 +101,8 @@ export const energyScene: Scene<P, S> = {
   title: 'ch08.e.scene',
   layout: 'side',
   params,
-  time: { h: 1 / RATE, recordEvery: 2, frameStep: 0.05, window: 10 },
+  // The runner and the shell treat an undefined end as "no end" (rolling window).
+  time: { h: 1 / RATE, recordEvery: 2, frameStep: 0.05, window: 10, tEnd: (p) => endTime(p as P) as number },
 
   world: () => ({ x: [-3.75, 5.3], y: [-1.6, 4.6], aspect: 'contain', padPx: 14 }),
 
@@ -157,7 +189,11 @@ export const energyScene: Scene<P, S> = {
     g.line({ x: s.x - tl / n, y: U - (tl * d) / n }, { x: s.x + tl / n, y: U + (tl * d) / n }, { color: '#9a9a9a', width: 1.5 });
     // K = E − U: the gap between the particle and the E line.
     if (K > 1e-6) g.line({ x: s.x, y: U }, { x: s.x, y: E }, { role: 'energyK', width: 4 });
-    if (Math.abs(d) > 1e-6) g.arrow({ x: s.x, y: U }, { x: -d * KF, y: 0 }, { role: 'force', width: 2.5, label: '*F*' });
+    if (Math.abs(d) > 1e-6) {
+      g.arrow({ x: s.x, y: U }, { x: -d * KF, y: 0 }, { role: 'force', width: 2.5 });
+      // Label above the tip: at a turning point the E line runs through the arrow.
+      g.text({ x: s.x - d * KF, y: U }, '*F*', { size: 13, role: 'force', align: d > 0 ? 'right' : 'left', dy: -7 });
+    }
     g.circle({ x: s.x, y: U }, 8, { fill: 'position' });
     g.ctx.restore();
 

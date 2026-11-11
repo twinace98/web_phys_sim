@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { G, RHO, TAPS, TravelTime, areaAt, inletHead, speedAt, taps, type Venturi } from '../src/sims/ch14/physics';
+import { G, RHO, TravelTime, areaAt, inletHead, speedAt, taps, type Venturi } from '../src/sims/ch14/physics';
 
 const tube = (ratio: number, Q = 0.01, dy = 0): Venturi => ({ A1: 0.01, ratio, Q, dy });
 
@@ -24,10 +24,11 @@ describe('ch14 Venturi tube', () => {
     expect(a.p - b.p).toBeCloseTo(1500, 9);
   });
 
-  it('a raised outlet at the same speed has pressure lower by ρgΔy', () => {
+  it('regression: the height difference is the one between sections 1 and 3, p1 − p3 = ρg Δy', () => {
+    // Before: Δy was set over the whole tube, so 20 cm gave 14.4 cm between the standpipes.
     const [a, , c] = taps(tube(0.7, 0.01, 0.2));
-    const dy = 0.2 * ((TAPS[2] - TAPS[0]) / 1.6);
-    expect(a.p - c.p).toBeCloseTo(RHO * G * dy, 9);
+    expect(c.y - a.y).toBeCloseTo(0.2, 12);
+    expect(a.p - c.p).toBeCloseTo(RHO * G * 0.2, 9);
   });
 
   it('every standpipe column stands at least 5 cm above the axis', () => {

@@ -14,6 +14,7 @@
   "ch08.p.p.closed": "Closed path",
   "ch08.p.d.closed": "After reaching B, return to A in a straight line",
   "ch08.p.p.via": "Waypoint",
+  "ch08.p.d.via": "Point the waypoint path passes through; drag the orange circle",
   "ch08.p.goal.cons": "Conservative force: the work between two points does not depend on the path; around a closed path it is zero",
   "ch08.p.goal.fric": "Kinetic friction always opposes the motion, so its work is proportional to the path length: nonconservative",
   "ch08.p.obs.same": "Gravity and spring: the cumulative-work curves of the four paths differ in shape, but all end on the same dashed line",
@@ -30,6 +31,7 @@
   "ch08.e.p.friction": "Friction",
   "ch08.e.d.friction": "A kinetic friction force of 0.15 N acts, so the mechanical energy decreases",
   "ch08.e.p.x0": "Start position",
+  "ch08.e.d.x0": "Position where the particle starts from rest; drag the particle",
   "ch08.e.axis": "Energy",
   "ch08.e.stable": "stable",
   "ch08.e.unstable": "unstable",
@@ -40,5 +42,5 @@
   "ch08.e.obs.eq": "Equilibrium points $dU/dx = 0$: a minimum is stable (filled dot), a maximum is unstable (open dot)",
   "ch08.e.obs.drag": "Drag the particle to change where it starts (at rest): in the double well, start above the hump to visit both wells. Well and hill: once over the hill it escapes to the left",
   "ch08.e.obs.friction": "Friction on: the $E$ line sinks and the turning points close in, until the particle stops in a well",
-  "ch08.e.assume": "Mass 1 kg, motion in one dimension, starts at rest, kinetic friction of constant size (when on)"
+  "ch08.e.assume": "Mass 1 kg, motion in one dimension, starts at rest. Friction: motion on a horizontal surface, so the normal force $N = mg$ and the kinetic friction of 0.15 N are constant ($U(x)$ is the potential of a conservative force, not a height). The run pauses when the particle leaves the drawn range or friction stops it for good"
 }

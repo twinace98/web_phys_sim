@@ -3,7 +3,7 @@
 import { fmtTick, niceTicks } from '../../core/format';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { C1, C2, TICK, cmMark, padded, trioLabel } from './common';
+import { C1, C2, TICK, cmMark, halo, padded, trioLabel } from './common';
 import { kinetic, motion1D, state1D, type Kind1D, type Motion1D, type Track } from './physics';
 
 type P = { kind: string; m2: number; m1: number; v1: number; v2: number; e: number; E: number; arrows: boolean };
@@ -275,6 +275,12 @@ export const track: Scene<P, S> = {
       yRange: (p) => padded(ranges(p).K, 1),
     },
   ],
+
+  drawPlot: (id, pd, p, ui) => {
+    const { mo, tr } = model(p);
+    const ch = id === 'x' ? 'x1' : id === 'p' ? 'p1' : 'K1';
+    halo(pd, (t) => sample(p, t)[ch], ui.t, [mo.tc, tr.tSep]);
+  },
 
   readouts: [
     { label: 'p_\\mathrm{tot}', unit: 'kg·m/s', value: (s, p) => sample(p, s.t).pt },

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
-import { energyScene } from '../src/sims/ch08/energy';
+import { endTime, energyScene } from '../src/sims/ch08/energy';
 import {
   A,
   B,
@@ -141,6 +141,51 @@ describe('ch08 energy diagram', () => {
     for (let i = 0; i < 50; i++) r.advance(0.1);
     const Es = r.hist.col('E');
     expect(Math.max(...Es) - Math.min(...Es)).toBeLessThan(1e-3);
+  });
+});
+
+describe('ch08 energy diagram: end of the run', () => {
+  const base = defaults(energyScene.params) as any;
+  const run = (p: any) => {
+    const r: Runner<any, any> = new Runner(energyScene, p);
+    r.play();
+    for (let i = 0; i < 2000 && r.playing; i++) r.advance(0.1);
+    return r;
+  };
+
+  it('regression: over the hill the particle stops on the edge with E conserved, and the clock pauses there', () => {
+    const p = { ...base, pot: 'hill', x0s: [-2.7, -2.5, 3.1] };
+    const tEnd = endTime(p)!;
+    expect(tEnd).toBeGreaterThan(1);
+    const r = run(p);
+    expect(r.playing).toBe(false);
+    expect(r.state.t).toBeCloseTo(tEnd, 9);
+    expect(r.state.x).toBe(POTENTIALS.hill.lo);
+    const E0 = POTENTIALS.hill.U(3.1);
+    const E = 0.5 * r.state.v ** 2 + POTENTIALS.hill.U(r.state.x);
+    expect(Math.abs(E / E0 - 1)).toBeLessThan(1e-3);
+    // Before: the clock ran on with the particle parked at x = −3.2.
+    expect(r.hist.col('t').at(-1)).toBeCloseTo(tEnd, 9);
+  });
+
+  it('regression: with friction the clock pauses when the particle comes to rest for good', () => {
+    for (const pot of ['double', 'spring', 'hill']) {
+      const p = { ...base, pot, friction: true };
+      const tEnd = endTime(p)!;
+      expect(tEnd, pot).toBeGreaterThan(1);
+      const r = run(p);
+      expect(r.playing).toBe(false);
+      expect(r.state.t).toBeCloseTo(tEnd, 9);
+      if (!r.state.stopped) {
+        expect(r.state.v).toBe(0);
+        expect(Math.abs(POTENTIALS[pot as 'double'].dU(r.state.x))).toBeLessThanOrEqual(0.15);
+      }
+    }
+  });
+
+  it('a frictionless particle trapped in a well has no end (rolling window)', () => {
+    expect(endTime({ ...base })).toBeUndefined();
+    expect(endTime({ ...base, pot: 'spring' })).toBeUndefined();
   });
 });
 

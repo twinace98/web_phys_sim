@@ -16,7 +16,7 @@ export interface Venturi {
   ratio: number;
   /** Volume flow rate [m³/s]. */
   Q: number;
-  /** Outlet height above the inlet [m]; the axis rises linearly along the tube. */
+  /** Height of section 3 above section 1 (between the outer standpipes) [m]; the axis rises linearly. */
   dy: number;
 }
 
@@ -34,8 +34,10 @@ export function radiusAt(v: Venturi, x: number): number {
 }
 
 export const areaAt = (v: Venturi, x: number) => Math.PI * radiusAt(v, x) ** 2;
-/** Axis height at x. */
-export const axisY = (v: Venturi, x: number) => (v.dy * x) / TUBE.L;
+/** Axis slope: rises dy between the taps of sections 1 and 3. */
+export const slopeOf = (v: Venturi) => v.dy / (TAPS[2] - TAPS[0]);
+/** Axis height at x (0 at the inlet). */
+export const axisY = (v: Venturi, x: number) => slopeOf(v) * x;
 /** Continuity: v = Q / A. */
 export const speedAt = (v: Venturi, x: number) => v.Q / areaAt(v, x);
 
@@ -95,7 +97,7 @@ export class TravelTime {
   readonly xs: number[] = [];
   readonly ts: number[] = [];
   constructor(v: Venturi, n = 800) {
-    const slope = v.dy / TUBE.L;
+    const slope = slopeOf(v);
     const ds = Math.sqrt(1 + slope * slope);
     const dx = TUBE.L / n;
     let tau = 0;

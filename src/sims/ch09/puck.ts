@@ -3,7 +3,7 @@
 import { t as tr } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { C1, C2, cmMark, padded, trioLabel } from './common';
+import { C1, C2, cmMark, halo, padded, trioLabel } from './common';
 import { kinetic2, motion2D, state2D, type Kind2D, type Motion2D, type Puck } from './physics';
 
 type P = { kind: string; b: number; m2: number; v1: number; e: number };
@@ -18,6 +18,13 @@ const T_C = 2;
 const T_END = 5;
 const BLACK = '#1a1a1a';
 const radius = (m: number) => 0.18 * Math.sqrt(m);
+const M2_MIN = 0.5;
+/** Largest impact parameter that still gives a clear (not grazing) hit: 0.95 (R1 + R2). */
+export const bMax = (m2: number) => 0.95 * (radius(1) + radius(m2));
+/** Slider maximum: bMax at the smallest m2 (0.29 m), so every b on the slider hits for every m2. */
+const B_SLIDER = Math.floor(bMax(M2_MIN) * 100) / 100;
+/** b actually used: clamped to bMax (only a hand-edited URL can exceed it). */
+export const bOf = (p: P) => Math.min(Math.max(p.b, 0), bMax(p.m2));
 
 let memoKey = '';
 let memo: {
@@ -33,9 +40,10 @@ function model(p: P) {
     const R1 = radius(1);
     const R2 = radius(p.m2);
     const s = R1 + R2;
-    // Placed so that the pucks touch at t = T_C (if the offset b lets them touch at all).
-    const dx = Math.sqrt(Math.max(0, s * s - p.b * p.b));
-    const a: Puck = { m: 1, R: R1, x: [-dx - p.v1 * T_C, p.b], v: [p.v1, 0] };
+    // Placed so that the pucks touch at t = T_C.
+    const b = bOf(p);
+    const dx = Math.sqrt(Math.max(0, s * s - b * b));
+    const a: Puck = { m: 1, R: R1, x: [-dx - p.v1 * T_C, b], v: [p.v1, 0] };
     const c: Puck = { m: p.m2, R: R2, x: [0, 0], v: [0, 0] };
     const mo = motion2D(a, c, p.kind as Kind2D, p.e);
     const xs: number[] = [];
@@ -100,8 +108,8 @@ const params: ParamSchema<P> = {
       { value: 'stick', label: 'ch09.kind.stick' },
     ],
   },
-  b: { kind: 'number', label: 'ch09.p.b', desc: 'ch09.d.b', group: 'main', live: false, control: 'slider', min: 0, max: 0.4, step: 0.01, default: 0.2, unit: 'm' },
-  m2: { kind: 'number', label: 'ch09.p.m2', desc: 'ch09.d.m2p', group: 'advanced', live: false, control: 'slider', min: 0.5, max: 2, step: 0.1, default: 1, unit: 'kg' },
+  b: { kind: 'number', label: 'ch09.p.b', desc: 'ch09.d.b', group: 'main', live: false, control: 'slider', min: 0, max: B_SLIDER, step: 0.01, default: 0.2, unit: 'm' },
+  m2: { kind: 'number', label: 'ch09.p.m2', desc: 'ch09.d.m2p', group: 'advanced', live: false, control: 'slider', min: M2_MIN, max: 2, step: 0.1, default: 1, unit: 'kg' },
   v1: { kind: 'number', label: 'ch09.p.v1', desc: 'ch09.d.v1p', group: 'advanced', live: false, control: 'slider', min: 0.5, max: 2, step: 0.1, default: 1.5, unit: 'm/s' },
   e: {
     kind: 'number',
@@ -261,6 +269,14 @@ export const puckScene: Scene<P, S> = {
       yRange: (p) => padded(ranges(p).K, 1),
     },
   ],
+
+  drawPlot: (id, pd, p, ui) => {
+    const f = (t: number) => {
+      const k = sample(p, t);
+      return id === 'px' ? k.p1[0] : id === 'py' ? k.p1[1] : k.K1;
+    };
+    halo(pd, f, ui.t, [model(p).mo.tc]);
+  },
 
   readouts: [
     { label: 'p_{\\mathrm{tot},x}', unit: 'kg·m/s', value: (s, p) => sample(p, s.t).p1[0] + sample(p, s.t).p2[0] },
