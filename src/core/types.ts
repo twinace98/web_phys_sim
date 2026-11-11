@@ -88,6 +88,8 @@ export interface TimeSpec {
   window?: number;
   /** Sim seconds per wall second at 1x (default 1). */
   scale?: number;
+  /** Unit of sim time shown by the clock and time axes (default 's'); '' hides the clock. */
+  unit?: string;
 }
 
 export interface WorldSpec {

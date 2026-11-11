@@ -205,10 +205,13 @@ export class SimView {
       for (const s of SPEEDS) speed.append(h('option', { value: String(s), selected: s === r.speed }, `${s}×`));
       speed.addEventListener('change', () => (r.speed = Number(speed.value)));
       const speedCtl = h('label', { class: 'ctl', title: t('ui.speed.desc') }, h('span', { class: 'lbl' }, t('ui.speed')), speed);
-      this.timeVal = h('span', { class: 'val' });
-      const time = h('span', { class: 'ro' });
-      time.innerHTML = `${tex('t')} = `;
-      time.append(this.timeVal, ' s');
+      const unit = this.scene.time?.unit ?? 's';
+      this.timeVal = unit ? h('span', { class: 'val' }) : null;
+      const time = unit ? h('span', { class: 'ro' }) : null;
+      if (time && this.timeVal) {
+        time.innerHTML = `${tex('t')} = `;
+        time.append(this.timeVal, ` ${unit}`);
+      }
       bar.append(
         this.playBtn,
         iconButton(ICON.step, `${t('ui.step')} (→)`, () => {
@@ -217,7 +220,7 @@ export class SimView {
         }),
         reset,
         speedCtl,
-        time,
+        ...(time ? [time] : []),
       );
     }
 
