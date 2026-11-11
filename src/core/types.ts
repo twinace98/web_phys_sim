@@ -92,7 +92,7 @@ export interface TimeSpec {
   window?: number;
   /** Sim seconds per wall second at 1x (default 1). */
   scale?: number;
-  /** Display unit of sim time (default 's'), e.g. 'ps' or '10³ y'; may depend on parameters. */
+  /** Display unit of sim time (default 's'), e.g. 'ps' or '10³ y'; may depend on parameters. '' hides the clock. */
   unit?: string | ((p: Params) => string);
 }
 
