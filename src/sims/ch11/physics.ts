@@ -91,3 +91,29 @@ export function tension(c: Pull, t: number): number {
 
 /** Rate at which the string sweeps area: dA/dt = r² ω / 2 = L / (2m). */
 export const arealVelocity = (c: Pull) => angMom(c) / (2 * c.m);
+
+// ------------------------------------------------------------------ spinning chair
+
+/**
+ * A person on a frictionless spinning chair holds two dumbbells (mass m each) at distance r(t)
+ * from the axis; body and chair have rotational inertia I0. No external torque about the axis,
+ * so L = I ω stays fixed while I = I0 + 2 m r² changes. r(t) uses the same smooth ramps.
+ */
+export interface Chair extends Pull {
+  I0: number;
+}
+
+export const chairInertia = (c: Chair, t: number) => c.I0 + 2 * c.m * radius(c, t).r ** 2;
+export const chairL = (c: Chair) => (c.I0 + 2 * c.m * c.rOut * c.rOut) * c.wOut;
+export const chairOmega = (c: Chair, t: number) => chairL(c) / chairInertia(c, t);
+
+/** K = ½ I ω² + ½ (2m) ṙ² (rotation plus the dumbbells' radial motion). */
+export function chairKinetic(c: Chair, t: number): number {
+  const w = chairOmega(c, t);
+  const v = radius(c, t).v;
+  return 0.5 * chairInertia(c, t) * w * w + c.m * v * v;
+}
+
+export function stepChair(c: Chair, phi: number, t: number, h: number): number {
+  return phi + (h / 6) * (chairOmega(c, t) + 4 * chairOmega(c, t + h / 2) + chairOmega(c, t + h));
+}

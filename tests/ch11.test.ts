@@ -1,7 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
-import { angMom, arealVelocity, endTime, kinetic, omega, radius, stepAngle, tension, type Mode, type Pull } from '../src/sims/ch11/physics';
+import { chairScene } from '../src/sims/ch11/chair';
+import {
+  angMom,
+  arealVelocity,
+  chairInertia,
+  chairKinetic,
+  chairL,
+  chairOmega,
+  endTime,
+  kinetic,
+  omega,
+  radius,
+  stepAngle,
+  tension,
+  type Chair,
+  type Mode,
+  type Pull,
+} from '../src/sims/ch11/physics';
 import { stringScene } from '../src/sims/ch11/string';
 
 const pull = (mode: Mode, rIn = 0.5, wOut = 2): Pull => ({ mode, m: 0.2, rOut: 1, rIn, wOut, tRamp: 3, tHold: 2 });
@@ -97,5 +114,30 @@ describe('ch11 puck on a string', () => {
     for (const v of L) expect(v).toBeCloseTo(L[0], 12);
     const w = run.hist.col('w');
     expect(Math.max(...w) / w[0]).toBeCloseTo(4, 9);
+  });
+});
+
+describe('ch11 spinning chair', () => {
+  const chair = (mode: Mode): Chair => ({ mode, m: 2, rOut: 0.8, rIn: 0.2, wOut: 1.5, tRamp: 2, tHold: 1.5, I0: 1.5 });
+
+  it('L = I ω is fixed; ω and K scale with I_out / I_in', () => {
+    const c = chair('pull');
+    const T = endTime(c);
+    for (let t = 0; t <= T; t += 0.05) expect(chairInertia(c, t) * chairOmega(c, t)).toBeCloseTo(chairL(c), 12);
+    const ratio = chairInertia(c, 0) / chairInertia(c, T);
+    expect(ratio).toBeCloseTo((1.5 + 2 * 2 * 0.64) / (1.5 + 2 * 2 * 0.04), 12);
+    expect(chairOmega(c, T) / chairOmega(c, 0)).toBeCloseTo(ratio, 12);
+    expect(chairKinetic(c, T) / chairKinetic(c, 0)).toBeCloseTo(ratio, 12);
+  });
+
+  it('scene: L channel flat through pull-in and stretch-out', () => {
+    const run = new Runner(chairScene, { ...defaults(chairScene.params), mode: 'both' });
+    run.play();
+    for (let i = 0; i < 400 && run.playing; i++) run.advance(0.05);
+    expect(run.playing).toBe(false);
+    const L = run.hist.col('L');
+    for (const v of L) expect(v).toBeCloseTo(L[0], 12);
+    const w = run.hist.col('w');
+    expect(w[w.length - 1]).toBeCloseTo(w[0], 12);
   });
 });
