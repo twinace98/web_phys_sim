@@ -1,0 +1,19 @@
+{
+  "ch42.scene": "Radioactive decay",
+  "ch42.p.iso": "Isotope",
+  "ch42.d.iso": "Kind of decaying nucleus; the time unit follows its half-life",
+  "ch42.iso.c14": "¹⁴C (half-life 5730 y)",
+  "ch42.iso.i131": "¹³¹I (half-life 8.02 d)",
+  "ch42.iso.u238": "²³⁸U (half-life 4.47×10⁹ y)",
+  "ch42.p.N0": "Initial nuclei $N_0$",
+  "ch42.d.N0": "Number of undecayed nuclei at the start",
+  "ch42.goal.random": "Each nucleus decays independently and at random: probability $\\lambda\\,dt$ in a short time $dt$, whatever its age",
+  "ch42.goal.half": "Many nuclei together follow $N(t) = N_0 e^{-\\lambda t}$ and halve every half-life $T_{1/2}$",
+  "ch42.obs.single": "Which nucleus decays when cannot be predicted (dots switch off at random on the grid; orange = just decayed)",
+  "ch42.obs.half": "At $T_{1/2}$, $2T_{1/2}$, $3T_{1/2}$ about $N_0/2$, $N_0/4$, $N_0/8$ are left: however many remain, half of them decay in the next half-life",
+  "ch42.obs.small": "$N_0 = 10$: big steps that stray far from the exponential, and every run differs",
+  "ch42.obs.large": "$N_0 = 10000$: the steps almost vanish and the count lies on the exponential (relative fluctuation $\\sim 1/\\sqrt N$)",
+  "ch42.obs.iso": "Changing the isotope only changes the time unit; the curve has the same shape (identical in $t/T_{1/2}$)",
+  "ch42.assume.indep": "Nuclei do not affect each other; the decay probability per unit time is constant",
+  "ch42.assume.daughter": "Daughter nuclei are taken as stable (²³⁸U's daughter ²³⁴Th actually decays further)"
+}
