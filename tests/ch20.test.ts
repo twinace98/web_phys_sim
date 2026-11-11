@@ -104,7 +104,7 @@ describe('ch20 dynamics', () => {
 
   it('heat scene: same seed, same run', () => {
     const run = () => {
-      const r = new Runner(heatScene, defaults(heatScene.params));
+      const r = new Runner(heatScene, defaults(heatScene.params), 1);
       r.play();
       for (let i = 0; i < 50; i++) r.advance(0.1);
       return r.state.qA;

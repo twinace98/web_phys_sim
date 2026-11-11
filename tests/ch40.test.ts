@@ -51,7 +51,7 @@ describe('ch40 spin-½ measurement', () => {
 describe('ch40 scenes', () => {
   it('single device: quantum hits only at ±1, classical spread over the band', () => {
     const run = (model: string) => {
-      const r = new Runner(single, { ...defaults(single.params), model, N: 1000 });
+      const r = new Runner(single, { ...defaults(single.params), model, N: 1000 }, 1);
       r.play();
       for (let i = 0; i < 2000 && r.playing; i++) r.advance(0.05);
       return r.state.hits;
@@ -65,7 +65,7 @@ describe('ch40 scenes', () => {
 
   it('sequential z → x → z ends near half and half; same seed, same counts', () => {
     const run = () => {
-      const r = new Runner(sequential, defaults(sequential.params));
+      const r = new Runner(sequential, defaults(sequential.params), 1);
       r.play();
       for (let i = 0; i < 4000 && r.playing; i++) r.advance(0.05);
       return r.state.counts.map((c) => [...c]);
@@ -80,7 +80,7 @@ describe('ch40 scenes', () => {
   });
 
   it('angle scene records the running fraction', () => {
-    const r = new Runner(angle, { ...defaults(angle.params), theta: 0 });
+    const r = new Runner(angle, { ...defaults(angle.params), theta: 0 }, 1);
     r.play();
     for (let i = 0; i < 4000 && r.playing; i++) r.advance(0.05);
     const fr = r.hist.col('frac');

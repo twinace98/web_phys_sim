@@ -1,4 +1,11 @@
-/** Seeded PRNG (mulberry32). Same seed → same run (docs/design.md §5.3). */
+/** A fresh 32-bit seed: every run starts from a different random state (docs/design.md §5.3). */
+export function freshSeed(): number {
+  const c = (globalThis as { crypto?: Crypto }).crypto;
+  if (c?.getRandomValues) return c.getRandomValues(new Uint32Array(1))[0];
+  return Math.floor(Math.random() * 4294967296);
+}
+
+/** Seeded PRNG (mulberry32). Same seed → same sequence; tests pass a fixed seed. */
 export class Rng {
   private s: number;
 
