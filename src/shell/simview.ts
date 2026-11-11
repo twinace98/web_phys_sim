@@ -208,7 +208,7 @@ export class SimView {
       this.timeVal = h('span', { class: 'val' });
       const time = h('span', { class: 'ro' });
       time.innerHTML = `${tex('t')} = `;
-      time.append(this.timeVal, ' s');
+      time.append(this.timeVal, ` ${this.scene.time?.unit ?? 's'}`);
       bar.append(
         this.playBtn,
         iconButton(ICON.step, `${t('ui.step')} (→)`, () => {

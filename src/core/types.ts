@@ -88,6 +88,8 @@ export interface TimeSpec {
   window?: number;
   /** Sim seconds per wall second at 1x (default 1). */
   scale?: number;
+  /** Unit of the displayed time (control bar, plot axes); default 's'. */
+  unit?: string;
 }
 
 export interface WorldSpec {
