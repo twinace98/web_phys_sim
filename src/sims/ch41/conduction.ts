@@ -6,7 +6,7 @@ import { Frame, PX_WORLD, TICK, canvasBox, textPx } from '../modern/frame';
 import { ELECTRON } from './common';
 import { bandE, current, kGrid, occupied, shiftStep, wrap, type Filling } from './physics';
 
-type P = { fill: string; field: string };
+type P = { fill: string; field: number };
 interface S {
   t: number;
   n: number;
@@ -15,8 +15,8 @@ interface S {
 }
 
 const H = 0.05; // fs
-/** Drive F = eEa/ħ [1/fs] per field setting; the steady shift is −Fτ. */
-export const DRIVE: Record<string, number> = { off: 0, weak: 0.02, strong: 0.04 };
+/** Drive F = eEa/ħ [1/fs] at field strength 1; the steady shift is −Fτ. */
+export const DRIVE = 0.04;
 const EMPTY = '#b5b5b5';
 
 const params: ParamSchema<P> = {
@@ -34,17 +34,16 @@ const params: ParamSchema<P> = {
     ],
   },
   field: {
-    kind: 'select',
+    kind: 'number',
     label: 'ch41.c.p.field',
     desc: 'ch41.c.d.field',
     group: 'main',
     live: true,
-    default: 'strong',
-    options: [
-      { value: 'off', label: 'ch41.field.off' },
-      { value: 'weak', label: 'ch41.field.weak' },
-      { value: 'strong', label: 'ch41.field.strong' },
-    ],
+    control: 'slider',
+    min: 0,
+    max: 1,
+    step: 0.05,
+    default: 1,
   },
 };
 
@@ -77,7 +76,7 @@ export const conduction: Scene<P, S> = {
   step: (s, h, p) => {
     s.n += 1;
     s.t = s.n * H;
-    s.d = shiftStep(s.d, DRIVE[p.field] ?? 0, h);
+    s.d = shiftStep(s.d, DRIVE * p.field, h);
   },
   record: (s, p) => ({ t: s.t, J: current(occ(p.fill), s.d) }),
   snapshot: (s) => ({ ...s }),
@@ -113,10 +112,10 @@ export const conduction: Scene<P, S> = {
     });
     textPx(g, box.r, box.b - 6, '*k*', { size: 12, color: TICK, align: 'right' });
     // Field direction (electrons are pushed the other way).
-    const F = DRIVE[p.field] ?? 0;
+    const F = p.field;
     if (F > 0) {
       const cx = (box.l + box.r) / 2;
-      const len = F === DRIVE.strong ? 70 : 40;
+      const len = 20 + 50 * F;
       g.arrow(f.P(f.xAt(cx - len / 2), f.yAt(o.t + 22)), { x: g.px(len), y: 0 }, { role: 'field', width: 2.5 });
       textPx(g, cx + len / 2 + 10, o.t + 22, t('ch41.c.p.field'), { size: 13, color: '#8c8c8c', baseline: 'middle' });
     }

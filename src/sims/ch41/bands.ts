@@ -20,8 +20,10 @@ const params: ParamSchema<P> = {
     desc: 'ch41.b.d.N',
     group: 'main',
     live: true,
-    control: 'select',
-    choices: NS,
+    control: 'slider',
+    min: 1,
+    max: 12,
+    step: 1,
     default: 8,
   },
   b: {
@@ -30,8 +32,10 @@ const params: ParamSchema<P> = {
     desc: 'ch41.b.d.b',
     group: 'main',
     live: true,
-    control: 'select',
-    choices: [0.1, 0.2, 0.3, 0.5],
+    control: 'slider',
+    min: 0.1,
+    max: 0.5,
+    step: 0.02,
     default: 0.1,
     unit: 'nm',
   },
@@ -99,16 +103,17 @@ export const bandsScene: Scene<P, { t: number }> = {
     f.axes({ xLabel: '*x* (nm)', yLabel: '*E* (eV)' });
 
     // ---- levels against the number of wells, ending in the bands of the infinite chain
-    const cols = [...NS, Infinity];
+    const Ns = NS.includes(p.N) ? NS : [...NS, p.N].sort((a, b) => a - b);
+    const cols = [...Ns, Infinity];
     const fc = new Frame(g, boxB, [0, cols.length], Y);
     const cx = (i: number) => fc.X(i + 0.5);
     const half2 = Math.min(18, ((boxB.r - boxB.l) / cols.length) * 0.36);
-    const iCur = NS.indexOf(p.N);
+    const iCur = Ns.indexOf(p.N);
     rectPx(g, { l: cx(iCur) - half2 - 5, r: cx(iCur) + half2 + 5, t: boxB.t, b: boxB.b }, { fill: HILITE });
     fc.clip(() => {
       for (const [e0, e1] of bs) fc.polygon([[0, e0], [cols.length, e0], [cols.length, e1], [0, e1]], { fill: BAND_FILL, fillAlpha: 0.7 });
     });
-    NS.forEach((N, i) => {
+    Ns.forEach((N, i) => {
       for (const E of levels(N, p.b)) linePx(g, cx(i) - half2, fc.Y(E), cx(i) + half2, fc.Y(E), { color: LEVEL, width: 1 });
     });
     const iInf = cols.length - 1;
