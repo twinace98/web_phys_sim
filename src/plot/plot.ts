@@ -3,7 +3,7 @@ import katex from 'katex';
 import type { History } from '../core/history';
 import { fmt, fmtTick, niceTicks } from '../core/format';
 import { t as tr } from '../core/i18n';
-import type { AreaOverlay, Overlay, Params, PlotHandle, PlotSpec, Scene, SceneCtx, TangentOverlay, UiState } from '../core/types';
+import { timeUnit, type AreaOverlay, type Overlay, type Params, type PlotHandle, type PlotSpec, type Scene, type SceneCtx, type TangentOverlay, type UiState } from '../core/types';
 import { applyStroke, type PlotDraw, type Stroke } from '../draw/draw';
 import { drawRich, measureRich } from '../draw/text';
 import { color, theme, withAlpha } from '../draw/theme';
@@ -187,7 +187,7 @@ export class PlotGroup<P extends Params> {
 
     for (const v of this.views) {
       v.begin();
-      this.axes(v);
+      this.axes(v, timeUnit(scene.time, p));
       for (const { src, ov } of items) if (src === v && ov.kind === 'area') this.areaFill(v, ov, hist, idx);
       scene.drawPlot?.(v.spec.id, v, p, ui);
       for (const tr of v.spec.traces) this.trace(v, ts, hist.col(tr.channel), tr.role);
@@ -207,7 +207,7 @@ export class PlotGroup<P extends Params> {
 
   // ------------------------------------------------------------ pieces
 
-  private axes(v: PlotView): void {
+  private axes(v: PlotView, unit: string): void {
     const { ctx } = v;
     const s = theme.scale;
     const [y0, y1] = v.yRange;
@@ -248,7 +248,7 @@ export class PlotGroup<P extends Params> {
         ctx.stroke();
         drawRich(ctx, fmtTick(t), px, v.B + 15 * s, { size: 11, color: TICK_COLOR, align: 'center' });
       }
-      drawRich(ctx, `*t* (${this.host.scene.time?.unit ?? 's'})`, v.R, v.B - 6 * s, { size: 12, color: TICK_COLOR, align: 'right' });
+      drawRich(ctx, `*t* (${unit})`, v.R, v.B - 6 * s, { size: 12, color: TICK_COLOR, align: 'right' });
     }
     ctx.restore();
   }
