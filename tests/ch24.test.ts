@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { V } from '../src/sims/field/charges';
-import { workAlong } from '../src/sims/ch24/physics';
+import { extendPath, workAlong } from '../src/sims/ch24/physics';
 
 const src = [
   { x: -0.4, y: 0, s: 1 },
@@ -44,5 +44,40 @@ describe('ch24 work and potential', () => {
     const w = workAlong(src, [...A, 0, 0.35, ...B], 1);
     const exact = -(V(src, ...B) - V(src, ...A));
     expect(Math.abs(w / exact - 1)).toBeLessThan(1e-4);
+  });
+});
+
+describe('ch24 fast drags across charges', () => {
+  const minDist = (p: number[], s: { x: number; y: number }[]) => {
+    let m = Infinity;
+    for (let k = 0; k < p.length; k += 2) for (const c of s) m = Math.min(m, Math.hypot(p[k] - c.x, p[k + 1] - c.y));
+    return m;
+  };
+
+  it('jumping straight through a charge routes round it and keeps W = −q0 ΔV', () => {
+    const path = [-0.8, 0];
+    // Two jumps whose straight chords pass exactly through the + and the − charge.
+    extendPath(src, path, 0, 0);
+    extendPath(src, path, 0.8, 0);
+    expect(minDist(path, src)).toBeGreaterThan(0.045);
+    const exact = -(V(src, 0.8, 0) - V(src, -0.8, 0));
+    expect(Math.abs(workAlong(src, path, 1) / exact - 1)).toBeLessThan(0.005);
+  });
+
+  it('a wild random drag over several charges stays path-independent', () => {
+    const many = [...src, { x: 0, y: 0.3, s: 2 }, { x: 0.1, y: -0.35, s: -2 }];
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    for (let trial = 0; trial < 5; trial++) {
+      const path = [-0.15, 0.45];
+      for (let k = 0; k < 40; k++) extendPath(many, path, 1.1 * rnd(), 0.7 * rnd());
+      // and a few jumps aimed right at the charges
+      for (const c of many) extendPath(many, path, c.x, c.y);
+      const n = path.length;
+      const exact = -(V(many, path[n - 2], path[n - 1]) - V(many, path[0], path[1]));
+      const w = workAlong(many, path, 1);
+      expect(minDist(path, many)).toBeGreaterThan(0.045);
+      expect(Math.abs(w - exact)).toBeLessThan(0.005 * Math.max(Math.abs(exact), 1));
+    }
   });
 });

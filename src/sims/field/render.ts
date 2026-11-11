@@ -317,8 +317,17 @@ export function drawSurface(g: Draw, poly: readonly V2[]): void {
 /** Small draggable knob on a surface. */
 export function knob(g: Draw, p: Vec2, kind: 'edge' | 'centre' = 'edge'): void {
   if (kind === 'centre') {
-    g.circle(p, 5, { fill: '#ffffff', color: SURFACE, width: 1.75 });
-    g.circle(p, 1.6, { fill: SURFACE });
+    // A diamond, not a dotted circle: ⊙ means a field or current out of the page (Ch 29, 30).
+    const d = g.px(6.5);
+    g.polygon(
+      [
+        { x: p.x, y: p.y + d },
+        { x: p.x + d, y: p.y },
+        { x: p.x, y: p.y - d },
+        { x: p.x - d, y: p.y },
+      ],
+      { fill: '#ffffff', color: SURFACE, width: 1.75 },
+    );
   } else g.circle(p, 5.5, { fill: '#ffffff', color: SURFACE, width: 2 });
 }
 

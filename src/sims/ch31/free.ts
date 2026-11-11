@@ -3,7 +3,7 @@
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
-import { energies, freeAt, omega0, type RLC } from './physics';
+import { energies, freeAt, omega0, omegaDamped, type RLC } from './physics';
 
 type P = { R: number; L: number; C: number; spring: boolean };
 
@@ -78,14 +78,18 @@ const ANALOGY: [string, string, string?][] = [
 
 function analogy(g: Draw): void {
   const x = 2.1;
-  const top = 7.85;
-  const dy = (top - 4.75) / (ANALOGY.length - 1);
+  const top = 8.3;
+  const dy = (top - 4.6) / (ANALOGY.length - 1);
+  // Rows are a fixed world distance apart; on a small stage the font shrinks with them so
+  // neighbouring rows (with their superscripts) never touch.
+  const size = Math.max(10, Math.min(14, (0.72 * dy) / g.px(1)));
+  const gap = size;
   ANALOGY.forEach(([a, b, role], i) => {
     const y = top - i * dy;
-    const st = { size: 14, color: role ?? '#1a1a1a', baseline: 'middle' as const };
-    g.text({ x, y }, a, { ...st, align: 'right', dx: -14 });
+    const st = { size, color: role ?? '#1a1a1a', baseline: 'middle' as const };
+    g.text({ x, y }, a, { ...st, align: 'right', dx: -gap });
     g.text({ x, y }, '↔', { ...st, color: MUTED, align: 'center' });
-    g.text({ x, y }, b, { ...st, align: 'left', dx: 14 });
+    g.text({ x, y }, b, { ...st, align: 'left', dx: gap });
   });
 }
 
@@ -152,7 +156,8 @@ function circuit(g: Draw, p: P, q: number): void {
   }
   const lbl = { size: 15, color: WIRE, baseline: 'middle' as const };
   g.text({ x: X0 + 0.55, y: YC }, '*C*', { ...lbl, align: 'left', dx: 8 });
-  g.text({ x: X1 + 0.5, y: YC }, '*L*', { ...lbl, align: 'left', dx: 10 });
+  // Inside the loop, left of the coil: the energy bars sit just right of it on small stages.
+  g.text({ x: X1, y: YC }, '*L*', { ...lbl, align: 'right', dx: -10 });
 
   // Plate charges.
   const q0 = q0Of(p);
@@ -222,7 +227,7 @@ function spring(g: Draw, x: number, v: number): void {
     { fill: 'position', fillAlpha: 0.85 },
   );
   g.text({ x: xm, y: floor + 0.6 }, '*m*', { size: 14, color: '#ffffff', align: 'center', baseline: 'middle' });
-  if (Math.abs(v) > 0.02) g.arrow({ x: xm, y: floor + 1.45 }, { x: v * 1.4, y: 0 }, { role: 'velocity', width: 2.25, label: '*v*' });
+  if (Math.abs(v) > 0.12) g.arrow({ x: xm, y: floor + 1.45 }, { x: v * 1.4, y: 0 }, { role: 'velocity', width: 2.25, label: '*v*' });
 }
 
 export const freeScene: Scene<P, S> = {
@@ -296,7 +301,8 @@ export const freeScene: Scene<P, S> = {
   ],
 
   readouts: [
-    { label: 'T', unit: 'ms', value: (_s, p) => ((2 * Math.PI) / omega0(rlcOf(p))) * 1e3 },
+    // Period of the damped oscillation T' = 2π/ω'; "–" (NaN) when critically damped or overdamped.
+    { label: "T'", unit: 'ms', value: (_s, p) => ((2 * Math.PI) / omegaDamped(rlcOf(p))) * 1e3 },
     {
       label: 'U',
       unit: 'μJ',
@@ -314,6 +320,7 @@ export const freeScene: Scene<P, S> = {
     equations: [
       'L\\frac{d^2q}{dt^2} + R\\frac{dq}{dt} + \\frac{q}{C} = 0',
       '\\omega_0 = \\frac{1}{\\sqrt{LC}}',
+      "\\omega' = \\sqrt{\\frac{1}{LC} - \\left(\\frac{R}{2L}\\right)^2}, \\quad T' = \\frac{2\\pi}{\\omega'}",
       'q = Q e^{-Rt/2L}\\cos(\\omega\' t + \\phi)',
       'U = \\frac{q^2}{2C} + \\frac{1}{2}Li^2',
     ],

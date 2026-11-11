@@ -74,12 +74,21 @@ function drawRegion(g: Draw, p: P, s: S): void {
     ],
     { fill: '#000000', fillAlpha: 0.035, color: '#c8c8c8', width: 1 },
   );
-  // External B out of the page: grid of ⊙.
+  // External B out of the page: grid of ⊙, kept clear of the loop wire, the v arrow and its
+  // label; inside the loop the induced-field symbols take their place while there is a current.
+  const h0 = A_LOOP / 2;
+  const induced = Math.abs(f.dphi) > 1e-12;
+  const ax0 = f.x + h0 + g.px(10);
+  const ax1 = ax0 + g.px(58);
   for (let i = 0; i < 5; i++) {
     for (let j = 0; j < 5; j++) {
       const q = { x: -REGION + (i + 0.5) * 0.2, y: -REGION_H + (j + 0.5) * 0.18 };
-      // Inside the loop the induced-field symbols take their place.
-      if (Math.abs(q.x - f.x) < A_LOOP / 2 && Math.abs(q.y) < A_LOOP / 2) continue;
+      const dx = Math.abs(q.x - f.x) - h0;
+      const dy = Math.abs(q.y) - h0;
+      const inside = dx < 0 && dy < 0;
+      const toWire = inside ? Math.min(-dx, -dy) : Math.hypot(Math.max(dx, 0), Math.max(dy, 0));
+      if ((inside && induced) || toWire < g.px(11)) continue;
+      if (q.x > ax0 - g.px(10) && q.x < ax1 && Math.abs(q.y) < g.px(14)) continue;
       wireGlyph(g, q, 1, 0.75, 6, GREY);
     }
   }

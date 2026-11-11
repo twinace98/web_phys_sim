@@ -49,15 +49,30 @@ describe('ch28 cyclotron', () => {
 
   it('in tune, the proton gains about qV0 per crossing and leaves with (qBR)²/2m', () => {
     const c = cfg(1);
-    const run = runCyclotron(c, 20 * T, 1e-11, 10, 0.05);
+    const run = runCyclotron(c, 20 * T, 1e-11, 10, 0.065);
     expect(run.tStop).toBeLessThan(20 * T);
-    const i = Math.floor(run.tStop / (run.t[1] - run.t[0]));
-    expect(run.K[i] / maxEnergy(c)).toBeGreaterThan(0.8);
-    expect(run.K[i] / maxEnergy(c)).toBeLessThan(1.05);
+    expect(run.tExit).toBeLessThan(run.tStop);
+    expect(run.kExit / maxEnergy(c)).toBeCloseTo(1, 2);
     // Starting mid-gap gives qV0/2, then about qV0 per crossing: 1.5 qV0 after the second.
     const i3 = Math.floor((0.75 * T) / (run.t[1] - run.t[0]));
     expect(run.K[i3] / (p.q * 1e4)).toBeGreaterThan(1.3);
     expect(run.K[i3] / (p.q * 1e4)).toBeLessThan(1.55);
+  });
+
+  it('exit energy is (qBR)²/2m for every gap voltage; the orbit stays on the pole face', () => {
+    for (const kV of [5, 7, 10, 13, 20]) {
+      const c = cfg(1, kV * 1e3);
+      const run = runCyclotron(c, (120 / (2 * kV) + 3) * T, 1e-11, 10, 0.065);
+      // Extracted at the dee radius (orbit radius R), within 1 %, independent of V0.
+      expect(Number.isFinite(run.tExit)).toBe(true);
+      expect(Math.abs(run.kExit / maxEnergy(c) - 1)).toBeLessThan(0.01);
+      const kev = run.kExit / (p.q * 1e3);
+      expect(kev).toBeGreaterThan(118.8);
+      expect(kev).toBeLessThan(121.2);
+      // Before extraction the proton never strays far beyond the dees (pole face 1.12 R).
+      const dtS = run.t[1] - run.t[0];
+      for (let i = 0; i * dtS < run.tExit; i++) expect(Math.hypot(run.x[i], run.y[i])).toBeLessThan(1.06 * c.R);
+    }
   });
 
   it('detuned, the energy rises, falls again, and the proton stays inside', () => {

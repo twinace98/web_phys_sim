@@ -4,7 +4,7 @@ import { fmtTick, niceTicks } from '../../core/format';
 import type { Rng } from '../../core/rng';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { Q_E, currentOf, driftSpeed, heightOf, makeGas, resistanceOf, stepGas, type Gas, type Wire } from './physics';
+import { DENSITY, Q_E, SAMPLE, V_TH, currentOf, driftSpeed, heightOf, makeGas, resistanceOf, stepGas, type Gas, type Wire } from './physics';
 
 type P = { V: number; T: number; L: number; A: number };
 
@@ -32,8 +32,19 @@ const wireOf = (p: P): Wire => ({ L: p.L, A: p.A, T: p.T });
 const measured = new Map<string, Map<number, number>>();
 const keyOf = (p: P) => `${p.L}|${p.A}|${p.T}`;
 
+/** Q/t is meaningless over the first few collision times: no reading before T_READ [s]. */
+const T_READ = 3;
 /** Average current [mA] since t = 0, from the net count through the cross-section. */
-const measuredI = (s: S) => (s.t > 0 ? (s.gas.count * Q_E * 1e3) / s.t : 0);
+const measuredI = (s: S) => (s.t >= T_READ ? (s.gas.count * Q_E * 1e3) / s.t : NaN);
+/**
+ * Upper bound on the thermal counting noise of Q/t [mA] after t seconds: crossings of the
+ * section in both directions at rate n h ⟨|v_x|⟩, each ±1, treated as independent (back-and-forth
+ * crossings of one electron cancel, so the real spread is smaller).
+ */
+const noiseI = (p: P, t: number) => {
+  const rate = DENSITY * SAMPLE * heightOf(p.A) * ((2 * V_TH) / Math.PI);
+  return (Q_E * 1e3 * Math.sqrt(rate * t)) / t;
+};
 
 const params: ParamSchema<P> = {
   V: {
@@ -127,7 +138,7 @@ function drawChart(g: Draw, p: P, s: S): void {
     if (V === p.V) continue;
     g.circle({ x: X(V), y: Y(Math.min(I, iMax)) }, 4.5, { fill: '#ffffff', role: 'velocity', width: 2 });
   }
-  if (s.t > 0.5) g.circle({ x: X(p.V), y: Y(Math.max(0, Math.min(measuredI(s), iMax))) }, 5, { fill: 'velocity' });
+  if (s.t >= T_READ) g.circle({ x: X(p.V), y: Y(Math.max(0, Math.min(measuredI(s), iMax))) }, 5, { fill: 'velocity' });
 }
 
 export const conduction: Scene<P, S> = {
@@ -185,7 +196,8 @@ export const conduction: Scene<P, S> = {
     }
 
     const gas = s.gas;
-    for (let i = 1; i < gas.n; i++) g.circle({ x: gas.x[i], y: gas.y[i] }, 2.6, { fill: 'negative' });
+    // Every SAMPLE-th electron is drawn (positions are random, so this is a fair subset).
+    for (let i = SAMPLE; i < gas.n; i += SAMPLE) g.circle({ x: gas.x[i], y: gas.y[i] }, 2.6, { fill: 'negative' });
 
     // Tracer electron and its path: straight-ish arcs between collisions.
     const tr = s.trail;
@@ -227,10 +239,12 @@ export const conduction: Scene<P, S> = {
       label: 'Q\\,(\\mathrm{C})',
       traces: [{ channel: 'q', role: 'position' }],
       yRange: (p) => {
-        if (p.V === 0) return [-0.25, 0.25];
-        // At low voltage the thermal counting noise (~±0.1 C) dominates: keep it in view.
+        // At low voltage the thermal counting noise dominates: keep three (bounding) standard
+        // deviations at the end of the run in view.
+        const n3 = (3 * noiseI(p, 30) * 30) / 1e3;
+        if (p.V === 0) return [-Math.max(0.25, n3), Math.max(0.25, n3)];
         const m = Math.max(0.3, currentOf(wireOf(p), p.V) * 30 * 1.1);
-        return [-0.1 * m, m];
+        return [Math.min(-0.1 * m, -n3), m];
       },
     },
     {
@@ -238,9 +252,11 @@ export const conduction: Scene<P, S> = {
       label: '\\bar I = Q/t\\,(\\mathrm{mA})',
       traces: [{ channel: 'i', role: 'velocity' }],
       yRange: (p) => {
-        if (p.V === 0) return [-50, 50];
-        const m = Math.max(50, currentOf(wireOf(p), p.V) * 1e3 * 1.6);
-        return [-0.25 * m, m];
+        // Prediction plus four (bounding) standard deviations of the noise at the first reading.
+        const I = currentOf(wireOf(p), p.V) * 1e3;
+        const n4 = 4 * noiseI(p, T_READ);
+        const hi = Math.max(1.6 * I, I + n4, 20);
+        return [Math.min(-0.25 * hi, I - n4), hi];
       },
     },
   ],

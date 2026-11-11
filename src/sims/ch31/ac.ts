@@ -100,37 +100,76 @@ function phasors(g: Draw, p: P, tMs: number): void {
     [a.VL, th - phi + Math.PI / 2, 'acceleration', '*V*_{L}', 2.25],
     [a.VC, th - phi - Math.PI / 2, 'position', '*V*_{C}', 2.25],
   ];
+  // Labels avoid every arrow, projection line, the axes and each other: each label takes the
+  // first candidate spot (beyond the tip, then sideways, then further out) with enough room.
+  type Seg = [Vec2, Vec2];
+  const segs: Seg[] = [
+    [{ x: PC.x - PR - 0.3, y: PC.y }, { x: PC.x + PR + 0.3, y: PC.y }],
+    [{ x: PC.x, y: PC.y - PR - 0.3 }, { x: PC.x, y: PC.y + PR + 0.3 }],
+  ];
   const placed: Vec2[] = [];
-  const near = (q: Vec2) => placed.some((o) => Math.hypot(o.x - q.x, o.y - q.y) < g.px(20));
-  for (const [amp, ang, role, label, w] of list) {
-    const v = { x: amp * k * Math.cos(ang), y: amp * k * Math.sin(ang) };
+  const segDist = (q: Vec2, [a, b]: Seg) => {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const l2 = dx * dx + dy * dy;
+    const u = l2 > 0 ? Math.max(0, Math.min(1, ((q.x - a.x) * dx + (q.y - a.y) * dy) / l2)) : 0;
+    return Math.hypot(a.x + u * dx - q.x, a.y + u * dy - q.y);
+  };
+  /** Free room around q [px]: distance to the nearest line, or to a placed label minus its size. */
+  const room = (q: Vec2) => {
+    let r = Infinity;
+    for (const sg of segs) r = Math.min(r, segDist(q, sg));
+    for (const o of placed) r = Math.min(r, Math.hypot(o.x - q.x, o.y - q.y) - g.px(14));
+    return r / g.px(1);
+  };
+  const place = (tip: Vec2, d: Vec2): Vec2 => {
+    let best = tip;
+    let bestRoom = -Infinity;
+    for (const out of [15, 26, 38]) {
+      for (const side of [0, 1, -1, 1.8, -1.8]) {
+        const q = { x: tip.x + d.x * g.px(out) - d.y * g.px(16 * side), y: tip.y + d.y * g.px(out) + d.x * g.px(16 * side) };
+        const r = room(q);
+        if (r >= 11) return q;
+        if (r > bestRoom) {
+          bestRoom = r;
+          best = q;
+        }
+      }
+    }
+    return best;
+  };
+
+  const vecs = list.map(([amp, ang]) => ({ x: amp * k * Math.cos(ang), y: amp * k * Math.sin(ang) }));
+  // Current phasor: direction only (separate scale), drawn thin along V_R.
+  const iLen = 0.42 * PR;
+  const u = { x: Math.cos(th - phi), y: Math.sin(th - phi) };
+  const iTip = { x: PC.x + u.x * iLen, y: PC.y + u.y * iLen };
+  vecs.forEach((v) => {
+    segs.push([PC, { x: PC.x + v.x, y: PC.y + v.y }], [{ x: PC.x + v.x, y: PC.y + v.y }, { x: PC.x, y: PC.y + v.y }]);
+  });
+  segs.push([PC, iTip]);
+
+  list.forEach(([, , role, , w], n) => {
+    const v = vecs[n];
     g.arrow(PC, v, { color: role, width: w });
     // Projection on the vertical axis = instantaneous value.
     g.line({ x: PC.x + v.x, y: PC.y + v.y }, { x: PC.x, y: PC.y + v.y }, { color: role, width: 1, dash: [2, 3], alpha: 0.6 });
     g.circle({ x: PC.x, y: PC.y + v.y }, 3.5, { fill: role });
-    // Label beyond the tip; moved sideways if another label is already there.
-    const d = { x: Math.cos(ang), y: Math.sin(ang) };
-    let at = { x: PC.x + v.x + d.x * g.px(14), y: PC.y + v.y + d.y * g.px(14) };
-    for (const side of [1, -1, 2, -2]) {
-      if (!near(at)) break;
-      at = { x: PC.x + v.x + d.x * g.px(14) - d.y * g.px(18 * side), y: PC.y + v.y + d.y * g.px(14) + d.x * g.px(18 * side) };
-    }
+  });
+  g.arrow(PC, { x: u.x * iLen, y: u.y * iLen }, { role: 'velocity', width: 1.75 });
+
+  // Labels last, in order of importance; the longest phasors first get the spot beyond the tip.
+  const order = list.map((_, n) => n).sort((a, b) => Math.hypot(vecs[b].x, vecs[b].y) - Math.hypot(vecs[a].x, vecs[a].y));
+  for (const n of order) {
+    const [, ang, role, label] = list[n];
+    const v = vecs[n];
+    const at = place({ x: PC.x + v.x, y: PC.y + v.y }, { x: Math.cos(ang), y: Math.sin(ang) });
     placed.push(at);
     g.text(at, label, { size: 14, color: role, align: 'center', baseline: 'middle' });
   }
-  // Current phasor: direction only (separate scale), drawn thin along V_R.
-  const iLen = 0.42 * PR;
-  const u = { x: Math.cos(th - phi), y: Math.sin(th - phi) };
-  g.arrow(PC, { x: u.x * iLen, y: u.y * iLen }, { role: 'velocity', width: 1.75 });
-  // Beside the I arrow, on whichever side is clear of the phasor labels.
-  const side = (k2: number): Vec2 => ({ x: PC.x + u.x * iLen * 0.7 - u.y * g.px(13 * k2), y: PC.y + u.y * iLen * 0.7 + u.x * g.px(13 * k2) });
-  const iAt = [1, -1, 2, -2].map(side).find((q) => !near(q)) ?? side(1);
-  g.text(iAt, '*I*', {
-    size: 14,
-    role: 'velocity',
-    align: 'center',
-    baseline: 'middle',
-  });
+  const iAt = place(iTip, u);
+  placed.push(iAt);
+  g.text(iAt, '*I*', { size: 14, role: 'velocity', align: 'center', baseline: 'middle' });
 }
 
 // ------------------------------------------------------------------ resonance curve

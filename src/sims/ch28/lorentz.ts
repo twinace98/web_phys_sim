@@ -15,7 +15,6 @@ interface S {
 
 const RATE = 120;
 const M = 1e6; // speed unit [m/s]
-const TRAIL = 260; // trail points kept (every 2nd step): a bit more than one turn at B = 1
 
 const ptOf = (p: P): Particle => PARTICLES[p.particle] ?? PARTICLES.proton;
 const isElectron = (p: P) => p.particle === 'electron';
@@ -109,7 +108,9 @@ export const lorentzScene: Scene<P, S> = {
       if (s.n % 2 === 0) {
         const tr = s.trails[i];
         tr.push(k.x, k.y);
-        if (tr.length > 2 * TRAIL) tr.splice(0, 2);
+        // Keep a little more than one full turn at the current field, so the circle always closes.
+        const keep = Math.ceil((1.08 * period(pt, Bof(p)) * 1e9) / (2 * dtNs)) + 2;
+        if (tr.length > 2 * keep) tr.splice(0, tr.length - 2 * keep);
       }
     });
   },
@@ -147,14 +148,21 @@ export const lorentzScene: Scene<P, S> = {
     const last = s.ps.length - 1;
     s.ps.forEach((k, i) => {
       const c = cm(k);
-      const [fx, fy] = lorentz(k, pt, -B);
+      const [fx0, fy0] = lorentz(k, pt, -B);
+      // F ∝ vB while r ∝ v/B: at high B the arrow would reach past the centre. Cap it at 0.7 r
+      // (the cap scales with v too, so the three speeds keep their ratio).
+      const rCm = radius(pt, Math.hypot(k.vx, k.vy), B) * 100;
+      const f = Math.min(1, (0.7 * rCm) / Math.max(1e-30, Math.hypot(fx0, fy0) * kF));
+      const fx = fx0 * f;
+      const fy = fy0 * f;
       const main = i === last;
       g.arrow(c, { x: k.vx * kV, y: k.vy * kV }, { role: 'velocity', width: 2.25, label: main ? '*v*' : undefined });
       g.arrow(c, { x: fx * kF, y: fy * kF }, { role: 'force', width: 2.25 });
       if (main) {
-        // Beside the middle of F, on the side away from v: clear of the slower particles inside.
-        const sp = Math.hypot(k.vx, k.vy);
-        g.text({ x: c.x + (fx * kF) / 2 - (k.vx / sp) * g.px(13), y: c.y + (fy * kF) / 2 - (k.vy / sp) * g.px(13) }, '*F*', {
+        // Just outside the fastest particle's circle, opposite F: the slower particles and their
+        // arrows all lie inside that circle, so this spot stays clear at every field.
+        const fl = Math.hypot(fx, fy) || 1;
+        g.text({ x: c.x - (fx / fl) * g.px(15), y: c.y - (fy / fl) * g.px(15) }, '*F*', {
           size: 13,
           role: 'force',
           align: 'center',
