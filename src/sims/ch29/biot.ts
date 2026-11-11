@@ -31,7 +31,7 @@ const params: ParamSchema<P> = {
       { value: 'loop', label: 'ch29.b.wire.loop' },
     ],
   },
-  n: { kind: 'number', label: 'ch29.b.p.n', desc: 'ch29.b.d.n', group: 'main', live: false, control: 'select', choices: [12, 24, 48], default: 24 },
+  n: { kind: 'number', label: 'ch29.b.p.n', desc: 'ch29.b.d.n', group: 'main', live: false, control: 'slider', min: 4, max: 48, step: 1, default: 24 },
   Ps: { kind: 'array', label: 'ch29.b.p.P', group: 'hidden', live: false, default: [0.15, 0.3], min: -2, max: 2 },
   Pl: { kind: 'array', label: 'ch29.b.p.P', group: 'hidden', live: false, default: [0, 0], min: -2, max: 2 },
 };

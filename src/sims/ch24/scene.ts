@@ -29,7 +29,7 @@ const params: ParamSchema<P> = {
     ],
   },
   lines: { kind: 'toggle', label: 'ch24.p.lines', desc: 'ch24.d.lines', group: 'advanced', live: true, default: true },
-  dV: { kind: 'number', label: 'ch24.p.dV', desc: 'ch24.d.dV', group: 'advanced', live: true, control: 'select', choices: [2, 5, 10], default: 5, unit: 'V' },
+  dV: { kind: 'number', label: 'ch24.p.dV', desc: 'ch24.d.dV', group: 'advanced', live: true, control: 'slider', min: 1, max: 10, step: 1, default: 5, unit: 'V' },
   Q: layoutParam('ch24'),
 };
 
