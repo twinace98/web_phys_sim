@@ -1,0 +1,12 @@
+{
+  "field.preset.single": "단일 전하",
+  "field.preset.dipole": "쌍극자",
+  "field.preset.like": "같은 부호 쌍",
+  "field.preset.plates": "평행판 근사",
+  "field.shape.circle": "원",
+  "field.shape.square": "정사각형",
+  "field.shape.free": "자유 곡선",
+  "field.view.lines": "장선",
+  "field.view.vectors": "벡터 화살표",
+  "field.view.off": "끄기"
+}
