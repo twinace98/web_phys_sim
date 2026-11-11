@@ -25,6 +25,41 @@ const released = (p: P) => {
 };
 /** The centripetal force is lost a quarter lap after the start. */
 const tRel = (p: P) => (released(p) ? lapTime(SETUPS[presetOf(p)]) / 4 : Infinity);
+/**
+ * Run end: after the release the object travels TRAVEL radii along the tangent, so it and its
+ * velocity arrow stay on stage; the cut conical pendulum also falls, so it stops sooner.
+ */
+const TRAVEL = 0.95;
+const TRAVEL_CONE = 0.7;
+const tEnd = (p: P) => {
+  const s = SETUPS[presetOf(p)];
+  return tRel(p) + ((presetOf(p) === 'cone' ? TRAVEL_CONE : TRAVEL) * s.r) / s.v;
+};
+/** Side view: world units per metre for the conical pendulum (1 m string drawn 1.4 long). */
+const CONE_SCALE = 1.4;
+
+/** Narrow (portrait) screens stack the side view under the top view. */
+const narrow = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+/** Shift that moves the side view (drawn around x = SX) to its place: right, or below on narrow screens. */
+const SIDE_BELOW: Vec2 = { x: -SX, y: -3.2 };
+
+/** The same drawing API with every world point shifted by d. */
+function shifted(g: Draw, d: Vec2): Draw {
+  const m = (q: Vec2): Vec2 => ({ x: q.x + d.x, y: q.y + d.y });
+  return {
+    ctx: g.ctx,
+    vp: g.vp,
+    px: (n) => g.px(n),
+    line: (a, b, st) => g.line(m(a), m(b), st),
+    polyline: (pts, st) => g.polyline(pts.map(m), st),
+    arrow: (from, vec, st) => g.arrow(m(from), vec, st),
+    circle: (c, r, st) => g.circle(m(c), r, st),
+    polygon: (pts, st) => g.polygon(pts.map(m), st),
+    arc: (c, r, a0, a1, st) => g.arc(m(c), r, a0, a1, st),
+    text: (q, str, st) => g.text(m(q), str, st),
+    screenText: (x, y, str, st) => g.screenText(x, y, str, st),
+  };
+}
 
 const params: ParamSchema<P> = {
   preset: {
@@ -112,14 +147,16 @@ function drawTop(g: Draw, p: P, t: number): void {
   g.text({ x: 0, y: 1.5 }, tr('ch06.c.top'), { size: 12, color: CAPTION, align: 'center' });
 }
 
-function drawSide(g: Draw, p: P, onCircle: boolean): void {
+function drawSide(g: Draw, p: P, t: number): void {
   const pr = presetOf(p);
   const s = SETUPS[pr];
-  const rel = !onCircle;
+  const rel = t >= tRel(p);
   const fs = forces(pr, rel);
   const KF = 0.75 / (s.m * G);
-  const O: Vec2 = { x: OX, y: 0 };
-  const axisX = pr === 'cone' ? OX - 1.4 * Math.sin(s.theta) : OX - 1.25;
+  // A cut conical pendulum falls freely; its tangential motion is across the view.
+  const fall = pr === 'cone' && rel ? 0.5 * G * (t - tRel(p)) ** 2 * CONE_SCALE : 0;
+  const O: Vec2 = { x: OX, y: -fall };
+  const axisX = pr === 'cone' ? OX - CONE_SCALE * Math.sin(s.theta) : OX - 1.25;
 
   // Rotation axis (dash-dot) through the centre of the circle, on the left.
   g.line({ x: axisX, y: -1.05 }, { x: axisX, y: 1.3 }, { color: GREY, width: 1, dash: [8, 3, 2, 3] });
@@ -143,9 +180,11 @@ function drawSide(g: Draw, p: P, onCircle: boolean): void {
     g.line(add(foot, u, -1.1), add(foot, u, 0.9), { color: BODY, width: 2 });
     rotRect(g, O, u, 0.36, 0.22, 0.2);
   } else {
-    const pivot = { x: axisX, y: 1.4 * Math.cos(s.theta) };
+    const pivot = { x: axisX, y: CONE_SCALE * Math.cos(s.theta) };
     g.line({ x: axisX - 0.3, y: pivot.y }, { x: axisX + 0.3, y: pivot.y }, { color: BODY, width: 3 });
     if (!rel) g.line(pivot, O, { color: BODY, width: 1.25 });
+    // After the cut: dashed drop line from the release point.
+    else g.line({ x: OX, y: 0 }, O, { color: GREY, width: 1, dash: [3, 4] });
     g.circle(O, 9, { fill: 'position' });
   }
 
@@ -181,20 +220,18 @@ export const circular: Scene<P, { t: number; n: number }> = {
   id: 'circular',
   title: 'ch06.c.scene',
   params,
-  time: { h: 1 / RATE, recordEvery: 4, frameStep: 0.05, tEnd: (p) => tRel(p as P) + (1.6 * SETUPS[presetOf(p as P)].r) / SETUPS[presetOf(p as P)].v },
-  world: () => ({ x: [-1.45, 4.95], y: [-1.3, 1.75], aspect: 'contain', padPx: 16 }),
+  time: { h: 1 / RATE, recordEvery: 4, frameStep: 0.05, tEnd: (p) => tEnd(p as P) },
+  world: () => (narrow() ? { x: [-1.45, 1.45], y: [-4.45, 1.75], aspect: 'contain', padPx: 12 } : { x: [-1.45, 4.95], y: [-1.3, 1.75], aspect: 'contain', padPx: 16 }),
   init: () => ({ t: 0, n: 0 }),
   step: (s, _h, p) => {
     s.n += 1;
-    s.t = s.n / RATE;
-    const end = tRel(p) + (1.6 * SETUPS[presetOf(p)].r) / SETUPS[presetOf(p)].v;
-    if (s.t > end) s.t = end;
+    s.t = Math.min(s.n / RATE, tEnd(p));
   },
   snapshot: (s) => ({ ...s }),
 
   draw: (g, s, p) => {
     drawTop(g, p, s.t);
-    drawSide(g, p, s.t < tRel(p));
+    drawSide(narrow() ? shifted(g, SIDE_BELOW) : g, p, s.t);
   },
 
   readouts: [

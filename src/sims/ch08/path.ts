@@ -89,7 +89,7 @@ const params: ParamSchema<P> = {
     ],
   },
   closed: { kind: 'toggle', label: 'ch08.p.p.closed', desc: 'ch08.p.d.closed', group: 'advanced', live: false, default: false },
-  via: { kind: 'array', label: 'ch08.p.p.via', group: 'hidden', live: false, default: [1, -1.2], min: -LIM, max: LIM },
+  via: { kind: 'array', label: 'ch08.p.p.via', desc: 'ch08.p.d.via', group: 'hidden', live: false, default: [1, -1.2], min: -LIM, max: LIM },
 };
 
 const P2 = (v: V2): Vec2 => ({ x: v[0], y: v[1] });

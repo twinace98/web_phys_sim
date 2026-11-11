@@ -7,7 +7,7 @@ import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
 import { GM, R_EARTH, classify, elements, energy, escapeSpeed, radius, speed, yoshida, type Body, type OrbitKind, type V2 } from './physics';
 
-type P = { speed: number; alt: number; dir: number; predict: boolean; areas: boolean; ueff: boolean };
+export type P = { speed: number; alt: number; dir: number; predict: boolean; areas: boolean; ueff: boolean };
 
 interface S {
   t: number;
@@ -38,6 +38,7 @@ function launch(p: P, dirDeg = p.dir): Body {
 
 const GAUGE = 0.6; // escape-speed circle at launch: at least this fraction of r0 ...
 const GAUGE_VIEW = 0.09; // ... and at least this fraction of the view, so it stays readable on huge orbits
+const INSET_STRIP = 0.62; // width of the strip reserved for the U_eff diagram, as a fraction of the view height
 const R_STOP = 2.5; // escaping probes stop at this many r0, a circle that lies inside the view
 
 export interface View {
@@ -103,12 +104,13 @@ export function view(p: P): View {
   }
   const D = Math.max(box.x1 - box.x0, box.y1 - box.y0);
   const g0 = Math.max(GAUGE * r0, GAUGE_VIEW * D);
-  // Gauge circle around the probe at distance r has radius g0 √(r0/r).
-  const gAt = (r: number) => g0 * Math.sqrt(r0 / Math.max(r, rLow));
+  // Around the probe at distance r: the gauge circle, radius g0 √(r0/r), and the velocity arrow,
+  // length g0 √(f² − 1 + r0/r) (longer than the circle on escape orbits).
+  const gAt = (r: number) => g0 * Math.sqrt(Math.max(0, f * f - 1) + r0 / Math.max(r, rLow));
   const rho = rLow + gAt(rLow);
   grow(-rho, rho, -rho, rho);
   grow(-r0 - g0, -r0 + g0, -g0, g0);
-  const m = 0.03 * D;
+  const m = 0.04 * D;
   viewMemo = {
     x: [box.x0 - gAt(-box.x0) - m, box.x1 + gAt(box.x1) + m],
     y: [box.y0 - gAt(-box.y0) - m, box.y1 + gAt(box.y1) + m],
@@ -119,7 +121,7 @@ export function view(p: P): View {
   return viewMemo;
 }
 
-interface Model {
+export interface Model {
   b0: Body;
   kind: OrbitKind;
   /** Positions [m] and velocities [m/s] at every physics step. */
@@ -139,7 +141,7 @@ interface Model {
 
 let memoKey = '';
 let memo: Model | null = null;
-function model(p: P): Model {
+export function model(p: P): Model {
   const key = `${p.speed}|${p.alt}|${p.dir}`;
   if (key === memoKey && memo) return memo;
   const b0 = launch(p);
@@ -147,8 +149,10 @@ function model(p: P): Model {
   const el = elements(b0);
   const r0 = r0Of(p);
   const tCirc = 2 * Math.PI * Math.sqrt(r0 ** 3 / GM);
-  // Three orbits, but never more than 40 circular periods (orbits just below escape are huge).
-  const tMax = kind === 'ellipse' ? Math.min(3 * el.period, 40 * tCirc) : 4 * tCirc;
+  // Three orbits, but never more than 40 circular periods (orbits just below escape are huge);
+  // always at least one full orbit so the predicted path closes. Escape orbits stop at rStop.
+  const tMax = kind === 'ellipse' ? Math.max(el.period, Math.min(3 * el.period, 40 * tCirc)) : 20 * tCirc;
+  const rStop = view(p).rStop;
   const nMax = Math.ceil(tMax / H);
   const xs = new Float64Array(2 * (nMax + 1));
   const vs = new Float64Array(2 * (nMax + 1));
@@ -164,8 +168,12 @@ function model(p: P): Model {
     for (let k = 0; k < SUB; k++) yoshida(b, H / SUB);
     const r = radius(b);
     if (r <= R_EARTH) {
-      // Stop on the surface along the last direction.
+      // Stop on the surface along the last direction, with the impact speed E gives there
+      // (the step overshot below the surface; snapping x alone would make E jump).
+      const E0 = energy(b);
       b.x = [(b.x[0] * R_EARTH) / r, (b.x[1] * R_EARTH) / r];
+      const k = Math.sqrt(Math.max(0, 2 * (E0 + GM / R_EARTH))) / (speed(b) || 1);
+      b.v = [b.v[0] * k, b.v[1] * k];
       crashed = true;
     }
     xs.set(b.x, 2 * n);
@@ -173,7 +181,7 @@ function model(p: P): Model {
     rMax = Math.max(rMax, radius(b));
     rMin = Math.min(rMin, radius(b));
     vMax = Math.max(vMax, speed(b));
-    if (crashed || (kind !== 'ellipse' && outside(p, b.x))) {
+    if (crashed || (kind !== 'ellipse' && radius(b) >= rStop)) {
       N = n;
       break;
     }
@@ -208,7 +216,7 @@ const w = (x: number[] | Float64Array, i: number): Vec2 => ({ x: x[i] / MM, y: x
 const params: ParamSchema<P> = {
   speed: { kind: 'number', label: 'ch13.p.speed', desc: 'ch13.d.speed', group: 'main', live: false, control: 'slider', min: 0.3, max: 1.4, step: 0.01, default: 0.85 },
   alt: { kind: 'number', label: 'ch13.p.alt', desc: 'ch13.d.alt', group: 'main', live: false, control: 'slider', min: 1000, max: 15000, step: 500, default: 6000, unit: 'km' },
-  dir: { kind: 'number', label: 'ch13.p.dir', group: 'hidden', live: false, control: 'slider', min: -90, max: 90, default: 0 },
+  dir: { kind: 'number', label: 'ch13.p.dir', desc: 'ch13.d.dir', group: 'hidden', live: false, control: 'slider', min: -90, max: 90, default: 0 },
   predict: { kind: 'toggle', label: 'ch13.p.predict', desc: 'ch13.d.predict', group: 'advanced', live: true, default: true },
   areas: { kind: 'toggle', label: 'ch13.p.areas', desc: 'ch13.d.areas', group: 'advanced', live: true, default: false },
   ueff: { kind: 'toggle', label: 'ch13.p.ueff', desc: 'ch13.d.ueff', group: 'advanced', live: true, default: false },
@@ -231,10 +239,12 @@ function effectivePotential(g: Draw, p: P, rNow: number): void {
   const y0 = Math.min(uMin, E) * 1.15;
   const y1 = Math.max(E, 0) + 0.35 * Math.abs(y0);
   const ctx = g.ctx;
-  const W = 210;
-  const Hh = 130;
-  const bx = g.vp.w - W - 12;
-  const by = g.vp.h - Hh - 12;
+  // Inside the empty strip right of the orbit box (see world), at most 210 × 130 px.
+  const stripLeft = g.vp.toPx(view(p).x[1] / MM, 0)[0];
+  const W = Math.max(110, Math.min(210, g.vp.w - stripLeft - 16));
+  const Hh = Math.round(Math.min(130, 0.62 * W));
+  const bx = g.vp.w - W - 10;
+  const by = g.vp.h - Hh - 10;
   const X = (r: number) => bx + 10 + ((r - r0) / (r1 - r0)) * (W - 20);
   const Y = (u: number) => by + 22 + ((y1 - u) / (y1 - y0)) * (Hh - 32);
   ctx.save();
@@ -294,8 +304,8 @@ function effectivePotential(g: Draw, p: P, rNow: number): void {
   g.text(at(bx + W - 8, Y(0) - 5), '*r*', { size: 12, color: '#6b6b6b', align: 'right' });
 }
 
-/** World length per m/s of velocity: the escape-speed circle at launch is GAUGE r0. */
-const kv = (p: P) => (GAUGE * r0Of(p)) / MM / escapeSpeed(r0Of(p));
+/** World length per m/s of velocity: the escape-speed circle at launch has radius g0. */
+const kv = (p: P) => view(p).g0 / MM / escapeSpeed(r0Of(p));
 
 function sectors(g: Draw, p: P, n: number): void {
   const m = model(p);
@@ -315,8 +325,10 @@ export const orbitScene: Scene<P, S> = {
   time: { h: H, recordEvery: 2, frameStep: 200, scale: 4000, tEnd: (p) => model(p as P).N * H },
 
   world: (p) => {
-    const v = viewBox(p);
-    return { x: [v.x[0] / MM, v.x[1] / MM], y: [v.y[0] / MM, v.y[1] / MM], aspect: 'contain', padPx: 12 };
+    const v = view(p);
+    // The U_eff diagram gets an empty strip on the right, so it never covers the orbit.
+    const strip = p.ueff ? INSET_STRIP * (v.y[1] - v.y[0]) : 0;
+    return { x: [v.x[0] / MM, (v.x[1] + strip) / MM], y: [v.y[0] / MM, v.y[1] / MM], aspect: 'contain', padPx: 12 };
   },
 
   init: () => ({ t: 0, n: 0 }),
@@ -393,7 +405,8 @@ export const orbitScene: Scene<P, S> = {
       ux = -ux;
       uy = -uy;
     }
-    g.text({ x: P0.x + ux * (rg + g.px(10)), y: P0.y + uy * (rg + g.px(10)) }, '*v*_{esc}', {
+    // A small circle (far from the Earth on a huge orbit) has no room for a label beside the v label.
+    if (rg > g.px(10)) g.text({ x: P0.x + ux * (rg + g.px(10)), y: P0.y + uy * (rg + g.px(10)) }, '*v*_{esc}', {
       size: 12,
       role: 'velocity',
       align: ux > 0.4 ? 'left' : ux < -0.4 ? 'right' : 'center',

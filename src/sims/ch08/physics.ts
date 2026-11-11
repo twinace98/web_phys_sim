@@ -171,7 +171,10 @@ export function stepParticle(pot: Potential, s: Particle, h: number, m: number, 
     s.v = Math.abs(s.v) <= dv ? 0 : s.v - Math.sign(s.v) * dv;
   }
   if (s.x < pot.lo || s.x > pot.hi) {
+    // Leaves the drawn range: stop on the edge with the speed energy conservation gives there.
+    const E = 0.5 * m * s.v * s.v + pot.U(s.x);
     s.x = Math.min(Math.max(s.x, pot.lo), pot.hi);
+    s.v = Math.sign(s.v) * Math.sqrt(Math.max(0, (2 * (E - pot.U(s.x))) / m));
     s.stopped = true;
   }
 }

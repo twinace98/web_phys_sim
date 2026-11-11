@@ -34,7 +34,7 @@ const params: ParamSchema<P> = {
       { value: 'rod', label: 'ch10.shape.rod' },
     ],
   },
-  d: { kind: 'number', label: 'ch10.p.d', group: 'hidden', live: true, control: 'slider', min: -R, max: R, default: 0.3 },
+  d: { kind: 'number', label: 'ch10.p.d', desc: 'ch10.d.d', group: 'hidden', live: true, control: 'slider', min: -R, max: R, default: 0.3 },
 };
 
 const gx = (d: number) => GX + Math.abs(d) * SX;
@@ -115,7 +115,11 @@ function graph(g: Draw, Icm: number, d: number): void {
   const left = Math.abs(d) > 0.4;
   const st = { size: 13, align: left ? ('right' as const) : ('left' as const), baseline: 'middle' as const, dx: left ? -8 : 8 };
   g.text({ x: X, y: (GY + gy(Icm)) / 2 }, '*I*_{cm}', { ...st, role: 'position' });
-  if (gy(I) - gy(Icm) > g.px(16)) g.text({ x: X, y: (gy(Icm) + gy(I)) / 2 }, '*Md*^{2}', { ...st, role: 'energyU' });
+  // A short M d² bar has no room beside it (the label would sit on the I_cm line and under the
+  // curve): then the label goes up-left of the point, where the curve is lower.
+  const bar = gy(I) - gy(Icm);
+  if (bar > g.px(30)) g.text({ x: X, y: (gy(Icm) + gy(I)) / 2 }, '*Md*^{2}', { ...st, role: 'energyU' });
+  else if (bar > g.px(3)) g.text({ x: X, y: gy(I) }, '*Md*^{2}', { size: 13, align: 'right', baseline: 'bottom', dx: -8, dy: -4, role: 'energyU' });
 }
 
 export const parallelScene: Scene<P, { t: number }> = {

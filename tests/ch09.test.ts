@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
 import { collide1D, collide2D, contactTime, explode1D, motion1D, motion2D, state1D, state2D, type Puck, type Track } from '../src/sims/ch09/physics';
-import { puckScene } from '../src/sims/ch09/puck';
+import { bMax, bOf, puckScene } from '../src/sims/ch09/puck';
 import { track } from '../src/sims/ch09/track';
 
 describe('ch09 1D collisions', () => {
@@ -121,5 +121,22 @@ describe('ch09 2D collisions', () => {
     for (const v of run.hist.col('pty')) expect(v).toBeCloseTo(0, 12);
     const st = state2D(motion2D(a, b, 'elastic', 1), 5);
     expect(Math.hypot(st[0].x[0] - st[1].x[0], st[0].x[1] - st[1].x[1])).toBeGreaterThan(0.36);
+  });
+
+  it('regression: every b on the slider hits for every m2 (b ≤ 0.95 (R1 + R2)); 2D momentum scatters', () => {
+    const spec = puckScene.params.b as { max: number };
+    expect(spec.max).toBe(0.29);
+    const base = defaults(puckScene.params) as any;
+    for (const m2 of [0.5, 0.7, 1, 1.5, 2]) {
+      expect(spec.max).toBeLessThanOrEqual(bMax(m2) + 1e-12);
+      const run = new Runner(puckScene, { ...base, m2, b: spec.max });
+      run.play();
+      for (let i = 0; i < 200 && run.playing; i++) run.advance(0.05);
+      // Before (b up to 0.4 m > R1 + R2 = 0.36 m at m2 = 1): no collision, p2 stayed 0.
+      const p2y = run.hist.col('p2y');
+      expect(Math.abs(p2y.at(-1)!), `m2 = ${m2}`).toBeGreaterThan(0.05);
+    }
+    // A hand-edited URL beyond the range is clamped to 0.95 (R1 + R2).
+    expect(bOf({ ...base, b: 0.4 })).toBeCloseTo(bMax(1), 12);
   });
 });

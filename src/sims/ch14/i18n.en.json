@@ -5,7 +5,7 @@
   "ch14.p.Q": "Flow rate $Q$",
   "ch14.d.Q": "Volume of water crossing any cross-section per second",
   "ch14.p.dy": "Height difference",
-  "ch14.d.dy": "Height of the outlet above the inlet; the pipe tilts by that much",
+  "ch14.d.dy": "Height of section 3 above section 1 (between the outer standpipes); the pipe tilts by that much",
   "ch14.sum": "sum",
   "ch14.goal.cont": "Continuity: the flow rate $Q = Av$ is the same everywhere in the pipe, so the water is faster where the pipe is narrow",
   "ch14.goal.bern": "Bernoulli: $p + \\tfrac{1}{2}\\rho v^2 + \\rho g y$ is constant, so the pressure is lower where the water is faster",

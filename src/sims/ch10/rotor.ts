@@ -10,7 +10,7 @@ type P = { rA: number; rB: number; m: number; tau: number };
 
 const ROD = 1.05; // half-length of the light rod [m]
 const CX = 1.45; // rotor centres at x = ∓CX
-const BAR_Y = -1.65; // inertia bars
+const BAR_Y = -1.75; // inertia bars
 const CA = ROLE_COLOR.position;
 const CB = ROLE_COLOR.energyU;
 const GREY = '#9a9a9a';
@@ -50,17 +50,21 @@ function rotor(g: Draw, c: Vec2, theta: number, r: number, m: number, color: str
   g.text({ x: c.x, y: c.y + ROD }, name, { size: 15, color, align: 'center', dy: -14, weight: 600 });
 }
 
-/** Counter-clockwise torque symbol around the axis. */
+/**
+ * Counter-clockwise torque symbol: an arc about the axis, outside the rod's reach so the turning
+ * rod and masses never cross it or its label, along the bottom of the rotor.
+ */
 function torque(g: Draw, c: Vec2): void {
-  const r = 24;
-  const a0 = -0.35 * Math.PI;
-  const a1 = 0.55 * Math.PI;
-  g.arc(c, r, a0, a1, { role: 'force', width: 2 });
-  const R = g.px(r);
+  // Clear of the masses (up to 11 px beyond the rod end) at every zoom.
+  const R = ROD + Math.max(0.13, g.px(18));
+  const rpx = R / g.px(1);
+  const a0 = -0.68 * Math.PI;
+  const a1 = -0.32 * Math.PI;
+  g.arc(c, rpx, a0, a1, { role: 'force', width: 2 });
   const tip = { x: c.x + R * Math.cos(a1), y: c.y + R * Math.sin(a1) };
-  const tan = { x: -Math.sin(a1) * g.px(7), y: Math.cos(a1) * g.px(7) };
+  const tan = { x: -Math.sin(a1) * g.px(8), y: Math.cos(a1) * g.px(8) };
   g.arrow({ x: tip.x - tan.x, y: tip.y - tan.y }, tan, { role: 'force', width: 2 });
-  g.text({ x: c.x + R * Math.cos(a0), y: c.y + R * Math.sin(a0) }, '*τ*', { size: 14, role: 'force', align: 'left', baseline: 'middle', dx: 6, dy: 4 });
+  g.text(tip, '*τ*', { size: 14, role: 'force', align: 'left', baseline: 'middle', dx: 7, dy: 3 });
 }
 
 /** I = m r² + m r² as a two-segment bar, labelled with its total. ki: world m per kg·m². */
@@ -79,7 +83,8 @@ function inertiaBar(g: Draw, x0: number, m: number, r: number, ki: number, color
       { fill: color, fillAlpha: i ? 0.55 : 0.85, color: '#ffffff', width: 1 },
     );
   }
-  g.text({ x: x0, y: BAR_Y + h }, `${sym} = ${fmt(2 * m * r * r)} kg·m²`, { size: 13, color, align: 'left', dy: -7 });
+  // Under the bar, so the space between the bar and the torque arc above stays clear.
+  g.text({ x: x0, y: BAR_Y }, `${sym} = ${fmt(2 * m * r * r)} kg·m²`, { size: 13, color, align: 'left', dx: 4, dy: 16 });
 }
 
 export const rotorScene: Scene<P, { t: number; n: number }> = {
@@ -113,8 +118,8 @@ export const rotorScene: Scene<P, { t: number; n: number }> = {
     const ki = (2 * ROD) / Math.max(IA, IB);
     inertiaBar(g, A.x - ROD, p.m, p.rA, ki, CA, '*I*_{A}');
     inertiaBar(g, B.x - ROD, p.m, p.rB, ki, CB, '*I*_{B}');
-    g.line({ x: A.x - ROD, y: BAR_Y - g.px(4) }, { x: A.x - ROD, y: BAR_Y + g.px(18) }, { color: LABEL, width: 1 });
-    g.line({ x: B.x - ROD, y: BAR_Y - g.px(4) }, { x: B.x - ROD, y: BAR_Y + g.px(18) }, { color: LABEL, width: 1 });
+    g.line({ x: A.x - ROD, y: BAR_Y - g.px(6) }, { x: A.x - ROD, y: BAR_Y + g.px(18) }, { color: LABEL, width: 1 });
+    g.line({ x: B.x - ROD, y: BAR_Y - g.px(6) }, { x: B.x - ROD, y: BAR_Y + g.px(18) }, { color: LABEL, width: 1 });
   },
 
   plots: [

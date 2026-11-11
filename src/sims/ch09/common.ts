@@ -1,6 +1,6 @@
 // Shared drawing helpers for the Ch 9 scenes.
 import type { Vec2 } from '../../core/types';
-import type { Draw } from '../../draw/draw';
+import type { Draw, PlotDraw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
 
 /** Body 1 blue, body 2 orange, totals black (same as vector sums in Ch 3 and Ch 4). */
@@ -40,4 +40,21 @@ export function padded(vals: number[], minSpan: number): [number, number] {
   }
   const m = 0.1 * (hi - lo);
   return [lo - m, hi + m];
+}
+
+/**
+ * Pale wide band under a body-1 trace, from 0 to t1: body 1 then differs from body 2 by line
+ * style as well as colour, and stays visible where a body-2 or total trace lies on top of it
+ * (equal-mass explosion K1 = K2; p_tot = p1 while body 2 is at rest). `jumps`: collision times.
+ */
+export function halo(pd: PlotDraw, f: (t: number) => number, t1: number, jumps: number[]): void {
+  if (t1 <= 0) return;
+  const ts: number[] = [];
+  for (let i = 0; i <= 160; i++) ts.push((t1 * i) / 160);
+  for (const tj of jumps) if (Number.isFinite(tj) && tj > 0 && tj < t1) ts.push(tj - 1e-9, tj + 1e-9);
+  ts.sort((a, b) => a - b);
+  pd.polyline(
+    ts.map((t) => [t, f(t)]),
+    { color: C1, width: 7, alpha: 0.25 },
+  );
 }

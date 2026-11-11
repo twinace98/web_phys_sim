@@ -4,6 +4,8 @@
   "ch13.d.speed": "Launch speed as a multiple of the escape speed at the launch point: 0.71 is the circular speed, 1 the escape speed. Drag the tip of the velocity arrow to change the direction",
   "ch13.p.alt": "Launch altitude",
   "ch13.d.alt": "Height of the launch point above the surface",
+  "ch13.p.dir": "Launch direction",
+  "ch13.d.dir": "Angle from the counter-clockwise tangent towards the outward radial; drag the tip of the velocity arrow",
   "ch13.p.predict": "Predicted path",
   "ch13.d.predict": "The whole path computed before launch (dotted)",
   "ch13.p.areas": "Kepler's second law",
