@@ -28,41 +28,95 @@ const fraction = (p: P) => (Math.abs(p.speed - Math.SQRT1_2) < 0.005 ? Math.SQRT
 const r0Of = (p: P) => R_EARTH + p.alt * 1e3;
 
 /** Launch on the left of the Earth; dir = angle from the counter-clockwise tangent towards outward radial. */
-function launch(p: P): Body {
+function launch(p: P, dirDeg = p.dir): Body {
   const r0 = r0Of(p);
   const v = fraction(p) * escapeSpeed(r0);
-  const d = p.dir * DEG;
+  const d = dirDeg * DEG;
   // At (−r0, 0): tangent (0, −1), outward radial (−1, 0).
   return { x: [-r0, 0], v: [-Math.sin(d) * v, -Math.cos(d) * v] };
 }
 
-/** View half-size: covers every orbit with this energy whatever the direction, so dragging never rescales. */
-const GAUGE = 0.6; // escape-speed circle at launch, as a fraction of r0
+const GAUGE = 0.6; // escape-speed circle at launch: at least this fraction of r0 ...
+const GAUGE_VIEW = 0.09; // ... and at least this fraction of the view, so it stays readable on huge orbits
+const R_STOP = 2.5; // escaping probes stop at this many r0, a circle that lies inside the view
 
-/**
- * View box [m]: the orbit of a horizontal launch, the Earth and the launch gauge. It depends on
- * speed and altitude only, never on the dragged direction, so dragging never rescales the view.
- */
-function viewBox(p: P): { x: [number, number]; y: [number, number] } {
-  const r0 = r0Of(p);
-  const f = fraction(p);
-  const g0 = GAUGE * r0;
-  if (f >= 1) return { x: [-r0 - g0, 2.4 * r0], y: [-2.6 * r0, 1.2 * r0] };
-  // Horizontal launch: the launch point is one apsis, the other is at r0 f²/(1 − f²).
-  const r1 = (r0 * f * f) / (1 - f * f);
-  const b = Math.sqrt(r0 * r1);
-  const x0 = -r0 - g0;
-  const x1 = Math.max(r1, R_EARTH);
-  const y = Math.max(b, R_EARTH, g0);
-  const mx = 0.08 * (x1 - x0);
-  return { x: [x0 - mx, x1 + mx], y: [-y - mx, y + mx] };
+export interface View {
+  /** World box [m]. */
+  x: [number, number];
+  y: [number, number];
+  /** Escape-speed circle radius at launch [m]: sets the velocity scale. */
+  g0: number;
+  /** Escape orbits stop at this distance [m]; Infinity for bound orbits. */
+  rStop: number;
 }
 
-/** An escaping probe is stopped just before it leaves the view box. */
-function outside(p: P, x: V2): boolean {
-  const v = viewBox(p);
-  const m = -0.02 * (v.x[1] - v.x[0]);
-  return x[0] < v.x[0] - m || x[0] > v.x[1] + m || x[1] < v.y[0] - m || x[1] > v.y[1] + m;
+/** Eccentricity vector (points to the periapsis). */
+function eccVector(b: Body): V2 {
+  const r = radius(b);
+  const v2 = b.v[0] ** 2 + b.v[1] ** 2;
+  const rv = b.x[0] * b.v[0] + b.x[1] * b.v[1];
+  return [((v2 - GM / r) * b.x[0] - rv * b.v[0]) / GM, ((v2 - GM / r) * b.x[1] - rv * b.v[1]) / GM];
+}
+
+let viewKey = '';
+let viewMemo: View | null = null;
+/**
+ * View box [m]: the worst case over every launch direction (−90° to 90°) for this speed and
+ * altitude, so the probe and the predicted path stay on stage whatever direction is dragged, and
+ * dragging never rescales the view. Bound orbits: union of the bounding boxes of all the ellipses.
+ * Escape orbits: the circle r ≤ R_STOP r0 where they are stopped. Padded by the escape-speed circle
+ * that travels with the probe (radius g0 √(r0/r)).
+ */
+export function view(p: P): View {
+  const key = `${p.speed}|${p.alt}`;
+  if (key === viewKey && viewMemo) return viewMemo;
+  const r0 = r0Of(p);
+  const f = fraction(p);
+  const box = { x0: -r0, x1: R_EARTH, y0: -R_EARTH, y1: R_EARTH };
+  const grow = (x0: number, x1: number, y0: number, y1: number) => {
+    box.x0 = Math.min(box.x0, x0);
+    box.x1 = Math.max(box.x1, x1);
+    box.y0 = Math.min(box.y0, y0);
+    box.y1 = Math.max(box.y1, y1);
+  };
+  grow(-R_EARTH, R_EARTH, -R_EARTH, R_EARTH);
+  let rLow = r0; // lowest distance any direction reaches (surface if some crash)
+  let rStop = Infinity;
+  if (f < 1) {
+    for (let d = -90; d <= 90; d++) {
+      const b = launch(p, d);
+      const { a, e, rp } = elements(b);
+      const ev = eccVector(b);
+      const w = e > 1e-9 ? Math.atan2(ev[1], ev[0]) : 0;
+      const bb = a * Math.sqrt(Math.max(0, 1 - e * e));
+      const cx = -a * e * Math.cos(w);
+      const cy = -a * e * Math.sin(w);
+      const hx = Math.hypot(a * Math.cos(w), bb * Math.sin(w));
+      const hy = Math.hypot(a * Math.sin(w), bb * Math.cos(w));
+      grow(cx - hx, cx + hx, cy - hy, cy + hy);
+      rLow = Math.min(rLow, Math.max(R_EARTH, rp));
+    }
+  } else {
+    rStop = R_STOP * r0;
+    grow(-rStop, rStop, -rStop, rStop);
+    rLow = R_EARTH;
+  }
+  const D = Math.max(box.x1 - box.x0, box.y1 - box.y0);
+  const g0 = Math.max(GAUGE * r0, GAUGE_VIEW * D);
+  // Gauge circle around the probe at distance r has radius g0 √(r0/r).
+  const gAt = (r: number) => g0 * Math.sqrt(r0 / Math.max(r, rLow));
+  const rho = rLow + gAt(rLow);
+  grow(-rho, rho, -rho, rho);
+  grow(-r0 - g0, -r0 + g0, -g0, g0);
+  const m = 0.03 * D;
+  viewMemo = {
+    x: [box.x0 - gAt(-box.x0) - m, box.x1 + gAt(box.x1) + m],
+    y: [box.y0 - gAt(-box.y0) - m, box.y1 + gAt(box.y1) + m],
+    g0,
+    rStop,
+  };
+  viewKey = key;
+  return viewMemo;
 }
 
 interface Model {
