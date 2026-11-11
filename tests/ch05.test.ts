@@ -121,6 +121,26 @@ describe('ch05 inertial frames', () => {
   });
 });
 
+describe('ch05 slider ranges', () => {
+  it('every scene runs to its end at the slider extremes with finite worlds and states', () => {
+    const cases: [any, Record<string, number>[]][] = [
+      [newton, [{ m: 0.5, F: 5 }, { m: 5, F: 0.5 }]],
+      [third, [{ mA: 0.5, mB: 5, F: 5 }, { mA: 5, mB: 0.5, F: 0.5 }]],
+      [frames, [{ A: 0.5 }, { A: 2 }]],
+    ];
+    for (const [scene, list] of cases) {
+      for (const over of list) {
+        const p = { ...defaults(scene.params), ...over };
+        const r = run(scene, p);
+        expect(r.playing).toBe(false);
+        const w = scene.world(p);
+        for (const v of [...w.x, ...w.y]) expect(Number.isFinite(v)).toBe(true);
+        for (const v of Object.values(r.state)) if (typeof v === 'number') expect(Number.isFinite(v)).toBe(true);
+      }
+    }
+  });
+});
+
 describe('ch05 i18n', () => {
   it('every key used by the scenes exists in both languages, with the same key sets', async () => {
     const page = (await import('../src/sims/ch05')).default;

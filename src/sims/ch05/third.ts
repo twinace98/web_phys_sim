@@ -48,8 +48,10 @@ const massParam = (key: 'A' | 'B', def: number): NumberParam => ({
     desc: `ch05.t.d.m${key}`,
     group: 'main',
     live: false,
-    control: 'select',
-    choices: [1, 2, 4],
+    control: 'slider',
+    min: 0.5,
+    max: 5,
+    step: 0.1,
     default: def,
     unit: 'kg',
   });
@@ -63,8 +65,10 @@ const params: ParamSchema<P> = {
     desc: 'ch05.t.d.F',
     group: 'advanced',
     live: false,
-    control: 'select',
-    choices: [1, 2, 4],
+    control: 'slider',
+    min: 0.5,
+    max: 5,
+    step: 0.1,
     default: 2,
     unit: 'N',
   },
@@ -115,13 +119,16 @@ function drawB(pd: PlotDraw, p: P, tc: number, key: 'F' | 'a' | 'v', role: Role)
   const k = stateAt(p, tTag);
   const yA = key === 'F' ? k.FA : key === 'a' ? k.aA : k.vA;
   const yB = key === 'F' ? k.FB : key === 'a' ? k.aB : k.vB;
-  const out = key === 'v' ? 1 : -1;
+  // A curve at the edge of the range gets its tag on the inner side; a small one, outside.
+  const big = Math.max(Math.abs(yA), Math.abs(yB));
+  const outA = key === 'v' || Math.abs(yA) < 0.5 * big ? 1 : -1;
+  const outB = key === 'v' || Math.abs(yB) < 0.5 * big ? 1 : -1;
   const s = theme.scale;
   const c = color(role);
   const [xa, ya] = pd.toPx(tTag, yA);
   const [xb, yb] = pd.toPx(tTag, yB);
-  drawRich(pd.ctx, 'A', xa, ya + out * 11 * s, { size: 12, color: c, align: 'center', baseline: 'middle', weight: 600 });
-  drawRich(pd.ctx, 'B', xb, yb - out * 11 * s, { size: 12, color: c, align: 'center', baseline: 'middle', weight: 600 });
+  drawRich(pd.ctx, 'A', xa, ya + outA * 11 * s, { size: 12, color: c, align: 'center', baseline: 'middle', weight: 600 });
+  drawRich(pd.ctx, 'B', xb, yb - outB * 11 * s, { size: 12, color: c, align: 'center', baseline: 'middle', weight: 600 });
 }
 
 export const third: Scene<P, S> = {
