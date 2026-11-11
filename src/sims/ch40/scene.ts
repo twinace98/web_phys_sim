@@ -3,7 +3,7 @@
 import type { Rng } from '../../core/rng';
 import type { ParamSchema, Scene } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { Frame, PX_WORLD, TICK, W, canvasBox, rectPx, split, textPx } from '../modern/frame';
+import { Frame, PX_WORLD, TICK, W, canvasBox, rectPx, split, textPx, type Box } from '../modern/frame';
 import { DOWN_COLOR, UP_COLOR, chainEnd, chainGeometry, drawChain, initChain, stepChain, type ChainState } from './chain';
 import { DEG, chainProbs, classicalMuZ, probUp, type Device } from './physics';
 
@@ -330,6 +330,17 @@ const angleParams: ParamSchema<P3> = {
   },
 };
 
+/**
+ * Frame box for the chain drawn in a short slot: the chain's frame spans y ∈ [−1, 1] but uses
+ * only the detectors (±0.55, 12 px bars) down to the axis icons (39 px below the devices at
+ * −0.22), so the frame is stretched past the slot until that content fills it.
+ */
+export function chainBox(slot: Box): Box {
+  const H = Math.max(slot.b - slot.t, (slot.b - slot.t - 51) / 0.385);
+  const t = slot.t + 12 - 0.225 * H;
+  return { l: slot.l, r: slot.r, t, b: t + H };
+}
+
 export const angleDevices = (theta: number): Device[] => [
   { theta: 0, pass: '+' },
   { theta: theta * DEG, pass: 'both' },
@@ -349,12 +360,13 @@ export const angle: Scene<P3, ChainState> = {
   record: (s) => ({ t: s.t, frac: fracUp(s) }),
   draw: (g, s, p) => {
     const o = canvasBox(g);
-    // Narrow screens: less margin, and the P+ plot spans the full width (not 1.8 × its height).
+    // Narrow screens: less margin, the P+ plot spans the full width (not 1.8 × its height), and
+    // the apparatus gets most of the short stage.
     const narrow = g.vp.w < 640;
     const [bA, bB] = narrow
-      ? split({ l: o.l + 20, t: o.t + 30, r: o.r - 56, b: o.b - 26 }, false, 0.55, 48)
+      ? split({ l: o.l + 20, t: o.t + 4, r: o.r - 56, b: o.b - 22 }, false, 0.68, 30)
       : split({ l: o.l + 30, t: o.t + 50, r: o.r - 80, b: o.b - 40 }, false, 0.58, 50);
-    ang.draw(g, s, p, bA);
+    ang.draw(g, s, p, narrow ? chainBox(bA) : bA);
     // Probability against the angle: prediction cos²(θ/2), measured fraction with its error bar.
     const pl = bB.l + 24;
     const f = new Frame(g, { ...bB, l: pl, r: narrow ? bB.r : Math.min(bB.r, pl + 1.8 * (bB.b - bB.t)) }, [0, 180], [0, 1]);

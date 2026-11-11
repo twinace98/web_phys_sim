@@ -2,7 +2,32 @@ import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { afterFirst, knobDir, polar, segments } from '../src/sims/ch33/polar';
 import { MEDIA, acceptance, coreAngle, criticalAngle, malus, polarizerChain, reflectance, snell, wallIncidence } from '../src/sims/ch33/physics';
-import { traceFibre } from '../src/sims/ch33/refraction';
+import { fibre, indexLabels, traceFibre } from '../src/sims/ch33/refraction';
+import { probe } from './stage-probe';
+
+describe('ch33 fibre index labels (round 2)', () => {
+  it('phone: stacked above the fibre with leaders; desktop: beside the layers', () => {
+    const p = defaults(fibre.params);
+    for (const [w, h, mode] of [
+      [390, 630, 'leader'],
+      [1280, 704, 'beside'],
+    ] as const) {
+      const g = probe(fibre, { t: 0 }, p, w, h);
+      expect(indexLabels(g, { n1: 1.5, n2: 1.46, n0: 1 })).toBe(mode);
+      const texts = g.marks.filter((m) => m.kind === 'text' && /n\*_\{[12]\}/.test(m.text ?? ''));
+      expect(texts.length).toBe(4); // drawn by the scene and by the call above
+      const [a, b] = texts;
+      // The two labels at least one text line apart, and on the stage.
+      expect(Math.abs(a.y - b.y)).toBeGreaterThanOrEqual(16);
+      for (const m of texts) expect(m.x).toBeGreaterThanOrEqual(0);
+      if (mode === 'leader') {
+        // Both rows above the fibre's top edge, clear of the input ray on the axis and its knob.
+        const [, yTop] = g.vp.toPx(0, 3.2);
+        for (const m of texts) expect(m.y).toBeLessThan(yTop - 8);
+      }
+    }
+  });
+});
 
 const deg = Math.PI / 180;
 

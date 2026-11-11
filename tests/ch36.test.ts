@@ -2,8 +2,29 @@ import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { edgePhase, firstMin, phasorChain, singleSlit, sourcesIntensity } from '../src/sims/ch36/physics';
 import { pairDiff, singleSlit as singleScene } from '../src/sims/ch36/single';
-import { N_MIN, phasor } from '../src/sims/ch36/phasor';
+import { N_MIN, chainOrigin, phasor, slitGeometry } from '../src/sims/ch36/phasor';
 import { WaveField } from '../src/sims/wave2d/field';
+
+describe('ch36 phasor chain clears the rays (round 2)', () => {
+  it('the chain never reaches back over the ray ends or the wavefront; it stays at 9.2 when far', () => {
+    for (const theta of [-40, -14.5, 0, 14.5, 25, 40])
+      for (const a of [0.5, 0.8, 2, 4])
+        for (const lambda of [400, 700])
+          for (const N of [8, 10, 20]) {
+            const q = { theta, a, lambda, N };
+            const { ends, front } = slitGeometry(q);
+            const right = Math.max(...ends.map((e) => e.x), front[0].x, front[1].x);
+            const phi = edgePhase(a, lambda / 1000, theta * deg);
+            const left = chainOrigin(q) + Math.min(...phasorChain(N, phi, 16 / N).map((p) => p[0]));
+            expect(left).toBeGreaterThanOrEqual(right + 1.1 - 1e-9);
+            expect(chainOrigin(q)).toBeGreaterThanOrEqual(9.2);
+            // E_m line end (origin + 16) stays left of the wide-stage plot at x = 32.
+            expect(chainOrigin(q) + 16).toBeLessThan(32);
+          }
+    // N = 20, λ = 700 nm, θ = 14.5°: the chain used to start at 9.2, over the wavefront.
+    expect(chainOrigin({ theta: 14.5, a: 2, lambda: 700, N: 20 })).toBeGreaterThan(12);
+  });
+});
 
 const deg = Math.PI / 180;
 
