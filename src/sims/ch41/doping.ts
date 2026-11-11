@@ -7,7 +7,7 @@ import { Frame, PX_WORLD, TICK, canvasBox, linePx, pow10, split, textPx } from '
 import { ELECTRON, HOLE, bandBox, edgeSlots, electron, hole } from './common';
 import { EA, ED, SI, carriers, ni, type Carriers } from './physics';
 
-type P = { type: string; T: number; conc: string };
+type P = { type: string; T: number; conc: number };
 
 const Y: [number, number] = [-0.55, SI.Eg + 0.55];
 const SITES = 8;
@@ -43,21 +43,23 @@ const params: ParamSchema<P> = {
     unit: 'K',
   },
   conc: {
-    kind: 'select',
+    kind: 'number',
     label: 'ch41.d.p.conc',
     desc: 'ch41.d.d.conc',
     group: 'advanced',
     live: true,
-    default: '1e16',
-    options: [
-      { value: '1e15', label: 'ch41.conc.15' },
-      { value: '1e16', label: 'ch41.conc.16' },
-      { value: '1e17', label: 'ch41.conc.17' },
-    ],
+    control: 'slider',
+    log: true,
+    sig: 2,
+    min: 1e15,
+    max: 1e17,
+    default: 1e16,
+    unit: 'cm⁻³',
+    visibleIf: (p) => p.type !== 'i',
   },
 };
 
-const concOf = (p: P) => Number(p.conc);
+const concOf = (p: P) => p.conc;
 const dopants = (p: P): [number, number] => [p.type === 'n' ? concOf(p) : 0, p.type === 'p' ? concOf(p) : 0];
 export const carriersOf = (p: P, T = p.T): Carriers => carriers(T, ...dopants(p));
 
@@ -71,6 +73,7 @@ function curves(p: P) {
       const q = carriersOf(p, T);
       c.push({ T, n: q.n, p: q.p, ni: ni(SI, T) });
     }
+    if (curveCache.size > 30) curveCache.clear();
     curveCache.set(key, c);
   }
   return c;

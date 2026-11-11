@@ -151,7 +151,7 @@ export const wavePacket: Scene<PP, { t: number; n: number }> = {
     observe: ['ch38.k.obs.one', 'ch38.k.obs.more', 'ch38.k.obs.product', 'ch38.k.obs.group', 'ch38.k.obs.spread'],
     equations: [
       '\\psi(x,t) = \\sum_j a_j\\, e^{i(k_j x - \\omega_j t)}, \\quad \\omega = \\frac{\\hbar k^2}{2m}',
-      'v_\\text{group} = \\frac{d\\omega}{dk} = \\frac{\\hbar k_0}{m} = v_\\text{particle}',
+      'v_\\text{g} = \\frac{d\\omega}{dk} = \\frac{\\hbar k_0}{m} = \\frac{p}{m}',
       '\\Delta x\\,\\Delta k \\ge \\tfrac12',
     ],
     assumptions: ['ch38.k.assume.electron', 'ch38.k.assume.period'],
@@ -183,8 +183,11 @@ const dbParams: ParamSchema<PD> = {
     desc: 'ch38.d.eK',
     group: 'main',
     live: true,
-    control: 'select',
-    choices: [1, 10, 54, 100, 1000, 10000],
+    control: 'slider',
+    log: true,
+    sig: 2,
+    min: 1,
+    max: 10000,
     default: 100,
     unit: 'eV',
     visibleIf: (p) => p.part === 'electron',
@@ -350,7 +353,8 @@ export const deBroglieScene: Scene<PD, { t: number }> = {
     const d = 2e-10;
     const dPx = d * pxPerM;
     f.clip(() => {
-      if (dPx >= 10 && dPx <= box.r - box.l) {
+      // Atoms only when at least two fit, so the picture shows their spacing.
+      if (dPx >= 10 && dPx <= (box.r - box.l) / 2) {
         const r = Math.min(dPx * 0.22, (box.b - box.t) * 0.2);
         for (let x = d / 2; x < Wd; x += d) g.circle(f.P(x, 0), r, { fill: ATOM });
       }

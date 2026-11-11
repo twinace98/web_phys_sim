@@ -13,7 +13,7 @@
   "ch38.k.particle": "Classical particle",
   "ch38.k.amp": "Component amplitudes",
   "ch38.k.goal.build": "Adding plane waves with slightly different wave numbers gives a localised wave packet",
-  "ch38.k.goal.move": "The packet moves at the group velocity $\\hbar k_0/m$, the speed of a classical particle with the same momentum",
+  "ch38.k.goal.move": "The packet moves at the group velocity $v_\\text{g} = \\hbar k_0/m$, the speed of a classical particle with the same momentum",
   "ch38.k.obs.one": "One plane wave: $|\\psi|^2$ is the same everywhere; the position is completely unknown",
   "ch38.k.obs.more": "More components (larger $\\Delta k$) make a narrower packet (smaller $\\Delta x$)",
   "ch38.k.obs.product": "$\\Delta x\\,\\Delta k \\approx 1/2$: position and wave number cannot both be narrowed (uncertainty)",

@@ -13,7 +13,7 @@
   "ch38.k.particle": "고전 입자",
   "ch38.k.amp": "성분 진폭",
   "ch38.k.goal.build": "파수가 조금씩 다른 평면파를 여러 개 더하면 한 곳에 모인 파속이 생김",
-  "ch38.k.goal.move": "파속은 군속도 $\\hbar k_0/m$로 이동 = 같은 운동량을 가진 고전 입자의 속도",
+  "ch38.k.goal.move": "파속은 군속도 $v_\\text{g} = \\hbar k_0/m$로 이동 = 같은 운동량을 가진 고전 입자의 속도",
   "ch38.k.obs.one": "평면파 1개: $|\\psi|^2$이 어디서나 같음, 위치를 전혀 알 수 없음",
   "ch38.k.obs.more": "성분 수를 늘리면 ($\\Delta k$ 증가) 파속이 좁아짐 ($\\Delta x$ 감소)",
   "ch38.k.obs.product": "$\\Delta x\\,\\Delta k \\approx 1/2$: 위치와 파수를 동시에 좁힐 수 없음 (불확정성)",

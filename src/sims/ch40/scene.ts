@@ -349,14 +349,25 @@ export const angle: Scene<P3, ChainState> = {
   record: (s) => ({ t: s.t, frac: fracUp(s) }),
   draw: (g, s, p) => {
     const o = canvasBox(g);
-    const [bA, bB] = split({ l: o.l + 30, t: o.t + 50, r: o.r - 80, b: o.b - 40 }, false, 0.58, 50);
+    // Narrow screens: less margin, and the P+ plot spans the full width (not 1.8 × its height).
+    const narrow = g.vp.w < 640;
+    const [bA, bB] = narrow
+      ? split({ l: o.l + 20, t: o.t + 30, r: o.r - 56, b: o.b - 26 }, false, 0.55, 48)
+      : split({ l: o.l + 30, t: o.t + 50, r: o.r - 80, b: o.b - 40 }, false, 0.58, 50);
     ang.draw(g, s, p, bA);
     // Probability against the angle: prediction cos²(θ/2), measured fraction with its error bar.
-    const f = new Frame(g, { ...bB, l: bB.l + 20, r: Math.min(bB.r, bB.l + 20 + 1.8 * (bB.b - bB.t)) }, [0, 180], [0, 1]);
+    const pl = bB.l + 24;
+    const f = new Frame(g, { ...bB, l: pl, r: narrow ? bB.r : Math.min(bB.r, pl + 1.8 * (bB.b - bB.t)) }, [0, 180], [0, 1]);
     const pts: [number, number][] = [];
     for (let a = 0; a <= 180; a += 2) pts.push([a, probUp(a * DEG, 0)]);
     f.polyline(pts, { color: '#1a1a1a', width: 1.5 });
-    f.axes({ xLabel: '*θ*', yLabel: '*P*_{+}', xTicks: [0, 45, 90, 135, 180], yTicks: [0, 0.5, 1], xFmt: (v) => `${v}°` });
+    // Tick labels need about 34 px each ("135°"); fewer ticks on a short axis.
+    const xTicks = f.box.r - f.box.l >= 5 * 34 ? [0, 45, 90, 135, 180] : [0, 90, 180];
+    f.axes({ xTicks, yTicks: [0, 0.5, 1], xFmt: (v) => `${v}°` });
+    // Axis names outside the plot: P+ in the tick column between 0.5 and 1 (the curve starts at
+    // the top-left corner), θ after the last tick label (the curve ends at the bottom-right corner).
+    textPx(g, f.box.l - 7, f.Y(0.75), '*P*_{+}', { size: 12, color: TICK, align: 'right', baseline: 'middle' });
+    textPx(g, f.box.r + 22, f.box.b + 15, '*θ*', { size: 12, color: TICK });
     g.circle(f.P(p.theta, probUp(p.theta * DEG, 0)), 5, { fill: '#ffffff', color: '#1a1a1a', width: 1.5 });
     const c = lastCounts(s);
     const n = c[0] + c[1];

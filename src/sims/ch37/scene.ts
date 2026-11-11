@@ -341,6 +341,18 @@ type PT = { beta: number };
 const L_TRAIN = 4;
 const tEndTrain = (p: PT) => trainEvents(L_TRAIN, p.beta).frontS + 0.8;
 
+/** Ground posts 1 ls apart in S (x = k). In S' at time t' they sit at x' = k/γ − βt'. */
+export function groundPosts(xr: [number, number], time: number, beta: number, inS: boolean): number[] {
+  const sp = inS ? 1 : 1 / gamma(beta);
+  const shift = inS ? 0 : -beta * time;
+  const out: number[] = [];
+  for (let k = Math.floor((xr[0] - shift) / sp) - 1; k <= (xr[1] - shift) / sp + 1; k++) {
+    const x = k * sp + shift;
+    if (x >= xr[0] && x <= xr[1]) out.push(x);
+  }
+  return out;
+}
+
 function trainView(g: Draw, box: Box, time: number, p: PT, inS: boolean, xr: [number, number]): void {
   const f = isoFrame(g, box, xr[0], xr[1], 0.3);
   const b = p.beta;
@@ -348,13 +360,9 @@ function trainView(g: Draw, box: Box, time: number, p: PT, inS: boolean, xr: [nu
   const xc = inS ? b * time : 0;
   const yG = -0.25;
   const ev = trainEvents(L_TRAIN, b);
-  // Ground with posts; they move left in the train frame.
+  // Ground with posts; in the train frame they move left and their spacing is contracted.
   f.line(xr[0], yG, xr[1], yG, { color: '#8c8c8c', width: 1.5 });
-  const shift = inS ? 0 : -b * time;
-  for (let k = Math.floor(xr[0] - shift) - 1; k <= xr[1] - shift + 1; k++) {
-    const x = k + shift;
-    if (x >= xr[0] && x <= xr[1]) f.line(x, yG, x, yG - 0.15, { color: '#8c8c8c', width: 1 });
-  }
+  for (const x of groundPosts(xr, time, b, inS)) f.line(x, yG, x, yG - 0.15, { color: '#8c8c8c', width: 1 });
   // Flash point on the ground (fixed in S).
   const xFlash = inS ? 0 : -b * time;
   g.polygon([f.P(xFlash, yG), f.P(xFlash - 0.07, yG - 0.14), f.P(xFlash + 0.07, yG - 0.14)], { fill: '#8c8c8c' });
