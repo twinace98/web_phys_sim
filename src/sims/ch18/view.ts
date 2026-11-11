@@ -230,7 +230,9 @@ export function drawPV(g: Draw, r: Rect, v: PVView): void {
       taken.push({ x0: P.x - 5, x1: P.x + 5, y0: P.y - 5, y1: P.y + 5 });
     }
     const paths = v.traces.map((tr) => pathPoints(tr.legs, 0, 1).map((q) => c.P(q.V, q.p)));
-    for (const lb of isothermLabels(c, v, taken, paths)) c.d.text(lb.at, lb.text, { size: 11, color: TICK, align: 'right', dy: lb.dy });
+    // The W label and its shading fill the area under a shaded path once it is traversed: keep clear.
+    const areas = v.traces.filter((tr) => tr.shade).map((tr) => pathPoints(tr.legs, 0, 1).map((q) => c.P(q.V, q.p)));
+    for (const lb of isothermLabels(c, v, taken, paths, areas)) c.d.text(lb.at, lb.text, { size: 11, color: TICK, align: 'right', dy: lb.dy });
     for (const tr of v.traces) {
       const cur = pathPoints(tr.legs, 0, tr.s);
       const st = cur[cur.length - 1] ?? tr.legs[0].a;
@@ -316,7 +318,8 @@ const grow = (r: Box): Box => ({ x0: r.x0 - PAD, x1: r.x1 + PAD, y0: r.y0 - PAD,
 /**
  * Positions of the isotherm labels ("600 K"), right-aligned just above (or, failing that, just below)
  * their curve. Each starts at the right edge and slides left along the curve until it is clear of the
- * boxes in `taken` (points, point labels, earlier isotherm labels) and of the polylines in `paths`.
+ * boxes in `taken` (points, point labels, earlier isotherm labels), of the polylines in `paths` and
+ * of the areas under the polylines in `areas` (work shading).
  * Returns the text, its anchor on the curve and the vertical text offset dy (px, down positive).
  */
 export function isothermLabels(
@@ -324,6 +327,7 @@ export function isothermLabels(
   v: { Vmax: number; pmax: number; isotherms: number[] },
   taken: Box[],
   paths: Vec2[][] = [],
+  areas: Vec2[][] = [],
 ): { text: string; at: Vec2; dy: number; box: Box }[] {
   const s = theme.scale;
   const out: { text: string; at: Vec2; dy: number; box: Box }[] = [];
@@ -334,6 +338,18 @@ export function isothermLabels(
   const freeOfPaths = (box: Box) => {
     const g = grow(box);
     for (const pl of paths) for (let i = 1; i < pl.length; i++) if (segHitsBox(pl[i - 1], pl[i], g)) return false;
+    // Under a shaded path: some vertex inside the box's x range lies above the box bottom.
+    for (const pl of areas) {
+      const xs = pl.map((q) => q.x);
+      if (g.x1 < Math.min(...xs) || g.x0 > Math.max(...xs)) continue;
+      if (pl.some((q) => q.x >= g.x0 && q.x <= g.x1 && q.y > g.y0)) return false;
+      // Box narrower than the vertex spacing: compare with the path at the box centre.
+      const xm = (g.x0 + g.x1) / 2;
+      for (let i = 1; i < pl.length; i++) {
+        const [a, b] = [pl[i - 1], pl[i]];
+        if ((a.x - xm) * (b.x - xm) <= 0 && a.x !== b.x && a.y + ((b.y - a.y) * (xm - a.x)) / (b.x - a.x) > g.y0) return false;
+      }
+    }
     return true;
   };
   // Highest isotherm first: it has the least room under the top of the chart.
@@ -353,11 +369,11 @@ export function isothermLabels(
     let pick: Spot | null = null;
     let noLabel: Spot | null = null;
     let first: Spot | null = null;
-    // Steps of 4 px from the right edge to 30 % of the width, above the curve, then below it.
+    // Steps of 4 px from the right edge to 8 % of the width, above the curve, then below it.
     // Best: clear of labels and paths; then clear of labels only; then the right edge.
     const stepV = (4 / (c.R - c.L)) * v.Vmax;
     for (const below of [false, true]) {
-      for (let V = v.Vmax; V >= 0.3 * v.Vmax && !pick; V -= stepV) {
+      for (let V = v.Vmax; V >= 0.08 * v.Vmax && !pick; V -= stepV) {
         const box = boxAt(V, below);
         if (!box) continue;
         first ??= { V, below, box };

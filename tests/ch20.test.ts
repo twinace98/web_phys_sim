@@ -16,7 +16,7 @@ import {
   mostProbable,
   sumRange,
 } from '../src/sims/ch20/physics';
-import { equilibrium, heatScene } from '../src/sims/ch20/heat';
+import { heatScene, relDiff, temps } from '../src/sims/ch20/heat';
 import { cycle, entropy, heatSplit, temp } from '../src/sims/ch18/physics';
 
 describe('ch20 counting', () => {
@@ -112,41 +112,73 @@ describe('ch20 dynamics', () => {
     expect(run()).toBe(run());
   });
 
-  it('heat scene: the Q arrow does not flicker with few quanta, and points from hot to cold early on', () => {
+  it('heat scene: the Q arrow agrees with the displayed temperatures and does not flicker', () => {
     for (const [na, q] of [
       [30, 20],
       [10, 20],
       [90, 20],
       [50, 30],
+      [90, 100],
+      [10, 100],
     ]) {
       let flips = 0;
       let oldFlips = 0;
+      let shortest = Infinity;
       for (let seed = 1; seed <= 4; seed++) {
         const p = { ...defaults(heatScene.params), na, q };
         const r = new Runner(heatScene, p, seed);
-        // All quanta start in A: heat flows A → B wherever that start is clearly off equilibrium
-        // (not for na = 90, q = 20, where A already holds 18 quanta on average).
-        const eq = equilibrium(p);
-        expect(r.state.flow).toBe((q - eq.mean) / eq.sd > 2.5 ? 1 : 0);
-        if (na <= 50) expect(r.state.flow).toBe(1);
+        // All quanta start in A: A is hotter, so the arrow points A → B from the start.
+        expect(r.state.flow).toBe(1);
         r.play();
         let prev = r.state.flow;
+        let since = 0;
         let prevOld = true;
         for (let i = 0; i < 60 * 30; i++) {
           r.advance(1 / 30);
-          if (r.state.flow !== prev) flips++;
+          const [tA, tB] = temps(p, r.state.qSmooth);
+          const rd = relDiff([tA, tB]);
+          // Never from the colder to the hotter solid; always shown for a clear difference.
+          if (r.state.flow !== 0) expect(Math.sign(tA - tB)).toBe(r.state.flow);
+          if (Math.abs(rd) > 0.3 && i * (1 / 30) - since > 1.05) expect(r.state.flow).toBe(Math.sign(rd));
+          if (r.state.flow !== prev) {
+            flips++;
+            // An arrow change other than a forced hide (order reversed) comes at least 1 s after the last.
+            if (prev === 0 || Math.sign(rd) === prev) shortest = Math.min(shortest, i / 30 - since);
+            since = i / 30;
+          }
           prev = r.state.flow;
-          // The former rule: arrow shown whenever the instantaneous difference exceeds 12 %.
-          const tA = kTeps(na, r.state.qA);
-          const tB = kTeps(100 - na, q - r.state.qA);
-          const on = Math.abs(tA - tB) > 0.12 * Math.max(tA, tB);
+          // The former instantaneous rule: arrow shown whenever the difference exceeds 12 %.
+          const iA = kTeps(na, r.state.qA);
+          const iB = kTeps(100 - na, q - r.state.qA);
+          const on = Math.abs(iA - iB) > 0.12 * Math.max(iA, iB);
           if (on !== prevOld) oldFlips++;
           prevOld = on;
         }
       }
-      // 4 runs of 60 s: the former rule switched 570–720 times at q = 20; now a handful.
-      expect(flips).toBeLessThan(20);
-      expect(flips).toBeLessThan(oldFlips / 10);
+      // 4 runs of 60 s: the instantaneous rule switched hundreds of times; now at most ~10 per minute.
+      expect(flips).toBeLessThan(50);
+      expect(flips).toBeLessThan(oldFlips / 5);
+      expect(shortest).toBeGreaterThanOrEqual(0.99);
+    }
+  });
+
+  it('heat scene: at N_A = 90, all quanta in A, the arrow is shown at 1.2 s (kT_A > kT_B)', () => {
+    for (let seed = 1; seed <= 8; seed++) {
+      const p = { ...defaults(heatScene.params), na: 90, q: 100 };
+      const r = new Runner(heatScene, p, seed);
+      r.play();
+      for (let i = 0; i < 36; i++) r.advance(1 / 30);
+      const [tA, tB] = temps(p, r.state.qSmooth);
+      expect(tA).toBeGreaterThan(tB);
+      expect(r.state.flow).toBe(1);
+    }
+  });
+
+  it('heat scene: displayed temperatures are equal at the mean equilibrium share q_A = N_A q / N', () => {
+    for (const na of [10, 30, 90]) {
+      const p = { ...defaults(heatScene.params), na, q: 100 };
+      const [tA, tB] = temps(p, (na * 100) / 100);
+      expect(tA).toBeCloseTo(tB, 10);
     }
   });
 });

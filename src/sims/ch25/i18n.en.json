@@ -23,5 +23,5 @@
   "ch25.obs.pull": "Disconnected, a wider gap raises $V$ and $U$: the work done pulling the plates apart is stored",
   "ch25.assume.ref": "Reference state $X_0$: area 100 cm², gap 1 mm, empty gap, $V_0$ = 12 V. Disconnected means charged in the reference state, then disconnected",
   "ch25.assume.edge": "Edge effects neglected (uniform field between the plates); the dielectric fills the whole gap",
-  "ch25.assume.draw": "The drawn gap is exaggerated relative to the plate size. Charge signs scale with $Q$ and field lines with $E$, capped to fit the plate"
+  "ch25.assume.draw": "The drawn gap is exaggerated relative to the plate size. Field lines are linear in $E$ (5 across the reference plate at $E_0$); below one line a single shorter arrow, its length proportional to $E$. Free charge is linear in $\\sigma$ on the same scale; when the symbols would not fit, one symbol stands for several charges, shown by the key $\\oplus \\times n$ above the plate. Induced charge cancels the fraction $1 - 1/\\kappa$ of the free charge"
 }

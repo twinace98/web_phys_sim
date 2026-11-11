@@ -16,10 +16,12 @@ interface S {
   qA: number;
   /** The run's seeded generator: random moves stay reproducible. */
   rng: Rng;
-  /** q_A smoothed over FLOW_TAU. */
+  /** q_A smoothed over FLOW_TAU: the temperature readouts use it. */
   qSmooth: number;
-  /** Heat arrow: +1 A → B, −1 B → A, 0 none (switched with hysteresis on qSmooth). */
+  /** Heat arrow: +1 A → B, −1 B → A, 0 none (see nextFlow). */
   flow: number;
+  /** Time of the last arrow change [s]. */
+  flowT: number;
 }
 
 const A_COL = ROLE_COLOR.position;
@@ -36,45 +38,35 @@ const ent = (p: P, qA: number) => {
   return { a, b, tot: a + b };
 };
 
-/** Smoothing time of q_A for the Q arrow [s]. */
-const FLOW_TAU = 1;
-/** The arrow appears when the smoothed q_A is this many equilibrium standard deviations from the most probable value… */
-const FLOW_ON = 2.5;
-/** …and disappears again within this many. */
-const FLOW_OFF = 1.5;
+/** Smoothing time of q_A for the temperature readouts and the Q arrow [s] (a thermometer's response). */
+const FLOW_TAU = 1.5;
+/** The arrow appears when the displayed temperatures differ by more than this fraction of the larger… */
+const FLOW_ON = 0.3;
+/** …and disappears when they differ by less than this. */
+const FLOW_OFF = 0.15;
+/** Minimum time between arrow changes [s], unless the temperature order reverses. */
+const FLOW_DWELL = 1;
 
-/** Equilibrium distribution of q_A, P ∝ Ω_A Ω_B: its mean and standard deviation. */
-let eqKey = '';
-let eqStat = { mean: 0, sd: 1 };
-export function equilibrium(p: P): { mean: number; sd: number } {
-  const key = `${p.na}|${p.q}`;
-  if (key !== eqKey) {
-    eqKey = key;
-    const top = sTotMax(p);
-    let z = 0;
-    let m1 = 0;
-    let m2 = 0;
-    for (let qa = 0; qa <= p.q; qa++) {
-      const w = Math.exp(ent(p, qa).tot - top);
-      z += w;
-      m1 += w * qa;
-      m2 += w * qa * qa;
-    }
-    const mean = m1 / z;
-    eqStat = { mean, sd: Math.max(0.5, Math.sqrt(Math.max(0, m2 / z - mean * mean))) };
-  }
-  return eqStat;
+/** Displayed temperatures kT/ε of A and B: from q_A smoothed over FLOW_TAU. */
+export function temps(p: P, qSmooth: number): [number, number] {
+  const [NA, NB] = sizes(p);
+  return [kTeps(NA, qSmooth), kTeps(NB, p.q - qSmooth)];
 }
 
+/** Signed relative temperature difference (T_A − T_B) / max(T_A, T_B). */
+export const relDiff = ([tA, tB]: [number, number]) => (tA - tB) / Math.max(tA, tB, 1e-12);
+
 /**
- * Heat arrow from the smoothed q_A: shown only while A is clearly away from equilibrium (more quanta
- * than the most probable share → A hotter → heat A → B). Hysteresis keeps it from flickering.
+ * Heat arrow from the displayed temperatures: +1 A → B (A hotter), −1 B → A, 0 none. Hysteresis
+ * (FLOW_ON / FLOW_OFF) and a minimum dwell keep it from flickering; it never points from the colder
+ * to the hotter solid, because a sign change of r hides it at once.
  */
-export function nextFlow(flow: number, qSmooth: number, eq: { mean: number; sd: number }): number {
-  const z = (qSmooth - eq.mean) / eq.sd;
-  if (Math.abs(z) > FLOW_ON) return Math.sign(z);
-  if (Math.abs(z) < FLOW_OFF || Math.sign(z) !== flow) return 0;
-  return flow;
+export function nextFlow(flow: number, r: number, sinceChange: number): number {
+  if (flow !== 0 && Math.sign(r) !== flow) return 0;
+  let next = flow;
+  if (Math.abs(r) > FLOW_ON) next = Math.sign(r);
+  else if (Math.abs(r) < FLOW_OFF) next = 0;
+  return next !== flow && sinceChange < FLOW_DWELL ? flow : next;
 }
 
 let memoKey = '';
@@ -133,10 +125,14 @@ function drawSolids(g: Draw, r: Rect, s: S, p: P): void {
   const [NA, NB] = sizes(p);
   const cA = Math.ceil(NA / ROWS);
   const cB = Math.ceil(NB / ROWS);
-  const gapC = 2.2;
   const top = 26;
-  const cs = Math.min(38, (r.w - 16) / (cA + cB + gapC), (r.h - top - 8) / ROWS);
-  const W = cs * (cA + cB + gapC);
+  // The gap between the grids holds the Q arrow: 2.2 cells, but never under GAP_MIN px.
+  const GAP_MIN = 64;
+  let cs = Math.min(38, (r.w - 16) / (cA + cB + 2.2), (r.h - top - 8) / ROWS);
+  if (2.2 * cs < GAP_MIN) cs = Math.min(cs, (r.w - 16 - GAP_MIN) / (cA + cB));
+  const gapW = Math.max(2.2 * cs, GAP_MIN);
+  const gapC = gapW / cs;
+  const W = cs * (cA + cB) + gapW;
   inPanel(g, r, { x: [0, r.w], y: [0, r.h], aspect: 'contain', padPx: 0 }, (d) => {
     const x0 = (r.w - W) / 2;
     const yTop = r.h - top - Math.max(0, (r.h - top - 8 - cs * ROWS) / 2);
@@ -172,11 +168,12 @@ function drawSolids(g: Draw, r: Rect, s: S, p: P): void {
     grid(NA, NB, cB, xB, B_COL);
     const qB = p.q - s.qA;
     d.text({ x: xA, y: yTop }, `A: *q*_{A} = ${s.qA}`, { size: 13, color: A_COL, align: 'left', dy: -8 });
-    d.text({ x: xB, y: yTop }, `B: *q*_{B} = ${qB}`, { size: 13, color: B_COL, align: 'left', dy: -8 });
+    // Right-aligned to its grid: a narrow B grid (large N_A) keeps the label on the stage.
+    d.text({ x: xB + cs * cB, y: yTop }, `B: *q*_{B} = ${qB}`, { size: 13, color: B_COL, align: 'right', dy: -8 });
     if (s.flow !== 0) {
       const yc = yTop - (cs * ROWS) / 2;
-      const xm = x0 + cs * (cA + gapC / 2);
-      const len = cs * gapC * 0.7;
+      const xm = x0 + cs * cA + gapW / 2;
+      const len = gapW * 0.7;
       const dir = s.flow;
       d.arrow({ x: xm - (dir * len) / 2, y: yc }, { x: dir * len, y: 0 }, { color: QC, width: 2.5 });
       d.text({ x: xm, y: yc }, '*Q*', { size: 14, color: QC, align: 'center', dy: -12 });
@@ -231,10 +228,64 @@ function drawCurves(g: Draw, r: Rect, s: S, p: P): void {
     const at = c.P(peak, eq.tot);
     at.x = Math.min(Math.max(at.x, c.L + 52), c.R - 16);
     c.d.text(at, '*S*_{tot}', { size: 13, color: '#1a1a1a', align: 'center', dy: -10 });
-    // S_A and S_B meet S_tot at the ends, so their labels go under the curves.
-    c.d.text(c.P(p.q, ent(p, p.q).a), '*S*_{A}', { size: 13, color: A_COL, align: 'right', dy: 18 });
-    c.d.text(c.P(0, ent(p, 0).b), '*S*_{B}', { size: 13, color: B_COL, align: 'left', dx: 6, dy: 18 });
+    // S_A and S_B: the free spot along each curve farthest from all three curves and the S_tot label.
+    const totBox: Box = { x: at.x, y: at.y + 17, w: 34, h: 18 };
+    const la = curveLabelAt(c, pa, [pb, pt], [totBox]);
+    const lb = curveLabelAt(c, pb, [pa, pt], la ? [totBox, { ...la, w: LBL_W, h: LBL_H }] : [totBox]);
+    if (la) c.d.text(la, '*S*_{A}', { size: 13, color: A_COL, align: 'center', baseline: 'middle' });
+    if (lb) c.d.text(lb, '*S*_{B}', { size: 13, color: B_COL, align: 'center', baseline: 'middle' });
   });
+}
+
+/** Box by its centre and size [px], y up. */
+type Box = { x: number; y: number; w: number; h: number };
+const LBL_W = 26;
+const LBL_H = 17;
+
+/** Distance from point q to box b (0 inside). */
+function boxDist(q: Vec2, b: Box): number {
+  const dx = Math.max(0, Math.abs(q.x - b.x) - b.w / 2);
+  const dy = Math.max(0, Math.abs(q.y - b.y) - b.h / 2);
+  return Math.hypot(dx, dy);
+}
+
+/**
+ * Centre for a curve label: candidates just above or below the curve at 10 %–90 % of its length,
+ * inside the plot; the one farthest from the other curves (segments sampled finely), clear of its own
+ * curve and of `avoid`.
+ * Depends only on the parameters, so the label does not move while the state runs.
+ */
+export function curveLabelAt(c: Chart, own: Vec2[], others: Vec2[][], avoid: Box[]): Vec2 | null {
+  const fine = (cv: Vec2[]) => {
+    const out: Vec2[] = [];
+    for (let i = 1; i < cv.length; i++)
+      for (let k = 0; k <= 4; k++) out.push({ x: cv[i - 1].x + ((cv[i].x - cv[i - 1].x) * k) / 4, y: cv[i - 1].y + ((cv[i].y - cv[i - 1].y) * k) / 4 });
+    return out;
+  };
+  const mine = fine(own);
+  const pts = others.flatMap(fine);
+  let best: Vec2 | null = null;
+  let bestScore = -Infinity;
+  const n = own.length - 1;
+  for (let f = 0.1; f <= 0.901; f += 0.04) {
+    const o = own[Math.round(f * n)];
+    for (const side of [1, -1]) {
+      const b: Box = { x: o.x, y: o.y + side * (LBL_H / 2 + 5), w: LBL_W, h: LBL_H };
+      if (b.x - b.w / 2 < c.L + 4 || b.x + b.w / 2 > c.R - 2 || b.y - b.h / 2 < c.B + 3 || b.y + b.h / 2 > c.T - 2) continue;
+      if (avoid.some((a) => Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2)) continue;
+      // Its own curve may pass no closer than at the anchor (a steep curve would cut the label).
+      if (mine.some((q) => boxDist(q, b) < 3)) continue;
+      let dmin = Infinity;
+      for (const q of pts) dmin = Math.min(dmin, boxDist(q, b));
+      // Capped: beyond 14 px clearance, prefer the middle of the curve.
+      const score = Math.min(dmin, 14) - 4 * Math.abs(f - 0.5);
+      if (score > bestScore) {
+        bestScore = score;
+        best = { x: b.x, y: b.y };
+      }
+    }
+  }
+  return best;
 }
 
 export const heatScene: Scene<P, S> = {
@@ -249,19 +300,23 @@ export const heatScene: Scene<P, S> = {
     if (p.start === 'B') fillUniform(osc, NA, NA + NB, p.q, rng);
     else fillUniform(osc, 0, NA, p.q, rng);
     const qA = sumRange(osc, 0, NA);
-    return { t: 0, osc, qA, rng, qSmooth: qA, flow: nextFlow(0, qA, equilibrium(p)) };
+    return { t: 0, osc, qA, rng, qSmooth: qA, flow: nextFlow(0, relDiff(temps(p, qA)), Infinity), flowT: 0 };
   },
   step: (s, h, p) => {
     s.t += h;
     for (let k = 0; k < MOVES; k++) exchange(s.osc, s.rng);
     s.qA = sumRange(s.osc, 0, sizes(p)[0]);
     s.qSmooth += (s.qA - s.qSmooth) * Math.min(1, h / FLOW_TAU);
-    s.flow = nextFlow(s.flow, s.qSmooth, equilibrium(p));
+    const f = nextFlow(s.flow, relDiff(temps(p, s.qSmooth)), s.t - s.flowT);
+    if (f !== s.flow) {
+      s.flow = f;
+      s.flowT = s.t;
+    }
   },
   record: (s, p) => {
-    const [NA, NB] = sizes(p);
     const e = ent(p, s.qA);
-    return { t: s.t, SA: e.a, SB: e.b, St: e.tot, TA: kTeps(NA, s.qA), TB: kTeps(NB, p.q - s.qA) };
+    const [TA, TB] = temps(p, s.qSmooth);
+    return { t: s.t, SA: e.a, SB: e.b, St: e.tot, TA, TB };
   },
 
   draw: (g, s, p) => {
@@ -298,8 +353,8 @@ export const heatScene: Scene<P, S> = {
 
   readouts: [
     { label: 'q_\\text{A}', unit: '', value: (s) => s.qA, sig: 1 },
-    { label: 'kT_\\text{A}/\\varepsilon', unit: '', value: (s, p) => kTeps(sizes(p)[0], s.qA) },
-    { label: 'kT_\\text{B}/\\varepsilon', unit: '', value: (s, p) => kTeps(sizes(p)[1], p.q - s.qA) },
+    { label: 'kT_\\text{A}/\\varepsilon', unit: '', value: (s, p) => temps(p, s.qSmooth)[0] },
+    { label: 'kT_\\text{B}/\\varepsilon', unit: '', value: (s, p) => temps(p, s.qSmooth)[1] },
   ],
 
   info: {

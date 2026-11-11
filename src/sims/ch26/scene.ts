@@ -27,15 +27,23 @@ const TICK = '#6b6b6b';
 const CH = { x0: 0.6, x1: 5.9, y0: -5.2, y1: -2.4, vMax: 1.6 };
 
 const wireOf = (p: P): Wire => ({ L: p.L, A: p.A, T: p.T });
+/** Drawn v_d arrow length per unit drift speed [cm per cm/s]. */
+const V_D_DRAW = 1.6;
 
 /** Measured currents [mA] by wire (L|A|T) and voltage, kept across runs to build the I-V chart. */
 const measured = new Map<string, Map<number, number>>();
 const keyOf = (p: P) => `${p.L}|${p.A}|${p.T}`;
 
-/** Q/t is meaningless over the first few collision times: no reading before T_READ [s]. */
-const T_READ = 3;
+/** The readout and the I-V point wait until Q/t has settled within the counting noise [s]. */
+export const T_READ = 3;
+/**
+ * The Q/t graph starts earlier, after four mean free times at 300 K: the drift has built up
+ * (Q/t then lags the prediction by τ/t, visibly rising onto it) and the noise bound stays in range.
+ */
+export const T_PLOT = 1;
 /** Average current [mA] since t = 0, from the net count through the cross-section. */
-const measuredI = (s: S) => (s.t >= T_READ ? (s.gas.count * Q_E * 1e3) / s.t : NaN);
+const runningI = (s: S, from: number) => (s.t >= from ? (s.gas.count * Q_E * 1e3) / s.t : NaN);
+const measuredI = (s: S) => runningI(s, T_READ);
 /**
  * Upper bound on the thermal counting noise of Q/t [mA] after t seconds: crossings of the
  * section in both directions at rate n h ⟨|v_x|⟩, each ±1, treated as independent (back-and-forth
@@ -161,7 +169,7 @@ export const conduction: Scene<P, S> = {
     s.t = s.n / RATE;
   },
 
-  record: (s) => ({ t: s.t, q: s.gas.count * Q_E, i: measuredI(s) }),
+  record: (s) => ({ t: s.t, q: s.gas.count * Q_E, i: runningI(s, T_PLOT) }),
 
   draw: (g, s, p) => {
     const w = wireOf(p);
@@ -173,6 +181,11 @@ export const conduction: Scene<P, S> = {
       measured.get(keyOf(p))!.set(p.V, measuredI(s));
     }
 
+    // Dot sizes follow the drawn scale (75 px per cm on a desktop stage): on a phone the lattice is a
+    // third as large, and full-size dots would cover it and spill past the outline.
+    const zoom = Math.min(1, 1 / g.px(1) / 75);
+    const rIon = Math.max(1.2, 3.2 * zoom);
+    const rEl = Math.max(1.1, 2.6 * zoom);
     g.polygon(
       [
         { x: 0, y: bot },
@@ -191,13 +204,16 @@ export const conduction: Scene<P, S> = {
       for (let y = bot + d / 2; y < top; y += d) {
         k += 1;
         const ph = k * 2.399;
-        g.circle({ x: x + amp * Math.sin(37 * s.t + ph), y: y + amp * Math.cos(41 * s.t + 1.7 * ph) }, 3.2, { fill: ION });
+        g.circle({ x: x + amp * Math.sin(37 * s.t + ph), y: y + amp * Math.cos(41 * s.t + 1.7 * ph) }, rIon, { fill: ION });
       }
     }
 
     const gas = s.gas;
     // Every SAMPLE-th electron is drawn (positions are random, so this is a fair subset).
-    for (let i = SAMPLE; i < gas.n; i += SAMPLE) g.circle({ x: gas.x[i], y: gas.y[i] }, 2.6, { fill: 'negative' });
+    // Kept inside the outline by the dot radius.
+    const inY = (y: number) => Math.min(top - g.px(rEl), Math.max(bot + g.px(rEl), y));
+    const inX = (x: number) => Math.min(w.L - g.px(rEl), Math.max(g.px(rEl), x));
+    for (let i = SAMPLE; i < gas.n; i += SAMPLE) g.circle({ x: inX(gas.x[i]), y: inY(gas.y[i]) }, rEl, { fill: 'negative' });
 
     // Tracer electron and its path: straight-ish arcs between collisions.
     const tr = s.trail;
@@ -209,7 +225,7 @@ export const conduction: Scene<P, S> = {
       } else seg.push({ x: tr[i], y: tr[i + 1] });
     }
     g.polyline(seg, { color: '#1a1a1a', width: 1.1, alpha: 0.6 });
-    g.circle({ x: gas.x[0], y: gas.y[0] }, 4.5, { fill: 'negative', color: '#1a1a1a', width: 1.5 });
+    g.circle({ x: inX(gas.x[0]), y: inY(gas.y[0]) }, Math.max(3, 4.5 * zoom), { fill: 'negative', color: '#1a1a1a', width: 1.5 });
 
     // Cross-section where charge is counted.
     g.line({ x: w.L / 2, y: bot - 0.25 }, { x: w.L / 2, y: top + 0.25 }, { role: 'surface', width: 1.75, dash: [5, 4] });
@@ -223,11 +239,13 @@ export const conduction: Scene<P, S> = {
       g.arrow({ x: w.L * 0.2, y: ya }, { x: w.L * 0.22, y: 0 }, { role: 'field', width: 2 });
       g.text({ x: w.L * 0.42, y: ya }, '*E*', { size: 14, role: 'field', align: 'left', baseline: 'middle', dx: 8 });
       const vd = driftSpeed(w, p.V);
-      // Drift velocity below the wire, pointing against E.
+      // Drift velocity below the wire, pointing against E, centred on the cross-section. Length
+      // ∝ v_d: 0.6 cm at the defaults, 2.7 cm at the largest drift (1.5 V, 200 K, 2 cm).
       const yb = bot - 0.55;
-      const xa = w.L * 0.55;
-      g.arrow({ x: xa, y: yb }, { x: -vd * 0.6, y: 0 }, { role: 'velocity', width: 2 });
-      g.text({ x: xa - vd * 0.6, y: yb }, '*v*_{d}', { size: 14, role: 'velocity', align: 'right', baseline: 'middle', dx: -8 });
+      const len = vd * V_D_DRAW;
+      const xa = w.L / 2 + len / 2;
+      g.arrow({ x: xa, y: yb }, { x: -len, y: 0 }, { role: 'velocity', width: 2 });
+      g.text({ x: xa, y: yb }, '*v*_{d}', { size: 14, role: 'velocity', align: 'left', baseline: 'middle', dx: 8 });
     }
 
     drawChart(g, p, s);
@@ -252,7 +270,8 @@ export const conduction: Scene<P, S> = {
       label: '\\bar I = Q/t\\,(\\mathrm{mA})',
       traces: [{ channel: 'i', role: 'velocity' }],
       yRange: (p) => {
-        // Prediction plus four (bounding) standard deviations of the noise at the first reading.
+        // Prediction plus four (bounding) standard deviations of the noise at the first reading
+        // (about 2.3 at the start of the graph, T_PLOT).
         const I = currentOf(wireOf(p), p.V) * 1e3;
         const n4 = 4 * noiseI(p, T_READ);
         const hi = Math.max(1.6 * I, I + n4, 20);

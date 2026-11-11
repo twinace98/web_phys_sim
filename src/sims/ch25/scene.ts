@@ -107,6 +107,48 @@ export function capPanel(p: P): string {
   return `\\begin{array}{lrr} & & X/X_0 \\\\ \\hline ${body} \\end{array}`;
 }
 
+/** Allowed charges per symbol: 1-2-5 steps. */
+const UNITS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+
+export interface CapCounts {
+  /** Unscaled field-line count: N_REF · (E/E0) · (w/w0). */
+  rawLines: number;
+  /** Field lines drawn (capped; 0 when rawLines < 0.5, then one short arrow is drawn). */
+  lines: number;
+  /** Unscaled free-charge count: N_REF · (σ/σ0) · (w/w0), so that rawLines = rawFree / κ. */
+  rawFree: number;
+  /** Reference charges per drawn symbol (1, 2, 5, 10, ...). */
+  unit: number;
+  /** Free-charge symbols per plate. */
+  free: number;
+  /** Induced-charge symbols per dielectric face: the fraction 1 − 1/κ of the free charge. */
+  bound: number;
+}
+
+/**
+ * Drawn counts for one cross-section of width w ∝ √A. Field lines follow E linearly on a fixed
+ * scale (N_REF lines across the reference plate at E0). Free charge follows σ on the same scale
+ * while it fits; beyond maxFree each symbol stands for `unit` charges, shown by a key. Induced
+ * charge cancels the fraction 1 − 1/κ of the free charge, so with unit = 1, free − bound = lines.
+ */
+export function capCounts(p: P, maxFree: number, maxLines: number): CapCounts {
+  const st = stateOf(p);
+  const ref = refState();
+  const kappa = KAPPA[p.dielectric] ?? 1;
+  const wr = Math.sqrt(p.A / A_REF);
+  const rawLines = ((N_REF * st.E) / ref.E) * wr;
+  const rawFree = ((N_REF * st.sigma) / ref.sigma) * wr;
+  const lines = rawLines >= 0.5 ? Math.min(maxLines, Math.max(1, Math.round(rawLines))) : 0;
+  const unit = UNITS.find((u) => rawFree / u <= maxFree) ?? UNITS[UNITS.length - 1];
+  const free = Math.max(1, Math.round(rawFree / unit));
+  let bound = 0;
+  if (p.dielectric !== 'air') {
+    bound = unit === 1 ? Math.max(0, free - (rawLines >= 0.5 ? Math.round(rawLines) : 0)) : Math.round(free * (1 - 1 / kappa));
+    bound = Math.min(bound, free);
+  }
+  return { rawLines, lines, rawFree, unit, free, bound };
+}
+
 /** n evenly spaced x positions across [x0, x1]. */
 const spread = (n: number, x0: number, x1: number) => Array.from({ length: n }, (_, i) => x0 + ((i + 0.5) * (x1 - x0)) / n);
 
@@ -139,8 +181,6 @@ export const capacitor: Scene<P, { t: number }> = {
   init: () => ({ t: 0 }),
 
   draw: (g, _s, p) => {
-    const st = stateOf(p);
-    const ref = refState();
     const w = Math.sqrt(p.A); // drawn plate width [cm]
     // Proportional to d, but never too thin for the charge rows and field lines on a small stage.
     const gap = Math.max(p.d * GAP_K, g.px(66));
@@ -196,34 +236,39 @@ export const capacitor: Scene<P, { t: number }> = {
       );
     }
 
-    // Counts: free charge ∝ Q, field lines ∝ E · width; induced charge = free − lines (Gauss).
-    const maxN = Math.max(4, Math.floor(w / g.px(15)));
-    // Too many to fit: scale both down together so lines / free charge stays 1/κ.
-    const rawFree = (N_REF * st.Q) / ref.Q;
-    const rawLines = ((N_REF * st.E) / ref.E) * (w / Math.sqrt(A_REF));
-    const fit = Math.min(1, maxN / Math.max(rawFree, rawLines));
-    const nFree = Math.round(rawFree * fit);
-    // Keep at least one line while the unscaled count has one (water, battery connected).
-    const nLines = Math.max(Math.round(rawLines * fit), rawLines >= 0.5 ? 1 : 0);
-    const nBound = p.dielectric === 'air' ? 0 : Math.max(0, nFree - nLines);
+    // Counts per drawn cross-section: lines ∝ E, free charge ∝ σ (see capCounts).
+    const c = capCounts(p, Math.max(4, Math.floor(w / g.px(15))), Math.max(4, Math.floor(w / g.px(12))));
 
     // Free charge sits on the inner faces of the plates, induced charge on the faces of the slab.
     // On a small stage the induced rows move closer to the plates to leave room for field lines.
     const bOff = Math.min(g.px(17), 0.22 * gap);
     const inset = 0.3;
-    charges(g, nFree, x0 + inset, x1 - inset, yt, 1, true);
-    charges(g, nFree, x0 + inset, x1 - inset, yb, -1, true);
-    if (nBound > 0) {
-      charges(g, nBound, x0 + inset, x1 - inset, yt - bOff, -1, false);
-      charges(g, nBound, x0 + inset, x1 - inset, yb + bOff, 1, false);
+    charges(g, c.free, x0 + inset, x1 - inset, yt, 1, true);
+    charges(g, c.free, x0 + inset, x1 - inset, yb, -1, true);
+    if (c.bound > 0) {
+      charges(g, c.bound, x0 + inset, x1 - inset, yt - bOff, -1, false);
+      charges(g, c.bound, x0 + inset, x1 - inset, yb + bOff, 1, false);
+    }
+    // One charge symbol stands for c.unit reference charges: a compact key above the top plate.
+    if (c.unit > 1) {
+      const kp: Vec2 = { x: x0 + g.px(6), y: yt + th + g.px(14) };
+      g.circle(kp, 6, { fill: 'positive' });
+      g.text(kp, '+', { size: 12, color: '#ffffff', align: 'center', baseline: 'middle', weight: 700, dy: 0.5 });
+      g.text({ x: kp.x + g.px(10), y: kp.y }, `× ${c.unit}`, { size: 13, color: WIRE, align: 'left', baseline: 'middle' });
     }
 
-    // Field lines from the + plate to the − plate, between the induced layers.
-    const lOff = nBound > 0 ? bOff + g.px(10) : g.px(11);
+    // Field lines from the + plate to the − plate, between the induced layers. Below one line
+    // per cross-section a single shorter arrow, its length ∝ E, keeps the mapping monotonic.
+    const lOff = c.bound > 0 ? bOff + g.px(10) : g.px(11);
     const yA = yt - lOff;
     const yB = yb + lOff;
     if (yA - yB > g.px(8)) {
-      for (const x of spread(nLines, x0 + inset, x1 - inset)) g.arrow({ x, y: yA }, { x: 0, y: yB - yA }, { role: 'field', width: 1.5 });
+      if (c.lines >= 1) {
+        for (const x of spread(c.lines, x0 + inset, x1 - inset)) g.arrow({ x, y: yA }, { x: 0, y: yB - yA }, { role: 'field', width: 1.5 });
+      } else if (c.rawLines > 0) {
+        const len = Math.max(g.px(10), c.rawLines * (yA - yB));
+        g.arrow({ x: 0, y: len / 2 }, { x: 0, y: -len }, { role: 'field', width: 1.5 });
+      }
     }
   },
 

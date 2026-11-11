@@ -408,3 +408,33 @@ export function tag(g: Draw, p: Vec2, s: string, col: string, dx = 0, dy = 0, al
   const [x, y] = g.vp.toPx(p.x, p.y);
   drawRich(ctx, s, x + dx * theme.scale, y + dy * theme.scale, { size: 13, color: color(col), align, baseline: 'middle' });
 }
+
+/** A label spot beside a point: world-space anchor plus the text alignment that keeps it outside. */
+export interface Spot {
+  at: Vec2;
+  align: CanvasTextAlign;
+}
+
+/**
+ * Label spot for a marker at `p`: of the four diagonal spots (offset dxPx, dyPx), the one farthest
+ * from the blockers (charges, arrow samples). Earlier candidates win ties, so `prefer` (0: below
+ * left, 1: below right, 2: above left, 3: above right) stays put unless something is in the way.
+ */
+export function freeSpot(g: Draw, p: Vec2, blockers: readonly Vec2[], prefer = 0, dxPx = 12, dyPx = 12): Spot {
+  const all: Spot[] = [
+    { at: { x: p.x - g.px(dxPx), y: p.y - g.px(dyPx) }, align: 'right' },
+    { at: { x: p.x + g.px(dxPx), y: p.y - g.px(dyPx) }, align: 'left' },
+    { at: { x: p.x - g.px(dxPx), y: p.y + g.px(dyPx) }, align: 'right' },
+    { at: { x: p.x + g.px(dxPx), y: p.y + g.px(dyPx) }, align: 'left' },
+  ];
+  const order = [all[prefer], ...all.filter((_, i) => i !== prefer)];
+  // Distance measured to the label's middle (about 9 px beyond the anchor, on the text side).
+  const clear = (s: Spot) => {
+    const cx = s.at.x + (s.align === 'left' ? 1 : -1) * g.px(9);
+    return Math.min(Infinity, ...blockers.map((b) => Math.hypot(b.x - cx, b.y - s.at.y)));
+  };
+  // Only a clearly better spot (by 4 px) replaces the preferred one, so the label does not jitter.
+  let best = order[0];
+  for (const s of order.slice(1)) if (clear(s) > clear(best) + g.px(4)) best = s;
+  return best;
+}
