@@ -3,6 +3,8 @@ import { fmt } from '../../core/format';
 import type { Rng } from '../../core/rng';
 import type { Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
+import { measureRich } from '../../draw/text';
+import { theme } from '../../draw/theme';
 import { bar, chart, inPanel, TICK, type Chart, type Rect } from './panels';
 import { NR, legAt, pathPoints, type Leg, type St } from './physics';
 
@@ -182,6 +184,11 @@ export interface PVView {
   isotherms: number[];
   /** Named states with the label offset direction (px). */
   points: { st: St; name: string; dx: number; dy: number }[];
+  /**
+   * Closed loop whose leg i starts at points[i]: the corner labels then sit on the outer bisector of
+   * the two legs meeting there (screen directions), clear of both, and dx/dy are ignored.
+   */
+  loop?: Leg[];
 }
 
 export function drawPV(g: Draw, r: Rect, v: PVView): void {
@@ -207,15 +214,23 @@ export function drawPV(g: Draw, r: Rect, v: PVView): void {
         c.d.polyline(done, { color: '#1a1a1a', width: 2.5, dash: tr.dash });
       }
     });
-    // Isotherm labels sit just inside the right edge, above their curve.
-    for (const T of v.isotherms) {
-      const p = (NR * T) / v.Vmax;
-      if (p < v.pmax * 0.97) c.d.text(c.P(v.Vmax, p), `${fmt(T)} K`, { size: 11, color: TICK, align: 'right', dy: -5 });
+    // Point labels first; isotherm labels then take the first spot along their curve, from the right
+    // edge leftwards, that is clear of every point, point label and earlier isotherm label.
+    const taken: Box[] = [];
+    const pts = v.loop ? cornerOffsets(c, v.loop, v.points) : v.points;
+    for (const q of pts) {
+      const P = c.P(q.st.V, q.st.p);
+      c.d.circle(P, 3.5, { fill: '#ffffff', color: '#1a1a1a', width: 1.5 });
+      c.d.text(P, q.name, { size: 13, color: '#1a1a1a', align: 'center', baseline: 'middle', dx: q.dx, dy: q.dy });
+      const s = theme.scale;
+      const w = measureRich(c.d.ctx, q.name, { size: 13 }) / 2 + 2;
+      const cx = P.x + q.dx * s;
+      const cy = P.y - q.dy * s;
+      taken.push({ x0: cx - w, x1: cx + w, y0: cy - 8 * s, y1: cy + 8 * s });
+      taken.push({ x0: P.x - 5, x1: P.x + 5, y0: P.y - 5, y1: P.y + 5 });
     }
-    for (const q of v.points) {
-      c.d.circle(c.P(q.st.V, q.st.p), 3.5, { fill: '#ffffff', color: '#1a1a1a', width: 1.5 });
-      c.d.text(c.P(q.st.V, q.st.p), q.name, { size: 13, color: '#1a1a1a', align: 'center', baseline: 'middle', dx: q.dx, dy: q.dy });
-    }
+    const paths = v.traces.map((tr) => pathPoints(tr.legs, 0, 1).map((q) => c.P(q.V, q.p)));
+    for (const lb of isothermLabels(c, v, taken, paths)) c.d.text(lb.at, lb.text, { size: 11, color: TICK, align: 'right', dy: lb.dy });
     for (const tr of v.traces) {
       const cur = pathPoints(tr.legs, 0, tr.s);
       const st = cur[cur.length - 1] ?? tr.legs[0].a;
@@ -231,6 +246,133 @@ export function drawPV(g: Draw, r: Rect, v: PVView): void {
       }
     }
   });
+}
+
+/** Corner label offsets (px, dy down) along the outer bisector of the loop at each corner. */
+function cornerOffsets(c: Chart, loop: Leg[], points: PVView['points']): PVView['points'] {
+  const n = loop.length;
+  const P = (q: St) => c.P(q.V, q.p);
+  const cen = points.reduce((a, q) => ({ x: a.x + P(q.st).x / n, y: a.y + P(q.st).y / n }), { x: 0, y: 0 });
+  const unit = (a: Vec2, b: Vec2) => {
+    const d = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    return { x: (b.x - a.x) / d, y: (b.y - a.y) / d };
+  };
+  return points.map((q, i) => {
+    const at = P(q.st);
+    const toPrev = unit(at, P(legAt(loop[(i - 1 + n) % n], 0.97)));
+    const toNext = unit(at, P(legAt(loop[i], 0.03)));
+    let o = { x: -(toPrev.x + toNext.x), y: -(toPrev.y + toNext.y) };
+    const len = Math.hypot(o.x, o.y);
+    if (len < 0.3) {
+      // Nearly straight through the corner: perpendicular, on the side away from the loop centre.
+      o = { x: -toNext.y, y: toNext.x };
+      if (o.x * (at.x - cen.x) + o.y * (at.y - cen.y) < 0) o = { x: -o.x, y: -o.y };
+    } else o = { x: o.x / len, y: o.y / len };
+    // Never across the axes (tick labels live there): mirror back into the chart.
+    if (at.x + o.x * 16 < c.L + 6) o.x = Math.abs(o.x);
+    if (at.y + o.y * 16 < c.B + 6) o.y = Math.abs(o.y);
+    const off = 12 + 4 * Math.abs(o.x);
+    return { ...q, dx: o.x * off, dy: -o.y * off };
+  });
+}
+
+/** Axis-aligned box in chart pixels (y up). */
+export interface Box {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+}
+
+const overlaps = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+/** Does the segment a–b cross the box? (Clip the segment against the box, Liang–Barsky.) */
+function segHitsBox(a: Vec2, b: Vec2, r: Box): boolean {
+  let t0 = 0;
+  let t1 = 1;
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  for (const [p, q] of [
+    [-dx, a.x - r.x0],
+    [dx, r.x1 - a.x],
+    [-dy, a.y - r.y0],
+    [dy, r.y1 - a.y],
+  ]) {
+    if (p === 0) {
+      if (q < 0) return false;
+    } else {
+      const t = q / p;
+      if (p < 0) t0 = Math.max(t0, t);
+      else t1 = Math.min(t1, t);
+      if (t0 > t1) return false;
+    }
+  }
+  return true;
+}
+
+const PAD = 3;
+const grow = (r: Box): Box => ({ x0: r.x0 - PAD, x1: r.x1 + PAD, y0: r.y0 - PAD, y1: r.y1 + PAD });
+
+/**
+ * Positions of the isotherm labels ("600 K"), right-aligned just above (or, failing that, just below)
+ * their curve. Each starts at the right edge and slides left along the curve until it is clear of the
+ * boxes in `taken` (points, point labels, earlier isotherm labels) and of the polylines in `paths`.
+ * Returns the text, its anchor on the curve and the vertical text offset dy (px, down positive).
+ */
+export function isothermLabels(
+  c: Chart,
+  v: { Vmax: number; pmax: number; isotherms: number[] },
+  taken: Box[],
+  paths: Vec2[][] = [],
+): { text: string; at: Vec2; dy: number; box: Box }[] {
+  const s = theme.scale;
+  const out: { text: string; at: Vec2; dy: number; box: Box }[] = [];
+  const freeOfLabels = (box: Box) => {
+    const g = grow(box);
+    return !taken.some((t) => overlaps(t, g));
+  };
+  const freeOfPaths = (box: Box) => {
+    const g = grow(box);
+    for (const pl of paths) for (let i = 1; i < pl.length; i++) if (segHitsBox(pl[i - 1], pl[i], g)) return false;
+    return true;
+  };
+  // Highest isotherm first: it has the least room under the top of the chart.
+  for (const T of [...v.isotherms].sort((a, b) => b - a)) {
+    const text = `${fmt(T)} K`;
+    const w = measureRich(c.d.ctx, text, { size: 11 });
+    const boxAt = (V: number, below: boolean): Box | null => {
+      const p = (NR * T) / V;
+      if (p > v.pmax * 0.97) return null;
+      const at = c.P(V, p);
+      // Alphabetic baseline 5 px above the curve, or 13 px below it; glyphs span about 9 px up, 2 px down.
+      const base = below ? at.y - 13 * s : at.y + 5 * s;
+      const box = { x0: at.x - w, x1: at.x, y0: base - 2 * s, y1: base + 9 * s };
+      return box.y1 > c.T || box.y0 < c.B ? null : box;
+    };
+    type Spot = { V: number; below: boolean; box: Box };
+    let pick: Spot | null = null;
+    let noLabel: Spot | null = null;
+    let first: Spot | null = null;
+    // Steps of 4 px from the right edge to 30 % of the width, above the curve, then below it.
+    // Best: clear of labels and paths; then clear of labels only; then the right edge.
+    const stepV = (4 / (c.R - c.L)) * v.Vmax;
+    for (const below of [false, true]) {
+      for (let V = v.Vmax; V >= 0.3 * v.Vmax && !pick; V -= stepV) {
+        const box = boxAt(V, below);
+        if (!box) continue;
+        first ??= { V, below, box };
+        if (!freeOfLabels(box)) continue;
+        noLabel ??= { V, below, box };
+        if (freeOfPaths(box)) pick = { V, below, box };
+      }
+    }
+    pick ??= noLabel;
+    pick ??= first;
+    if (!pick) continue;
+    taken.push(pick.box);
+    out.push({ text, at: c.P(pick.V, (NR * T) / pick.V), dy: pick.below ? 13 : -5, box: pick.box });
+  }
+  return out;
 }
 
 /** Pressure of the traversed path at volume V (first match), for label placement. */

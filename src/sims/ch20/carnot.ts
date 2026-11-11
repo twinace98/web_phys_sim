@@ -179,23 +179,18 @@ export const carnotScene: Scene<P, { t: number }> = {
     let pv, ts, bars;
     if (isWide(full)) [pv, ts, bars] = split(full, 'row', [1.25, 1.1, 0.75], 8);
     else {
-      const [top, bottom] = split(full, 'col', [1.3, 1], 4);
-      [pv, ts] = split(top, 'row', [1, 1], 4);
-      bars = bottom;
+      // Narrow stage: the p–V diagram gets the full width (its labels need the room).
+      const [top, bottom] = split(full, 'col', [1.1, 1], 4);
+      pv = top;
+      [ts, bars] = split(bottom, 'row', [1.15, 1], 4);
     }
-    const mv = c.corners.reduce((a, q) => a + q.V, 0) / 4;
-    const mp = c.corners.reduce((a, q) => a + q.p, 0) / 4;
     drawPV(g, pv, {
       Vmax,
       pmax,
       traces: [{ legs: c.legs, s, shade: true }],
+      loop: c.legs,
       isotherms: [TH, p.tc],
-      points: c.corners.map((q, i) => {
-        const dx = (q.V - mv) / Vmax;
-        const dy = (q.p - mp) / pmax;
-        const n = Math.hypot(dx, dy) || 1;
-        return { st: q, name: NAMES[i], dx: (dx / n) * 14, dy: (-dy / n) * 14 };
-      }),
+      points: c.corners.map((q, i) => ({ st: q, name: NAMES[i], dx: 0, dy: 0 })),
     });
     drawTS(g, ts, s, p);
     drawHeatBars(g, bars, s, p);

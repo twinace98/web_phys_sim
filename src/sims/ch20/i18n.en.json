@@ -27,6 +27,7 @@
   "ch20.h.obs.fluct": "After equilibrium $q_\\text{A}$ keeps fluctuating, but $S_\\text{tot}$ stays near its maximum",
   "ch20.h.assume.model": "Einstein solids: quantum oscillators of one frequency that exchange energy only in quanta $\\varepsilon$. One random move: one oscillator passes one quantum to another (every microstate equally likely)",
   "ch20.h.assume.T": "Temperature from the large-$N$ form $kT/\\varepsilon = 1/\\ln(1 + N/q)$",
+  "ch20.h.assume.arrow": "$Q$ arrow: shown only while $q_\\text{A}$, averaged over 1 s, is more than 2.5 standard deviations from the mean of its equilibrium distribution (net heat flow, not a fluctuation)",
   "ch20.scene.carnot": "Carnot cycle",
   "ch20.c.p.tc": "Cold reservoir $T_\\text{C}$",
   "ch20.c.d.tc": "Temperature of the cold reservoir that takes the waste heat (hot reservoir at 600 K)",

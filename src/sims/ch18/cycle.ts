@@ -116,20 +116,14 @@ export const cycleScene: Scene<P, S> = {
       locked: leg.kind === 'isochoric',
       reservoir: leg.kind === 'isothermal' ? temp(leg.a) : undefined,
     });
-    // Corner labels point away from the middle of the loop; A is always the first corner.
-    const mv = c.corners.reduce((a, q) => a + q.V, 0) / 4;
-    const mp = c.corners.reduce((a, q) => a + q.p, 0) / 4;
+    // Corner labels sit outside the loop (see PVView.loop); A is always the first corner.
     drawPV(g, pv, {
       Vmax,
       pmax,
       traces: [{ legs: c.legs, s: sOf(s.t), shade: true }],
+      loop: c.legs,
       isotherms: c.TH ? [c.TH, c.TC!] : [],
-      points: c.corners.map((q, i) => {
-        const dx = (q.V - mv) / Vmax;
-        const dy = (q.p - mp) / pmax;
-        const n = Math.hypot(dx, dy) || 1;
-        return { st: q, name: NAMES[i], dx: (dx / n) * 14, dy: (-dy / n) * 14 };
-      }),
+      points: c.corners.map((q, i) => ({ st: q, name: NAMES[i], dx: 0, dy: 0 })),
     });
     drawBars(g, bars, [{ Q: pt.Q, W: pt.W, dE: pt.dE }], yr);
   },

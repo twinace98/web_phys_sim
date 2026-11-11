@@ -13,7 +13,12 @@ import {
   speeds,
   stepGas,
   SIGMA,
+  impulseTop,
+  pCum,
+  pWin,
+  pressureTop,
 } from '../src/sims/ch19/physics';
+import { gasScene } from '../src/sims/ch19/gas';
 
 describe('ch19 hard-disk gas', () => {
   it('initial kinetic energy is exactly NkT (2D) in both modes; disks do not overlap', () => {
@@ -93,5 +98,53 @@ describe('ch19 hard-disk gas', () => {
     }
     expect(norm).toBeCloseTo(1, 6);
     expect(m1).toBeCloseTo(Math.sqrt((Math.PI * KB * T) / (2 * MASS)) / 1e3, 6);
+  });
+
+  const range = (k: 'N' | 'L' | 'T') => {
+    const sp = gasScene.params[k] as { min: number; max: number };
+    return [sp.min, sp.max];
+  };
+
+  it('at the densest allowed setting the measured pressure stays within 10 % of NkT/A (was +62 % at N = 400, L = 10 nm)', () => {
+    const N = range('N')[1];
+    const L = range('L')[0];
+    let sum = 0;
+    for (const seed of [1, 2, 3]) {
+      const g = initGas(N, L, 300, 'mb', new Rng(seed));
+      for (let i = 0; i < 40000; i++) {
+        stepGas(g, 0.01);
+        if (g.hits.length > 1000) g.hits.length = 0;
+      }
+      sum += g.J / (L * g.t) / idealPressure(N, L, 300);
+    }
+    const ratio = sum / 3;
+    expect(ratio).toBeGreaterThan(1.03);
+    expect(ratio).toBeLessThan(1.1);
+  });
+
+  it('impulse and both pressure estimates stay inside their plots at every corner of the parameter ranges', () => {
+    const [N0, N1] = range('N');
+    const [L0, L1] = range('L');
+    const [T0, T1] = range('T');
+    for (const N of [N0, N1]) {
+      for (const L of [L0, L1]) {
+        for (const T of [T0, T1]) {
+          const pt = pressureTop(N, L, T);
+          const jt = impulseTop(N, L, T, 200);
+          for (const seed of [1, 2]) {
+            const g = initGas(N, L, T, seed === 1 ? 'equal' : 'mb', new Rng(seed));
+            for (let i = 0; i < 20000; i++) {
+              stepGas(g, 0.01);
+              while (g.hits.length && g.hits[0].t < g.t - 12) g.hits.shift();
+              if (i % 10 === 9) {
+                expect(pWin(g)).toBeLessThan(pt);
+                expect(pCum(g)).toBeLessThan(pt);
+                expect(g.J).toBeLessThan(jt);
+              }
+            }
+          }
+        }
+      }
+    }
   });
 });
