@@ -9,6 +9,7 @@ import { Rng } from '../src/core/rng';
 import { Runner } from '../src/core/runner';
 import type { Params, Scene } from '../src/core/types';
 import { CHAPTERS } from '../src/sims/registry';
+import { contextFor } from './sweep-context';
 
 const MAX_STEPS = 4000;
 const RANDOM_COMBOS = 6;
@@ -52,16 +53,19 @@ function cases(scene: Scene): Case[] {
   const base = defaults(scene.params) as Params;
   const out: Case[] = [{ name: 'defaults', p: base }];
   for (const [k, spec] of Object.entries(scene.params)) {
+    const ctx = contextFor(scene, k, base);
+    const pre = Object.keys(ctx).length ? `${JSON.stringify(ctx)} ` : '';
+    const at = (v: Params[string]): Params => ({ ...base, ...ctx, [k]: v });
     if (spec.kind === 'number') {
-      for (const v of numberValues(spec, rng)) if (v !== base[k]) out.push({ name: `${k}=${v}`, p: { ...base, [k]: v } });
+      for (const v of numberValues(spec, rng)) out.push({ name: `${pre}${k}=${v}`, p: at(v) });
     } else if (spec.kind === 'select') {
-      for (const o of spec.options) if (o.value !== base[k]) out.push({ name: `${k}=${o.value}`, p: { ...base, [k]: o.value } });
+      for (const o of spec.options) if (o.value !== base[k]) out.push({ name: `${pre}${k}=${o.value}`, p: at(o.value) });
     } else if (spec.kind === 'toggle') {
-      out.push({ name: `${k}=${!base[k]}`, p: { ...base, [k]: !base[k] } });
+      out.push({ name: `${pre}${k}=${!base[k]}`, p: at(!base[k]) });
     }
     if (spec.live && scene.time) {
       const vs = spec.kind === 'number' ? numberValues(spec, rng).slice(0, 2) : spec.kind === 'select' ? spec.options.map((o) => o.value) : spec.kind === 'toggle' ? [!base[k]] : [];
-      for (const v of vs) if (v !== base[k]) out.push({ name: `live ${k}→${v}`, p: base, live: [k, v] });
+      for (const v of vs) if (v !== base[k]) out.push({ name: `${pre}live ${k}→${v}`, p: { ...base, ...ctx }, live: [k, v] });
     }
   }
   for (let i = 0; i < RANDOM_COMBOS; i++) {
