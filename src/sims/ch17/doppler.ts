@@ -15,6 +15,12 @@ const RUN = 48; // distance travelled by the source (or by A) during one run [m]
 const FRONT = '#8c8c8c';
 const KV = 6 / V; // world m per (m/s) for velocity arrows
 
+/** Run length: the source (or A) covers RUN (or 0.6 W), at most 0.3 s so slow speeds stay short. */
+function runOf(vs: number, vo: number, src: boolean): number {
+  const u = src ? vs : vo;
+  return u > 0 ? Math.min((src ? RUN : 0.6 * W) / u, 0.3) : 0.2;
+}
+
 function cfg(p: P): Doppler {
   const src = p.who === 'source';
   const vs = src ? p.vs : 0;
@@ -23,7 +29,7 @@ function cfg(p: P): Doppler {
     v: V,
     f: F,
     vs,
-    xs0: src && vs > 0 ? -0.6 * W : 0,
+    xs0: src ? -(vs * runOf(vs, vo, src)) / 2 : 0,
     vo,
     xA0: 0.85 * W,
     xB0: src ? -0.85 * W : -0.25 * W,
@@ -33,9 +39,8 @@ function cfg(p: P): Doppler {
 }
 
 const runTime = (p: P) => {
-  const d = cfg(p);
-  const u = d.vs || d.vo;
-  return u > 0 ? (p.who === 'source' ? RUN : 0.6 * W) / u : 0.2;
+  const src = p.who === 'source';
+  return runOf(src ? p.vs : 0, src ? 0 : p.vo, src);
 };
 
 const params: ParamSchema<P> = {
@@ -57,8 +62,10 @@ const params: ParamSchema<P> = {
     desc: 'ch17.d.d.vs',
     group: 'main',
     live: false,
-    control: 'select',
-    choices: [0, 170, 340, 510],
+    control: 'slider',
+    min: 0,
+    max: 510,
+    step: 10,
     default: 170,
     unit: 'm/s',
     visibleIf: (p) => p.who === 'source',
@@ -69,8 +76,10 @@ const params: ParamSchema<P> = {
     desc: 'ch17.d.d.vo',
     group: 'main',
     live: false,
-    control: 'select',
-    choices: [0, 85, 170, 255],
+    control: 'slider',
+    min: 0,
+    max: 255,
+    step: 5,
     default: 170,
     unit: 'm/s',
     visibleIf: (p) => p.who === 'observer',
