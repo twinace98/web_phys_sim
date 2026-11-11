@@ -17,7 +17,7 @@
   "ch36.s.obs.lambda": "Wavelength 400 → 700 nm: the same slit spreads the light wider",
   "ch36.s.assume.model": "2D model: the slit is a row of Huygens point sources, amplitude $\\propto r^{-1/2}$, no reflection from the barrier",
   "ch36.s.assume.scale": "The screen distance is scaled down to μm to fit the stage. For wide slits the Fraunhofer condition ($D \\gg a^2/\\lambda$) fails and the minima move slightly away from $a\\sin\\theta = \\lambda$",
-  "ch36.s.assume.sources": "The 10 dots in the slit are for illustration; the wave is computed with sources spaced at most $\\lambda/3$ apart",
+  "ch36.s.assume.sources": "The 10 dots in the slit are for illustration; the wave is computed with sources spaced at most $\\lambda/2$ apart",
   "ch36.ph.scene": "Phasor chain",
   "ch36.p.theta": "Angle",
   "ch36.d.theta": "Angle $\\theta$ from the slit to the screen point; dragging the dot on the graph also changes it",

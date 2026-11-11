@@ -26,11 +26,11 @@ import {
 import { drawWave } from '../wave2d/view';
 import { brightAt, fringeSpacing, pathDiff } from './physics';
 
-type P = { d: number; lambda: number; D: number; a: string; yp: number };
+type P = { d: number; lambda: number; D: number; a: number; yp: number };
 
 const apsOf = (p: P): Aperture[] => [
-  { yc: p.d / 2, w: Number(p.a) },
-  { yc: -p.d / 2, w: Number(p.a) },
+  { yc: p.d / 2, w: p.a },
+  { yc: -p.d / 2, w: p.a },
 ];
 const field = (p: P) => fieldFor(p.lambda, apsOf(p), p.D);
 
@@ -41,8 +41,10 @@ const params: ParamSchema<P> = {
     desc: 'ch35.d.d',
     group: 'main',
     live: false,
-    control: 'select',
-    choices: [2, 3, 4],
+    control: 'slider',
+    min: 1.5,
+    max: 5,
+    step: 0.1,
     default: 3,
     unit: 'μm',
   },
@@ -52,8 +54,10 @@ const params: ParamSchema<P> = {
     desc: 'ch35.d.lambda',
     group: 'main',
     live: false,
-    control: 'select',
-    choices: [400, 500, 600, 700],
+    control: 'slider',
+    min: 400,
+    max: 700,
+    step: 10,
     default: 500,
     unit: 'nm',
   },
@@ -63,23 +67,25 @@ const params: ParamSchema<P> = {
     desc: 'ch35.d.D',
     group: 'advanced',
     live: false,
-    control: 'select',
-    choices: [15, 20, 25],
+    control: 'slider',
+    min: 12,
+    max: 25,
+    step: 1,
     default: 20,
     unit: 'μm',
   },
   a: {
-    kind: 'select',
+    kind: 'number',
     label: 'ch35.p.a',
     desc: 'ch35.d.a',
     group: 'advanced',
     live: false,
-    default: '0',
-    options: [
-      { value: '0', label: 'ch35.a.point' },
-      { value: '0.5', label: 'ch35.a.05' },
-      { value: '1', label: 'ch35.a.1' },
-    ],
+    control: 'slider',
+    min: 0,
+    max: 1.5,
+    step: 0.1,
+    default: 0,
+    unit: 'μm',
   },
   // Screen point for the path-difference construction; default: first bright fringe.
   yp: {

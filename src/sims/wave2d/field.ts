@@ -35,10 +35,10 @@ export interface WaveSetup {
   maxCells?: number;
 }
 
-/** Source heights for one aperture: centres of equal sub-intervals, spacing ≤ λ/3. */
+/** Source heights for one aperture: centres of equal sub-intervals, spacing ≤ λ/2 (no spurious orders). */
 export function sourcesOf(ap: Aperture, lambda: number): number[] {
   if (ap.w <= 0) return [ap.yc];
-  const n = Math.max(2, Math.ceil(ap.w / (lambda / 3)));
+  const n = Math.max(2, Math.ceil(ap.w / (lambda / 2)));
   const out: number[] = [];
   for (let i = 0; i < n; i++) out.push(ap.yc + ap.w / 2 - ((i + 0.5) * ap.w) / n);
   return out;
@@ -85,7 +85,7 @@ export class WaveField {
     const W = s.x1 - s.xL;
     const H = s.y1 - s.y0;
     let cell = lambda / 5;
-    const max = s.maxCells ?? 140000;
+    const max = s.maxCells ?? 110000;
     if ((W / cell) * (H / cell) > max) cell = Math.sqrt((W * H) / max);
     this.nx = Math.ceil(W / cell);
     this.ny = Math.ceil(H / cell);
@@ -99,11 +99,19 @@ export class WaveField {
     const cols = this.nx - this.i0;
     const cells = cols * this.ny;
     this.norm = new Float32Array(cells);
+    const k = this.k;
+    const rMin = r0 / 4;
+    // Mirror-symmetric set of apertures in a box symmetric about y = 0: compute the upper half,
+    // fill the lower half from the mirror aperture (halves the set-up time).
+    const mirror = s.apertures.map((ap) => s.apertures.findIndex((b) => Math.abs(b.yc + ap.yc) < 1e-9 && Math.abs(b.w - ap.w) < 1e-9));
+    const sym = Math.abs(s.y0 + s.y1) < 1e-9 && mirror.every((m) => m >= 0);
+    const rows = sym ? Math.ceil(this.ny / 2) : this.ny;
+    for (const _ of s.apertures) this.groups.push({ C: new Float32Array(cells), S: new Float32Array(cells), R: new Float32Array(cells) });
     s.apertures.forEach((ap, g) => {
       const ys = this.sources[g];
       const n = ys.length;
-      const grp: Group = { C: new Float32Array(cells), S: new Float32Array(cells), R: new Float32Array(cells) };
-      for (let j = 0; j < this.ny; j++) {
+      const grp = this.groups[g];
+      for (let j = 0; j < rows; j++) {
         const y = s.y1 - (j + 0.5) * this.dy;
         for (let i = 0; i < cols; i++) {
           const x = s.xL + (i + this.i0 + 0.5) * this.dx;
@@ -112,10 +120,12 @@ export class WaveField {
           let sn = 0;
           let a = 0;
           for (const yj of ys) {
-            const r = Math.hypot(x, y - yj);
-            const A = amp(r, n);
-            c += A * Math.cos(this.k * r);
-            sn += A * Math.sin(this.k * r);
+            const dy = y - yj;
+            const r = Math.sqrt(x * x + dy * dy);
+            const A = Math.sqrt(r0 / (r > rMin ? r : rMin)) / n;
+            const ph = k * r;
+            c += A * Math.cos(ph);
+            sn += A * Math.sin(ph);
             a += A;
           }
           grp.C[idx] = c;
@@ -124,8 +134,21 @@ export class WaveField {
           this.norm[idx] += a;
         }
       }
-      this.groups.push(grp);
     });
+    if (sym) {
+      for (let j = rows; j < this.ny; j++) {
+        const src = (this.ny - 1 - j) * cols;
+        const dst = j * cols;
+        s.apertures.forEach((_, g) => {
+          const from = this.groups[mirror[g]];
+          const to = this.groups[g];
+          to.C.set(from.C.subarray(src, src + cols), dst);
+          to.S.set(from.S.subarray(src, src + cols), dst);
+          to.R.set(from.R.subarray(src, src + cols), dst);
+        });
+        this.norm.set(this.norm.subarray(src, src + cols), dst);
+      }
+    }
 
     const N = s.screenN;
     this.screenY = new Float64Array(N);

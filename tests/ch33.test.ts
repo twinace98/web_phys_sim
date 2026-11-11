@@ -11,7 +11,7 @@ describe('ch33 polarizers', () => {
       const [I1, I2] = polarizerChain(1, [0, th * deg]);
       expect(I1).toBeCloseTo(0.5, 12);
       expect(I2).toBeCloseTo(malus(0.5, th * deg), 12);
-      expect(afterFirst('two', th * deg)).toBeCloseTo(I2 / I1, 12);
+      expect(afterFirst(2, th * deg)).toBeCloseTo(I2 / I1, 12);
     }
     expect(polarizerChain(1, [0, 90 * deg])[1]).toBeCloseTo(0, 12);
   });
@@ -19,9 +19,9 @@ describe('ch33 polarizers', () => {
   it('a 45° sheet between crossed polarizers passes I0/8', () => {
     const I = polarizerChain(1, [0, 45 * deg, 90 * deg]);
     expect(I[2]).toBeCloseTo(1 / 8, 12);
-    expect(segments({ mode: 'three', theta: 45 }).at(-1)).toBeCloseTo(1 / 8, 12);
-    expect(segments({ mode: 'three', theta: 0 }).at(-1)).toBeCloseTo(0, 12);
-    expect(afterFirst('three', 45 * deg)).toBeCloseTo(0.25, 12);
+    expect(segments({ n: 3, theta: 45 }).at(-1)).toBeCloseTo(1 / 8, 12);
+    expect(segments({ n: 3, theta: 0 }).at(-1)).toBeCloseTo(0, 12);
+    expect(afterFirst(3, 45 * deg)).toBeCloseTo(0.25, 12);
   });
 });
 

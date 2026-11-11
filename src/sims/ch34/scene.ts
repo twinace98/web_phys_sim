@@ -47,8 +47,10 @@ function params(el: Element): ParamSchema<P> {
       desc: 'ch34.d.f',
       group: 'main',
       live: true,
-      control: 'select',
-      choices: [10, 15, 20],
+      control: 'slider',
+      min: 5,
+      max: 30,
+      step: 1,
       default: 15,
       unit: 'cm',
       visibleIf: (p) => p.kind !== 'plane',
@@ -236,7 +238,6 @@ function makeScene(el: Element): Scene<P, { t: number }> {
     overlay: (_s, p) => panel(p),
 
     readouts: [
-      { label: 'p', unit: 'cm', value: (_s, p) => p.p },
       { label: 'i', unit: 'cm', value: (_s, p) => imageDistance(p.p, fOf(p)) },
       { label: 'm', unit: '', value: (_s, p) => magnification(p.p, imageDistance(p.p, fOf(p))) },
     ],

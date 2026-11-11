@@ -7,7 +7,7 @@ import { ROLE_COLOR } from '../../draw/theme';
 import { Inset, TICK } from '../inset/inset';
 import { polarizerChain } from './physics';
 
-type P = { mode: string; theta: number };
+type P = { n: number; theta: number };
 
 const DEG = Math.PI / 180;
 const BY = 2.6; // beam height
@@ -19,17 +19,17 @@ const PLOT = { x0: 4.5, y0: -7.6, x1: 19, y1: -2.2 };
 const BEAM = ROLE_COLOR.highlight;
 
 const params: ParamSchema<P> = {
-  mode: {
-    kind: 'select',
-    label: 'ch33.p.mode',
-    desc: 'ch33.d.mode',
+  n: {
+    kind: 'number',
+    label: 'ch33.p.n',
+    desc: 'ch33.d.n',
     group: 'main',
     live: true,
-    default: 'two',
-    options: [
-      { value: 'two', label: 'ch33.mode.two' },
-      { value: 'three', label: 'ch33.mode.three' },
-    ],
+    control: 'slider',
+    min: 2,
+    max: 3,
+    step: 1,
+    default: 2,
   },
   theta: {
     kind: 'number',
@@ -56,7 +56,7 @@ interface Layout {
 
 function layout(p: P): Layout {
   const th = p.theta * DEG;
-  return p.mode === 'three' ? { xs: [5.5, 10.9, 16.3], axes: [0, th, 90 * DEG], dial: 1 } : { xs: [6.4, 14], axes: [0, th], dial: 1 };
+  return p.n === 3 ? { xs: [5.5, 10.9, 16.3], axes: [0, th, 90 * DEG], dial: 1 } : { xs: [6.4, 14], axes: [0, th], dial: 1 };
 }
 
 /** Intensities on each beam segment (source first), relative to I0. */
@@ -65,8 +65,8 @@ export function segments(p: P): number[] {
 }
 
 /** Transmitted fraction after the first polarizer as a function of the dial angle. */
-export function afterFirst(mode: string, th: number): number {
-  return mode === 'three' ? Math.cos(th) ** 2 * Math.cos(90 * DEG - th) ** 2 : Math.cos(th) ** 2;
+export function afterFirst(n: number, th: number): number {
+  return n === 3 ? Math.cos(th) ** 2 * Math.cos(90 * DEG - th) ** 2 : Math.cos(th) ** 2;
 }
 
 const dir = (a: number): Vec2 => ({ x: Math.sin(a), y: Math.cos(a) });
@@ -168,9 +168,9 @@ export const polar: Scene<P, { t: number }> = {
     const ins = new Inset(g, PLOT, [0, 180], [0, 1.1]);
     ins.frame({ xTicks: [0, 45, 90, 135, 180], yTicks: [0, 0.5, 1], xLabel: '*θ* (°)', yLabel: '*I*/*I*_{1}' });
     const pts: [number, number][] = [];
-    for (let k = 0; k <= 180; k++) pts.push([k, afterFirst(p.mode, k * DEG)]);
+    for (let k = 0; k <= 180; k++) pts.push([k, afterFirst(p.n, k * DEG)]);
     ins.curve(pts, { role: 'fg', width: 1.75 });
-    ins.dot(p.theta, afterFirst(p.mode, p.theta * DEG), '#1a1a1a', 5.5);
+    ins.dot(p.theta, afterFirst(p.n, p.theta * DEG), '#1a1a1a', 5.5);
   },
 
   handles: [
@@ -191,7 +191,7 @@ export const polar: Scene<P, { t: number }> = {
   ],
 
   readouts: [
-    { label: 'I/I_1', unit: '', value: (_s, p) => afterFirst(p.mode, p.theta * DEG) },
+    { label: 'I/I_1', unit: '', value: (_s, p) => afterFirst(p.n, p.theta * DEG) },
     { label: 'I/I_0', unit: '', value: (_s, p) => segments(p).at(-1)! },
   ],
 

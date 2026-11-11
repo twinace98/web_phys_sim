@@ -17,7 +17,7 @@
   "ch36.s.obs.lambda": "파장 400 → 700 nm: 같은 슬릿에서 더 넓게 퍼짐",
   "ch36.s.assume.model": "2차원 모형: 슬릿 = 호이겐스 점원의 줄, 진폭 $\\propto r^{-1/2}$, 장벽에서의 반사 무시",
   "ch36.s.assume.scale": "스크린 거리는 화면에 담기도록 μm 단위로 축소. 슬릿 폭이 크면 프라운호퍼 조건 ($D \\gg a^2/\\lambda$)이 깨져 극소 위치가 $a\\sin\\theta = \\lambda$에서 조금 벗어남",
-  "ch36.s.assume.sources": "슬릿 안의 점 10개는 설명용, 파동 계산은 간격 $\\lambda/3$ 이하의 점원 사용",
+  "ch36.s.assume.sources": "슬릿 안의 점 10개는 설명용, 파동 계산은 간격 $\\lambda/2$ 이하의 점원 사용",
   "ch36.ph.scene": "위상자 사슬",
   "ch36.p.theta": "각도",
   "ch36.d.theta": "슬릿에서 스크린 위 점을 보는 각 $\\theta$, 그래프의 점을 끌어도 바뀜",

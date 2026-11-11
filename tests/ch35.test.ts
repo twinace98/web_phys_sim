@@ -103,10 +103,10 @@ describe('ch35 wave field', () => {
     expect([data[o], data[o + 1], data[o + 2]]).toEqual([255, 255, 255]);
   });
 
-  it('sources: one per narrow slit, spacing ≤ λ/3 across a wide one', () => {
+  it('sources: one per narrow slit, spacing ≤ λ/2 across a wide one', () => {
     expect(sourcesOf({ yc: 1, w: 0 }, 0.5)).toEqual([1]);
     const s = sourcesOf({ yc: 0, w: 2 }, 0.5);
-    expect(s.length).toBe(12);
-    expect(s[0] - s[1]).toBeLessThanOrEqual(0.5 / 3 + 1e-12);
+    expect(s.length).toBe(8);
+    expect(s[0] - s[1]).toBeLessThanOrEqual(0.5 / 2 + 1e-12);
   });
 });
