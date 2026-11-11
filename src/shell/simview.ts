@@ -313,6 +313,28 @@ export class SimView {
             dec.disabled = v <= min;
             inc.disabled = v >= max;
             input = h('span', { class: 'stepper', title: tip }, dec, out, inc);
+          } else if (spec.log) {
+            const sig = spec.sig ?? 2;
+            const lo = Math.log10(min);
+            const hi = Math.log10(max);
+            const toV = (x: number) => Math.min(max, Math.max(min, Number((10 ** x).toPrecision(sig))));
+            const showLog = (v: number) => withUnit(fmt(v, sig), spec.unit);
+            out.textContent = showLog(value as number);
+            const s = h('input', {
+              type: 'range',
+              min: String(lo),
+              max: String(hi),
+              step: String((hi - lo) / 400),
+              value: String(Math.log10(value as number)),
+              'aria-label': plain,
+              title: tip,
+            });
+            s.addEventListener('input', () => {
+              const v = toV(Number(s.value));
+              out.textContent = showLog(v);
+              this.setParam(key, v, false);
+            });
+            input = h('span', { class: 'slider' }, s, out);
           } else {
             const s = h('input', {
               type: 'range',
