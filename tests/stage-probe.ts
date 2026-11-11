@@ -54,8 +54,8 @@ export class ProbeDraw implements Draw {
   }
   line(): void {}
   polyline(): void {}
-  circle(): void {}
-  polygon(): void {}
+  circle(_c: Vec2, _rPx: number): void {}
+  polygon(_pts: Vec2[]): void {}
   arc(): void {}
 
   arrow(from: Vec2, vec: Vec2, st: ArrowStyle = {}): void {
