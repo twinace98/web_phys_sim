@@ -51,7 +51,11 @@ export interface NumberParam extends ParamBase {
   kind: 'number';
   default: number;
   unit?: string;
-  control: 'select' | 'slider';
+  /**
+   * select: discrete presets (`choices`). slider: continuous quantity (`min`, `max`, `step`).
+   * stepper: integer-like count changed by ±step (`min`, `max`, `step`).
+   */
+  control: 'select' | 'slider' | 'stepper';
   choices?: number[];
   min?: number;
   max?: number;
@@ -88,7 +92,7 @@ export interface TimeSpec {
   window?: number;
   /** Sim seconds per wall second at 1x (default 1). */
   scale?: number;
-  /** Unit of sim time shown by the clock and time axes (default 's'); '' hides the clock. */
+  /** Unit of the scene clock t, e.g. 'ms' or 'ns' (default 's'). Shown by the clock and the plot time axis; '' hides the clock. */
   unit?: string;
 }
 

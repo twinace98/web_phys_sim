@@ -365,10 +365,109 @@ canvas.stage {
 .panel .row.number .sel {
   max-width: 55%;
 }
-.slider {
+.slider,
+.stepper {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  flex: none;
+}
+.slider .val,
+.stepper .val {
+  min-width: 4.2em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.stepper {
+  gap: 0;
+  height: 2.2em;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+.stepper .val {
+  min-width: 3.6em;
+  text-align: center;
+}
+.step-btn {
+  width: 2em;
+  height: 100%;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 1.05em;
+  cursor: pointer;
+}
+.step-btn:first-child {
+  border-right: 1px solid var(--line);
+  border-radius: 6px 0 0 6px;
+}
+.step-btn:last-child {
+  border-left: 1px solid var(--line);
+  border-radius: 0 6px 6px 0;
+}
+.step-btn:hover:not(:disabled) {
+  background: var(--hover);
+}
+.step-btn:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+.slider input[type='range'] {
+  width: 120px;
+  height: 22px;
+  margin: 0;
+  background: none;
+  appearance: none;
+  cursor: pointer;
+}
+.panel .slider input[type='range'] {
+  width: 140px;
+}
+.slider input[type='range']::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: #d4d4d4;
+}
+.slider input[type='range']::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: #d4d4d4;
+}
+.slider input[type='range']::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5.5px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--fg);
+  appearance: none;
+}
+.slider input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--fg);
+}
+.slider input[type='range']:focus-visible {
+  outline: 2px solid #0072b2;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+@media (pointer: coarse) {
+  .slider input[type='range'] {
+    height: 32px;
+  }
+  .slider input[type='range']::-webkit-slider-thumb {
+    width: 22px;
+    height: 22px;
+    margin-top: -9.5px;
+  }
+  .step-btn {
+    width: 2.6em;
+  }
 }
 .info h3 {
   margin: 18px 0 6px;
