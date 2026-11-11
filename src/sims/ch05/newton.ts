@@ -46,8 +46,10 @@ const params: ParamSchema<P> = {
     desc: 'ch05.n.d.m',
     group: 'main',
     live: false,
-    control: 'select',
-    choices: [1, 2, 4],
+    control: 'slider',
+    min: 0.5,
+    max: 5,
+    step: 0.1,
     default: 2,
     unit: 'kg',
   },
@@ -57,8 +59,10 @@ const params: ParamSchema<P> = {
     desc: 'ch05.n.d.F',
     group: 'advanced',
     live: false,
-    control: 'select',
-    choices: [1, 2, 4],
+    control: 'slider',
+    min: 0.5,
+    max: 5,
+    step: 0.1,
     default: 2,
     unit: 'N',
   },
@@ -111,7 +115,10 @@ export const newton: Scene<P, S> = {
     const aMax = p.F / p.m;
     const r = g.px(10);
     if (s.F > 0) {
-      g.arrow({ x: s.x + r, y: 0 }, { x: (s.F / 4) * 0.12 * span, y: 0 }, { role: 'force', width: 2.5, label: '*F*' });
+      // F lies along the track: its label goes just above the tip.
+      const fx = Math.max((s.F / 4) * 0.12 * span, g.px(18));
+      g.arrow({ x: s.x + r, y: 0 }, { x: fx, y: 0 }, { role: 'force', width: 2.5 });
+      g.text({ x: s.x + r + fx, y: 0 }, '*F*', { size: 13, role: 'force', align: 'left', dx: 4, dy: -6 });
     }
     if (s.v > 0) g.arrow({ x: s.x, y: g.px(26) }, { x: (s.v / vMax) * 0.12 * span, y: 0 }, { role: 'velocity', label: '*v*' });
     if (s.a > 0) g.arrow({ x: s.x, y: g.px(48) }, { x: (s.a / aMax) * 0.08 * span, y: 0 }, { role: 'acceleration', label: '*a*' });
