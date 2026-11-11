@@ -51,7 +51,11 @@ export interface NumberParam extends ParamBase {
   kind: 'number';
   default: number;
   unit?: string;
-  control: 'select' | 'slider';
+  /**
+   * select: discrete presets (`choices`). slider: continuous quantity (`min`, `max`, `step`).
+   * stepper: integer-like count changed by ±step (`min`, `max`, `step`).
+   */
+  control: 'select' | 'slider' | 'stepper';
   choices?: number[];
   min?: number;
   max?: number;
