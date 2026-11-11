@@ -63,15 +63,15 @@
 | 18 | Temperature, Heat, and the First Law | 탭 1 열역학 과정 (등압·등적·등온·단열, 피스톤 + $p$-$V$ 넓이 = $W$, $Q$·$W$·$\Delta E_\text{int}$ 막대) · 탭 2 경로 비교 (같은 시작·끝 상태, $W$·$Q$ 다르고 $\Delta E_\text{int}$ 같음) · 탭 3 순환 과정 (사각형·카르노, 순 일 = 둘러싼 넓이) | 전용 |
 | 19 | The Kinetic Theory of Gases | 탭 1 분자 충돌과 압력 (강체원판 기체, 벽 충격량 $2mv_x$ 누적 → 압력 $NkT/A$로 수렴, 속력 분포 → 2D 맥스웰-볼츠만) | E5 |
 | 20 | Entropy and the Second Law | 탭 1 자유 팽창 ($W(n) = \binom{N}{n}$, $S = k\ln W$, $N$ = 4–1000에서 복귀 확률 비교) · 탭 2 열 흐름 (아인슈타인 고체 두 개, $S_\text{tot}$ 최대에서 기울기 = 온도 일치) · 탭 3 카르노 순환 ($p$-$V$·$T$-$S$ 도표, 효율 $1 - T_C/T_H$) | E5 |
-| 22 | Electric Fields | 전하 드래그 배치 → 벡터장 | E2 |
-| 23 | Gauss' Law | 가우스면 변형, 내부 전하와 플럭스 | E2 |
-| 24 | Electric Potential | 등전위선 추가 | E2 |
+| 22 | Electric Fields | 탭 1 전기장: 점전하 드래그·추가·삭제 → 벡터장 / 장선, 시험전하의 쿨롱 힘과 합, 프리셋 (단일, 쌍극자, 같은 부호 쌍, 평행판) | E2 |
+| 23 | Gauss' Law | 탭 1 가우스 법칙: 선전하 + 가우스면 (원, 정사각형, 자유 곡선) 변형, $E_n$ 화살표, $\oint E_n\,dl$ vs $\lambda_\text{enc}/\varepsilon_0$ | E2 |
+| 24 | Electric Potential | 탭 1 등전위선: Ch 22 전하 + 등전위선 / 전위 색 지도, 시험전하 경로의 일 $W = -q_0\Delta V$ (경로 무관) | E2 |
 | 25 | Capacitance | 탭 1 평행판 축전기: 유전체 삽입, 전원 연결 ($V$ 일정) / 분리 ($Q$ 일정), $C$·$Q$·$V$·$E$·$U$ 표와 기준 대비 비율 | 전용 |
 | 26 | Current and Resistance | 탭 1 전자 산란과 저항: 드루데 모형 드리프트, 단면 통과 전하로 전류 측정, $I$-$V$ 그래프, $R = \rho L/A$ | E5 |
 | 27 | Circuits | 탭 1 RC 회로: 충전 / 방전 전환, $V_C$·$i$·$q$ 그래프, $t = \tau$ 표식 (63 %, 37 %) | E6 |
 | 28 | Magnetic Fields | 탭 1 자기장 속 하전입자 ($\vec F \perp \vec v$, 속력 비교 → 주기 동일) · 탭 2 사이클로트론 ($f = f_c$일 때만 가속 지속) | E1 |
-| 29 | Magnetic Fields Due to Currents | 비오-사바르, 앙페르 법칙 | E2 |
-| 30 | Induction and Inductance | 패러데이·렌츠, 맥스웰 방정식 각각의 의미 | E2 |
+| 29 | Magnetic Fields Due to Currents | 탭 1 비오-사바르 법칙 (직선 도선·원형 고리, 요소별 $dB$ 합산 그래프) · 탭 2 앙페르 법칙 (도선 배치, 고리 변형, $\oint \vec B\cdot d\vec l$ vs $\mu_0 I_\text{enc}$, 솔레노이드 단면) | E2 |
+| 30 | Induction and Inductance | 탭 1 패러데이 법칙 (고리의 자기장 영역 통과·자석 통과, $\Phi_B(t)$ 기울기 → $\mathcal{E}(t)$, 유도전류와 유도 자기장) · 탭 2 맥스웰 방정식 (방정식별 미니 장면과 수치 확인) | E2 |
 | 31 | Electromagnetic Oscillations and AC | 탭 1 자유 진동 (LC 에너지 교환, 용수철 대응, 감쇠) · 탭 2 교류 회로 (위상차의 원인, 기울기·넓이 표시, 위상자, 공명 곡선) | E6 |
 | 32 | Maxwell's Equations; Magnetism of Matter | 탭 1 자성의 기원 (전류 고리 = 자기쌍극자, 스핀 모멘트) · 탭 2 자성체 비교 (상자성·강자성·반자성 화살표 격자, $M$–$B$ 히스테리시스, 퀴리 온도) | E5 |
 | 33 | Electromagnetic Waves | 탭 1 편광 (말뤼스 법칙, 편광판 세 장) · 탭 2 굴절과 전반사 (프레넬 세기, 임계각) · 탭 3 광섬유 (수용각) | E7 |
