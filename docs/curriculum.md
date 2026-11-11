@@ -48,10 +48,10 @@
 | 2 | Motion Along a Straight Line | 탭 1 위치-속도-가속도 그래프: 기울기 → 다음 그래프 값, 넓이 → 이전 그래프 변화량 · 탭 2 자유낙하 | E1 |
 | 3 | Vectors | 탭 1 성분 분해 (축 회전, 성분 드래그) · 탭 2 평행사변형법 벡터 합, 성분 합 패널 | E0 |
 | 4 | Motion in Two and Three Dimensions | 탭 1 포물선 운동 (x 등속 + y 등가속, 발사각·발사 높이) · 탭 2 등속원운동 (구심가속도, 속도 원) · 탭 3 상대운동 (강 건너기, 기준계 전환) | E1 |
-| 5 | Force and Motion I | 뉴턴 법칙, 관성계 / 비관성계 | E1 |
-| 6 | Force and Motion II | 정지·운동 마찰, 구심력은 알짜힘의 지름 성분 | E1 |
-| 7 | Kinetic Energy and Work | $F(x)$ 넓이 = $\Delta K$ | E1 |
-| 8 | Potential Energy and Conservation of Energy | 경로 독립성, 에너지 도표 | E1 |
+| 5 | Force and Motion I | 탭 1 뉴턴 제1·2법칙 (힘 제거 후 등속, $a = F_\text{net}/m$) · 탭 2 뉴턴 제3법칙 (두 수레, 같은 크기 반대 방향 힘) · 탭 3 관성계 (지면 / 기차 기준, 가속 기차의 관성력) | E1 |
+| 6 | Force and Motion II | 탭 1 마찰력 (정지 $f_s = F$ → $\mu_s N$ 도달 후 $\mu_k N$로 급락, 경사각 $\tan\theta_c = \mu_s$) · 탭 2 원운동 (실제 힘만, 알짜힘의 지름 성분 = $mv^2/r$, 줄 끊기) | E1 |
+| 7 | Kinetic Energy and Work | 탭 1 일-운동에너지 정리 ($F(x)$ 넓이 = $\Delta K$, 상수·용수철·구간별·직접 만들기) | E1 |
+| 8 | Potential Energy and Conservation of Energy | 탭 1 경로와 일 (보존력 끝값 경로 무관·닫힌 경로 0, 마찰은 경로 길이에 비례) · 탭 2 에너지 도표 ($U(x)$, $E$, $K = E - U$, 전환점·평형점, 마찰 토글) | E1 |
 | 9 | Center of Mass and Linear Momentum | 충돌 전후 운동량 보존 | E1 |
 | 10 | Rotation | 관성모멘트의 거리 제곱 의존, 평행축 정리 | E1 |
 | 11 | Rolling, Torque, and Angular Momentum | 회전 반경 변화와 각운동량 보존 | E1 |
