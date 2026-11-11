@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
 import { beats } from '../src/sims/ch17/beats';
+import { doppler } from '../src/sims/ch17/doppler';
 import { arrival, beatEnvelope, beatFrequency, fronts, heard, machAngle, wave, wavelengths, type Doppler } from '../src/sims/ch17/physics';
 
 describe('ch17 beats', () => {
@@ -76,6 +77,23 @@ describe('ch17 Doppler', () => {
     for (const fr of fronts(d, t)) {
       // distance from the centre to the cone line equals the radius
       expect((xs - fr.cx) * Math.sin(th)).toBeCloseTo(fr.r, 9);
+    }
+  });
+});
+
+describe('ch17 Doppler scene over the slider ranges', () => {
+  it('every run ends within 0.3 s', () => {
+    const base = defaults(doppler.params);
+    const r = new Runner(doppler, base);
+    for (const vs of [0, 10, 170, 330, 340, 510]) {
+      r.setParams({ ...base, who: 'source', vs });
+      expect(r.tEnd!).toBeGreaterThan(0);
+      expect(r.tEnd!).toBeLessThanOrEqual(0.3 + 1e-12);
+    }
+    for (const vo of [0, 5, 85, 255]) {
+      r.setParams({ ...base, who: 'observer', vo });
+      expect(r.tEnd!).toBeGreaterThan(0);
+      expect(r.tEnd!).toBeLessThanOrEqual(0.3 + 1e-12);
     }
   });
 });

@@ -42,8 +42,10 @@ const params: ParamSchema<P> = {
     desc: 'ch26.d.V',
     group: 'main',
     live: false,
-    control: 'select',
-    choices: [0, 0.5, 1, 1.5],
+    control: 'slider',
+    min: 0,
+    max: 1.5,
+    step: 0.1,
     default: 1,
     unit: 'V',
   },
@@ -53,8 +55,10 @@ const params: ParamSchema<P> = {
     desc: 'ch26.d.T',
     group: 'main',
     live: false,
-    control: 'select',
-    choices: [200, 300, 450],
+    control: 'slider',
+    min: 200,
+    max: 450,
+    step: 10,
     default: 300,
     unit: 'K',
   },
@@ -64,8 +68,10 @@ const params: ParamSchema<P> = {
     desc: 'ch26.d.L',
     group: 'advanced',
     live: false,
-    control: 'select',
-    choices: [2, 4, 6],
+    control: 'slider',
+    min: 2,
+    max: 6,
+    step: 0.5,
     default: 4,
     unit: 'cm',
   },
@@ -75,8 +81,10 @@ const params: ParamSchema<P> = {
     desc: 'ch26.d.A',
     group: 'advanced',
     live: false,
-    control: 'select',
-    choices: [1, 2, 3],
+    control: 'slider',
+    min: 1,
+    max: 3,
+    step: 0.1,
     default: 2,
     unit: 'mm²',
   },
@@ -108,7 +116,8 @@ function drawChart(g: Draw, p: P, s: S): void {
     g.line({ x: X(0), y: Y(0) }, { x: X(vEnd), y: Y(k * vEnd) }, st);
   };
   const cur = keyOf(p);
-  for (const [key, pts] of measured) {
+  // Grey lines for the last few wires measured before (sliders allow many).
+  for (const [key, pts] of [...measured].slice(-6)) {
     if (key === cur || pts.size === 0) continue;
     const [L, A, T] = key.split('|').map(Number);
     line({ L, A, T }, { color: '#d0d0d0', width: 1.25 });
@@ -219,7 +228,8 @@ export const conduction: Scene<P, S> = {
       traces: [{ channel: 'q', role: 'position' }],
       yRange: (p) => {
         if (p.V === 0) return [-0.25, 0.25];
-        const m = currentOf(wireOf(p), p.V) * 30 * 1.1;
+        // At low voltage the thermal counting noise (~±0.1 C) dominates: keep it in view.
+        const m = Math.max(0.3, currentOf(wireOf(p), p.V) * 30 * 1.1);
         return [-0.1 * m, m];
       },
     },
@@ -229,7 +239,7 @@ export const conduction: Scene<P, S> = {
       traces: [{ channel: 'i', role: 'velocity' }],
       yRange: (p) => {
         if (p.V === 0) return [-50, 50];
-        const m = currentOf(wireOf(p), p.V) * 1e3 * 1.6;
+        const m = Math.max(50, currentOf(wireOf(p), p.V) * 1e3 * 1.6);
         return [-0.25 * m, m];
       },
     },

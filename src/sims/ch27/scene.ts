@@ -4,7 +4,7 @@ import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { drawRich } from '../../draw/text';
 import { theme } from '../../draw/theme';
-import { ONE_TAU, chargeAt, currentAt, finalCharge, tau, type RC } from './physics';
+import { ONE_TAU, chargeAt, finalCharge, tau, type RC } from './physics';
 
 type P = { sw: string; R: number; C: number };
 
@@ -15,6 +15,8 @@ interface S {
   q: number;
   /** Switch position the state was last advanced with. */
   mode: string;
+  /** R|C the state was last advanced with: a change starts a new segment, like a switch. */
+  rc: string;
   /** Time of the latest switch and the charge then. */
   ts: number;
   q0: number;
@@ -26,6 +28,11 @@ const WIRE = '#3a3a3a';
 const MARK = '#7a7a7a';
 
 const rcOf = (p: P): RC => ({ R: p.R * 1e3, C: p.C * 1e-6, emf: EMF });
+/** Loop rule: i = (q_final − q) / τ, valid at any instant whatever the history. */
+const currentOf = (c: RC, s: S) => {
+  const i = (finalCharge(c, s.mode === 'charge') - s.q) / tau(c);
+  return Math.abs(i) < 1e-7 * (c.emf / c.R) ? 0 : i; // rounding noise once settled
+};
 
 const params: ParamSchema<P> = {
   sw: {
@@ -45,9 +52,11 @@ const params: ParamSchema<P> = {
     label: 'ch27.p.R',
     desc: 'ch27.d.R',
     group: 'main',
-    live: false,
-    control: 'select',
-    choices: [1, 2, 4],
+    live: true,
+    control: 'slider',
+    min: 0.5,
+    max: 4,
+    step: 0.1,
     default: 2,
     unit: 'kΩ',
   },
@@ -56,9 +65,11 @@ const params: ParamSchema<P> = {
     label: 'ch27.p.C',
     desc: 'ch27.d.C',
     group: 'advanced',
-    live: false,
-    control: 'select',
-    choices: [250, 500, 1000],
+    live: true,
+    control: 'slider',
+    min: 100,
+    max: 1000,
+    step: 10,
     default: 1000,
     unit: 'μF',
   },
@@ -199,11 +210,13 @@ export const rcCircuit: Scene<P, S> = {
   time: { h: 1 / RATE, recordEvery: 2, frameStep: 0.1, window: 20 },
   world: () => ({ x: [-0.4, 10.6], y: [0.2, 6.3], aspect: 'contain', padPx: 20 }),
 
-  init: (p) => ({ t: 0, n: 0, q: 0, mode: p.sw, ts: 0, q0: 0 }),
+  init: (p) => ({ t: 0, n: 0, q: 0, mode: p.sw, rc: `${p.R}|${p.C}`, ts: 0, q0: 0 }),
 
   step: (s, _h, p) => {
-    if (p.sw !== s.mode) {
+    const rc = `${p.R}|${p.C}`;
+    if (p.sw !== s.mode || rc !== s.rc) {
       s.mode = p.sw;
+      s.rc = rc;
       s.ts = s.t;
       s.q0 = s.q;
     }
@@ -214,7 +227,7 @@ export const rcCircuit: Scene<P, S> = {
 
   record: (s, p) => {
     const c = rcOf(p);
-    const i = currentAt(c, s.mode === 'charge', s.q0, s.t - s.ts);
+    const i = currentOf(c, s);
     return { t: s.t, vc: s.q / c.C, i: i * 1e3, q: s.q * 1e3 };
   },
   snapshot: (s) => ({ ...s }),
@@ -275,7 +288,7 @@ export const rcCircuit: Scene<P, S> = {
   readouts: [
     { label: '\\tau', unit: 's', value: (_s, p) => tau(rcOf(p)) },
     { label: 'V_C', unit: 'V', value: (s, p) => s.q / rcOf(p).C },
-    { label: 'i', unit: 'mA', value: (s, p) => currentAt(rcOf(p), s.mode === 'charge', s.q0, s.t - s.ts) * 1e3 },
+    { label: 'i', unit: 'mA', value: (s, p) => currentOf(rcOf(p), s) * 1e3 },
   ],
 
   info: {

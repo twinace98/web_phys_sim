@@ -54,4 +54,16 @@ describe('ch27 RC circuit', () => {
     run.advance(2);
     expect(run.state.q / qMid).toBeCloseTo(Math.exp(-1), 2);
   });
+
+  it('changing R while running continues from the present charge with the new τ', () => {
+    const run = new Runner(rcCircuit, defaults(rcCircuit.params));
+    run.play();
+    run.advance(1);
+    const q1 = run.state.q;
+    run.setParam('R', 1);
+    run.advance(1);
+    const c1: RC = { R: 1e3, C: 1e-3, emf: 12 };
+    expect(run.state.q).toBeCloseTo(chargeAt(c1, true, q1, run.state.t - run.state.ts), 12);
+    expect(run.state.t - run.state.ts).toBeGreaterThan(0.95);
+  });
 });

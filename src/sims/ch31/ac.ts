@@ -44,8 +44,10 @@ const params: ParamSchema<P> = {
     desc: 'ch31.a.d.ratio',
     group: 'main',
     live: false,
-    control: 'select',
-    choices: [0.5, 0.8, 1, 1.25, 2],
+    control: 'slider',
+    min: 0.3,
+    max: 2.5,
+    step: 0.01,
     default: 0.8,
   },
   mode: {
@@ -67,8 +69,10 @@ const params: ParamSchema<P> = {
     desc: 'ch31.a.d.R',
     group: 'advanced',
     live: false,
-    control: 'select',
-    choices: [10, 20, 50],
+    control: 'slider',
+    min: 10,
+    max: 50,
+    step: 1,
     default: 20,
     unit: 'Ω',
   },
@@ -118,7 +122,10 @@ function phasors(g: Draw, p: P, tMs: number): void {
   const iLen = 0.42 * PR;
   const u = { x: Math.cos(th - phi), y: Math.sin(th - phi) };
   g.arrow(PC, { x: u.x * iLen, y: u.y * iLen }, { role: 'velocity', width: 1.75 });
-  g.text({ x: PC.x + u.x * iLen * 0.7 - u.y * g.px(13), y: PC.y + u.y * iLen * 0.7 + u.x * g.px(13) }, '*I*', {
+  // Beside the I arrow, on whichever side is clear of the phasor labels.
+  const side = (k2: number): Vec2 => ({ x: PC.x + u.x * iLen * 0.7 - u.y * g.px(13 * k2), y: PC.y + u.y * iLen * 0.7 + u.x * g.px(13 * k2) });
+  const iAt = [1, -1, 2, -2].map(side).find((q) => !near(q)) ?? side(1);
+  g.text(iAt, '*I*', {
     size: 14,
     role: 'velocity',
     align: 'center',
