@@ -14,6 +14,8 @@
   "ch13.d.predict": "The whole path computed before launch (dotted)",
   "ch13.p.areas": "Kepler's second law",
   "ch13.d.areas": "Areas swept by the Earth-probe line in equal times (1/12 of a period); all are equal",
+  "ch13.p.ueff": "Effective potential",
+  "ch13.d.ueff": "Energy diagram at the lower right: effective potential $U_\\text{eff}(r)$, energy $E$ and the current $r$; where the two lines meet, $r$ is smallest or largest",
   "ch13.kind.ellipse": "Ellipse (E < 0, bound)",
   "ch13.kind.parabola": "Parabola (E = 0, just escapes)",
   "ch13.kind.hyperbola": "Hyperbola (E > 0, escapes)",

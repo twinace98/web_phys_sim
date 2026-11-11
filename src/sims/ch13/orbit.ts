@@ -7,7 +7,7 @@ import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
 import { GM, R_EARTH, classify, elements, energy, escapeSpeed, radius, speed, yoshida, type Body, type OrbitKind, type V2 } from './physics';
 
-type P = { speed: string; alt: number; dir: number; predict: boolean; areas: boolean };
+type P = { speed: string; alt: number; dir: number; predict: boolean; areas: boolean; ueff: boolean };
 
 interface S {
   t: number;
@@ -171,7 +171,88 @@ const params: ParamSchema<P> = {
   dir: { kind: 'number', label: 'ch13.p.dir', group: 'hidden', live: false, control: 'slider', min: -90, max: 90, default: 0 },
   predict: { kind: 'toggle', label: 'ch13.p.predict', desc: 'ch13.d.predict', group: 'advanced', live: true, default: true },
   areas: { kind: 'toggle', label: 'ch13.p.areas', desc: 'ch13.d.areas', group: 'advanced', live: true, default: false },
+  ueff: { kind: 'toggle', label: 'ch13.p.ueff', desc: 'ch13.d.ueff', group: 'advanced', live: true, default: false },
 };
+
+/**
+ * Energy diagram in the lower-right corner of the stage (screen px): effective potential
+ * U_eff(r) = −GMm/r + L²/(2mr²), the level E, and the current r. Where E meets U_eff the probe
+ * turns around (periapsis, apoapsis); the gap E − U_eff is the radial kinetic energy.
+ */
+function effectivePotential(g: Draw, p: P, rNow: number): void {
+  const m = model(p);
+  const h = m.b0.x[0] * m.b0.v[1] - m.b0.x[1] * m.b0.v[0];
+  const E = energy(m.b0);
+  const U = (r: number) => -GM / r + (h * h) / (2 * r * r);
+  const r0 = R_EARTH;
+  const r1 = Math.max(m.rMax, 2 * r0Of(p)) * 1.15;
+  let uMin = 0;
+  for (let i = 0; i <= 100; i++) uMin = Math.min(uMin, U(r0 + ((r1 - r0) * i) / 100));
+  const y0 = Math.min(uMin, E) * 1.15;
+  const y1 = Math.max(E, 0) + 0.35 * Math.abs(y0);
+  const ctx = g.ctx;
+  const W = 210;
+  const Hh = 130;
+  const bx = g.vp.w - W - 12;
+  const by = g.vp.h - Hh - 12;
+  const X = (r: number) => bx + 10 + ((r - r0) / (r1 - r0)) * (W - 20);
+  const Y = (u: number) => by + 22 + ((y1 - u) / (y1 - y0)) * (Hh - 32);
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.strokeStyle = '#d0d0d0';
+  ctx.lineWidth = 1;
+  ctx.fillRect(bx, by, W, Hh);
+  ctx.strokeRect(bx + 0.5, by + 0.5, W, Hh);
+  // r axis at U = 0.
+  ctx.strokeStyle = '#c4c4c4';
+  ctx.beginPath();
+  ctx.moveTo(X(r0), Y(0));
+  ctx.lineTo(X(r1), Y(0));
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.rect(bx + 1, by + 1, W - 2, Hh - 2);
+  ctx.clip();
+  ctx.strokeStyle = ROLE_COLOR.energyU;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5, 3]);
+  ctx.beginPath();
+  for (let i = 0; i <= 120; i++) {
+    const r = r0 + ((r1 - r0) * i) / 120;
+    if (i) ctx.lineTo(X(r), Y(U(r)));
+    else ctx.moveTo(X(r), Y(U(r)));
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = ROLE_COLOR.energyE;
+  ctx.beginPath();
+  ctx.moveTo(X(r0), Y(E));
+  ctx.lineTo(X(r1), Y(E));
+  ctx.stroke();
+  // Current r: from U_eff(r) up to E is the radial kinetic energy.
+  const xr = X(Math.min(rNow, r1));
+  ctx.strokeStyle = ROLE_COLOR.energyK;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(xr, Y(U(rNow)));
+  ctx.lineTo(xr, Y(E));
+  ctx.stroke();
+  ctx.fillStyle = ROLE_COLOR.position;
+  ctx.beginPath();
+  ctx.arc(xr, Y(E), 4, 0, 2 * Math.PI);
+  ctx.fill();
+  ctx.restore();
+  const at = (x: number, y: number): Vec2 => {
+    const [wx, wy] = g.vp.toWorld(x, y);
+    return { x: wx, y: wy };
+  };
+  // Labels at the right end: E on the side of its line away from the U_eff tail, U_eff on the
+  // side of the tail away from E.
+  const tailAbove = U(r1) > E;
+  const clampY = (y: number) => Math.min(Math.max(y, by + 14), by + Hh - 5);
+  g.text(at(bx + W - 8, clampY(Y(U(r1)) + (tailAbove ? -6 : 15))), '*U*_{eff}', { size: 12, role: 'energyU', align: 'right' });
+  g.text(at(bx + W - 8, clampY(Y(E) + (tailAbove ? 15 : -6))), '*E*', { size: 12, color: '#1a1a1a', align: 'right' });
+  g.text(at(bx + W - 8, Y(0) - 5), '*r*', { size: 12, color: '#6b6b6b', align: 'right' });
+}
 
 /** World length per m/s of velocity: the escape-speed circle at launch is GAUGE r0. */
 const kv = (p: P) => (GAUGE * r0Of(p)) / MM / escapeSpeed(r0Of(p));
@@ -291,6 +372,8 @@ export const orbitScene: Scene<P, S> = {
     // Orbit type from the sign of E.
     const name = tr(`ch13.kind.${m.kind}`) + (m.crashed ? ` · ${tr('ch13.kind.crash')}` : '');
     g.screenText(14, 22, name, { size: 13, color: '#1a1a1a' });
+
+    if (p.ueff) effectivePotential(g, p, r);
   },
 
   handles: [
