@@ -55,7 +55,7 @@
 | 8 | Potential Energy and Conservation of Energy | 탭 1 경로와 일 (보존력 끝값 경로 무관·닫힌 경로 0, 마찰은 경로 길이에 비례) · 탭 2 에너지 도표 ($U(x)$, $E$, $K = E - U$, 전환점·평형점, 마찰 토글) | E1 |
 | 9 | Center of Mass and Linear Momentum | 탭 1 1차원 충돌 (탄성·비탄성·완전비탄성·폭발, $p_\text{tot}$ 수평선, $K_\text{tot}$ 비교) · 탭 2 2차원 충돌 (운동량 벡터 꼬리-머리 합) | E1 |
 | 10 | Rotation | 탭 1 관성모멘트 (같은 토크, 두 회전자, $I = \sum mr^2$ 막대, $\omega(t)$ 기울기 비교) · 탭 2 평행축 정리 (회전축 끌기, $I(d)$ 포물선, 고리·원판·막대) | E1 |
-| 11 | Rolling, Torque, and Angular Momentum | 탭 1 각운동량 보존 (구멍을 통과하는 줄에 매단 퍽, $L$ 수평선, $K$ 증가, 같은 시간 같은 넓이) · 탭 2 회전의자 (팔 오므리기, $I$ 감소 → $\omega$ 증가) | E1 |
+| 11 | Rolling, Torque, and Angular Momentum | 탭 1 각운동량 보존 (계 선택: 줄에 매단 퍽 / 회전의자, $I$ 감소 → $\omega$ 증가, $L$ 수평선, $K$ 증가, 퍽의 같은 시간 같은 넓이) · 탭 2 굴림 운동 (고리·원판·구·미끄러지는 상자 경주, $a = g\sin\theta/(1+\beta)$, 접촉점 $v = 0$·꼭대기 $2v_\text{cm}$, $K_\text{rot}/K_\text{trans} = \beta$) | E1 |
 | 13 | Gravitation | 탭 1 궤도와 탈출속도 (탈출속도 대비 처음 속력·고도, 방향 끌기, $E$ 부호로 타원/포물선/쌍곡선, 탈출속도 게이지, 케플러 2법칙, 유효 퍼텐셜) | E1 |
 | 14 | Fluids | 탭 1 벤투리관: 추적 입자 간격 (연속방정식), 압력계 수위 (베르누이), 구간별 $Av$·압력 합 표 | 전용 |
 | 15 | Oscillations | 탭 1 단순조화운동 (등속원운동의 투영, x·v·a·에너지 그래프, 위상 공간) · 탭 2 단진자 (큰 진폭에서 주기 증가) | E1 |
