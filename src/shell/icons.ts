@@ -14,5 +14,6 @@ export const ICON = {
   check: svg('<path d="M4.5 10.5l3.5 3.5 7.5-8"/>'),
   menu: svg('<path d="M3.5 5.5h13M3.5 10h13M3.5 14.5h13"/>'),
   screen: svg('<rect x="2.8" y="4" width="14.4" height="9.5" rx="1.2"/><path d="M7 16.5h6M10 13.5v3"/>'),
+  sigma: svg('<path d="M14.5 5H5.5l5 5-5 5h9"/>'),
   close: svg('<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>'),
 };

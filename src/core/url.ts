@@ -6,7 +6,7 @@ export function parseHash(hash: string): Route {
   const raw = hash.replace(/^#/, '');
   const [path, qs = ''] = raw.split('?');
   const query = new URLSearchParams(qs);
-  const m = /^\/ch\/(\d{1,2})\/?$/.exec(path);
+  const m = /^\/ch\/(\d{1,3})\/?$/.exec(path);
   if (m) return { page: 'chapter', ch: Number(m[1]), query };
   return { page: 'home', query };
 }

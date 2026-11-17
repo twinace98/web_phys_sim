@@ -611,6 +611,14 @@ kbd {
 .chapters .todo {
   color: var(--faint);
 }
+/* Additions under review: the number column names the target chapter (→ 38). */
+.chapters.review a {
+  grid-template-columns: 3.4em minmax(0, 1fr) auto;
+}
+/* Formulas with the current values (Scene.formula), one display line each. */
+.panel.formula .eqs .katex-display {
+  margin: 0.5em 0;
+}
 .chapters .todo .name {
   font-weight: 400;
 }

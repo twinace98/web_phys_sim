@@ -8,7 +8,7 @@ import { defaults } from '../src/core/params';
 import { Rng } from '../src/core/rng';
 import { Runner } from '../src/core/runner';
 import type { Params, Scene } from '../src/core/types';
-import { CHAPTERS } from '../src/sims/registry';
+import { CHAPTERS, REVIEW } from '../src/sims/registry';
 import { contextFor } from './sweep-context';
 
 const MAX_STEPS = 4000;
@@ -187,7 +187,7 @@ for (const name of ['Path2D', 'OffscreenCanvas', 'ImageData', 'DOMMatrix']) {
 if (!g.document) g.document = { createElement: () => mockDraw() };
 
 describe('parameter sweep', () => {
-  for (const meta of CHAPTERS.filter((m) => m.load)) {
+  for (const meta of [...CHAPTERS, ...REVIEW].filter((m) => m.load)) {
     it(`Ch ${meta.ch}: every scene survives min / max / in-between / random parameters`, async () => {
       const page = await meta.load!();
       const issues: string[] = [];

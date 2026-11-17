@@ -32,5 +32,8 @@
   "ui.speed.desc": "Playback speed multiplier",
   "info.controls": "Controls",
   "ui.loadError": "The page could not be loaded.",
-  "ui.reload": "Reload"
+  "ui.reload": "Reload",
+  "ui.formula": "Formulas with values",
+  "ui.review": "Review",
+  "key.formula": "Formulas with the current values"
 }
