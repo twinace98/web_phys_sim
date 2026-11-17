@@ -8,6 +8,14 @@ export const KB = 1.380649e-23;
 export const MASS = 6.646e-27;
 /** Disk diameter [nm] (helium kinetic diameter). */
 export const SIGMA = 0.26;
+/** Largest area fraction the disks may cover: about +3 % over the ideal-gas pressure (2D: p/nkT ≈ 1 + 2φ). */
+export const PHI_MAX = 0.015;
+
+/**
+ * Disk diameter for N disks in an L × L box [nm]: helium size, shrunk only where N disks of that
+ * size would cover more than PHI_MAX of the box, so the gas stays ideal at every N.
+ */
+export const diskSize = (N: number, L: number) => Math.min(SIGMA, Math.sqrt((4 * PHI_MAX * L * L) / (Math.PI * N)));
 /** Impulse of one wall bounce per unit |v_x| [pN·ps per nm/ps]: 2 m v_x. */
 export const J_PER_V = (2 * MASS * 1e3) / 1e-24;
 
@@ -38,6 +46,8 @@ export interface Hit {
 export interface Gas {
   N: number;
   L: number;
+  /** Disk diameter [nm]. */
+  sigma: number;
   x: Float64Array;
   y: Float64Array;
   vx: Float64Array;
@@ -63,13 +73,14 @@ export function initGas(N: number, L: number, T: number, mode: 'equal' | 'mb', r
   const y = new Float64Array(N);
   const vx = new Float64Array(N);
   const vy = new Float64Array(N);
-  const r = SIGMA / 2;
+  const sigma = diskSize(N, L);
+  const r = sigma / 2;
   for (let i = 0; i < N; i++) {
     for (let tries = 0; tries < 2000; tries++) {
       x[i] = r + (L - 2 * r) * rng.next();
       y[i] = r + (L - 2 * r) * rng.next();
       let ok = true;
-      for (let j = 0; j < i && ok; j++) ok = (x[i] - x[j]) ** 2 + (y[i] - y[j]) ** 2 > (1.05 * SIGMA) ** 2;
+      for (let j = 0; j < i && ok; j++) ok = (x[i] - x[j]) ** 2 + (y[i] - y[j]) ** 2 > (1.05 * sigma) ** 2;
       if (ok) break;
     }
   }
@@ -94,8 +105,9 @@ export function initGas(N: number, L: number, T: number, mode: 'equal' | 'mb', r
       vy[i] *= f;
     }
   }
-  const nc = Math.max(1, Math.min(64, Math.floor(L / SIGMA)));
-  return { N, L, x, y, vx, vy, J: 0, hits: [], t: 0, cell: L / nc, nc, head: new Int32Array(nc * nc), next: new Int32Array(N) };
+  // Cells at least one diameter wide, at most 64 per side.
+  const nc = Math.max(1, Math.min(64, Math.floor(L / sigma)));
+  return { N, L, sigma, x, y, vx, vy, J: 0, hits: [], t: 0, cell: L / nc, nc, head: new Int32Array(nc * nc), next: new Int32Array(N) };
 }
 
 /** Elastic collision of equal disks i, j if they overlap and approach. Returns true if they collided. */
@@ -103,7 +115,7 @@ export function collide(g: Gas, i: number, j: number): boolean {
   const dx = g.x[j] - g.x[i];
   const dy = g.y[j] - g.y[i];
   const d2 = dx * dx + dy * dy;
-  if (d2 >= SIGMA * SIGMA || d2 === 0) return false;
+  if (d2 >= g.sigma * g.sigma || d2 === 0) return false;
   const dvx = g.vx[j] - g.vx[i];
   const dvy = g.vy[j] - g.vy[i];
   const dot = dvx * dx + dvy * dy;
@@ -120,7 +132,7 @@ export function collide(g: Gas, i: number, j: number): boolean {
 /** Advance by h: free flight, wall bounces (right-wall impulses recorded), disk collisions. */
 export function stepGas(g: Gas, h: number): void {
   const { N, L, x, y, vx, vy } = g;
-  const r = SIGMA / 2;
+  const r = g.sigma / 2;
   g.t += h;
   for (let i = 0; i < N; i++) {
     x[i] += vx[i] * h;

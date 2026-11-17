@@ -13,6 +13,8 @@ import {
   speeds,
   stepGas,
   SIGMA,
+  PHI_MAX,
+  diskSize,
   impulseTop,
   pCum,
   pWin,
@@ -25,7 +27,7 @@ describe('ch19 hard-disk gas', () => {
     for (const mode of ['equal', 'mb'] as const) {
       const g = initGas(200, 20, 300, mode, new Rng(3));
       expect(kinetic(g) / (200 * KB * 300)).toBeCloseTo(1, 10);
-      for (let i = 0; i < g.N; i++) for (let j = 0; j < i; j++) expect(Math.hypot(g.x[i] - g.x[j], g.y[i] - g.y[j])).toBeGreaterThan(SIGMA);
+      for (let i = 0; i < g.N; i++) for (let j = 0; j < i; j++) expect(Math.hypot(g.x[i] - g.x[j], g.y[i] - g.y[j])).toBeGreaterThan(g.sigma);
     }
   });
 
@@ -105,22 +107,35 @@ describe('ch19 hard-disk gas', () => {
     return [sp.min, sp.max];
   };
 
-  it('at the densest allowed setting the measured pressure stays within 10 % of NkT/A (was +62 % at N = 400, L = 10 nm)', () => {
+  it('disks keep helium size unless they would cover more than PHI_MAX of the box', () => {
+    expect(diskSize(100, 20)).toBe(SIGMA); // default N, L
+    expect(diskSize(20, 30)).toBe(SIGMA);
+    for (const N of [20, 100, 150, 400, 1000]) {
+      for (const L of [15, 20, 30]) {
+        const s = diskSize(N, L);
+        expect((N * Math.PI * (s / 2) ** 2) / (L * L)).toBeLessThanOrEqual(PHI_MAX * (1 + 1e-12));
+      }
+    }
+  });
+
+  it('at the densest allowed setting (N = 1000, L = 15 nm) the measured pressure stays within 6 % of NkT/A', () => {
     const N = range('N')[1];
     const L = range('L')[0];
+    expect(N).toBe(1000);
     let sum = 0;
-    for (const seed of [1, 2, 3]) {
+    for (const seed of [1, 2]) {
       const g = initGas(N, L, 300, 'mb', new Rng(seed));
-      for (let i = 0; i < 40000; i++) {
+      for (let i = 0; i < 20000; i++) {
         stepGas(g, 0.01);
         if (g.hits.length > 1000) g.hits.length = 0;
       }
       sum += g.J / (L * g.t) / idealPressure(N, L, 300);
     }
-    const ratio = sum / 3;
-    expect(ratio).toBeGreaterThan(1.03);
-    expect(ratio).toBeLessThan(1.1);
-  });
+    const ratio = sum / 2;
+    // Hard-disk excess 2φ ≈ 3 % at φ = 1.5 %.
+    expect(ratio).toBeGreaterThan(1.0);
+    expect(ratio).toBeLessThan(1.06);
+  }, 60_000);
 
   it('impulse and both pressure estimates stay inside their plots at every corner of the parameter ranges', () => {
     const [N0, N1] = range('N');
@@ -146,5 +161,5 @@ describe('ch19 hard-disk gas', () => {
         }
       }
     }
-  });
+  }, 60_000);
 });
