@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { defaults } from '../src/core/params';
+import { defaults, fromQuery } from '../src/core/params';
 import { Runner } from '../src/core/runner';
+import { probe } from './stage-probe';
 import { endTime, energyScene } from '../src/sims/ch08/energy';
 import {
   A,
@@ -154,7 +155,7 @@ describe('ch08 energy diagram: end of the run', () => {
   };
 
   it('regression: over the hill the particle stops on the edge with E conserved, and the clock pauses there', () => {
-    const p = { ...base, pot: 'hill', x0s: [-2.7, -2.5, 3.1] };
+    const p = { ...base, pot: 'hill', x0s: [-2.7, 3.1] };
     const tEnd = endTime(p)!;
     expect(tEnd).toBeGreaterThan(1);
     const r = run(p);
@@ -169,7 +170,7 @@ describe('ch08 energy diagram: end of the run', () => {
   });
 
   it('regression: with friction the clock pauses when the particle comes to rest for good', () => {
-    for (const pot of ['double', 'spring', 'hill']) {
+    for (const pot of ['double', 'hill']) {
       const p = { ...base, pot, friction: true };
       const tEnd = endTime(p)!;
       expect(tEnd, pot).toBeGreaterThan(1);
@@ -185,7 +186,46 @@ describe('ch08 energy diagram: end of the run', () => {
 
   it('a frictionless particle trapped in a well has no end (rolling window)', () => {
     expect(endTime({ ...base })).toBeUndefined();
-    expect(endTime({ ...base, pot: 'spring' })).toBeUndefined();
+  });
+
+  it('the spring potential is gone (Ch 15 covers it); old spring links fall back to the double well', () => {
+    expect((energyScene.params.pot as any).options.map((o: any) => o.value)).toEqual(['double', 'hill']);
+    expect(Object.keys(POTENTIALS).sort()).toEqual(['double', 'hill']);
+    const p = fromQuery(energyScene.params, new URLSearchParams('pot=spring&x0s=-2.7,-2.5,2.9'));
+    expect(p.pot).toBe('double');
+    expect(p.x0s).toEqual([-2.7, 2.9]);
+    // A three-entry start list from an old link cannot be split by potential: defaults instead.
+    expect(fromQuery(energyScene.params, new URLSearchParams('pot=hill&x0s=-2.7,-2.5,3.1')).x0s).toEqual([-2.7, 2.9]);
+    expect(fromQuery(energyScene.params, new URLSearchParams('pot=hill&x0s=-2.7,3.1')).x0s).toEqual([-2.7, 3.1]);
+  });
+});
+
+describe('ch08 energy diagram: the unstable label keeps off the E line', () => {
+  // Regression: with E just above the hump (well and hill, x0 = 3.1 m) the E line ran through the label.
+  it('the label glyphs (alphabetic baseline, about 10 px up, 2 px down) never straddle the E line', () => {
+    const base = defaults(energyScene.params) as any;
+    const starts: [string, number[]][] = [
+      ['hill', [-2.7, 2.9]],
+      ['hill', [-2.7, 3.0]],
+      ['hill', [-2.7, 3.05]],
+      ['hill', [-2.7, 3.1]],
+      ['double', [-2.85, 2.9]],
+      ['double', [-2.9, 2.9]],
+      ['double', [-3.1, 2.9]],
+    ];
+    for (const [w, h] of [[1280, 800], [770, 680], [390, 420], [360, 300]]) {
+      for (const [pot, x0s] of starts) {
+        const p = { ...base, pot, x0s };
+        const s = energyScene.init(p, undefined as any);
+        const g = probe(energyScene, s, p, w, h);
+        const E = POTENTIALS[pot as 'hill'].U(s.x);
+        const [, yE] = g.vp.toPx(0, E);
+        const m = g.marks.find((k) => /unstable|불안정/.test(k.text ?? ''))!;
+        expect(m, `${pot} ${w}`).toBeTruthy();
+        const hit = yE > m.y - 12 && yE < m.y + 3;
+        expect(hit, `${pot} x0 = ${x0s} on ${w}×${h}`).toBe(false);
+      }
+    }
   });
 });
 

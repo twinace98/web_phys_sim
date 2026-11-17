@@ -46,18 +46,14 @@
   "ch18.p2.obs.Q": "$Q = \\Delta E_\\text{int} + W$ → 일을 많이 한 경로일수록 받은 열도 큼",
   "ch18.p2.obs.b2": "B = 20 L, 50 kPa: A와 같은 온도 → $\\Delta E_\\text{int} = 0$, 경로마다 $Q = W$",
   "ch18.p2.obs.b3": "B = 30 L, 20 kPa: 온도 하강 → $\\Delta E_\\text{int} < 0$, 경로 ADB는 열을 내보냄 ($Q < 0$)",
-  "ch18.p.cyc": "순환",
-  "ch18.d.cyc": "사각형: 등적·등압 과정 4개, 카르노: 등온·단열 과정 4개",
-  "ch18.cyc.rect": "사각형 순환",
-  "ch18.cyc.carnot": "카르노 순환",
   "ch18.p.dir": "방향",
   "ch18.d.dir": "$p$-$V$ 도표에서 도는 방향",
   "ch18.dir.cw": "시계 방향 (열기관)",
   "ch18.dir.ccw": "반시계 방향 (냉동기)",
   "ch18.c.goal.cycle": "순환 과정: 처음 상태로 돌아옴 → $\\Delta E_\\text{int} = 0$, $Q_\\text{net} = W_\\text{net}$",
-  "ch18.c.goal.area": "한 순환의 알짜 일 = 닫힌 곡선이 둘러싼 넓이",
+  "ch18.c.goal.area": "한 순환의 알짜 일 = 닫힌 곡선이 둘러싼 넓이, 사각형 순환 (등적·등압 과정 4개)을 시계 방향으로 돌면 $W_\\text{net} = \\Delta p\\,\\Delta V$",
   "ch18.c.obs.zero": "한 바퀴 끝: $\\Delta E_\\text{int}$ 막대 0, $Q$와 $W$ 막대 길이 같음",
   "ch18.c.obs.area": "팽창 구간의 넓이 (색칠)에서 압축 구간의 넓이 (빗금)를 뺀 나머지 = 둘러싼 넓이",
   "ch18.c.obs.ccw": "반시계 방향: $W_\\text{net} < 0$, 외부가 기체에 일을 하고 기체는 그만큼 열을 내보냄 (냉동기)",
-  "ch18.c.obs.carnot": "카르노 순환: 600 K 열원에서 열을 받고 300 K 열원으로 열을 버림, 단열 구간에는 열 출입 없음"
+  "ch18.c.obs.legs": "시계 방향 단원자 기체: 누적 $Q$가 C까지 11500 J로 커진 뒤 C→D→A에서 9500 J를 내보내 2000 J로 끝남"
 }
