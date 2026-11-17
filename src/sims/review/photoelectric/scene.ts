@@ -11,7 +11,7 @@ import { measureRich } from '../../../draw/text';
 import { Frame, PX_WORLD, TICK, W, canvasBox, linePx, rectPx, split, textPx, type Box } from '../../modern/frame';
 import { wavelengthRGB } from '../../wave2d/field';
 import {
-  HC_EV_NM,
+  F_RANGE,
   H_OVER_E,
   METALS,
   MAX_POINTS,
@@ -22,7 +22,6 @@ import {
   currentClassical,
   emptyPoints,
   fitLines,
-  frequency,
   iSat,
   kMax,
   metalIndex,
@@ -30,20 +29,22 @@ import {
   photonRate,
   pointValues,
   readPoints,
-  thresholdNm,
+  thresholdF,
   vStop,
   vStopClassical,
+  wavelength,
   type Fit,
 } from './physics';
 
-export type P = { lam: number; V: number; metal: string; power: number; classical: boolean; D: number[] };
+export type P = { f: number; V: number; metal: string; power: number; classical: boolean; D: number[] };
 
 interface Photon {
   /** Progress along the beam, 0 (source) to 1 (emitter face). */
   s: number;
   /** Hit point along the emitter face, 0 (top) to 1 (bottom). */
   y: number;
-  nm: number;
+  /** Frequency [10¹⁴ Hz]. */
+  f: number;
 }
 
 interface Electron {
@@ -61,15 +62,15 @@ export interface S {
   photons: Photon[];
   electrons: Electron[];
   /** Absorption marks on the emitter face. */
-  hits: { y: number; nm: number; age: number }[];
+  hits: { y: number; f: number; age: number }[];
 }
 
 // ------------------------------------------------------------------ constants
 
-const LAM: [number, number] = [180, 750];
 const V_RANGE: [number, number] = [-5, 3];
-/** Display photon rate [1/s] per (µW · 400 nm): proportional to the real photon rate P/(hf). */
+/** Display photon rate [1/s] per µW at 7.5×10¹⁴ Hz (400 nm): proportional to the real photon rate P/(hf). */
 const PHOTONS_PER_S = 7;
+const F_REF = 7.5;
 /** Beam flight time [s]. */
 const T_FLIGHT = 0.45;
 /** Electron display speed [gaps/s] per √eV; acceleration follows from energy conservation. */
@@ -101,7 +102,9 @@ const VS_AX: [number, number] = [-6, 5];
 /** Energy gauge range [eV]. */
 const E_GAUGE = 7;
 
-const photonColor = (nm: number): string => {
+/** Photon colour at frequency f [10¹⁴ Hz]: spectral colour of λ = c/f, grey below 380 nm (UV). */
+const photonColor = (f: number): string => {
+  const nm = wavelength(f);
   if (nm < 380) return UV_GREY;
   const [r, g, b] = wavelengthRGB(nm);
   return `rgb(${r}, ${g}, ${b})`;
@@ -112,18 +115,18 @@ const phiOf = (p: P) => METALS[metalIndex(p.metal)].phi;
 // ------------------------------------------------------------------ parameters
 
 const params: ParamSchema<P> = {
-  lam: {
+  f: {
     kind: 'number',
-    label: 'pe.p.lam',
-    desc: 'pe.d.lam',
+    label: 'pe.p.f',
+    desc: 'pe.d.f',
     group: 'main',
     live: true,
     control: 'slider',
-    min: LAM[0],
-    max: LAM[1],
-    step: 1,
-    default: 400,
-    unit: 'nm',
+    min: F_RANGE[0],
+    max: F_RANGE[1],
+    step: 0.1,
+    default: 7.5,
+    unit: '×10¹⁴ Hz',
   },
   V: {
     kind: 'number',
@@ -170,13 +173,13 @@ function step(s: S, h: number, p: P): void {
   s.t += h;
   const phi = phiOf(p);
   // Photons arrive at random (Poisson) at a display rate ∝ P/(hf).
-  const rate = PHOTONS_PER_S * p.power * (p.lam / 400);
-  if (s.rng.next() < rate * h) s.photons.push({ s: 0, y: 0.1 + 0.8 * s.rng.next(), nm: p.lam });
+  const rate = PHOTONS_PER_S * p.power * (F_REF / p.f);
+  if (s.rng.next() < rate * h) s.photons.push({ s: 0, y: 0.1 + 0.8 * s.rng.next(), f: p.f });
   for (const ph of s.photons) ph.s += h / T_FLIGHT;
   for (const ph of s.photons) {
     if (ph.s < 1) continue;
-    s.hits.push({ y: ph.y, nm: ph.nm, age: 0 });
-    const km = kMax(ph.nm, phi);
+    s.hits.push({ y: ph.y, f: ph.f, age: 0 });
+    const km = kMax(ph.f, phi);
     // One electron per photon above threshold, K uniform on [0, K_max].
     if (km > 0) s.electrons.push({ x: 0, y: ph.y, v: S0 * Math.sqrt(km * s.rng.next()), age: 0 });
   }
@@ -298,7 +301,7 @@ function drawTube(g: Draw, T: Box, s: S, p: P): void {
   const { env, tube, gauge } = tubeGeom(T);
   const { plateTop, plateBot, xe, xc, d, len } = tube;
   const phi = phiOf(p);
-  const col = photonColor(p.lam);
+  const col = photonColor(p.f);
   const yAt = (y: number) => plateTop + y * (plateBot - plateTop);
 
   // Glass envelope.
@@ -319,13 +322,18 @@ function drawTube(g: Draw, T: Box, s: S, p: P): void {
   for (const ph of s.photons) {
     const y0 = yAt(ph.y);
     const k = (1 - ph.s) * len;
-    photonGlyph(g, xe - d[0] * k, y0 - d[1] * k, d, photonColor(ph.nm));
+    photonGlyph(g, xe - d[0] * k, y0 - d[1] * k, d, photonColor(ph.f));
   }
   g.ctx.restore();
-  if (p.lam < 380) {
-    const yl = T.t + 12;
-    textPx(g, xe + (hitTop - yl) * (-d[0] / d[1]) + 10, yl, 'UV', { size: 11, color: UV_GREY, align: 'left', baseline: 'middle' });
-  }
+  // Wavelength of the light (derived from f) beside the beam where it enters; "UV" below 380 nm.
+  const nm = wavelength(p.f);
+  const yl = T.t + 12;
+  textPx(g, xe + (hitBot - yl) * (-d[0] / d[1]) + 8, yl, `*λ* = ${Math.round(nm)} nm${nm < 380 ? '  UV' : ''}`, {
+    size: 11,
+    color: nm < 380 ? UV_GREY : INK,
+    align: 'left',
+    baseline: 'middle',
+  });
 
   // Electrodes: emitter (metal) and collector.
   rectPx(g, { l: xe - 8, r: xe, t: plateTop, b: plateBot }, { fill: '#a7a7a7', color: '#6b6b6b', width: 1 });
@@ -334,7 +342,7 @@ function drawTube(g: Draw, T: Box, s: S, p: P): void {
   textPx(g, xe - 13, plateTop + 8, METALS[metalIndex(p.metal)].id, { size: 12, color: INK, align: 'right', baseline: 'middle' });
 
   for (const q of s.hits) {
-    g.circle(W(g, xe + 1, yAt(q.y)), 3 + 6 * (q.age / HIT_LIFE), { color: photonColor(q.nm), width: 1.25, alpha: 1 - q.age / HIT_LIFE });
+    g.circle(W(g, xe + 1, yAt(q.y)), 3 + 6 * (q.age / HIT_LIFE), { color: photonColor(q.f), width: 1.25, alpha: 1 - q.age / HIT_LIFE });
   }
   for (const e of s.electrons) {
     const a = e.age > LIFE - 1 ? LIFE - e.age : 1;
@@ -359,7 +367,7 @@ function drawTube(g: Draw, T: Box, s: S, p: P): void {
   linePx(g, minus, yw - 6, minus, yw + 6, { color: INK, width: 3 });
   g.circle(W(g, xa, yw), ra, { color: INK, width: 1.5, fill: '#ffffff' });
   textPx(g, xa, yw + 0.5, 'A', { size: 12, color: INK, align: 'center', baseline: 'middle' });
-  const I = current(p.V, p.power, p.lam, phi);
+  const I = current(p.V, p.power, p.f, phi);
   // Same decimals as the slider (step 0.05 V).
   const vTxt = `${p.V > 0 ? '+' : ''}${(Math.abs(p.V) < 0.005 ? 0 : p.V).toFixed(2).replace('-', '−')}`;
   textPx(g, xb, yw + 30, `*V* = ${vTxt} V`, { size: 12, color: INK, align: 'center' });
@@ -371,12 +379,12 @@ function drawTube(g: Draw, T: Box, s: S, p: P): void {
 /** Energy gauge: a bar of height hf against the work function line; the part above Φ is K_max. */
 function drawGauge(g: Draw, b: Box, p: P): void {
   const phi = phiOf(p);
-  const E = photonEnergy(p.lam);
+  const E = photonEnergy(p.f);
   const Y = (e: number) => b.b - (Math.min(e, E_GAUGE) / E_GAUGE) * (b.b - b.t);
   const xl = b.l + 18;
   const xr = xl + 12;
   linePx(g, b.l + 12, b.b, b.r - 4, b.b, { color: '#5c5c5c', width: 1 });
-  rectPx(g, { l: xl, r: xr, t: Y(Math.min(E, phi)), b: b.b }, { fill: photonColor(p.lam) });
+  rectPx(g, { l: xl, r: xr, t: Y(Math.min(E, phi)), b: b.b }, { fill: photonColor(p.f) });
   if (E > phi) rectPx(g, { l: xl, r: xr, t: Y(E), b: Y(phi) }, { fill: K_COLOR, color: INK, width: 1 });
   // Φ line just past the bar, so the labels to its right never cross it.
   linePx(g, b.l + 10, Y(phi), xr + 4, Y(phi), { color: INK, width: 1.25, dash: [4, 3] });
@@ -467,10 +475,18 @@ function drawVf(g: Draw, R: Box, p: P): void {
       }
     }
   }, 1);
-  // Where a measurement now would land (hollow); a measured point drawn after it fills it.
-  if (kMax(p.lam, phiOf(p)) > 0) {
+  // Threshold f0 = Φ/h of the current metal: a tick on the V = 0 line, labelled below it.
+  {
     const st = METAL_STYLE[m0];
-    marker(g, fr.X(F(frequency(p.lam))), fr.Y(vStop(p.lam, phiOf(p))), st.shape, st.color, false, 5.5);
+    const x0 = fr.X(thresholdF(phiOf(p)));
+    const y0 = fr.Y(0);
+    linePx(g, x0, y0 - 5, x0, y0 + 5, { color: st.color, width: 2 });
+    textPx(g, x0 + 3, y0 + 7, '*f*_{0}', { size: 11, color: st.color, align: 'left', baseline: 'top' });
+  }
+  // Where a measurement now would land (hollow); a measured point drawn after it fills it.
+  if (kMax(p.f, phiOf(p)) > 0) {
+    const st = METAL_STYLE[m0];
+    marker(g, fr.X(p.f), fr.Y(vStop(p.f, phiOf(p))), st.shape, st.color, false, 5.5);
   }
   for (const q of pts) {
     const st = METAL_STYLE[q.m];
@@ -495,7 +511,7 @@ function drawVf(g: Draw, R: Box, p: P): void {
   }
 
   // Buttons in the header row, right-aligned.
-  const canMeasure = kMax(p.lam, phiOf(p)) > 0;
+  const canMeasure = kMax(p.f, phiOf(p)) > 0;
   const clear = pts.length ? button(g, R.r - 8, R.t + 1, t('pe.clear'), true, true) : null;
   const measure = button(g, clear ? clear.box.l - 8 : R.r - 8, R.t + 1, t('pe.measure'), true, canMeasure);
   const n = pts.length;
@@ -503,10 +519,10 @@ function drawVf(g: Draw, R: Box, p: P): void {
   lastBtn = { measure, clear };
 }
 
-/** I–V axis top [nA]: a nice value above the largest saturation current (at the longest wavelength that still ejects). */
+/** I–V axis top [nA]: a nice value above the largest saturation current (at the lowest frequency that still ejects). */
 export function iAxisMax(power: number): number {
-  const lamMax = Math.min(LAM[1], thresholdNm(Math.min(...METALS.map((m) => m.phi))));
-  const top = photonRate(power, lamMax) * QE * 1e9 * 1.05;
+  const fMin = Math.max(F_RANGE[0], thresholdF(Math.min(...METALS.map((m) => m.phi))));
+  const top = photonRate(power, fMin) * QE * 1e9 * 1.05;
   const e = 10 ** Math.floor(Math.log10(top));
   const m = [1, 1.5, 2, 3, 4, 5, 6, 8, 10].find((k) => k >= top / e - 1e-9) ?? 10;
   return m * e;
@@ -528,15 +544,15 @@ function drawIv(g: Draw, R: Box, p: P): void {
     // Exact corner at the cutoff.
     return out;
   };
-  const vs = vStop(p.lam, phi);
+  const vs = vStop(p.f, phi);
   fr.clip(() => {
-    if (p.classical) fr.polyline(curve((V) => currentClassical(V, p.power, p.lam)), { color: CLASSICAL, width: 2, dash: [7, 5] });
-    const pts = curve((V) => current(V, p.power, p.lam, phi));
-    if (vs > 0) pts.push([-vs, 0], [0, iSat(p.power, p.lam, phi)]);
+    if (p.classical) fr.polyline(curve((V) => currentClassical(V, p.power, p.f)), { color: CLASSICAL, width: 2, dash: [7, 5] });
+    const pts = curve((V) => current(V, p.power, p.f, phi));
+    if (vs > 0) pts.push([-vs, 0], [0, iSat(p.power, p.f, phi)]);
     pts.sort((a, b) => a[0] - b[0]);
     fr.polyline(pts, { color: INK, width: 2 });
   }, 2);
-  const I = current(p.V, p.power, p.lam, phi);
+  const I = current(p.V, p.power, p.f, phi);
   if (vs > 0) {
     // Cutoff label left of the cutoff, on the I = 0 stretch, and left of the operating point when that
     // sits there; left out when the y axis leaves no room.
@@ -553,7 +569,7 @@ function drawIv(g: Draw, R: Box, p: P): void {
 // ------------------------------------------------------------------ measure / clear
 
 function measure(ctx: SceneCtx<P>): void {
-  const D = addPoint(ctx.params.D, ctx.params.lam, metalIndex(ctx.params.metal));
+  const D = addPoint(ctx.params.D, ctx.params.f, metalIndex(ctx.params.metal));
   if (D) ctx.set('D', D);
 }
 
@@ -589,14 +605,14 @@ export function tsci(v: number, sig: number): string {
 
 export function formulaLines(p: P): string[] {
   const phi = phiOf(p);
-  const E = photonEnergy(p.lam);
-  const km = kMax(p.lam, phi);
+  const E = photonEnergy(p.f);
+  const km = kMax(p.f, phi);
   const lines = [
-    `hf = \\frac{hc}{\\lambda} = \\frac{${HC_EV_NM.toFixed(1)}\\ \\mathrm{eV\\,nm}}{${p.lam}\\ \\mathrm{nm}} = ${tf(E, 2)}\\ \\mathrm{eV}`,
+    `hf = (${tsci(H_OVER_E, 4)}\\ \\mathrm{eV\\,s})(${tf(p.f, 1)}\\times10^{14}\\ \\mathrm{Hz}) = ${tf(E, 2)}\\ \\mathrm{eV}`,
+    `\\lambda = c/f = ${Math.round(wavelength(p.f))}\\ \\mathrm{nm},\\quad f_0 = \\Phi/h = ${tf(thresholdF(phi), 2)}\\times10^{14}\\ \\mathrm{Hz}`,
     km > 0
-      ? `K_\\text{max} = hf - \\Phi = ${tf(E, 2)} - ${tf(phi, 2)} = ${tf(km, 2)}\\ \\mathrm{eV}`
-      : `K_\\text{max} = 0\\ \\ (hf < \\Phi = ${tf(phi, 2)}\\ \\mathrm{eV},\\ \\lambda > \\lambda_0 = ${Math.round(thresholdNm(phi))}\\ \\mathrm{nm})`,
-    `V_\\text{stop} = K_\\text{max}/e = ${tf(km, 2)}\\ \\mathrm{V}`,
+      ? `e\\,V_\\text{stop} = K_\\text{max} = hf - \\Phi = ${tf(E, 2)} - ${tf(phi, 2)} = ${tf(km, 2)}\\ \\mathrm{eV}`
+      : `e\\,V_\\text{stop} = K_\\text{max} = 0\\ \\ (f < f_0)`,
   ];
   const fit = fitOf(p);
   const he = `h/e = ${tsci(H_OVER_E, 4)}\\ \\mathrm{V\\,s}`;
@@ -634,9 +650,9 @@ export const photoelectric: Scene<P, S> = {
   handles: [buttonHandle('measure', measure), buttonHandle('clear', clearAll)],
 
   readouts: [
-    { label: 'hf', unit: 'eV', value: (_s, p) => photonEnergy(p.lam) },
-    { label: 'V_\\text{stop}', unit: 'V', value: (_s, p) => vStop(p.lam, phiOf(p)) },
-    { label: 'I', unit: 'nA', value: (_s, p) => current(p.V, p.power, p.lam, phiOf(p)), zeroTol: 1e-6 },
+    { label: 'hf', unit: 'eV', value: (_s, p) => photonEnergy(p.f) },
+    { label: 'V_\\text{stop}', unit: 'V', value: (_s, p) => vStop(p.f, phiOf(p)) },
+    { label: 'I', unit: 'nA', value: (_s, p) => current(p.V, p.power, p.f, phiOf(p)), zeroTol: 1e-6 },
   ],
 
   formula: (_s, p) => formulaLines(p),
@@ -645,8 +661,8 @@ export const photoelectric: Scene<P, S> = {
     goals: ['pe.goal.photon', 'pe.goal.h'],
     observe: ['pe.obs.threshold', 'pe.obs.stop', 'pe.obs.power', 'pe.obs.measure', 'pe.obs.classical'],
     equations: [
-      'hf = \\frac{hc}{\\lambda}, \\qquad K_\\text{max} = hf - \\Phi = e\\,V_\\text{stop}',
-      'V_\\text{stop} = \\frac{h}{e}\\,f - \\frac{\\Phi}{e}',
+      'K_\\text{max} = hf - \\Phi = e\\,V_\\text{stop}, \\qquad f_0 = \\frac{\\Phi}{h}',
+      'V_\\text{stop} = \\frac{h}{e}\\,f - \\frac{\\Phi}{e}, \\qquad \\lambda = \\frac{c}{f}',
       'I_\\text{sat} = \\frac{eP}{hf}, \\qquad I = I_\\text{sat}\\left(1 - \\frac{e\\lvert V\\rvert}{K_\\text{max}}\\right)',
     ],
     assumptions: ['pe.as.yield', 'pe.as.dist', 'pe.as.phi', 'pe.as.ideal', 'pe.as.data', 'pe.as.classical', 'pe.as.uv', 'pe.as.display'],
