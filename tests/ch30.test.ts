@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { defaults, fromQuery } from '../src/core/params';
+import { EQ0, EQS, Gin, maxwell } from '../src/sims/ch30/maxwell';
 import { MU0, circlePoly, closedCirc, closedFlux, fieldFn } from '../src/sims/field/physics';
 import {
   A_COIL,
@@ -99,5 +101,33 @@ describe('ch30 Maxwell equations', () => {
     }
     expect(ampereMaxwell(-0.6, 'flat').ic).toBe(I_CAP);
     expect(ampereMaxwell(0, 'flat').id).toBe(I_CAP);
+  });
+});
+
+describe('ch30 overlap cleanup: Gauss (E) lives in Ch 23 only', () => {
+  const spec = maxwell.params.eq as { default: string; options: { value: string }[] };
+
+  it('three equations, Faraday by default; no line-charge parameter', () => {
+    expect(spec.options.map((o) => o.value)).toEqual(['gaussB', 'faraday', 'ampere']);
+    expect(EQS).not.toContain('gaussE' as never);
+    expect(spec.default).toBe('faraday');
+    expect(EQ0).toBe('faraday');
+    expect(Object.keys(maxwell.params)).not.toContain('C');
+    // Gauss's law for E stays in the ⓘ equation list: still the four Maxwell equations.
+    expect(maxwell.info.equations).toHaveLength(4);
+    expect(maxwell.overlay!({ t: 0 }, defaults(maxwell.params))).toContain('\\frac{d\\Phi_B}{dt}');
+  });
+
+  it('old share links: eq=gaussE and C fall back to the default; a circle tagged for gaussB still loads', () => {
+    const old = fromQuery(maxwell.params, new URLSearchParams('eq=gaussE&C=-0.25,0.12,0.6,-0.15&G=-0.15,0,0.4,0'));
+    expect(old.eq).toBe('faraday');
+    expect('C' in old).toBe(false);
+    // G tagged 0 (the old gaussE circle) is not the Faraday circle: the default circle is used.
+    expect(Gin(old)).toEqual([0.1, 0.05, 0.25]);
+    expect(() => maxwell.overlay!({ t: 0 }, old)).not.toThrow();
+    // Tags 1, 2, 3 (gaussB, faraday, ampere) kept their old values.
+    const b = fromQuery(maxwell.params, new URLSearchParams('eq=gaussB&G=0.3,0,0.5,1'));
+    expect(Gin(b)).toEqual([0.3, 0, 0.5]);
+    for (const eq of EQS) expect(() => maxwell.overlay!({ t: 0 }, { ...defaults(maxwell.params), eq })).not.toThrow();
   });
 });

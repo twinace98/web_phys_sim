@@ -13,6 +13,17 @@ export function singleSlit(a: number, lambda: number, theta: number): number {
 }
 
 /**
+ * Far-field intensity of two slits of width a, centres d apart, relative to the centre:
+ * single-slit envelope (sin α/α)² times the two-slit fringes cos² β,
+ * α = π a sinθ/λ, β = π d sinθ/λ. Where d/a is an integer, the fringe m = (d/a) m' falls on
+ * an envelope zero and is missing.
+ */
+export function twoSlit(a: number, d: number, lambda: number, theta: number): number {
+  const beta = (Math.PI * d * Math.sin(theta)) / lambda;
+  return singleSlit(a, lambda, theta) * Math.cos(beta) ** 2;
+}
+
+/**
  * N equal sources across the slit (spacing a/N); neighbours differ in phase by
  * δ = φ/N. Relative intensity |Σ e^{i k δ}|² / N².
  */

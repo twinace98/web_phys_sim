@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { defaults } from '../src/core/params';
-import { edgePhase, firstMin, phasorChain, singleSlit, sourcesIntensity } from '../src/sims/ch36/physics';
-import { pairDiff, singleSlit as singleScene } from '../src/sims/ch36/single';
+import { defaults, fromQuery } from '../src/core/params';
+import { edgePhase, firstMin, phasorChain, singleSlit, sourcesIntensity, twoSlit } from '../src/sims/ch36/physics';
+import { apsOf, envelope, markDiff, pairDiff, sepOf, singleSlit as singleScene } from '../src/sims/ch36/single';
 import { N_MIN, chainOrigin, phasor, slitGeometry } from '../src/sims/ch36/phasor';
 import { WaveField } from '../src/sims/wave2d/field';
 
@@ -111,5 +111,111 @@ describe('ch36 phasor chain: the minima do not depend on N', () => {
       for (const a of [0.5, 2, 4])
         for (const N of [8, 13, 20])
           for (const r of phasor.readouts!) expect(Number.isFinite(r.value({ t: 0 }, { ...p0, theta, a, N }))).toBe(true);
+  });
+});
+
+/** Far-field |Σ e^{ik y_j sinθ}|² / n², n equal sources spread over each of two slits (midpoints). */
+function twoSlitPhasorSum(a: number, d: number, lambda: number, theta: number, nPer = 2000): number {
+  const k = (2 * Math.PI) / lambda;
+  let re = 0;
+  let im = 0;
+  for (const yc of [d / 2, -d / 2])
+    for (let j = 0; j < nPer; j++) {
+      const y = yc - a / 2 + ((j + 0.5) * a) / nPer;
+      re += Math.cos(k * y * Math.sin(theta));
+      im += Math.sin(k * y * Math.sin(theta));
+    }
+  return (re * re + im * im) / (2 * nPer) ** 2;
+}
+
+describe('ch36 two slits: single-slit envelope × two-slit fringes', () => {
+  it('(sin α/α)² cos² β matches a direct phasor sum over both slits', () => {
+    let worst = 0;
+    for (const [a, d] of [
+      [2, 4],
+      [1.5, 4.5],
+      [0.5, 1],
+      [2, 2],
+      [6, 10],
+      [1.3, 7.1],
+    ])
+      for (const lambda of [0.4, 0.5, 0.7])
+        for (let th = -40; th <= 40; th += 0.73) {
+          const t = th * deg;
+          worst = Math.max(worst, Math.abs(twoSlit(a, d, lambda, t) - twoSlitPhasorSum(a, d, lambda, t)));
+        }
+    expect(worst).toBeLessThan(1e-5);
+  });
+
+  it('missing orders: d sin θ = mλ on an envelope zero when d/a is an integer', () => {
+    const lambda = 0.5;
+    for (const [a, ratio] of [
+      [2, 2],
+      [1.5, 3],
+      [1, 4],
+    ]) {
+      const d = a * ratio;
+      // m = ratio·m' falls on a sin θ = m'λ: intensity 0 (the phasor sum agrees).
+      const th = Math.asin((ratio * lambda) / d);
+      expect(twoSlit(a, d, lambda, th)).toBeLessThan(1e-25);
+      expect(twoSlitPhasorSum(a, d, lambda, th)).toBeLessThan(1e-6);
+      // Orders inside the central envelope stay bright; 2d/a − 1 of them.
+      let n = 0;
+      for (let m = -ratio + 1; m <= ratio - 1; m++) if (twoSlit(a, d, lambda, Math.asin((m * lambda) / d)) > 0.05) n++;
+      expect(n).toBe(2 * ratio - 1);
+    }
+    // At d = a the two slits touch: one slit of width 2a.
+    for (const th of [3, 11, 27]) expect(twoSlit(1.5, 1.5, 0.5, th * deg)).toBeCloseTo(singleSlit(3, 0.5, th * deg), 12);
+  });
+
+  it('wave field (default two-slit setting): m = ±2 nearly vanishes at y₁, m = ±1 stays bright', () => {
+    const p = { ...defaults(singleScene.params), slits: 'two' };
+    expect([p.a, p.d, p.lambda, p.D]).toEqual([2, 4, 500, 25]);
+    const f = new WaveField({ lambda: 0.5, apertures: apsOf(p), xL: -4, x1: 25, y0: -12, y1: 12, screenX: 25, screenN: 481, maxCells: 20000 });
+    const I = f.screenSteady();
+    const at = (y: number) => f.screenY.reduce((b, v, i) => (Math.abs(v - y) < Math.abs(f.screenY[b] - y) ? i : b), 0);
+    const peak = (y: number) => Math.max(...Array.from({ length: 13 }, (_, k) => I[at(y) + k - 6]));
+    const I0 = peak(0);
+    const y = (m: number) => 25 * Math.tan(Math.asin((m * 0.5) / 4));
+    expect(peak(y(1)) / I0).toBeGreaterThan(0.45);
+    expect(peak(y(2)) / I0).toBeLessThan(0.04);
+    expect(peak(y(3)) / I0).toBeLessThan(0.06);
+    // y(2) is the first envelope zero D tan θ₁.
+    expect(y(2)).toBeCloseTo(25 * Math.tan(firstMin(0.5, 2)), 12);
+  });
+
+  it('dashed envelope (|E₁| + |E₂|)² bounds the pattern and touches its maxima', () => {
+    for (const [a, d, D] of [
+      [2, 4, 25],
+      [1.5, 4.5, 30],
+      [0.8, 6.3, 15],
+    ]) {
+      const p = { ...defaults(singleScene.params), slits: 'two', a, d, D };
+      const env = envelope(p);
+      const f = new WaveField({ lambda: 0.5, apertures: apsOf(p), xL: -4, x1: D, y0: -12, y1: 12, screenX: D, screenN: 241 });
+      const I = f.screenSteady();
+      const max = Math.max(...I);
+      for (let i = 0; i < I.length; i++) expect(I[i] / max).toBeLessThanOrEqual(env[i] + 1e-9);
+      // At the central maximum the two waves arrive in phase.
+      expect(env[120]).toBeCloseTo(I[120] / max, 3);
+    }
+  });
+
+  it('marker, slit separation and old links', () => {
+    const p = { ...defaults(singleScene.params), slits: 'two' };
+    // Default point is the first envelope zero: ΔL between the slit centres ≈ 2λ, yet dark.
+    expect(markDiff(p)).toBeCloseTo(1.99, 2);
+    expect(markDiff({ ...p, slits: 'one' })).toBe(pairDiff(p));
+    expect(sepOf({ a: 3, d: 1 })).toBe(3);
+    expect(apsOf({ slits: 'two', a: 3, d: 1 })).toEqual([
+      { yc: 1.5, w: 3 },
+      { yc: -1.5, w: 3 },
+    ]);
+    expect(apsOf({ slits: 'one', a: 3, d: 5 })).toEqual([{ yc: 0, w: 3 }]);
+    const vis = singleScene.params.d.visibleIf!;
+    expect(vis({ ...p, slits: 'one' })).toBe(false);
+    expect(vis(p)).toBe(true);
+    const q = fromQuery(singleScene.params, new URLSearchParams('slits=three&d=40&a=2.5'));
+    expect([q.slits, q.d, q.a]).toEqual(['one', 4, 2.5]);
   });
 });
