@@ -36,14 +36,15 @@ const withUnit = (v: string, unit?: string) => (!unit ? v : unit === '°' ? `${v
 type Panel = 'none' | 'settings' | 'info' | 'formula';
 
 /** Shrink each display equation that is wider than its box to fit, at most to 80 %. */
-function fitEquations(box: HTMLElement): void {
+/** Shrink display equations wider than the panel, down to `min` of their size; wider still, they scroll. */
+function fitEquations(box: HTMLElement, min = 0.8): void {
   for (const d of box.querySelectorAll<HTMLElement>('.katex-display')) {
     const k = d.firstElementChild as HTMLElement | null;
     if (!k) continue;
     k.style.fontSize = '';
     const avail = d.clientWidth;
     const need = k.scrollWidth;
-    if (avail > 0 && need > avail) k.style.fontSize = `${Math.max(0.8, avail / need)}em`;
+    if (avail > 0 && need > avail) k.style.fontSize = `${Math.max(min, avail / need)}em`;
   }
 }
 
@@ -70,6 +71,7 @@ export class SimView {
   private formulaBox: HTMLElement | null = null;
   private formulaTex = '';
   private formulaAt = -Infinity;
+  private formulaW = 0;
   private playBtn: HTMLButtonElement | null = null;
   private shownPlaying: boolean | null = null;
   private timeVal: HTMLElement | null = null;
@@ -476,10 +478,20 @@ export class SimView {
     this.formulaAt = now;
     const lines = f(s as never, p as never);
     const key = lines.join('\n');
-    if (key === this.formulaTex) return;
+    const w = this.formulaBox.clientWidth;
+    if (key === this.formulaTex) {
+      // Same text, but the panel was resized: fit the lines again.
+      if (w !== this.formulaW) {
+        this.formulaW = w;
+        fitEquations(this.formulaBox, 0.6);
+      }
+      return;
+    }
+    this.formulaW = w;
     this.formulaTex = key;
     this.formulaBox.innerHTML = lines.map((l) => tex(l, true)).join('');
-    fitEquations(this.formulaBox);
+    // Substituted lines are long: let them shrink further than the ⓘ equations before scrolling.
+    fitEquations(this.formulaBox, 0.6);
   }
 
   /**
