@@ -1,6 +1,7 @@
 // Ch 37 scenes (c = 1: lengths in light-seconds, times in seconds). Each of the first two tabs
 // shows the same situation from S (ground) and from S' (ship) side by side; the third is a
-// spacetime diagram with both sets of axes; the fourth is the train-flash experiment.
+// spacetime diagram with both sets of axes, on which time dilation, length contraction and the
+// order of two events are read off; the fourth is the train-flash experiment.
 import { fmt } from '../../core/format';
 import { t } from '../../core/i18n';
 import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
@@ -8,7 +9,7 @@ import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR, theme } from '../../draw/theme';
 import { measureRich } from '../../draw/text';
 import { Frame, PX_WORLD, TICK, W, canvasBox, linePx, split, textPx, type Box } from '../modern/frame';
-import { bounce, contracted, gamma, lorentz, movingPeriod, restPeriod, ticks, trainEvents } from './physics';
+import { bounce, contracted, dilationEvents, fromS, fromSp, gamma, movingPeriod, restPeriod, rodEvents, ticks, trainEvents, type Event2 } from './physics';
 
 /** Frame colours: S blue, S' orange (as A and B in Ch 3). */
 export const S_COLOR = ROLE_COLOR.position;
@@ -224,32 +225,157 @@ export const rods: Scene<PB, { t: number; n: number }> = {
 
 // ------------------------------------------------------------------ spacetime diagram
 
-type PD = { beta: number; grid: boolean; A: number[]; B: number[] };
+type PD = { mode: string; beta: number; grid: boolean; B: number[] };
 
 const X_HALF = 4;
 const CT_LO = -1;
 const CT_HI = 7;
+/** Proper time of the marked tick: one tick of the light clock of tab 1 (Δt₀ = 2 s). */
+export const TAU_TICK = restPeriod(L_CLOCK);
+/** Rod at rest in S' between x' = −3.5 and x' = −0.5 (L₀ = 3 ls), cut at ct' = 2.5. */
+export const ROD_L0 = 3;
+const ROD_FRONT = -0.5;
+const ROD_TP = 2.5;
 
 const diagramParams: ParamSchema<PD> = {
-  beta: betaParam(0.5, 0, 0.8, true),
+  mode: {
+    kind: 'select',
+    label: 'ch37.d.p.mode',
+    desc: 'ch37.d.d.mode',
+    group: 'main',
+    live: true,
+    default: 'dilate',
+    options: [
+      { value: 'dilate', label: 'ch37.d.mode.dilate' },
+      { value: 'contract', label: 'ch37.d.mode.contract' },
+      { value: 'order', label: 'ch37.d.mode.order' },
+    ],
+  },
+  beta: betaParam(0.6, 0, 0.8, true),
   grid: { kind: 'toggle', label: 'ch37.d.p.grid', desc: 'ch37.d.d.grid', group: 'advanced', live: true, default: true },
-  A: { kind: 'array', label: 'ch37.d.p.A', group: 'hidden', live: true, default: [-1.5, 3], min: -X_HALF, max: CT_HI },
-  B: { kind: 'array', label: 'ch37.d.p.B', group: 'hidden', live: true, default: [1.5, 3], min: -X_HALF, max: CT_HI },
+  B: { kind: 'array', label: 'ch37.d.p.B', group: 'hidden', live: true, default: [3, 1], min: -X_HALF, max: CT_HI },
 };
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
 const clampEv = (w: Vec2): number[] => [r1(Math.max(-X_HALF + 0.2, Math.min(X_HALF - 0.2, w.x))), r1(Math.max(CT_LO + 0.2, Math.min(CT_HI - 0.2, w.y)))];
 
-/** TeX table of both events in both frames. */
+/** Events shown in each reading, in table order. */
+export function diagramEvents(p: PD): [string, Event2][] {
+  if (p.mode === 'contract') {
+    const r = rodEvents(ROD_L0, ROD_FRONT, ROD_TP, p.beta);
+    return [
+      ['F', r.F],
+      ['R', r.R],
+      ["R'", r.Rp],
+    ];
+  }
+  if (p.mode === 'order') {
+    return [
+      ['A', fromS(0, 0, p.beta)],
+      ['B', fromS(p.B[0], p.B[1], p.beta)],
+    ];
+  }
+  return [
+    ['O', fromS(0, 0, p.beta)],
+    ['E', dilationEvents(TAU_TICK, p.beta).E],
+  ];
+}
+
+const n2 = (v: number) => (Math.abs(v) < 0.005 ? '0.00' : v.toFixed(2));
+
+/** TeX panel: the events in both frames, then the quantity read off the diagram. */
 export function eventTable(p: PD): string {
-  const row = (name: string, e: number[]) => {
-    const [xp, tp] = lorentz(e[0], e[1], p.beta);
-    const S = (v: string) => `\\textcolor{${S_COLOR}}{${v}}`;
-    const Sp = (v: string) => `\\textcolor{${SP_COLOR}}{${v}}`;
-    const n = (v: number) => (Math.abs(v) < 0.005 ? '0.00' : v.toFixed(2));
-    return `${name} & ${S(`(${n(e[0])},\\ ${n(e[1])})`)} & ${Sp(`(${n(xp)},\\ ${n(tp)})`)}`;
-  };
-  return `\\begin{array}{lcc} & \\textcolor{${S_COLOR}}{(x,\\ ct)} & \\textcolor{${SP_COLOR}}{(x',\\ ct')} \\\\ ${row('A', p.A)} \\\\ ${row('B', p.B)} \\end{array}`;
+  const S = (v: string) => `\\textcolor{${S_COLOR}}{${v}}`;
+  const Sp = (v: string) => `\\textcolor{${SP_COLOR}}{${v}}`;
+  const rows = diagramEvents(p)
+    .map(([name, e]) => `${name} & ${S(`(${n2(e.x)},\\ ${n2(e.t)})`)} & ${Sp(`(${n2(e.xp)},\\ ${n2(e.tp)})`)}`)
+    .join(' \\\\ ');
+  const table = `\\begin{array}{lcc} & ${S('(x,\\ ct)')} & ${Sp("(x',\\ ct')")} \\\\ ${rows} \\end{array}`;
+  return `\\begin{array}{l} ${table} \\\\ ${diagramResult(p)} \\end{array}`;
+}
+
+/** The reading: Δt = γΔt₀, L = L₀/γ, or the two time differences of A and B. */
+export function diagramResult(p: PD): string {
+  const g = gamma(p.beta);
+  if (p.mode === 'contract') return `L = L_0/\\gamma = ${n2(ROD_L0)}/${n2(g)} = ${n2(ROD_L0 / g)}\\ \\text{ls}`;
+  if (p.mode === 'order') {
+    const [, B] = diagramEvents(p)[1];
+    return `\\Delta t = ${n2(B.t)}\\ \\text{s}, \\quad \\Delta t' = ${n2(B.tp)}\\ \\text{s}`;
+  }
+  return `\\Delta t = \\gamma\\,\\Delta t_0 = ${n2(g)} \\times ${n2(TAU_TICK)} = ${n2(g * TAU_TICK)}\\ \\text{s}`;
+}
+
+const P = (x: number, y: number): Vec2 => ({ x, y });
+const EVENT = '#1a1a1a';
+
+/** Dot with a label; dx, dy in px. */
+function eventDot(g: Draw, e: Event2, name: string, dx: number, dy: number, align: 'left' | 'right' = 'left'): void {
+  g.circle(P(e.x, e.t), 4.5, { fill: EVENT });
+  g.text(P(e.x, e.t), name, { size: 14, color: EVENT, dx, dy, weight: 600, align });
+}
+
+/** A label of about 20 × 14 px: half extents in x and y [px]. */
+const LABEL_HALF = [10, 7] as const;
+
+/**
+ * Where to put a segment's name: the first point along the segment, on the first side that works
+ * (1: below on screen, −1: above), where the label clears (by 12 px, else 3 px) every line given as
+ * (point, direction) in world coordinates. Returns the anchor and the px offset for g.text.
+ */
+export function segmentSpot(g: Draw, a: Event2, b: Event2, sides: (1 | -1)[], lines: [Vec2, Vec2][]): { at: Vec2; dx: number; dy: number } {
+  const [ax, ay] = g.vp.toPx(a.x, a.t);
+  const [bx, by] = g.vp.toPx(b.x, b.t);
+  const len = Math.hypot(bx - ax, by - ay);
+  // Unit normal pointing down the screen.
+  let nx = len > 1 ? -(by - ay) / len : 0;
+  let ny = len > 1 ? (bx - ax) / len : 1;
+  if (ny < 0) [nx, ny] = [-nx, -ny];
+  const off = LABEL_HALF[0] * Math.abs(nx) + LABEL_HALF[1] * Math.abs(ny) + 6;
+  const spot = (f: number, side: number) => ({ at: P(a.x + f * (b.x - a.x), a.t + f * (b.t - a.t)), dx: side * nx * off, dy: side * ny * off + 5 });
+  for (const gap of [12, 3])
+    for (const side of sides)
+      for (const f of [0.5, 0.35, 0.65, 0.25, 0.75]) {
+        const s = spot(f, side);
+        const [px, py] = g.vp.toPx(s.at.x, s.at.y);
+        const cx = px + s.dx;
+        const cy = py + s.dy - 5;
+        const clear = lines.every(([p0, d]) => {
+          const [x0, y0] = g.vp.toPx(p0.x, p0.y);
+          const [x1, y1] = g.vp.toPx(p0.x + d.x, p0.y + d.y);
+          const ux = x1 - x0;
+          const uy = y1 - y0;
+          const l = Math.hypot(ux, uy);
+          // Distance from the label's centre to the line, less the label's half extent along the normal.
+          return (Math.abs((cx - x0) * uy - (cy - y0) * ux) - LABEL_HALF[0] * Math.abs(uy) - LABEL_HALF[1] * Math.abs(ux)) / l >= gap;
+        });
+        if (clear) return s;
+      }
+  return spot(0.5, sides[0]);
+}
+
+/** Line of simultaneity through an event (horizontal in S, slope β in S'), from x0 to x1. */
+function simLine(g: Draw, e: Event2, beta: number, frame: 'S' | 'Sp', x0 = -X_HALF - 1, x1 = X_HALF + 1): void {
+  const k = frame === 'S' ? 0 : beta;
+  g.line(P(x0, e.t + k * (x0 - e.x)), P(x1, e.t + k * (x1 - e.x)), { color: frame === 'S' ? S_COLOR : SP_COLOR, width: 1.25, dash: [6, 4], alpha: 0.9 });
+}
+
+/** Clock ticks: ct ticks on the ct axis (labels left), ct' ticks on the ct' axis (labels right, E at Δt₀). */
+function drawTicks(g: Draw, beta: number): void {
+  const gm = gamma(beta);
+  for (let k = 1; k < CT_HI; k++) {
+    g.line(P(-0.1, k), P(0.1, k), { color: S_COLOR, width: 1.5 });
+    g.text(P(0, k), String(k), { size: 12, color: S_COLOR, dx: -9, align: 'right', baseline: 'middle' });
+  }
+  // A tick on the ct' axis is a short piece of the line of constant ct' (slope β).
+  const h = 0.1;
+  for (let k = 1; gm * k <= CT_HI - 0.3 && beta * gm * k <= X_HALF - 0.3; k++) {
+    const e = fromSp(0, k, beta);
+    const d = h / Math.sqrt(1 + beta * beta);
+    g.line(P(e.x - d, e.t - beta * d), P(e.x + d, e.t + beta * d), { color: SP_COLOR, width: 1.5 });
+    const isE = Math.abs(k - TAU_TICK) < 1e-9;
+    if (isE) g.circle(P(e.x, e.t), 4.5, { fill: EVENT });
+    g.text(P(e.x, e.t), isE ? 'E' : String(k), { size: isE ? 14 : 12, color: isE ? EVENT : SP_COLOR, dx: 10, baseline: 'middle', weight: isE ? 600 : 400 });
+  }
 }
 
 export const spacetime: Scene<PD, { t: number }> = {
@@ -261,7 +387,7 @@ export const spacetime: Scene<PD, { t: number }> = {
 
   draw: (g, _s, p) => {
     const b = p.beta;
-    const P = (x: number, y: number): Vec2 => ({ x, y });
+    const gm = gamma(b);
     const ctx = g.ctx;
     // Clip to the diagram square.
     const [cl, ct] = g.vp.toPx(-X_HALF, CT_HI);
@@ -277,7 +403,6 @@ export const spacetime: Scene<PD, { t: number }> = {
       }
       if (b > 0) {
         // Lines of constant x' (slope 1/β) and constant ct' (slope β), spaced by one unit of S'.
-        const gm = gamma(b);
         for (let k = -12; k <= 12; k++) {
           // x' = k: x = βct + k/γ ; ct' = k: ct = βx + k/γ
           g.line(P(b * (CT_LO - 2) + k / gm, CT_LO - 2), P(b * (CT_HI + 2) + k / gm, CT_HI + 2), { color: SP_COLOR, width: 1, alpha: 0.22 });
@@ -285,14 +410,37 @@ export const spacetime: Scene<PD, { t: number }> = {
         }
       }
     }
+    if (p.mode === 'order' && b > 0) {
+      // Between the x and x' axes the order of an event relative to A (the origin) differs in S and S'.
+      for (const s of [1, -1]) g.polygon([P(0, 0), P(s * (X_HALF + 1), 0), P(s * (X_HALF + 1), s * b * (X_HALF + 1))], { fill: '#9a9a9a', fillAlpha: 0.16 });
+    }
+    if (p.mode === 'contract') {
+      // World strip of the rod (at rest in S'): its two ends move along lines of constant x'.
+      const xs = (xp: number, t: number) => xp / gm + b * t;
+      const rear = ROD_FRONT - ROD_L0;
+      const t0 = CT_LO - 2;
+      const t1 = CT_HI + 2;
+      g.polygon([P(xs(rear, t0), t0), P(xs(ROD_FRONT, t0), t0), P(xs(ROD_FRONT, t1), t1), P(xs(rear, t1), t1)], { fill: SP_COLOR, fillAlpha: 0.12 });
+      for (const xp of [rear, ROD_FRONT]) g.line(P(xs(xp, t0), t0), P(xs(xp, t1), t1), { color: SP_COLOR, width: 2 });
+    }
     // Light cone through the origin.
     g.line(P(-8, -8), P(8, 8), { color: '#9a9a9a', width: 1.25, dash: [5, 4] });
     g.line(P(8, -8), P(-8, 8), { color: '#9a9a9a', width: 1.25, dash: [5, 4] });
-    // Lines of simultaneity through each event: horizontal in S, slope β in S'.
-    for (const e of [p.A, p.B]) {
-      g.line(P(-X_HALF - 1, e[1]), P(X_HALF + 1, e[1]), { color: S_COLOR, width: 1.25, dash: [6, 4], alpha: 0.8 });
-      const c = e[1] - b * e[0];
-      g.line(P(-X_HALF - 1, c + b * (-X_HALF - 1)), P(X_HALF + 1, c + b * (X_HALF + 1)), { color: SP_COLOR, width: 1.25, dash: [6, 4], alpha: 0.9 });
+    // Lines of simultaneity of the readings: E to the S clock; the rod cuts a little past their ends.
+    const RUN = 0.8;
+    if (p.mode === 'dilate') {
+      const E = dilationEvents(TAU_TICK, b).E;
+      simLine(g, E, b, 'S', 0, E.x);
+    }
+    if (p.mode === 'contract') {
+      const r = rodEvents(ROD_L0, ROD_FRONT, ROD_TP, b);
+      simLine(g, r.F, b, 'S', r.R.x - RUN, r.F.x + RUN);
+      simLine(g, r.F, b, 'Sp', r.Rp.x - RUN, r.F.x + RUN);
+    }
+    if (p.mode === 'order') {
+      const e = fromS(p.B[0], p.B[1], b);
+      simLine(g, e, b, 'S');
+      simLine(g, e, b, 'Sp');
     }
     ctx.restore();
     // Axes: S (x, ct) and S' (x', ct').
@@ -309,13 +457,41 @@ export const spacetime: Scene<PD, { t: number }> = {
       g.arrow(P(xStart, b * xStart), P(xEnd - xStart, b * (xEnd - xStart)), { color: SP_COLOR, width: 1.5 });
       g.text(P(xEnd, b * xEnd), '*x*′', { size: 14, color: SP_COLOR, dx: 2, dy: -10, align: 'right' });
     }
-    for (const [name, e] of [
-      ['A', p.A],
-      ['B', p.B],
-    ] as [string, number[]][]) {
-      g.circle(P(e[0], e[1]), 13, { fill: '#1a1a1a', alpha: 0.08 });
-      g.circle(P(e[0], e[1]), 5.5, { fill: '#1a1a1a' });
-      g.text(P(e[0], e[1]), name, { size: 14, color: '#1a1a1a', dx: 10, dy: 16, weight: 600 });
+
+    if (p.mode === 'dilate') {
+      // The S' clock (at x' = 0, on the ct' axis) and the S clock (at x = 0, on the ct axis).
+      drawTicks(g, b);
+      const { S } = dilationEvents(TAU_TICK, b);
+      g.circle(P(S.x, S.t), 4.5, { fill: S_COLOR });
+    } else if (p.mode === 'contract') {
+      const r = rodEvents(ROD_L0, ROD_FRONT, ROD_TP, b);
+      g.line(P(r.Rp.x, r.Rp.t), P(r.F.x, r.F.t), { color: SP_COLOR, width: 4 });
+      g.line(P(r.R.x, r.R.t), P(r.F.x, r.F.t), { color: S_COLOR, width: 4 });
+      // Segment names placed where they clear the axes, the light cone and the rod's worldlines.
+      const xs = (xp: number, t: number) => xp / gm + b * t;
+      const lines: [Vec2, Vec2][] = [
+        [P(0, 0), P(0, 1)],
+        [P(0, 0), P(1, 0)],
+        [P(0, 0), P(b, 1)],
+        [P(0, 0), P(1, b)],
+        [P(0, 0), P(1, 1)],
+        [P(0, 0), P(-1, 1)],
+        [P(xs(ROD_FRONT, 0), 0), P(b, 1)],
+        [P(xs(ROD_FRONT - ROD_L0, 0), 0), P(b, 1)],
+      ];
+      const sL = segmentSpot(g, r.R, r.F, [-1], [...lines, [P(r.F.x, r.F.t), P(1, b)]]);
+      g.text(sL.at, '*L*', { size: 14, color: S_COLOR, dx: sL.dx, dy: sL.dy, align: 'center' });
+      const sL0 = segmentSpot(g, r.Rp, r.F, [1, -1], [...lines, [P(r.F.x, r.F.t), P(1, 0)]]);
+      g.text(sL0.at, '*L*_{0}', { size: 14, color: SP_COLOR, dx: sL0.dx, dy: sL0.dy, align: 'center' });
+      eventDot(g, r.F, 'F', 10, 18);
+      eventDot(g, r.R, 'R', -10, -8, 'right');
+      eventDot(g, r.Rp, 'R′', 8, 18);
+    } else {
+      const A = fromS(0, 0, b);
+      const B = fromS(p.B[0], p.B[1], b);
+      g.circle(P(B.x, B.t), 13, { fill: EVENT, alpha: 0.08 });
+      eventDot(g, A, 'A', -20, -4, 'right');
+      eventDot(g, B, 'B', 10, 16);
     }
   },
 
@@ -323,16 +499,9 @@ export const spacetime: Scene<PD, { t: number }> = {
 
   handles: [
     {
-      pos: (_s, p) => ({ x: p.A[0], y: p.A[1] }),
-      radiusPx: 16,
-      onDrag: (ctx, _s, w) => {
-        const v = clampEv(w);
-        if (v[0] !== ctx.params.A[0] || v[1] !== ctx.params.A[1]) ctx.set('A', v);
-      },
-    },
-    {
       pos: (_s, p) => ({ x: p.B[0], y: p.B[1] }),
       radiusPx: 16,
+      when: (p) => p.mode === 'order',
       onDrag: (ctx, _s, w) => {
         const v = clampEv(w);
         if (v[0] !== ctx.params.B[0] || v[1] !== ctx.params.B[1]) ctx.set('B', v);
@@ -340,17 +509,17 @@ export const spacetime: Scene<PD, { t: number }> = {
     },
   ],
 
-  readouts: [
-    { label: '\\gamma', unit: '', value: (_s, p) => gamma(p.beta) },
-    { label: '\\Delta t', unit: 's', value: (_s, p) => p.B[1] - p.A[1] },
-    { label: "\\Delta t'", unit: 's', value: (_s, p) => lorentz(p.B[0], p.B[1], p.beta)[1] - lorentz(p.A[0], p.A[1], p.beta)[1] },
-  ],
+  readouts: [{ label: '\\gamma', unit: '', value: (_s, p) => gamma(p.beta) }],
 
   info: {
-    goals: ['ch37.d.goal.axes', 'ch37.d.goal.simul'],
-    observe: ['ch37.d.obs.drag', 'ch37.d.obs.simul', 'ch37.d.obs.order', 'ch37.d.obs.light'],
-    equations: ["x' = \\gamma(x - \\beta\\,ct), \\quad ct' = \\gamma(ct - \\beta x)", "\\Delta t' = \\gamma\\left(\\Delta t - \\frac{v\\,\\Delta x}{c^2}\\right)"],
-    assumptions: ['ch37.assume.units', 'ch37.d.assume.origin'],
+    goals: ['ch37.d.goal.axes', 'ch37.d.goal.read', 'ch37.d.goal.order'],
+    observe: ['ch37.d.obs.dilate', 'ch37.d.obs.contract', 'ch37.d.obs.order', 'ch37.d.obs.light'],
+    equations: [
+      "x' = \\gamma(x - \\beta\\,ct), \\quad ct' = \\gamma(ct - \\beta x)",
+      '\\Delta t = \\gamma\\,\\Delta t_0, \\quad L = \\frac{L_0}{\\gamma}',
+      "\\Delta t' = \\gamma\\left(\\Delta t - \\frac{v\\,\\Delta x}{c^2}\\right)",
+    ],
+    assumptions: ['ch37.assume.units', 'ch37.d.assume.origin', 'ch37.d.assume.objects'],
   },
 };
 

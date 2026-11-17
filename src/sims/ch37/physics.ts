@@ -45,3 +45,47 @@ export function trainEvents(L0: number, beta: number): { rearS: number; frontS: 
 
 /** Spacetime interval (ct)² − x², the same in every frame. */
 export const interval = (x: number, t: number) => t * t - x * x;
+
+// ------------------------------------------------------------------ spacetime-diagram readings
+
+/** An event with its coordinates in S (x, ct) and in S' (x', ct'). */
+export interface Event2 {
+  x: number;
+  t: number;
+  xp: number;
+  tp: number;
+}
+
+/** Event given in S' coordinates, with its S coordinates. */
+export function fromSp(xp: number, tp: number, beta: number): Event2 {
+  const [x, t] = inverse(xp, tp, beta);
+  return { x, t, xp, tp };
+}
+
+/** Event given in S coordinates, with its S' coordinates. */
+export function fromS(x: number, t: number, beta: number): Event2 {
+  const [xp, tp] = lorentz(x, t, beta);
+  return { x, t, xp, tp };
+}
+
+/**
+ * Time dilation on the diagram: a clock at rest at x' = 0 reads ct' = tau at event E. The line of
+ * simultaneity in S through E (horizontal) meets the S clock at x = 0 at ct = γ·tau.
+ */
+export function dilationEvents(tau: number, beta: number): { E: Event2; S: Event2 } {
+  const E = fromSp(0, tau, beta);
+  return { E, S: fromS(0, E.t, beta) };
+}
+
+/**
+ * Length contraction on the diagram: a rod at rest in S' between x' = front − L0 and x' = front.
+ * F is its front end at ct' = tp. R is the rear end at the same time in S (same ct as F), R' the
+ * rear end at the same time in S' (same ct' as F). L = x_F − x_R = L0/γ; x'_F − x'_R' = L0.
+ */
+export function rodEvents(L0: number, front: number, tp: number, beta: number): { F: Event2; R: Event2; Rp: Event2 } {
+  const F = fromSp(front, tp, beta);
+  const g = gamma(beta);
+  // Rear worldline in S: x = (front − L0)/γ + β ct.
+  const R = fromS((front - L0) / g + beta * F.t, F.t, beta);
+  return { F, R, Rp: fromSp(front - L0, tp, beta) };
+}

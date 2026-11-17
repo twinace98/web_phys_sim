@@ -24,7 +24,6 @@ const params: ParamSchema<P> = {
     live: true,
     default: 'n',
     options: [
-      { value: 'i', label: 'ch41.type.i' },
       { value: 'n', label: 'ch41.type.n' },
       { value: 'p', label: 'ch41.type.p' },
     ],
@@ -55,12 +54,10 @@ const params: ParamSchema<P> = {
     max: 1e17,
     default: 1e16,
     unit: 'cm⁻³',
-    visibleIf: (p) => p.type !== 'i',
   },
 };
 
-const concOf = (p: P) => p.conc;
-const dopants = (p: P): [number, number] => [p.type === 'n' ? concOf(p) : 0, p.type === 'p' ? concOf(p) : 0];
+const dopants = (p: P): [number, number] => [p.type === 'n' ? p.conc : 0, p.type === 'p' ? p.conc : 0];
 export const carriersOf = (p: P, T = p.T): Carriers => carriers(T, ...dopants(p));
 
 const curveCache = new Map<string, { T: number; n: number; p: number; ni: number }[]>();
@@ -98,7 +95,7 @@ export const doping: Scene<P, { t: number }> = {
     const wide = g.vp.w > g.vp.h * 1.1;
     const o = canvasBox(g);
     const [boxA, boxB] = split({ l: o.l + 52, t: o.t + 30, r: o.r - 30, b: o.b - 36 }, wide, wide ? 0.42 : 0.5, wide ? 90 : 56);
-    const ref = concOf(p);
+    const ref = p.conc;
     const [Nd, Na] = dopants(p);
 
     // ---- band diagram (energies from E_v)
