@@ -1,0 +1,275 @@
+// Review page 103 (→ Ch 39): an electron in an infinite well; pick two levels for the photon.
+// Left: the well with ψ_n or |ψ_n|² drawn on each level (Ch 39 style). Middle: the level ladder
+// with the transition arrow and the photon. Bottom: the spectrum strip (log λ) with the lines
+// picked so far at the current width (all shift together as L changes, λ ∝ L²).
+import { fmt, fmtTick, niceTicks } from '../../../core/format';
+import { t } from '../../../core/i18n';
+import type { Handle, ParamSchema, Scene } from '../../../core/types';
+import type { Draw } from '../../../draw/draw';
+import { arrowPx } from '../../../draw/draw';
+import { ROLE_COLOR } from '../../../draw/theme';
+import { texNum } from '../../field/render';
+import { Frame, PX_WORLD, TICK, W, linePx, textPx } from '../../modern/frame';
+import { HC_EVNM } from '../hydrogen/physics';
+import { MARK_ROOM, drawPhoton, drawSpectrum, photonRow, region, spectrumHeight, type SpecLine } from '../hydrogen/spectrum';
+import { level, lambda, photonEnergy, psi } from './physics';
+
+/** Levels shown and reachable by the controls. */
+export const N_LEVELS = 5;
+/** Top of the energy axis in units of E_1: room for ψ above the highest level. */
+export const TOP = 27.5;
+/** λ axis of the spectrum strip [nm]: soft X-ray to mid IR. */
+export const SPEC_RANGE: [number, number] = [5, 5000];
+
+const PSI = ROLE_COLOR.position;
+const WALL = ROLE_COLOR.energyU;
+const LEVEL = '#1a1a1a';
+const ELECTRON = ROLE_COLOR.position;
+
+type P = { L: number; show: string; ni: number; nf: number };
+interface S {
+  t: number;
+  /** Pairs picked so far: "lo-hi" → [lo, hi]. */
+  seen: Map<string, [number, number]>;
+  lay?: Lay;
+}
+
+interface Lay {
+  narrow: boolean;
+  well: Frame;
+  ladder: Frame;
+  spec: { l: number; r: number; t: number };
+}
+
+function layout(g: Draw, L: number): Lay {
+  const Wd = g.vp.w;
+  const H = g.vp.h;
+  const narrow = Wd < 640;
+  const t0 = 26;
+  const b = H - spectrumHeight(narrow, false) - (narrow ? 34 : 40);
+  const gutL = narrow ? 40 : 58;
+  const labW = narrow ? 62 : 128;
+  const gap = narrow ? 14 : 36;
+  const avail = Wd - gutL - gap - labW - 10;
+  const wr = gutL + avail * (narrow ? 0.62 : 0.6);
+  const yr: [number, number] = [0, TOP * level(1, L)];
+  const xr: [number, number] = [-0.62 * L, 0.62 * L];
+  return {
+    narrow,
+    well: new Frame(g, { l: gutL, r: wr, t: t0, b }, xr, yr),
+    ladder: new Frame(g, { l: wr + gap, r: Wd - labW - 10, t: t0, b }, [0, 1], yr),
+    spec: { l: gutL, r: Wd - 14, t: b + (narrow ? 34 : 40) },
+  };
+}
+
+/** The well: shaded walls (U = ∞), levels and ψ_n or |ψ_n|² on each, selected states in front. */
+function drawWell(f: Frame, p: P): void {
+  const g = f.g;
+  const { L } = p;
+  const [x0, x1] = f.xr;
+  const top = f.yr[1];
+  const E1 = level(1, L);
+  // Same height for every state, below the smallest spacing (3 E_1), as in Ch 39.
+  const A = 0.42 * 3 * E1;
+  const prob = p.show === 'prob';
+  f.clip(() => {
+    for (const [a, b] of [
+      [x0, -L / 2],
+      [L / 2, x1],
+    ])
+      f.polygon(
+        [
+          [a, 0],
+          [b, 0],
+          [b, top],
+          [a, top],
+        ],
+        { fill: WALL, fillAlpha: 0.1 },
+      );
+    f.line(-L / 2, 0, -L / 2, top, { color: WALL, width: 3 });
+    f.line(L / 2, 0, L / 2, top, { color: WALL, width: 3 });
+    f.line(-L / 2, 0, L / 2, 0, { color: WALL, width: 2.25 });
+    const order = Array.from({ length: N_LEVELS }, (_, k) => k + 1).sort((a, b) => Number(a === p.ni || a === p.nf) - Number(b === p.ni || b === p.nf));
+    for (const n of order) {
+      const E = level(n, L);
+      const sel = n === p.ni || n === p.nf;
+      f.line(-L / 2, E, L / 2, E, { color: LEVEL, width: sel ? 2 : 1, alpha: sel ? 1 : 0.6 });
+      const pts: [number, number][] = [];
+      const M = 160;
+      const amax = Math.sqrt(2 / L);
+      for (let i = 0; i <= M; i++) {
+        const x = -L / 2 + (L * i) / M;
+        const u = psi(n, x, L) / amax;
+        pts.push([x, E + (prob ? 1.6 * A * u * u : A * u)]);
+      }
+      const st = { color: PSI, width: sel ? 2 : 1.25, alpha: sel ? 1 : 0.4 };
+      if (prob) f.polygon([[-L / 2, E], ...pts, [L / 2, E]], { fill: PSI, fillAlpha: sel ? 0.22 : 0.08 });
+      f.polyline(pts, st);
+    }
+  });
+  const yt = niceTicks(0, top, 4);
+  f.axes({ xTicks: [-L / 2, L / 2], xFmt: (v) => fmtTick(Number(v.toPrecision(3))), yTicks: yt });
+  textPx(g, (f.box.l + f.box.r) / 2, f.box.b + 15, '*x* (nm)', { size: 12, color: TICK, align: 'center' });
+  textPx(g, f.box.l - 7, f.box.t - 12, '*E* (eV)', { size: 12, color: TICK, align: 'left', baseline: 'middle' });
+}
+
+const FX = 0.32;
+
+/** Level ladder: short level lines, labels, the arrow and the photon. */
+function drawLadder(f: Frame, lay: Lay, p: P): void {
+  const g = f.g;
+  const { L, ni, nf } = p;
+  const same = ni === nf;
+  for (let n = 1; n <= N_LEVELS; n++) {
+    const y = f.Y(level(n, L));
+    const sel = n === ni || n === nf;
+    linePx(g, f.box.l, y, f.box.r, y, { color: LEVEL, width: sel ? 2.25 : 1.25 });
+    const E = level(n, L);
+    const s = lay.narrow ? `${fmt(E, 3)} eV` : `*E*_{${n}} = ${fmt(E, 3)} eV`;
+    textPx(g, f.box.r + 6, y, s, { size: 12, color: LEVEL, baseline: 'middle', weight: sel ? 700 : 400 });
+    if (lay.narrow) textPx(g, f.box.l - 4, y, String(n), { size: 11, color: TICK, align: 'right', baseline: 'middle' });
+  }
+  if (lay.narrow) textPx(g, f.box.l - 4, f.box.t - 12, '*n*', { size: 12, color: TICK, align: 'right', baseline: 'middle' });
+  const x = f.box.l + FX * (f.box.r - f.box.l);
+  const yi = f.Y(level(ni, L));
+  const yf = f.Y(level(nf, L));
+  g.circle(W(g, x, yi), 11, { fill: ELECTRON, alpha: 0.1 });
+  if (!same) {
+    g.circle(W(g, x, yf), 11, { fill: ELECTRON, alpha: 0.1 });
+    arrowPx(g.ctx, x, yi, x, yf, { color: LEVEL, width: 2 });
+    const lam = lambda(ni, nf, L);
+    const row = photonRow(yi, yf, Array.from({ length: N_LEVELS }, (_, k) => f.Y(level(k + 1, L))));
+    const ym = row.y;
+    const xa = x + 7;
+    const xb = f.box.r - 4;
+    const r = region(lam);
+    const mark = r === 'vis' || row.gap < MARK_ROOM ? undefined : t(`hyd.region.${r}`);
+    if (ni > nf) drawPhoton(g, xa, ym, xb, ym, lam, mark);
+    else drawPhoton(g, xb, ym, xa, ym, lam, mark);
+  }
+  g.circle(W(g, x, yi), 4.5, { fill: '#ffffff', color: ELECTRON, width: 1.75 });
+}
+
+/** Nearest level 1…N_LEVELS to an energy. */
+export function nearestLevel(E: number, L: number): number {
+  let best = 1;
+  for (let n = 2; n <= N_LEVELS; n++) if (Math.abs(level(n, L) - E) < Math.abs(level(best, L) - E)) best = n;
+  return best;
+}
+
+function levelHandle(which: 'ni' | 'nf'): Handle<S, P> {
+  return {
+    pos: (s, p) => {
+      const f = s.lay?.ladder;
+      if (!f) return { x: NaN, y: NaN };
+      return W(f.g, f.box.l + FX * (f.box.r - f.box.l), f.Y(level(p[which], p.L)));
+    },
+    radiusPx: 14,
+    onDrag: (ctx, s, w) => {
+      const f = s.lay?.ladder;
+      if (!f) return;
+      const [, py] = f.g.vp.toPx(w.x, w.y);
+      const n = nearestLevel(f.yAt(py), ctx.params.L);
+      const other = which === 'ni' ? 'nf' : 'ni';
+      if (n !== ctx.params[which] && n !== ctx.params[other]) ctx.set(which, n);
+    },
+    onDoubleTap: (ctx) => {
+      const { ni, nf } = ctx.params;
+      if (ni === nf) return;
+      ctx.set('ni', nf);
+      ctx.set('nf', ni);
+    },
+  };
+}
+
+const nParam = (key: 'ni' | 'nf', def: number) => ({
+  kind: 'number' as const,
+  label: `wj.p.${key}`,
+  desc: `wj.d.${key}`,
+  group: 'advanced' as const,
+  live: true,
+  control: 'stepper' as const,
+  min: 1,
+  max: N_LEVELS,
+  step: 1,
+  default: def,
+});
+
+const params: ParamSchema<P> = {
+  L: { kind: 'number', label: 'wj.p.L', desc: 'wj.d.L', group: 'main', live: true, control: 'slider', log: true, sig: 2, min: 0.2, max: 2, default: 1, unit: 'nm' },
+  show: {
+    kind: 'select',
+    label: 'wj.p.show',
+    desc: 'wj.d.show',
+    group: 'main',
+    live: true,
+    default: 'psi',
+    options: [
+      { value: 'psi', label: 'wj.show.psi' },
+      { value: 'prob', label: 'wj.show.prob' },
+    ],
+  },
+  ni: nParam('ni', 3),
+  nf: nParam('nf', 2),
+};
+
+const fmtLambda = (nm: number) => (nm >= 1e4 ? `${texNum(nm / 1000, 4)}\\ \\mu\\text{m}` : `${texNum(nm, 4)}\\ \\text{nm}`);
+
+export const welljump: Scene<P, S> = {
+  id: 'welljump',
+  title: 'wj.scene',
+  params,
+  world: PX_WORLD,
+  init: () => ({ t: 0, seen: new Map() }),
+
+  draw: (g, s, p) => {
+    const lay = layout(g, p.L);
+    s.lay = lay;
+    const { ni, nf, L } = p;
+    const same = ni === nf;
+    if (!same) s.seen.set(`${Math.min(ni, nf)}-${Math.max(ni, nf)}`, [Math.min(ni, nf), Math.max(ni, nf)]);
+    drawWell(lay.well, p);
+    drawLadder(lay.ladder, lay, p);
+    const lines: SpecLine[] = [...s.seen.values()].map(([lo, hi]) => ({ lambda: lambda(hi, lo, L), current: !same && lo === Math.min(ni, nf) && hi === Math.max(ni, nf) }));
+    drawSpectrum(g, lay.spec, {
+      range: SPEC_RANGE,
+      mode: !same && ni < nf ? 'absorption' : 'emission',
+      lines,
+      names: { xray: t('hyd.region.xray'), uv: t('hyd.region.uv'), ir: t('hyd.region.ir') },
+      xLabel: '*λ* (nm)',
+    });
+  },
+
+  handles: [levelHandle('ni'), levelHandle('nf')],
+
+  readouts: [
+    { label: 'E_1', unit: 'eV', sig: 3, value: (_s, p) => level(1, p.L) },
+    { label: '\\Delta E', unit: 'eV', sig: 3, value: (_s, p) => photonEnergy(p.ni, p.nf, p.L) },
+    { label: '\\lambda', unit: 'nm', sig: 3, value: (_s, p) => (p.ni === p.nf ? NaN : lambda(p.ni, p.nf, p.L)) },
+  ],
+
+  formula: (_s, p) => {
+    const { ni, nf, L } = p;
+    const E1 = level(1, L);
+    const lines = [
+      `E_1 = \\frac{h^2}{8mL^2} = \\frac{(hc)^2}{8\\,mc^2L^2} = \\frac{(1239.8\\ \\text{eV}\\cdot\\text{nm})^2}{8\\,(511.0\\ \\text{keV})\\,(${texNum(L, 3)}\\ \\text{nm})^2} = ${texNum(E1, 4)}\\ \\text{eV}`,
+      `E_n = n^2E_1:\\quad E_{${ni}} = ${texNum(level(ni, L), 4)}\\ \\text{eV},\\quad E_{${nf}} = ${texNum(level(nf, L), 4)}\\ \\text{eV}`,
+    ];
+    if (ni === nf) return [...lines, 'n_i = n_f:\\ \\Delta E = 0'];
+    const hi = Math.max(ni, nf);
+    const lo = Math.min(ni, nf);
+    const dE = photonEnergy(ni, nf, L);
+    return [
+      ...lines,
+      `\\Delta E = E_{${hi}} - E_{${lo}} = (${hi}^2 - ${lo}^2)(${texNum(E1, 4)}\\ \\text{eV}) = ${texNum(dE, 4)}\\ \\text{eV}`,
+      `\\lambda = \\frac{hc}{\\Delta E} = \\frac{1239.8\\ \\text{eV}\\cdot\\text{nm}}{${texNum(dE, 4)}\\ \\text{eV}} = ${fmtLambda(HC_EVNM / dE)}`,
+    ];
+  },
+
+  info: {
+    goals: ['wj.goal.photon', 'wj.goal.width'],
+    observe: ['wj.obs.n2', 'wj.obs.L2', 'wj.obs.region', 'wj.obs.abs', 'wj.obs.nodes'],
+    equations: ['E_n = \\frac{h^2}{8mL^2}\\,n^2, \\quad n = 1, 2, 3, \\dots', 'hf = \\Delta E = E_\\text{high} - E_\\text{low}, \\quad \\lambda = \\frac{hc}{\\Delta E}', '\\lambda \\propto L^2'],
+    assumptions: ['wj.assume.electron', 'wj.assume.scale', 'wj.assume.pick', 'wj.assume.amp', 'wj.assume.dipole', 'wj.assume.log'],
+  },
+};
