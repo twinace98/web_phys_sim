@@ -244,21 +244,24 @@ export class WaveField {
    * carries the local amplitude over the brightest steady amplitude at the same distance from
    * the barrier (its column): 1 in the main beam, 0 on nodal lines.
    * In front of the barrier the incident plane wave cos(kx − ωt) has straight crests at
-   * kx − ωt = 2πn, up to the advancing front.
+   * kx − ωt = 2πn, up to the advancing front, each with its front ramp a (0 at the front, 1 from λ/2 behind it).
    */
-  crests(t: number): { plane: number[]; segs: number[] } {
+  crests(t: number): { plane: { x: number; a: number }[]; segs: number[] } {
     const { nx, ny, i0, s } = this;
     const cw = Math.cos(this.omega * t);
     const sw = Math.sin(this.omega * t);
     const cols = nx - i0;
     const front = s.xL + C_LIGHT * t;
 
-    const plane: number[] = [];
-    const xEnd = Math.min(front, 0);
+    // Crests move with the front (both at c), so a crest can sit exactly on it for good (e.g.
+    // x_L a whole number of wavelengths). A hard x < front cut then flips with rounding from
+    // frame to frame; the same λ/2 ramp as the field behind the barrier keeps it steady (0 there).
+    const plane: { x: number; a: number }[] = [];
     for (let n = Math.ceil((this.k * s.xL - this.omega * t) / (2 * Math.PI)); ; n++) {
       const x = (2 * Math.PI * n + this.omega * t) / this.k;
-      if (x >= xEnd) break;
-      plane.push(x);
+      if (x >= 0 || x >= front) break;
+      const a = Math.min(1, (front - x) / (0.5 * s.lambda));
+      if (a > 0.05) plane.push({ x, a });
     }
 
     const P = new Float32Array(cols * ny);

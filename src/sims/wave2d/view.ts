@@ -18,14 +18,15 @@ export function drawWave(g: Draw, f: WaveField, t: number, rgb: [number, number,
   ctx.strokeStyle = col;
   ctx.lineCap = 'butt';
   ctx.lineWidth = 1.75 * theme.scale;
-  // Incident plane wave: straight crests up to the front.
-  ctx.beginPath();
-  for (const x of plane) {
+  // Incident plane wave: straight crests up to the front, fading in over the last λ/2.
+  for (const { x, a } of plane) {
     const [px] = g.vp.toPx(x, 0);
+    ctx.globalAlpha = a;
+    ctx.beginPath();
     ctx.moveTo(px, yTop);
     ctx.lineTo(px, yBot);
+    ctx.stroke();
   }
-  ctx.stroke();
   // Behind the barrier: crest segments grouped by opacity. Opacity ramps from 0 at a fifth of
   // the full amplitude, so the lines end cleanly at the nodal lines (where the phase jumps by π)
   // while the side lobes of a single slit (about 0.2–0.5) still show.
