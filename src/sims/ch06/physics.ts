@@ -187,3 +187,45 @@ export function topViewAt(s: Setup, t: number, tRel = Infinity) {
   const d = Math.max(0, t - tRel);
   return { x: x + vx * d, y: y + vy * d, vx, vy, onCircle: t < tRel };
 }
+
+// ------------------------------------------------------------------ the frame rotating with the object
+
+/** Angular speed of the circular motion [rad/s]. */
+export const omega = (s: Setup) => s.v / s.r;
+
+/** Horizontal position [m] and velocity [m/s] in one frame. */
+export interface Planar {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+}
+
+/**
+ * The top view seen from the frame that rotates with the object at ω about the axis (a non-inertial
+ * frame). The two frames coincide at t = 0: x′ = R(−ωt) x and v′ = R(−ωt)(v − ω ẑ × x).
+ * On the circle the object rests at its start (0, −r); after the release it moves off along a path
+ * that curves outward and backward.
+ */
+export function rotatingViewAt(s: Setup, t: number, tRel = Infinity): Planar & { onCircle: boolean } {
+  const k = topViewAt(s, t, tRel);
+  const w = omega(s);
+  const c = Math.cos(w * t);
+  const sn = Math.sin(w * t);
+  // ω ẑ × x = (−ω y, ω x)
+  const ux = k.vx + w * k.y;
+  const uy = k.vy - w * k.x;
+  return { x: c * k.x + sn * k.y, y: -sn * k.x + c * k.y, vx: c * ux + sn * uy, vy: -sn * ux + c * uy, onCircle: k.onCircle };
+}
+
+/**
+ * Fictitious forces in the rotating frame [N]: centrifugal m ω² x′ (away from the axis) and
+ * Coriolis −2m ω ẑ × v′ (perpendicular to v′, to its right for counter-clockwise rotation).
+ */
+export function fictitious(s: Setup, q: Planar): { cf: { x: number; y: number }; cor: { x: number; y: number } } {
+  const w = omega(s);
+  return {
+    cf: { x: s.m * w * w * q.x, y: s.m * w * w * q.y },
+    cor: { x: 2 * s.m * w * q.vy, y: -2 * s.m * w * q.vx },
+  };
+}

@@ -1,24 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
-import { circular } from '../src/sims/ch06/circular';
+import { circular, layout } from '../src/sims/ch06/circular';
 import { friction } from '../src/sims/ch06/friction';
 import {
   G,
   MATERIALS,
   SETUPS,
   criticalAngle,
+  fictitious,
   forces,
   lapTime,
   netForce,
+  omega,
   pullAt,
   required,
   slipTimePull,
   slipTimeTilt,
+  rotatingViewAt,
   tiltAt,
   topViewAt,
   type Preset,
 } from '../src/sims/ch06/physics';
+import { ProbeDraw, probe } from './stage-probe';
 
 const PRESETS: Preset[] = ['string', 'flat', 'banked', 'cone'];
 
@@ -173,7 +177,7 @@ describe('ch06 circular: after the release', () => {
       const s = SETUPS[preset];
       const k = topViewAt(s, tEnd, lapTime(s) / 4);
       expect(k.onCircle).toBe(false);
-      // Top view in units of r; velocity arrow 0.55 long; world top 1.75 with a 16 px margin.
+      // Top view in units of r; velocity arrow 0.55 long; inertial panel top 1.75.
       const y = k.y / s.r + (0.55 * k.vy) / s.v;
       expect(y, preset).toBeLessThan(1.6);
       // Before: the object travelled 1.6 r along the tangent, past the top of the stage.
@@ -194,5 +198,124 @@ describe('ch06 circular: after the release', () => {
     // Drawn 1.4 world units per metre; mg arrow 0.75 long; world bottom −1.3.
     expect(-fall * 1.4 - 0.75).toBeGreaterThan(-1.2);
     expect(forces('cone', true).map((f) => f.name)).toEqual(['W']);
+  });
+});
+
+describe('ch06 circular: the frame rotating with the object', () => {
+  it('regression: before the release the object rests at (0, −r) and the real net force plus the centrifugal force is zero', () => {
+    for (const pr of PRESETS) {
+      const s = SETUPS[pr];
+      const F = netForce(pr);
+      expect(F.z).toBeCloseTo(0, 9);
+      for (const t of [0, 0.13, 0.5 * lapTime(s), 2.7 * lapTime(s)]) {
+        const q = rotatingViewAt(s, t);
+        expect(q.onCircle).toBe(true);
+        expect(Math.hypot(q.x, q.y + s.r)).toBeLessThan(1e-12 * s.r);
+        // v′ = 0, so no Coriolis force.
+        expect(Math.hypot(q.vx, q.vy)).toBeLessThan(1e-12 * s.v);
+        const { cf, cor } = fictitious(s, q);
+        expect(Math.hypot(cor.x, cor.y)).toBeLessThan(1e-9 * F.r);
+        // Real net force: F.r toward the axis.
+        const d = Math.hypot(q.x, q.y);
+        const real = { x: (-F.r * q.x) / d, y: (-F.r * q.y) / d };
+        expect(Math.hypot(real.x + cf.x, real.y + cf.y), pr).toBeLessThan(1e-9 * F.r);
+        expect(Math.hypot(cf.x, cf.y)).toBeCloseTo(s.m * omega(s) ** 2 * s.r, 9);
+      }
+    }
+  });
+
+  it('after the release the path seen from the rotating frame has a′ = (F_cf + F_Cor)/m', () => {
+    for (const pr of ['string', 'flat', 'cone'] as const) {
+      const s = SETUPS[pr];
+      const tRel = lapTime(s) / 4;
+      const dt = 1e-4 * lapTime(s);
+      for (const tau of [0.02, 0.1, 0.25, 0.5, 0.95].map((k) => (k * s.r) / s.v)) {
+        const t = tRel + tau;
+        const a = rotatingViewAt(s, t - dt, tRel);
+        const b = rotatingViewAt(s, t + dt, tRel);
+        const q = rotatingViewAt(s, t, tRel);
+        const acc = { x: (b.vx - a.vx) / (2 * dt), y: (b.vy - a.vy) / (2 * dt) };
+        const { cf, cor } = fictitious(s, q);
+        const want = { x: (cf.x + cor.x) / s.m, y: (cf.y + cor.y) / s.m };
+        const scale = s.v * omega(s);
+        expect(Math.hypot(acc.x - want.x, acc.y - want.y) / scale, `${pr} τ = ${tau}`).toBeLessThan(1e-6);
+        // v′ is the time derivative of x′.
+        const vel = { x: (b.x - a.x) / (2 * dt), y: (b.y - a.y) / (2 * dt) };
+        expect(Math.hypot(vel.x - q.vx, vel.y - q.vy) / s.v).toBeLessThan(1e-6);
+      }
+    }
+  });
+
+  it('after the release the rotating-frame path moves outward and bends backward (clockwise), while the inertial path is straight', () => {
+    const s = SETUPS.string;
+    const tRel = lapTime(s) / 4;
+    let r0 = s.r;
+    let ang0 = -Math.PI / 2;
+    for (const k of [0.2, 0.4, 0.6, 0.8, 0.95]) {
+      const q = rotatingViewAt(s, tRel + (k * s.r) / s.v, tRel);
+      const r = Math.hypot(q.x, q.y);
+      const ang = Math.atan2(q.y, q.x);
+      expect(r).toBeGreaterThan(r0);
+      expect(ang).toBeLessThan(ang0);
+      r0 = r;
+      ang0 = ang;
+      // Exact: x″ = r (cos θ + θ sin θ, −sin θ + θ cos θ) in the release-aligned frame, θ = ωτ.
+      expect(r).toBeCloseTo(s.r * Math.hypot(1, k), 12);
+    }
+  });
+});
+
+describe('ch06 circular: two panels on the stage', () => {
+  const SIZES = [
+    [1280, 704],
+    [390, 661],
+    [390, 560],
+  ] as const;
+  const CASES = [{}, { cut: true }, { preset: 'flat' }, { preset: 'flat', ice: true }, { preset: 'banked' }, { preset: 'cone' }, { preset: 'cone', cut: true }];
+  type M = { x0: number; x1: number; y0: number; y1: number; text: string };
+  const boxOf = (m: ProbeDraw['marks'][number]): M =>
+    m.kind === 'arrow-label'
+      ? { x0: m.x - m.w / 2, x1: m.x + m.w / 2, y0: m.y - 8, y1: m.y + 8, text: m.text ?? '' }
+      : { x0: m.x, x1: m.x + m.w, y0: m.y - 8, y1: m.y + 8, text: m.text ?? '' };
+  const hit = (a: M, b: M) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+  it('both frames titled; every label inside its panel and apart from the others, from the start to the end of the run', () => {
+    for (const [w, h] of SIZES) {
+      const { boxes } = layout(w, h);
+      expect(boxes[0].b).toBeLessThan(boxes[1].t);
+      for (const over of CASES) {
+        const p = { ...defaults(circular.params), ...over } as any;
+        const tEnd = (circular.time!.tEnd as (q: any) => number)(p);
+        const lap = lapTime(SETUPS[p.preset as Preset]);
+        const times = Number.isFinite(tEnd) ? [0, lap / 8, lap / 4 + 0.01 * lap, (lap / 4 + tEnd) / 2, tEnd] : [0, lap / 8, lap / 3];
+        for (const t of times) {
+          const tag = `${w}×${h} ${JSON.stringify(over)} t = ${t.toFixed(3)}`;
+          const g = probe(circular, { t, n: Math.round(t * 240) }, p, w, h);
+          const labels = g.marks.filter((m) => m.kind === 'text' || m.kind === 'arrow-label').map(boxOf);
+          const titles = labels.filter((m) => /^ch06\.c\.frame\./.test(m.text));
+          expect(titles.length, tag).toBe(2);
+          for (const m of labels) {
+            const inside = boxes.some((b) => m.x0 >= b.l - 1 && m.x1 <= b.r + 1 && m.y0 >= b.t - 1 && m.y1 <= b.b + 1);
+            expect(inside, `${tag} "${m.text}" at ${m.x0.toFixed(0)}..${m.x1.toFixed(0)}, ${m.y0.toFixed(0)}`).toBe(true);
+          }
+          for (let i = 0; i < labels.length; i++)
+            for (let j = i + 1; j < labels.length; j++) expect(hit(labels[i], labels[j]), `${tag} "${labels[i].text}" / "${labels[j].text}"`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('the rotating frame draws the centrifugal force (and the Coriolis force after the release), the inertial frame does not', () => {
+    const p = { ...defaults(circular.params), cut: true } as any;
+    const lap = lapTime(SETUPS.string);
+    const count = (t: number, re: RegExp) => probe(circular, { t, n: 0 }, p, 1280, 704).marks.filter((m) => re.test(m.text ?? '')).length;
+    // Before the release: F_cf in the rotating top view and side view; F_net in both top views.
+    expect(count(0.1 * lap, /F\*_\{cf\}/)).toBe(2);
+    expect(count(0.1 * lap, /F\*_\{Cor\}/)).toBe(0);
+    expect(count(0.1 * lap, /F\*_\{net\}/)).toBe(2);
+    // After it: F_cf and F_Cor, no net real force.
+    expect(count(0.4 * lap, /F\*_\{cf\}/)).toBe(2);
+    expect(count(0.4 * lap, /F\*_\{Cor\}/)).toBe(1);
+    expect(count(0.4 * lap, /F\*_\{net\}/)).toBe(0);
   });
 });
