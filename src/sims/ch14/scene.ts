@@ -131,8 +131,10 @@ export const venturi: Scene<P, { t: number }> = {
     s.t += h;
   },
 
-  draw: (g, s, p) => {
+  draw: (g, s, p, ui) => {
     const { v, tt, tp, top } = model(p);
+    // Tracer positions are analytic in t: drawn at the frame's own time (h is half a frame here).
+    const tNow = ui?.tFrame ?? s.t;
     const upper = wall(v, 1);
     const lower = wall(v, -1);
     g.polygon([...upper, ...lower.slice().reverse()], { fill: WATER });
@@ -177,10 +179,10 @@ export const venturi: Scene<P, { t: number }> = {
     const dt = SPACING / v1;
     // Dots shrink with the drawing so a small stage is not crowded.
     const dotR = Math.min(2.4, Math.max(1.2, (0.06 * Math.sqrt(A1 / Math.PI)) / g.px(1)));
-    const kMin = Math.ceil((s.t - tt.total) / dt);
-    const kMax = Math.floor(s.t / dt);
+    const kMin = Math.ceil((tNow - tt.total) / dt);
+    const kMax = Math.floor(tNow / dt);
     for (let k = kMin; k <= kMax; k++) {
-      const x = tt.xAt(s.t - k * dt);
+      const x = tt.xAt(tNow - k * dt);
       if (!Number.isFinite(x)) continue;
       const yc = axisY(v, x);
       const r = radiusAt(v, x);

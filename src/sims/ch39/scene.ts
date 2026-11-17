@@ -351,9 +351,11 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
   },
   snapshot: (s) => ({ ...s }),
 
-  draw: (g, s, p) => {
+  draw: (g, s, p, ui) => {
     const m = model(p);
     const q = supStates(m, pairOf(p));
+    // Analytic in t: drawn at the frame's own time, so |Ψ|² sloshes smoothly between steps.
+    const tt = ui?.tFrame ?? s.t;
     const { st } = m;
     const narrow = g.vp.w < 640;
     const f = new Frame(g, diagramBox(g, true), m.xr, m.yr);
@@ -362,7 +364,7 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
     const Ea = st.E[q.a];
     const Eb = st.E[q.b];
     const Em = q.a === q.b ? Ea : 0.5 * (Ea + Eb);
-    const c = Math.cos(q.w * s.t);
+    const c = Math.cos(q.w * tt);
     const pa = st.psi[q.a];
     const pb = st.psi[q.b];
     const single = q.a === q.b;

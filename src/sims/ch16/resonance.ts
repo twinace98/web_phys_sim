@@ -58,8 +58,13 @@ export const resonanceScene: Scene<P, StringState> = {
   init: () => stringInit(STR),
   step: (s, _h, p) => stringAdvance(STR, s, p.f),
 
-  draw: (g, s, p) => {
+  draw: (g, s, p, ui) => {
     const { L, N } = STR;
+    // The string moves in leapfrog steps of h (3 or 4 per frame): draw it a fraction f of a step
+    // ahead, y + f (y − y_prev), so it moves smoothly between steps.
+    const h = stringStep(STR);
+    const fr = Math.min(1, Math.max(0, ((ui?.tFrame ?? s.t) - s.t) / h));
+    const yAt = (i: number) => s.y[i] + fr * (s.y[i] - s.yPrev[i]);
     const lambda = STR.v / p.f;
 
     // Envelope of the steady state and its nodes, x = L − mλ/2.
@@ -75,11 +80,11 @@ export const resonanceScene: Scene<P, StringState> = {
       for (let m = 1; L - (m * lambda) / 2 > 0.02; m++) g.circle({ x: L - (m * lambda) / 2, y: Y0 }, 3.5, { fill: '#1a1a1a' });
     }
 
-    const pts: Vec2[] = s.y.map((y, i) => ({ x: (L * i) / N, y: Y0 + y }));
+    const pts: Vec2[] = s.y.map((_, i) => ({ x: (L * i) / N, y: Y0 + yAt(i) }));
     g.polyline(pts, { role: 'fg', width: 2.5 });
     drawEnd(g, 'fixed', L, Y0, Y0, 0.25);
     // Driver: a small block moving the left end.
-    const yd = Y0 + s.y[0];
+    const yd = Y0 + yAt(0);
     g.polygon(
       [
         { x: -0.12, y: yd - 0.05 },

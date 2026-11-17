@@ -81,6 +81,17 @@ export class Runner<P extends Params = Params, S extends { t: number } = { t: nu
     if (n === MAX_STEPS_PER_CALL) this.acc = 0;
   }
 
+  /**
+   * Simulation time the current frame stands for: the last step plus the wall time already
+   * accumulated towards the next one (0 while paused). The state itself only moves in steps of h,
+   * so a frame gets 1 or 2 steps in turn; scenes that can evaluate their picture at any time (an
+   * analytic wave) draw at this time and move smoothly.
+   */
+  frameTime(): number {
+    const h = this.scene.time?.h ?? 0;
+    return this.state.t + (this.playing ? Math.min(this.acc, h) : 0);
+  }
+
   /** Step button: advance `frameStep` sim seconds and stay paused. */
   stepFrame(): void {
     const time = this.scene.time;

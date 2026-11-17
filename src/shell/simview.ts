@@ -697,6 +697,7 @@ export class SimView {
     }
     const ts = hist.col('t');
     this.ui.t = r.state.t;
+    this.ui.tFrame = scrubbing ? s.t : r.frameTime();
     this.ui.cursorT = ts[idx] ?? r.state.t;
     this.ui.scrubbing = scrubbing;
     this.ui.lecture = isLecture();

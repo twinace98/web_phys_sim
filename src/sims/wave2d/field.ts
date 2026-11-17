@@ -286,12 +286,24 @@ export class WaveField {
     }
 
     const segs: number[] = [];
+    // Phase θ = φ − ωt per cell (ψ = A cos θ, ψq = A sin θ): it grows almost linearly in space
+    // (≈ k r), so interpolating θ, not ψq = A sin θ, puts each crest (θ = 0) where it belongs and
+    // moves it smoothly; interpolating the sine on a λ/4 grid made the lines wobble.
+    const TH = new Float32Array(cols * ny);
+    for (let idx = 0; idx < cols * ny; idx++) TH[idx] = Math.atan2(Q[idx], P[idx]);
     // Crossing points of the current cell (up to 4 edges × 2 coordinates).
     const pts = new Float64Array(8);
     let np = 0;
-    const edge = (q0: number, q1: number, x0: number, y0: number, x1: number, y1: number) => {
-      if (q0 < 0 === q1 < 0) return;
-      const u = q0 / (q0 - q1);
+    const TWO_PI = 2 * Math.PI;
+    const edge = (t0: number, t1: number, x0: number, y0: number, x1: number, y1: number) => {
+      // Unwrapped end phase: the change along an edge (≤ k·λ/4 = π/2 away from singular points)
+      // is taken as the short way round, so θ = 0 (crest) is told apart from θ = ±π (trough).
+      let d = t1 - t0;
+      if (d > Math.PI) d -= TWO_PI;
+      else if (d < -Math.PI) d += TWO_PI;
+      const e = t0 + d;
+      if ((t0 < 0) === (e < 0) || d === 0) return;
+      const u = t0 / (t0 - e);
       pts[np++] = x0 + (x1 - x0) * u;
       pts[np++] = y0 + (y1 - y0) * u;
     };
@@ -303,14 +315,8 @@ export class WaveField {
         const b = a + 1;
         const c = a + cols + 1;
         const d = a + cols;
-        const qa = Q[a];
-        const qb = Q[b];
-        const qc = Q[c];
-        const qd = Q[d];
-        // Most cells have no zero of ψq: skip them before anything else.
-        const neg = (qa < 0 ? 1 : 0) + (qb < 0 ? 1 : 0) + (qc < 0 ? 1 : 0) + (qd < 0 ? 1 : 0);
-        if (neg === 0 || neg === 4) continue;
-        if (P[a] + P[b] + P[c] + P[d] <= 0) continue;
+        // A crest crosses the cell only where ψ > 0 somewhere in it: skip the rest quickly.
+        if (P[a] <= 0 && P[b] <= 0 && P[c] <= 0 && P[d] <= 0) continue;
         const w = 0.25 * (Wt[a] + Wt[b] + Wt[c] + Wt[d]);
         if (w < 0.03) continue;
         np = 0;
@@ -319,10 +325,10 @@ export class WaveField {
         const xb = xa + this.dx;
         const ya = y0g - j * this.dy;
         const yd = ya - this.dy;
-        edge(qa, qb, xa, ya, xb, ya);
-        edge(qb, qc, xb, ya, xb, yd);
-        edge(qd, qc, xa, yd, xb, yd);
-        edge(qa, qd, xa, ya, xa, yd);
+        edge(TH[a], TH[b], xa, ya, xb, ya);
+        edge(TH[b], TH[c], xb, ya, xb, yd);
+        edge(TH[d], TH[c], xa, yd, xb, yd);
+        edge(TH[a], TH[d], xa, ya, xa, yd);
         for (let k = 0; k + 3 < np; k += 4) segs.push(pts[k], pts[k + 1], pts[k + 2], pts[k + 3], w);
       }
     }
