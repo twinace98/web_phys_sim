@@ -96,8 +96,10 @@ export const wavePacket: Scene<PP, { t: number; n: number }> = {
   },
   snapshot: (s) => ({ ...s }),
 
-  draw: (g, s, p) => {
+  draw: (g, s, p, ui) => {
     const pk = pkOf(p);
+    // Analytic in t: drawn at the frame's own time, so the packet moves smoothly between steps.
+    const tt = ui?.tFrame ?? s.t;
     const o = canvasBox(g);
     const H = o.b - o.t;
     const wave = new Frame(g, { l: o.l + 40, t: o.t + 24, r: o.r - 20, b: o.t + 0.58 * H }, X_RANGE, [-1.15, 1.15]);
@@ -107,7 +109,7 @@ export const wavePacket: Scene<PP, { t: number; n: number }> = {
     const pr: [number, number][] = [];
     for (let i = 0; i <= n; i++) {
       const x = X_RANGE[0] + ((X_RANGE[1] - X_RANGE[0]) * i) / n;
-      const [a, b] = psi(pk, x, s.t);
+      const [a, b] = psi(pk, x, tt);
       re.push([x, a / amp]);
       pr.push([x, (a * a + b * b) / (amp * amp)]);
     }
@@ -122,7 +124,7 @@ export const wavePacket: Scene<PP, { t: number; n: number }> = {
 
     // Classical particle with the group velocity, on its own track.
     const yT = wave.box.b + 0.09 * H;
-    const xc = vGroup(p.k0) * s.t;
+    const xc = vGroup(p.k0) * tt;
     linePx(g, wave.box.l, yT, wave.box.r, yT, { color: '#c4c4c4', width: 1 });
     g.circle(W(g, wave.X(xc), yT), 7, { fill: 'position' });
     textPx(g, wave.box.l + 4, yT - 12, t('ch38.k.particle'), { size: 12, color: TICK });

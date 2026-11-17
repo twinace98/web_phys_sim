@@ -175,11 +175,12 @@ export const singleSlit: Scene<P, SlitState> = {
   init: () => initSlit(),
   step: (s, h, p) => stepSlit(s, h, field(p)),
 
-  draw: (g, s, p) => {
+  draw: (g, s, p, ui) => {
     const f = field(p);
     const rgb = wavelengthRGB(p.lambda);
     const aps = apsOf(p);
-    drawWave(g, f, s.t, rgb);
+    // Wave drawn at the frame's own time (between steps), so the wavefronts move smoothly.
+    drawWave(g, f, ui?.tFrame ?? s.t, rgb);
     drawBarrier(g, aps);
     const inset = drawScreen(g, p.D, f, relIntensity(s, f), rgb);
     if (two(p)) {

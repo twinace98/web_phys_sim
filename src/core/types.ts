@@ -117,6 +117,8 @@ export interface WorldSpec {
 export interface UiState {
   /** Current simulation time. */
   t: number;
+  /** Time the frame stands for while playing: t plus the part of the next step already elapsed. */
+  tFrame?: number;
   /** Time shown by the shared cursor (equals t unless scrubbing). */
   cursorT: number;
   scrubbing: boolean;

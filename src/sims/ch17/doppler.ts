@@ -98,9 +98,10 @@ export const doppler: Scene<P, { t: number }> = {
     s.t += h;
   },
 
-  draw: (g, s, p) => {
+  draw: (g, s, p, ui) => {
     const d = cfg(p);
-    const t = s.t;
+    // Analytic in t: drawn at the frame's own time, so the fronts move smoothly between steps.
+    const t = ui?.tFrame ?? s.t;
     const { ctx, vp } = g;
     const lam = V / F;
 
