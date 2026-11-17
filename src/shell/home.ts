@@ -1,7 +1,7 @@
 // Contents page: chapters grouped by part; implemented chapters are links.
 import { getLang, onLangChange, t } from '../core/i18n';
 import { chapterHash } from '../core/url';
-import { CHAPTERS, PARTS } from '../sims/registry';
+import { CHAPTERS, PARTS, REVIEW } from '../sims/registry';
 import { h } from './dom';
 import { toggleLang } from './prefs';
 
@@ -32,10 +32,14 @@ export class HomeView {
       { class: 'home' },
       h('header', { class: 'home-head' }, h('h1', null, t('app.title')), seg),
     );
-    for (const part of [1, 2, 3, 4, 5] as const) {
-      const ol = h('ol', { class: 'chapters' });
-      for (const m of CHAPTERS.filter((c) => c.part === part)) {
-        const inner = [h('span', { class: 'num' }, String(m.ch)), h('span', { class: 'name' }, m.title[lang]), h('span', { class: 'sum' }, m.summary[lang])];
+    for (const part of [1, 2, 3, 4, 5, 6] as const) {
+      const list = part === 6 ? REVIEW : CHAPTERS.filter((c) => c.part === part);
+      if (!list.length) continue;
+      const ol = h('ol', { class: part === 6 ? 'chapters review' : 'chapters' });
+      for (const m of list) {
+        // Additions under review show the chapter they are meant for.
+        const num = m.review ? `→ ${m.review}` : String(m.ch);
+        const inner = [h('span', { class: 'num' }, num), h('span', { class: 'name' }, m.title[lang]), h('span', { class: 'sum' }, m.summary[lang])];
         ol.append(
           h(
             'li',

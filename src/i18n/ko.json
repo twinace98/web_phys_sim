@@ -32,5 +32,8 @@
   "ui.speed.desc": "재생 속도 배율",
   "info.controls": "조작",
   "ui.loadError": "페이지를 불러오지 못했습니다.",
-  "ui.reload": "새로고침"
+  "ui.reload": "새로고침",
+  "ui.formula": "현재 값 대입",
+  "ui.review": "검토",
+  "key.formula": "현재 값을 대입한 수식"
 }

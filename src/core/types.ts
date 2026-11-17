@@ -192,6 +192,8 @@ export interface Handle<S, P extends Params> {
   pos: (s: S, p: P) => Vec2;
   radiusPx: number;
   onDrag: (ctx: SceneCtx<P>, s: S, w: Vec2) => void;
+  /** Single click or tap on the handle without moving (e.g. a stage button). */
+  onTap?: (ctx: SceneCtx<P>, s: S) => void;
   /** Double click or double tap on the handle (e.g. delete a placed source). */
   onDoubleTap?: (ctx: SceneCtx<P>, s: S) => void;
   when?: (p: P) => boolean;
@@ -230,6 +232,11 @@ export interface Scene<P extends Params = any, S extends { t: number } = any> {
   drawPlot?: (plotId: string, pd: PlotDraw, p: P, ui: UiState) => void;
   /** TeX for an outlined, user-resizable panel at the top-left of the stage. */
   overlay?: (s: S, p: P) => string;
+  /**
+   * Formulas with the current values substituted (TeX, one display line each), shown in their
+   * own side panel (Σ button, key E) and kept off the stage, e.g. 'a = v^2/r = 4.0^2/2.0 = 8.00\ \mathrm{m/s^2}'.
+   */
+  formula?: (s: S, p: P) => string[];
   info: InfoSpec;
 }
 

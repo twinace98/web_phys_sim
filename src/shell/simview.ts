@@ -33,7 +33,7 @@ const fmtStep = (v: number, step: number) => {
 const snap = (v: number, min: number, step: number) => Number((min + Math.round((v - min) / step) * step).toFixed(10));
 const withUnit = (v: string, unit?: string) => (!unit ? v : unit === '°' ? `${v}°` : `${v} ${unit}`);
 
-type Panel = 'none' | 'settings' | 'info';
+type Panel = 'none' | 'settings' | 'info' | 'formula';
 
 /** Shrink each display equation that is wider than its box to fit, at most to 80 %. */
 function fitEquations(box: HTMLElement): void {
@@ -66,6 +66,10 @@ export class SimView {
   private bar!: HTMLElement;
   private settings!: HTMLElement;
   private info!: HTMLElement;
+  private formula!: HTMLElement;
+  private formulaBox: HTMLElement | null = null;
+  private formulaTex = '';
+  private formulaAt = -Infinity;
   private playBtn: HTMLButtonElement | null = null;
   private shownPlaying: boolean | null = null;
   private timeVal: HTMLElement | null = null;
@@ -130,7 +134,7 @@ export class SimView {
   private build(): void {
     const scene = this.scene;
     const lang = getLang();
-    const title = `Ch ${this.meta.ch} · ${this.meta.title[lang]}`;
+    const title = this.meta.review ? `${t('ui.review')} · Ch ${this.meta.review} · ${this.meta.title[lang]}` : `Ch ${this.meta.ch} · ${this.meta.title[lang]}`;
     document.title = `${title} · ${t('app.title')}`;
 
     const header = h(
@@ -142,6 +146,7 @@ export class SimView {
       h('div', { class: 'spacer' }),
       this.buildLangSwitch(),
       iconButton(ICON.screen, `${t('ui.lecture')} (F)`, () => setLecture(!isLecture()), isLecture() ? 'ib on' : 'ib'),
+      scene.formula ? iconButton(ICON.sigma, `${t('ui.formula')} (E)`, () => this.togglePanel('formula')) : null,
       iconButton(ICON.info, `${t('ui.info')} (I)`, () => this.togglePanel('info')),
       this.buildLinkButton(),
     );
@@ -174,8 +179,9 @@ export class SimView {
 
     this.settings = this.buildSettings();
     this.info = this.buildInfo();
+    this.formula = this.buildFormula();
 
-    this.root.replaceChildren(h('div', { class: 'app' }, header, main, this.settings, this.info));
+    this.root.replaceChildren(h('div', { class: 'app' }, header, main, this.settings, this.info, this.formula));
     this.applyPanel();
 
     this.ro?.disconnect();
@@ -445,11 +451,35 @@ export class SimView {
       ['L', 'key.lang'],
       ['I', 'key.info'],
       ['F', 'key.lecture'],
+      ...(this.scene.formula ? ([['E', 'key.formula']] as [string, string][]) : []),
     ];
     const dl = h('dl', { class: 'keys' });
     for (const [k, m] of keys) dl.append(h('dt', null, h('kbd', null, k)), h('dd', null, t(m)));
     body.append(h('h3', null, t('info.shortcuts')), dl, h('p', { class: 'note' }, t('key.scrub')));
     return panel;
+  }
+
+  /** Formula panel: filled while open from Scene.formula, re-rendered only when the text changes. */
+  private buildFormula(): HTMLElement {
+    const { panel, body } = this.sidePanel('formula', t('ui.formula'), t('ui.formula'));
+    this.formulaBox = h('div', { class: 'eqs' });
+    this.formulaTex = '';
+    body.append(this.formulaBox);
+    return panel;
+  }
+
+  /** Refresh the formula panel (at most every 100 ms, and only when a value changed). */
+  private updateFormula(s: unknown, p: Params, now: number): void {
+    const f = this.scene.formula;
+    if (!f || this.panel !== 'formula' || !this.formulaBox) return;
+    if (now - this.formulaAt < 100) return;
+    this.formulaAt = now;
+    const lines = f(s as never, p as never);
+    const key = lines.join('\n');
+    if (key === this.formulaTex) return;
+    this.formulaTex = key;
+    this.formulaBox.innerHTML = lines.map((l) => tex(l, true)).join('');
+    fitEquations(this.formulaBox);
   }
 
   /**
@@ -529,8 +559,12 @@ export class SimView {
   private applyPanel(): void {
     restoreSize(this.settings);
     restoreSize(this.info);
+    restoreSize(this.formula);
     this.settings.classList.toggle('open', this.panel === 'settings');
     this.info.classList.toggle('open', this.panel === 'info');
+    this.formula.classList.toggle('open', this.panel === 'formula');
+    this.formulaTex = '';
+    this.formulaAt = -Infinity;
     if (this.panel === 'info' && this.eqBox) fitEquations(this.eqBox);
   }
 
@@ -582,6 +616,11 @@ export class SimView {
       case 'i':
       case 'I':
         this.togglePanel('info');
+        break;
+      case 'e':
+      case 'E':
+        if (!this.scene.formula) return;
+        this.togglePanel('formula');
         break;
       case 'f':
       case 'F':
@@ -636,14 +675,29 @@ export class SimView {
       this.stageDrag = null;
       this.ui.drag = null;
       c.style.cursor = '';
-      if (d.moved || e.type !== 'pointerup') return;
+      if (d.moved) {
+        // A drag can move a parameter that also has a slider (Ch 33 polarizer angle, the ladder
+        // angle): rebuild the controls once at the end, so the slider shows the new value.
+        this.onParamsChanged(true);
+        return;
+      }
+      if (e.type !== 'pointerup') return;
+      const tapped = this.scene.handles![d.i];
+      if (tapped.onTap) {
+        tapped.onTap(this.runner.ctx(() => this.onParamsChanged(false)), this.runner.state);
+        this.onParamsChanged(true);
+      }
       // Two taps on the same handle within DOUBLE_MS: double tap.
       const now = performance.now();
       const last = this.lastTap;
       this.lastTap = { i: d.i, t: now };
       if (last && last.i === d.i && now - last.t < DOUBLE_MS) {
         this.lastTap = null;
-        this.scene.handles![d.i].onDoubleTap?.(this.runner.ctx(() => this.onParamsChanged(false)), this.runner.state);
+        const hd = this.scene.handles![d.i];
+        if (hd.onDoubleTap) {
+          hd.onDoubleTap(this.runner.ctx(() => this.onParamsChanged(false)), this.runner.state);
+          this.onParamsChanged(true);
+        }
       }
     };
     c.addEventListener('pointerup', end);
@@ -710,6 +764,7 @@ export class SimView {
       scene.draw(new CanvasDraw(ctx, this.vp), s, p, this.ui);
     }
     if (this.stagePanel && scene.overlay) this.stagePanel.update(scene.overlay(s, p));
+    this.updateFormula(s, p, performance.now());
 
     if (this.plots) {
       const tEnd = r.tEnd;

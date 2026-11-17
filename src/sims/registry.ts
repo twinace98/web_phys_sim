@@ -6,10 +6,12 @@ type L = { ko: string; en: string };
 
 export interface ChapterMeta {
   ch: number;
-  part: 1 | 2 | 3 | 4 | 5;
+  part: 1 | 2 | 3 | 4 | 5 | 6;
   title: L;
   summary: L;
   load?: () => Promise<SimPage>;
+  /** Part 6 only: the chapter this page is meant for once the review is done. */
+  review?: number;
 }
 
 export const PARTS: Record<ChapterMeta['part'], L> = {
@@ -18,6 +20,7 @@ export const PARTS: Record<ChapterMeta['part'], L> = {
   3: { ko: '전자기학', en: 'Electromagnetism' },
   4: { ko: '광학', en: 'Optics' },
   5: { ko: '현대물리', en: 'Modern Physics' },
+  6: { ko: '추가 내용 (검토 중)', en: 'Additions (under review)' },
 };
 
 const c = (ch: number, part: ChapterMeta['part'], ko: string, en: string, sko: string, sen: string, load?: ChapterMeta['load']): ChapterMeta => ({
@@ -70,4 +73,25 @@ export const CHAPTERS: ChapterMeta[] = [
   c(42, 5, '핵물리', 'Nuclear Physics', '방사성 붕괴, 반감기', 'Radioactive decay, half-life', () => import('./ch42').then((m) => m.default)),
 ];
 
-export const chapterMeta = (ch: number) => CHAPTERS.find((m) => m.ch === ch);
+/**
+ * Additions under review (docs/curriculum.md §6): each is its own page at the bottom of the
+ * contents, routed as #/ch/1NN, and names the chapter it will move into once approved.
+ */
+const r = (ch: number, target: number, ko: string, en: string, sko: string, sen: string, load: ChapterMeta['load']): ChapterMeta => ({
+  ...c(ch, 6, ko, en, sko, sen, load),
+  review: target,
+});
+
+export const REVIEW: ChapterMeta[] = [
+  r(101, 38, '광전 효과', 'Photoelectric Effect', '정지전압 측정, 데이터 점 모아 h 구하기', 'Stopping voltage, collecting points to find h', () => import('./review/photoelectric').then((m) => m.default)),
+  r(102, 39, '수소 원자', 'The Hydrogen Atom', '에너지 준위, 전이와 선스펙트럼', 'Energy levels, transitions and line spectra', () => import('./review/hydrogen').then((m) => m.default)),
+  r(103, 39, '퍼텐셜 우물: 전이', 'Potential Well: Transitions', '두 준위를 골라 광자 파장', 'Pick two levels for the photon wavelength', () => import('./review/welljump').then((m) => m.default)),
+  r(104, 3, '내적과 외적', 'Dot and Cross Products', '정사영, 평행사변형 넓이', 'Projection, parallelogram area', () => import('./review/products').then((m) => m.default)),
+  r(105, 12, '평형과 탄성', 'Equilibrium and Elasticity', '정적 평형: 사다리', 'Static equilibrium: the ladder', () => import('./review/ladder').then((m) => m.default)),
+  r(106, 13, '중력장과 등퍼텐셜선', 'Gravitational Field and Equipotentials', '두 질량의 장, g = 0 지점', 'Field of two masses, the point where g = 0', () => import('./review/gravfield').then((m) => m.default)),
+  r(107, 14, '부력', 'Buoyancy', '아르키메데스 원리, 잠긴 비율', "Archimedes' principle, submerged fraction", () => import('./review/buoyancy').then((m) => m.default)),
+  r(108, 15, '감쇠 진동', 'Damped Oscillations', '부족·임계·과감쇠, 포락선', 'Under-, critically and overdamped; envelope', () => import('./review/damped').then((m) => m.default)),
+  r(109, 17, '관 속 음파 정상파', 'Standing Sound Waves in Pipes', '열린 관·닫힌 관, 변위와 압력', 'Open and closed pipes, displacement and pressure', () => import('./review/pipes').then((m) => m.default)),
+];
+
+export const chapterMeta = (ch: number) => CHAPTERS.find((m) => m.ch === ch) ?? REVIEW.find((m) => m.ch === ch);
