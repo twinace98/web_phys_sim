@@ -38,7 +38,7 @@ export const CHAPTERS: ChapterMeta[] = [
   c(8, 1, '퍼텐셜에너지와 에너지 보존', 'Potential Energy and Conservation of Energy', '경로와 일, 에너지 도표', 'Work and path, energy diagrams', () => import('./ch08').then((m) => m.default)),
   c(9, 1, '질량중심과 선운동량', 'Center of Mass and Linear Momentum', '1차원 충돌, 2차원 충돌', '1D and 2D collisions', () => import('./ch09').then((m) => m.default)),
   c(10, 1, '회전', 'Rotation', '관성모멘트, 평행축 정리', 'Rotational inertia, parallel-axis theorem', () => import('./ch10').then((m) => m.default)),
-  c(11, 1, '굴림, 토크, 각운동량', 'Rolling, Torque, and Angular Momentum', '각운동량 보존, 회전의자', 'Angular momentum conservation, spinning chair', () => import('./ch11').then((m) => m.default)),
+  c(11, 1, '굴림, 토크, 각운동량', 'Rolling, Torque, and Angular Momentum', '각운동량 보존, 굴림 운동', 'Angular momentum conservation, rolling', () => import('./ch11').then((m) => m.default)),
   c(13, 1, '중력', 'Gravitation', '궤도, 탈출속도', 'Orbits, escape speed', () => import('./ch13').then((m) => m.default)),
   c(14, 1, '유체', 'Fluids', '벤투리관, 연속방정식, 베르누이 원리', "Venturi tube: continuity and Bernoulli's principle", () => import('./ch14').then((m) => m.default)),
   c(15, 1, '진동', 'Oscillations', '단순조화운동, 단진자', 'Simple harmonic motion, simple pendulum', () => import('./ch15').then((m) => m.default)),
