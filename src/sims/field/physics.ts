@@ -296,37 +296,15 @@ export function trace(f: FieldFn, x: number, y: number, o: TraceOpts): number[] 
 }
 
 /**
- * Angles for `m` more lines around a source that already has lines at `have` [rad]: each new
- * line goes into the middle of the widest gap, so they fill the side the other lines left open.
- */
-export function fillAngles(have: readonly number[], m: number): number[] {
-  if (m <= 0) return [];
-  if (!have.length) return Array.from({ length: m }, (_, i) => (2 * Math.PI * i) / m);
-  const all = have.map((a) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI));
-  const out: number[] = [];
-  for (let k = 0; k < m; k++) {
-    const sorted = [...all, ...out].sort((p, q) => p - q);
-    let best = 0;
-    let at = sorted[0] + Math.PI;
-    for (let i = 0; i < sorted.length; i++) {
-      const a0 = sorted[i];
-      const a1 = i + 1 < sorted.length ? sorted[i + 1] : sorted[0] + 2 * Math.PI;
-      if (a1 - a0 > best) {
-        best = a1 - a0;
-        at = (a0 + a1) / 2;
-      }
-    }
-    out.push(at % (2 * Math.PI));
-  }
-  return out;
-}
-
-/**
- * Field lines of point or line charges, `perUnit` lines per unit strength on every source.
- * Lines start on the sources of the dominant sign and run until they reach a source of the
- * other sign or leave the bounds. Each source of the other sign then gets the lines it still
- * lacks, traced backwards from it into the gaps between the lines that arrived, so a weaker
- * or distant charge of the minority sign still shows its full count.
+ * Field lines of point or line charges, `perUnit` lines per unit strength. Every source seeds its
+ * lines at fixed, evenly spaced angles, so the picture changes continuously while a charge is
+ * dragged. Sources of the dominant sign trace along the field until they reach a source of the
+ * other sign or leave the bounds. Sources of the other sign trace backwards from their own seeds;
+ * a backward line that reaches a dominant-sign source repeats a line already drawn and is dropped,
+ * the ones that leave (lines from infinity) are kept, except where an arriving line already passes
+ * within half a spacing of the seed direction. So every charge shows about its own count, and
+ * while dragging a line only appears or vanishes one at a time, instead of the whole fan around a
+ * charge being redistributed.
  */
 export function chargeLines(src: readonly Src[], k: 'point' | 'line', perUnit: number, r0: number, h: number, bounds: TraceOpts['bounds']): number[][] {
   const pos = src.filter((c) => c.s > 0);
@@ -338,42 +316,45 @@ export function chargeLines(src: readonly Src[], k: 'point' | 'line', perUnit: n
   const sinks = fromPos ? neg : pos;
   const f = fieldFn(src, k);
   const span = Math.hypot(bounds[2] - bounds[0], bounds[3] - bounds[1]);
-  const count = (c: Src) => Math.max(1, Math.round(perUnit * Math.abs(c.s)));
   const near = (list: readonly Src[], x: number, y: number, r: number, skip?: Src) => list.some((d) => d !== skip && Math.hypot(x - d.x, y - d.y) < r);
   const lines: number[][] = [];
-  const from = (c: Src, angles: readonly number[], dir: 1 | -1, ends: readonly Src[], others: readonly Src[]) => {
-    for (const a of angles) {
+  const fan = (c: Src, dir: 1 | -1, ends: readonly Src[], others: readonly Src[], dropAtEnd: boolean, taken: readonly number[] = []) => {
+    const n = Math.max(1, Math.round(perUnit * Math.abs(c.s)));
+    for (let i = 0; i < n; i++) {
+      const a = (2 * Math.PI * i) / n;
+      // A seed whose direction already has an arriving line within half a spacing is covered.
+      if (taken.some((b) => Math.abs(((a - b + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) < Math.PI / n)) continue;
+      let ended = false;
       const line = trace(f, c.x + r0 * Math.cos(a), c.y + r0 * Math.sin(a), {
         h,
         maxSteps: Math.ceil((3 * span) / h),
         bounds,
         dir,
-        stop: (x, y) => near(ends, x, y, r0) || near(others, x, y, r0 * 0.5, c),
+        stop: (x, y) => {
+          if (near(ends, x, y, r0)) {
+            ended = true;
+            return true;
+          }
+          return near(others, x, y, r0 * 0.5, c);
+        },
       });
+      if (dropAtEnd && ended) continue;
       line.unshift(c.x, c.y);
       lines.push(line);
     }
   };
-  for (const c of seeds) {
-    const n = count(c);
-    from(
-      c,
-      Array.from({ length: n }, (_, i) => (2 * Math.PI * i) / n),
-      fromPos ? 1 : -1,
-      sinks,
-      seeds,
-    );
-  }
+  for (const c of seeds) fan(c, fromPos ? 1 : -1, sinks, seeds, false);
   const main = lines.length;
   for (const d of sinks) {
-    const have: number[] = [];
+    // Directions in which the dominant sign's lines arrive at d.
+    const taken: number[] = [];
     for (let j = 0; j < main; j++) {
       const L = lines[j];
       const x = L[L.length - 2];
       const y = L[L.length - 1];
-      if (Math.hypot(x - d.x, y - d.y) < 1.05 * r0) have.push(Math.atan2(y - d.y, x - d.x));
+      if (Math.hypot(x - d.x, y - d.y) < 1.05 * r0) taken.push(Math.atan2(y - d.y, x - d.x));
     }
-    from(d, fillAngles(have, count(d) - have.length), fromPos ? -1 : 1, seeds, sinks);
+    fan(d, fromPos ? -1 : 1, seeds, sinks, true, taken);
   }
   return lines;
 }
