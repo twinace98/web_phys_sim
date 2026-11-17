@@ -6,12 +6,12 @@ import { fmt, fmtTick, niceTicks } from '../../../core/format';
 import { t } from '../../../core/i18n';
 import type { Handle, ParamSchema, Scene } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
-import { arrowPx } from '../../../draw/draw';
 import { ROLE_COLOR } from '../../../draw/theme';
 import { texNum } from '../../field/render';
 import { Frame, PX_WORLD, TICK, W, linePx, textPx } from '../../modern/frame';
 import { HC_EVNM } from '../hydrogen/physics';
 import { MARK_ROOM, drawPhoton, drawSpectrum, photonRow, region, spectrumHeight, type SpecLine } from '../hydrogen/spectrum';
+import { KNOB_HIT, OFF, clearLines, drawKnob, hasEarlierLines, knobArrow, knobDx, type StageBtn } from '../hydrogen/stage';
 import { level, lambda, photonEnergy, psi } from './physics';
 
 /** Levels shown and reachable by the controls. */
@@ -24,7 +24,6 @@ export const SPEC_RANGE: [number, number] = [5, 5000];
 const PSI = ROLE_COLOR.position;
 const WALL = ROLE_COLOR.energyU;
 const LEVEL = '#1a1a1a';
-const ELECTRON = ROLE_COLOR.position;
 
 type P = { L: number; show: string; ni: number; nf: number };
 interface S {
@@ -32,6 +31,8 @@ interface S {
   /** Pairs picked so far: "lo-hi" → [lo, hi]. */
   seen: Map<string, [number, number]>;
   lay?: Lay;
+  /** Clear button of the spectrum strip in the last frame (null: not shown). */
+  btn?: StageBtn | null;
 }
 
 interface Lay {
@@ -115,8 +116,8 @@ function drawWell(f: Frame, p: P): void {
 
 const FX = 0.32;
 
-/** Level ladder: short level lines, labels, the arrow and the photon. */
-function drawLadder(f: Frame, lay: Lay, p: P): void {
+/** Level ladder: short level lines, labels, the arrow between the draggable knobs and the photon. */
+function drawLadder(f: Frame, lay: Lay, p: P, dragged?: 'ni' | 'nf'): void {
   const g = f.g;
   const { L, ni, nf } = p;
   const same = ni === nf;
@@ -133,10 +134,8 @@ function drawLadder(f: Frame, lay: Lay, p: P): void {
   const x = f.box.l + FX * (f.box.r - f.box.l);
   const yi = f.Y(level(ni, L));
   const yf = f.Y(level(nf, L));
-  g.circle(W(g, x, yi), 11, { fill: ELECTRON, alpha: 0.1 });
   if (!same) {
-    g.circle(W(g, x, yf), 11, { fill: ELECTRON, alpha: 0.1 });
-    arrowPx(g.ctx, x, yi, x, yf, { color: LEVEL, width: 2 });
+    knobArrow(g, x, yi, yf, { color: LEVEL, width: 2 });
     const lam = lambda(ni, nf, L);
     const row = photonRow(yi, yf, Array.from({ length: N_LEVELS }, (_, k) => f.Y(level(k + 1, L))));
     const ym = row.y;
@@ -146,8 +145,9 @@ function drawLadder(f: Frame, lay: Lay, p: P): void {
     const mark = r === 'vis' || row.gap < MARK_ROOM ? undefined : t(`hyd.region.${r}`);
     if (ni > nf) drawPhoton(g, xa, ym, xb, ym, lam, mark);
     else drawPhoton(g, xb, ym, xa, ym, lam, mark);
+    drawKnob(g, x + knobDx(yi, yf), yf, dragged === 'nf');
   }
-  g.circle(W(g, x, yi), 4.5, { fill: '#ffffff', color: ELECTRON, width: 1.75 });
+  drawKnob(g, x + knobDx(yi, yf), yi, dragged === 'ni');
 }
 
 /** Nearest level 1…N_LEVELS to an energy. */
@@ -162,9 +162,10 @@ function levelHandle(which: 'ni' | 'nf'): Handle<S, P> {
     pos: (s, p) => {
       const f = s.lay?.ladder;
       if (!f) return { x: NaN, y: NaN };
-      return W(f.g, f.box.l + FX * (f.box.r - f.box.l), f.Y(level(p[which], p.L)));
+      const dx = knobDx(f.Y(level(p.ni, p.L)), f.Y(level(p.nf, p.L)));
+      return W(f.g, f.box.l + FX * (f.box.r - f.box.l) + dx, f.Y(level(p[which], p.L)));
     },
-    radiusPx: 14,
+    radiusPx: KNOB_HIT,
     onDrag: (ctx, s, w) => {
       const f = s.lay?.ladder;
       if (!f) return;
@@ -222,25 +223,31 @@ export const welljump: Scene<P, S> = {
   world: PX_WORLD,
   init: () => ({ t: 0, seen: new Map() }),
 
-  draw: (g, s, p) => {
+  draw: (g, s, p, ui) => {
     const lay = layout(g, p.L);
     s.lay = lay;
     const { ni, nf, L } = p;
     const same = ni === nf;
     if (!same) s.seen.set(`${Math.min(ni, nf)}-${Math.max(ni, nf)}`, [Math.min(ni, nf), Math.max(ni, nf)]);
     drawWell(lay.well, p);
-    drawLadder(lay.ladder, lay, p);
+    drawLadder(lay.ladder, lay, p, ui?.drag ? (['ni', 'nf'] as const)[ui.drag.i] : undefined);
     const lines: SpecLine[] = [...s.seen.values()].map(([lo, hi]) => ({ lambda: lambda(hi, lo, L), current: !same && lo === Math.min(ni, nf) && hi === Math.max(ni, nf) }));
-    drawSpectrum(g, lay.spec, {
+    s.btn = drawSpectrum(g, lay.spec, {
       range: SPEC_RANGE,
       mode: !same && ni < nf ? 'absorption' : 'emission',
       lines,
       names: { xray: t('hyd.region.xray'), uv: t('hyd.region.uv'), ir: t('hyd.region.ir') },
       xLabel: '*λ* (nm)',
+      clear: { label: t('wj.clear'), show: hasEarlierLines(s, p) },
     });
   },
 
-  handles: [levelHandle('ni'), levelHandle('nf')],
+  handles: [
+    levelHandle('ni'),
+    levelHandle('nf'),
+    // Clear button of the spectrum strip: a single tap or click; dragging does nothing.
+    { pos: (s) => s.btn?.c ?? OFF, radiusPx: 20, onDrag: () => {}, onTap: (ctx, s) => clearLines(s, ctx.params) },
+  ],
 
   readouts: [
     { label: 'E_1', unit: 'eV', sig: 3, value: (_s, p) => level(1, p.L) },

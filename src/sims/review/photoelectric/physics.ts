@@ -1,5 +1,6 @@
 // Photoelectric effect: photon energy, stopping voltage, photocurrent model, the stopping-voltage
-// line fit, and the classical (wave) expectations used for contrast. Units: nm, eV, V, Hz, nA.
+// line fit, and the classical (wave) expectations used for contrast. Units: frequency 10¹⁴ Hz,
+// wavelength nm, eV, V, nA.
 
 /** Planck constant [J s], elementary charge [C], speed of light [m/s] (exact SI values). */
 export const H = 6.62607015e-34;
@@ -26,29 +27,36 @@ export const METALS: Metal[] = [
 
 export const metalIndex = (id: string): number => Math.max(0, METALS.findIndex((m) => m.id === id));
 
-/** Photon energy hf [eV] at wavelength λ [nm]. */
-export const photonEnergy = (nm: number): number => HC_EV_NM / nm;
+/**
+ * Light frequencies are given in units of 10¹⁴ Hz (the control's unit); F14 converts to Hz.
+ * The range covers about 181–750 nm (vacuum ultraviolet to deep red).
+ */
+export const F14 = 1e14;
+export const F_RANGE: [number, number] = [4.0, 16.6];
 
-/** Frequency f [Hz] at wavelength λ [nm]. */
-export const frequency = (nm: number): number => C / (nm * 1e-9);
+/** Photon energy hf [eV] at frequency f [10¹⁴ Hz]. */
+export const photonEnergy = (f: number): number => (H * f * F14) / QE;
+
+/** Wavelength λ = c/f [nm] at frequency f [10¹⁴ Hz]. */
+export const wavelength = (f: number): number => C / (f * F14) / 1e-9;
 
 /** K_max = hf − Φ [eV], 0 below threshold. */
-export const kMax = (nm: number, phi: number): number => Math.max(0, photonEnergy(nm) - phi);
+export const kMax = (f: number, phi: number): number => Math.max(0, photonEnergy(f) - phi);
+
+/** Threshold (cutoff) frequency f0 = Φ/h [10¹⁴ Hz]. */
+export const thresholdF = (phi: number): number => (phi * QE) / H / F14;
 
 /** Threshold (cutoff) wavelength λ0 = hc/Φ [nm]. */
 export const thresholdNm = (phi: number): number => HC_EV_NM / phi;
 
-/** Threshold frequency f0 = Φ/h [Hz]. */
-export const thresholdHz = (phi: number): number => (phi * QE) / H;
-
 /** Stopping voltage V_stop = K_max/e [V]. */
-export const vStop = (nm: number, phi: number): number => kMax(nm, phi);
+export const vStop = (f: number, phi: number): number => kMax(f, phi);
 
-/** Photon rate [1/s] for light power P [µW] at λ [nm]: P/(hf). */
-export const photonRate = (PuW: number, nm: number): number => (PuW * 1e-6) / (photonEnergy(nm) * QE);
+/** Photon rate [1/s] for light power P [µW] at frequency f [10¹⁴ Hz]: P/(hf). */
+export const photonRate = (PuW: number, f: number): number => (PuW * 1e-6) / (photonEnergy(f) * QE);
 
 /** Saturation current [nA]: every photon with hf > Φ frees one electron (quantum yield 1). */
-export const iSat = (PuW: number, nm: number, phi: number): number => (photonEnergy(nm) > phi ? photonRate(PuW, nm) * QE * 1e9 : 0);
+export const iSat = (PuW: number, f: number, phi: number): number => (photonEnergy(f) > phi ? photonRate(PuW, f) * QE * 1e9 : 0);
 
 /**
  * Fraction of the emitted electrons that reach the collector at applied voltage V [V]
@@ -62,7 +70,7 @@ export function collectedFraction(V: number, kmax: number): number {
 }
 
 /** Photocurrent [nA] at applied voltage V [V]. */
-export const current = (V: number, PuW: number, nm: number, phi: number): number => iSat(PuW, nm, phi) * collectedFraction(V, kMax(nm, phi));
+export const current = (V: number, PuW: number, f: number, phi: number): number => iSat(PuW, f, phi) * collectedFraction(V, kMax(f, phi));
 
 // ------------------------------------------------------------------ classical expectation
 
@@ -71,8 +79,8 @@ export const CLASSICAL_V_PER_UW = 2;
 export const vStopClassical = (PuW: number): number => CLASSICAL_V_PER_UW * PuW;
 
 /** Classical current [nA]: same saturation as observed (∝ power), no threshold, cutoff at −V_cl. */
-export const currentClassical = (V: number, PuW: number, nm: number): number =>
-  photonRate(PuW, nm) * QE * 1e9 * collectedFraction(V, vStopClassical(PuW));
+export const currentClassical = (V: number, PuW: number, f: number): number =>
+  photonRate(PuW, f) * QE * 1e9 * collectedFraction(V, vStopClassical(PuW));
 
 /** Light spot on the emitter [m²] (1 cm²) and the area one electron draws energy from [m²] (π (0.1 nm)²). */
 export const SPOT_AREA = 1e-4;
@@ -86,19 +94,27 @@ export const classicalDelay = (PuW: number, phi: number): number => (phi * QE) /
 /** Max number of measured points kept (oldest dropped first). */
 export const MAX_POINTS = 16;
 
-/** Measured point: wavelength [nm] and metal index; its (f, V_stop) follow from the model. */
+/** Measured point: frequency [10¹⁴ Hz] and metal index; its V_stop follows from the model. */
 export interface Point {
-  nm: number;
+  f: number;
   m: number;
 }
 
-/** Points stored in a flat array [nm0, m0, nm1, m1, …]; nm = 0 marks an empty slot. */
+/**
+ * Stored code of a frequency: f × 10 rounded (f in 10¹⁴ Hz, slider step 0.1), an exact integer in
+ * the link. Codes outside the frequency range are not points (old links stored wavelengths in nm,
+ * 180–750, all above the largest code 166).
+ */
+export const fCode = (f: number): number => Math.round(f * 10);
+const CODE_RANGE = [fCode(F_RANGE[0]), fCode(F_RANGE[1])];
+
+/** Points stored in a flat array [code0, m0, code1, m1, …]; code 0 marks an empty slot. */
 export function readPoints(D: readonly number[]): Point[] {
   const out: Point[] = [];
   for (let i = 0; i + 1 < D.length; i += 2) {
-    const nm = D[i];
+    const c = Math.round(D[i]);
     const m = Math.round(D[i + 1]);
-    if (nm > 0 && m >= 0 && m < METALS.length) out.push({ nm, m });
+    if (c >= CODE_RANGE[0] && c <= CODE_RANGE[1] && m >= 0 && m < METALS.length) out.push({ f: c / 10, m });
   }
   return out;
 }
@@ -106,7 +122,7 @@ export function readPoints(D: readonly number[]): Point[] {
 export function writePoints(pts: readonly Point[]): number[] {
   const D = new Array<number>(2 * MAX_POINTS).fill(0);
   pts.slice(-MAX_POINTS).forEach((q, i) => {
-    D[2 * i] = q.nm;
+    D[2 * i] = fCode(q.f);
     D[2 * i + 1] = q.m;
   });
   return D;
@@ -115,14 +131,16 @@ export function writePoints(pts: readonly Point[]): number[] {
 export const emptyPoints = (): number[] => writePoints([]);
 
 /**
- * Add a measurement. Returns null when nothing changes: below threshold (no current, no stopping
- * voltage to measure) or the same wavelength and metal already measured.
+ * Add a measurement at frequency f [10¹⁴ Hz]. Returns null when nothing changes: below threshold
+ * (no current, no stopping voltage to measure) or the same frequency and metal already measured.
  */
-export function addPoint(D: readonly number[], nm: number, m: number): number[] | null {
-  if (kMax(nm, METALS[m].phi) <= 0) return null;
+export function addPoint(D: readonly number[], f: number, m: number): number[] | null {
+  const c = fCode(f);
+  if (c < CODE_RANGE[0] || c > CODE_RANGE[1]) return null;
+  if (kMax(c / 10, METALS[m].phi) <= 0) return null;
   const pts = readPoints(D);
-  if (pts.some((q) => q.nm === nm && q.m === m)) return null;
-  return writePoints([...pts, { nm, m }]);
+  if (pts.some((q) => fCode(q.f) === c && q.m === m)) return null;
+  return writePoints([...pts, { f: c / 10, m }]);
 }
 
 export interface Fit {
@@ -164,5 +182,5 @@ export function fitLines(pts: readonly { f: number; v: number; m: number }[]): F
   return { slope, intercept, fitted };
 }
 
-/** (f, V_stop) of stored points. */
-export const pointValues = (pts: readonly Point[]) => pts.map((q) => ({ f: frequency(q.nm), v: vStop(q.nm, METALS[q.m].phi), m: q.m }));
+/** (f [Hz], V_stop [V]) of stored points. */
+export const pointValues = (pts: readonly Point[]) => pts.map((q) => ({ f: q.f * F14, v: vStop(q.f, METALS[q.m].phi), m: q.m }));

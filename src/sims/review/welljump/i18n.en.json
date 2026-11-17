@@ -7,9 +7,9 @@
   "wj.show.psi": "Wave function ψ",
   "wj.show.prob": "Probability density |ψ|²",
   "wj.p.ni": "Initial $n_i$",
-  "wj.d.ni": "Level the electron starts in (also: drag the open circle on the level ladder)",
+  "wj.d.ni": "Level the electron starts in (or drag the knob at the tail of the arrow on the level ladder)",
   "wj.p.nf": "Final $n_f$",
-  "wj.d.nf": "Level the electron ends in (also: drag the arrowhead on the level ladder)",
+  "wj.d.nf": "Level the electron moves to (or drag the knob at the arrowhead on the level ladder)",
   "wj.goal.photon": "A jump between two levels emits or absorbs one photon with $hf = \\Delta E = E_\\text{high} - E_\\text{low}$, so $\\lambda = hc/\\Delta E$",
   "wj.goal.width": "The width of the well sets the colour: $\\Delta E \\propto 1/L^2$, so $\\lambda \\propto L^2$",
   "wj.obs.n2": "$E_n \\propto n^2$: the gaps grow with $n$. At $L = 1$ nm, $2 \\to 1$ gives 1099 nm (IR), $3 \\to 2$ 659 nm (red), $4 \\to 3$ 471 nm (blue)",
@@ -19,8 +19,9 @@
   "wj.obs.nodes": "State $n$ has $n - 1$ nodes; the states of a jump are drawn in front",
   "wj.assume.electron": "Particle: an electron ($m = m_e$) in a one-dimensional infinite well; levels from $E_n = n^2h^2/(8mL^2)$, the same values the Ch 39 solver gives",
   "wj.assume.scale": "Both axes follow $L$: the well always fills the panel and the energy axis runs to $27.5\\,E_1$, so the picture looks the same for every width while the numbers change",
-  "wj.assume.pick": "Drag either end of the arrow up or down; it snaps to the nearest level ($n \\le 5$). Double-tap an end to reverse the transition",
+  "wj.assume.pick": "Drag the knobs (circles marked ▲▼) at the ends of the arrow up or down: they snap to the nearest level ($n \\le 5$). Double tap either knob to reverse the transition",
   "wj.assume.amp": "Wave-function heights in arbitrary units (every state drawn the same height); the baseline sits at the state's energy",
   "wj.assume.dipole": "Every pair of levels is given a photon, as in the textbook problems. In a symmetric well an electric-dipole transition needs $n_i - n_f$ odd (opposite parity); $3 \\to 1$ is forbidden at this order",
-  "wj.assume.log": "Spectrum strip: logarithmic wavelength axis from 5 nm to 5 µm; X-ray below 10 nm, visible band taken as 380 to 750 nm; lines outside the visible are grey and dashed"
+  "wj.assume.log": "Spectrum strip: logarithmic wavelength axis from 5 nm to 5 µm; X-ray below 10 nm, visible band taken as 380 to 750 nm; lines outside the visible are grey and dashed. Clear button: removes the collected lines, keeping the current one",
+  "wj.clear": "Clear"
 }

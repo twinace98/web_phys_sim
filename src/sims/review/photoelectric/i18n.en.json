@@ -1,7 +1,7 @@
 {
   "pe.scene": "Photoelectric effect",
-  "pe.p.lam": "Wavelength",
-  "pe.d.lam": "Wavelength $\\lambda$ of the light. Ultraviolet below 380 nm is drawn grey",
+  "pe.p.f": "Frequency",
+  "pe.d.f": "Frequency $f$ of the light; wavelength $\\lambda = c/f$. Ultraviolet above $7.9\\times10^{14}$ Hz (below 380 nm) is drawn grey",
   "pe.p.V": "Voltage",
   "pe.d.V": "Voltage $V$ of the collector relative to the emitter. Negative is a retarding voltage (turns electrons back)",
   "pe.p.metal": "Metal",
@@ -20,8 +20,8 @@
   "pe.clear": "Clear",
   "pe.classical": "classical",
   "pe.goal.photon": "See that light is absorbed as photons of energy $hf$: there is a cutoff frequency, and the maximum kinetic energy $K_\\text{max}$ does not depend on intensity",
-  "pe.goal.h": "Measure stopping voltages for several wavelengths and metals and find the slope $h/e$ and intercept $-\\Phi/e$ of the $V_\\text{stop}$–$f$ line",
-  "pe.obs.threshold": "Increase the wavelength until $hf < \\Phi$: no electrons leave, however many photons arrive (Na: cutoff wavelength $\\lambda_0$ = 544 nm). The energy bar drops below the $\\Phi$ line",
+  "pe.goal.h": "Measure stopping voltages for several frequencies and metals and find the slope $h/e$ and intercept $-\\Phi/e$ of the $V_\\text{stop}$–$f$ line",
+  "pe.obs.threshold": "Lower the frequency until $hf < \\Phi$: no electrons leave, however many photons arrive (Na: cutoff frequency $f_0 = \\Phi/h$ = $5.51\\times10^{14}$ Hz, $\\lambda_0$ = 544 nm). The energy bar drops below the $\\Phi$ line; the tick $f_0$ on the $V_\\text{stop}$–$f$ plot marks the current metal",
   "pe.obs.stop": "Raise the retarding voltage: the current falls and reaches 0 at $V = -V_\\text{stop}$; with a forward voltage it saturates",
   "pe.obs.power": "Change the light power: only the saturation current changes, in proportion; the stopping voltage stays",
   "pe.obs.measure": "The Measure button (tap or click) adds the current $(f, V_\\text{stop})$ point. Each metal gives a parallel line, all with slope $h/e$",
@@ -32,6 +32,6 @@
   "pe.as.ideal": "Contact potential between the electrodes, space charge and reverse photocurrent from the collector are neglected",
   "pe.as.data": "Measured points are exact model values (no noise), so the fitted slope and intercept equal $h/e$ and $-\\Phi/e$. The lines are a least-squares fit with one slope shared by all metals, drawn for metals with at least two points. At most 16 points (oldest dropped first), kept in the link",
   "pe.as.classical": "The classical prediction is the textbook wave picture: electron energy grows with intensity and exposure time and does not depend on frequency, with no cutoff. Its stopping-voltage scale (2 V per µW) is arbitrary; only the shape matters. Delay $t_\\text{cl}$: time to collect energy $\\Phi$ through a disc of radius 0.1 nm from light spread evenly over 1 cm². Measured delays are below $3\\times10^{-9}$ s (Lawrence and Beams, 1928)",
-  "pe.as.uv": "Below 200 nm is vacuum ultraviolet, absorbed by air; the path from the source to the emitter is assumed evacuated",
+  "pe.as.uv": "Above $15\\times10^{14}$ Hz (below 200 nm) is vacuum ultraviolet, absorbed by air; the path from the source to the emitter is assumed evacuated",
   "pe.as.display": "Photon numbers and electron speeds on screen are display scales (photon rate ∝ $P/(hf)$, speed ∝ $\\sqrt{K}$); the ammeter reads the model formula"
 }

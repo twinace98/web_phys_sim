@@ -2,9 +2,11 @@
 // Ch 39 solver, and the stage layout.
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
+import { Runner } from '../src/core/runner';
 import { wellModel } from '../src/sims/ch39/physics';
 import { HB2M, infiniteLevel, infiniteWell, solve } from '../src/sims/modern/eigen';
 import { region } from '../src/sims/review/hydrogen/spectrum';
+import { KNOB_HIT } from '../src/sims/review/hydrogen/stage';
 import { E1_COEF, dipoleAllowed, lambda, level, photonEnergy, psi } from '../src/sims/review/welljump/physics';
 import { N_LEVELS, nearestLevel, welljump } from '../src/sims/review/welljump/scene';
 import { offStage, probe } from './stage-probe';
@@ -115,5 +117,36 @@ describe('welljump stage', () => {
     expect(f2).toContain('9.401');
     expect(f2).toContain('43.96');
     expect(f2).toContain('(0.200\\ \\text{nm})^2');
+  });
+});
+
+describe('welljump stage controls (knobs, strip reset)', () => {
+  const p0 = defaults(welljump.params);
+
+  it('knob handles keep (or enlarge) their hit areas', () => {
+    const hs = welljump.handles!;
+    expect(hs.length).toBe(3);
+    for (const h of hs.slice(0, 2)) expect(h.radiusPx).toBeGreaterThanOrEqual(14);
+    expect(hs[0].radiusPx).toBe(KNOB_HIT);
+  });
+
+  it('the strip clear button appears with earlier lines and clears them, keeping the current line', () => {
+    const r = new Runner(welljump, p0, 1);
+    const s = r.state;
+    const clear = welljump.handles![2];
+    probe(welljump, s, r.params, 1280, 704);
+    expect(s.btn).toBeNull();
+    expect(clear.pos(s, r.params).x).toBeLessThan(-1e5);
+    r.params.nf = 1;
+    probe(welljump, s, r.params, 1280, 704);
+    r.params.L = 0.5;
+    const g = probe(welljump, s, r.params, 390, 560);
+    expect(offStage(g, 2)).toEqual([]);
+    expect(g.marks.some((m) => m.text === 'wj.clear')).toBe(true);
+    expect(clear.pos(s, r.params)).toEqual(s.btn!.c);
+    clear.onTap!(r.ctx(), s);
+    expect([...s.seen.keys()]).toEqual(['1-3']);
+    probe(welljump, s, r.params, 1280, 704);
+    expect(s.btn).toBeNull();
   });
 });

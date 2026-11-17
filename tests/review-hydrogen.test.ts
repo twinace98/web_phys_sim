@@ -2,6 +2,7 @@
 // sign conventions, the inset labelling and the stage layout.
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
+import { Runner } from '../src/core/runner';
 import {
   A0_NM,
   E_ION,
@@ -20,6 +21,7 @@ import {
 } from '../src/sims/review/hydrogen/physics';
 import { N_PICK, SERIES_COUNT, SERIES_DT, ZOOM_YR, nearestLevel, series, seriesIndex, transitions, zoomLabels } from '../src/sims/review/hydrogen/scene';
 import { photonColor, region, NEUTRAL } from '../src/sims/review/hydrogen/spectrum';
+import { KNOB_HIT, hasEarlierLines, knobDx, knobR } from '../src/sims/review/hydrogen/stage';
 import { offStage, probe } from './stage-probe';
 
 const near = (a: number, b: number, tol: number) => expect(Math.abs(a - b)).toBeLessThan(tol);
@@ -200,5 +202,105 @@ describe('hydrogen stage', () => {
     const fs = series.formula!({ t: 0, n: 0 }, defaults(series.params)).join(' ');
     expect(fs).toContain('364.7');
     expect(fs).toContain('656.5');
+  });
+});
+
+describe('hydrogen stage controls (knobs, strip reset)', () => {
+  const p0 = defaults(transitions.params);
+
+  it('knob handles keep (or enlarge) their hit areas and sit at the arrow ends', () => {
+    const hs = transitions.handles!;
+    expect(hs.length).toBe(5);
+    for (const h of hs.slice(0, 4)) expect(h.radiusPx).toBeGreaterThanOrEqual(14);
+    expect(KNOB_HIT).toBeGreaterThanOrEqual(14);
+    // The knob is smaller than its hit circle, so the whole knob can be grabbed.
+    expect(knobR() + 4).toBeLessThanOrEqual(KNOB_HIT);
+    const s = transitions.init(p0, null as never);
+    probe(transitions, s, p0, 1280, 704);
+    const f = s.lay!.main;
+    const [ni, nf] = [hs[0].pos(s, p0), hs[1].pos(s, p0)];
+    expect(f.g.vp.toPx(ni.x, ni.y)[1]).toBeCloseTo(f.Y(energy(3)), 6);
+    expect(f.g.vp.toPx(nf.x, nf.y)[1]).toBeCloseTo(f.Y(energy(2)), 6);
+  });
+
+  it('close levels (4 → 3): the knobs move beside the arrow, so the arrowhead stays visible; handles follow', () => {
+    expect(knobDx(100, 172)).toBe(0);
+    expect(knobDx(100, 100)).toBe(0);
+    for (const [w, h] of [
+      [1280, 704],
+      [390, 624],
+    ]) {
+      const p = { ...p0, ni: 4, nf: 3 };
+      const s = transitions.init(p, null as never);
+      probe(transitions, s, p, w, h);
+      const f = s.lay!.main;
+      const xArrow = f.box.l + 0.3 * (f.box.r - f.box.l);
+      const dx = knobDx(f.Y(energy(4)), f.Y(energy(3)));
+      // 21–25 px between n = 3 and 4: too little for an arrow between two 19 px knobs.
+      expect(dx).toBeLessThanOrEqual(-(knobR() + 4));
+      const pos = transitions.handles![0].pos(s, p);
+      expect(f.g.vp.toPx(pos.x, pos.y)[0]).toBeCloseTo(xArrow + dx, 6);
+    }
+  });
+
+  it('the strip clear button appears with earlier lines and clears them, keeping the current line', () => {
+    const r = new Runner(transitions, p0, 1);
+    const s = r.state;
+    const clear = transitions.handles![4];
+    probe(transitions, s, r.params, 1280, 704);
+    // Only the current line: no button, the handle is off the stage.
+    expect(s.btn).toBeNull();
+    expect(clear.pos(s, r.params).x).toBeLessThan(-1e5);
+    for (const [ni, nf] of [
+      [4, 2],
+      [2, 1],
+      [3, 2],
+    ]) {
+      r.params.ni = ni;
+      r.params.nf = nf;
+      probe(transitions, s, r.params, 1280, 704);
+    }
+    expect(s.seen.size).toBe(3);
+    expect(hasEarlierLines(s, r.params)).toBe(true);
+    expect(s.btn).not.toBeNull();
+    expect(clear.pos(s, r.params)).toEqual(s.btn!.c);
+    clear.onTap!(r.ctx(), s);
+    expect([...s.seen.keys()]).toEqual(['2-3']);
+    const g = probe(transitions, s, r.params, 1280, 704);
+    expect(s.btn).toBeNull();
+    expect(g.marks.some((m) => m.text === 'hyd.clear')).toBe(false);
+    // With n_i = n_f there is no current line: clearing empties the strip.
+    r.params.ni = 5;
+    r.params.nf = 1;
+    probe(transitions, s, r.params, 1280, 704);
+    r.params.nf = 5;
+    probe(transitions, s, r.params, 1280, 704);
+    expect(s.btn).not.toBeNull();
+    clear.onTap!(r.ctx(), s);
+    expect(s.seen.size).toBe(0);
+  });
+
+  it('the clear button stays on the stage and clear of the region names (wide and narrow)', () => {
+    for (const [w, h] of [
+      [1280, 704],
+      [390, 624],
+      [390, 520],
+    ])
+      for (const series of ['none', 'paschen']) {
+        const p = { ...p0, series };
+        const s = transitions.init(p, null as never);
+        probe(transitions, s, { ...p, ni: 4, nf: 1 }, w, h);
+        const g = probe(transitions, s, p, w, h);
+        expect(offStage(g, 2)).toEqual([]);
+        const b = g.marks.find((m) => m.text === 'hyd.clear')!;
+        expect(b).toBeTruthy();
+        expect(s.btn!.box.r).toBeLessThanOrEqual(w);
+        for (const m of g.marks) {
+          if (m === b || m.kind !== 'text' || Math.abs(m.y - b.y) > 12) continue;
+          expect(m.x + m.w <= s.btn!.box.l || m.x >= s.btn!.box.r, `${m.text} at ${w}x${h}`).toBe(true);
+        }
+        // Not on top of a knob or of the strip.
+        expect(s.btn!.box.b).toBeLessThanOrEqual(s.lay!.spec.t + 16);
+      }
   });
 });
