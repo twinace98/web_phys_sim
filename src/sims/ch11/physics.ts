@@ -117,3 +117,63 @@ export function chairKinetic(c: Chair, t: number): number {
 export function stepChair(c: Chair, phi: number, t: number, h: number): number {
   return phi + (h / 6) * (chairOmega(c, t) + 4 * chairOmega(c, t + h / 2) + chairOmega(c, t + h));
 }
+
+// ------------------------------------------------------------------ rolling down an incline
+
+/** Round bodies roll without slipping; the block slides on a frictionless track as a reference. */
+export type Body = 'hoop' | 'disk' | 'sphere' | 'block';
+export const BODIES: Body[] = ['hoop', 'disk', 'sphere', 'block'];
+
+/** β = I_cm / (M R²). The block does not turn (no friction, no torque), so its β is 0. */
+export const BETA: Record<Body, number> = { hoop: 1, disk: 1 / 2, sphere: 2 / 5, block: 0 };
+
+export const G = 9.8;
+
+/**
+ * Acceleration of the centre and static friction per unit mass, from Newton's second law along the
+ * incline and the torque about the centre, closed by the rolling condition a = α R:
+ *   a + f/M = g sin θ,   β a − f/M = 0.
+ * Solved as a 2×2 linear system (Cramer), so the closed form a = g sin θ / (1 + β) is a check, not an input.
+ */
+export function rollAccel(beta: number, theta: number, g = G): { a: number; f: number } {
+  const [a11, a12, b1] = [1, 1, g * Math.sin(theta)];
+  const [a21, a22, b2] = [beta, -1, 0];
+  const det = a11 * a22 - a12 * a21;
+  return { a: (b1 * a22 - a12 * b2) / det, f: (a11 * b2 - b1 * a21) / det };
+}
+
+export interface Incline {
+  /** Incline angle [rad]. */
+  theta: number;
+  /** Length of the run along the incline [m]. */
+  len: number;
+  /** Radius of the round bodies [m]. */
+  R: number;
+  /** Mass of every body [kg]. */
+  M: number;
+}
+
+/** Time to cover the run from rest. */
+export const finishTime = (r: Incline, b: Body) => Math.sqrt((2 * r.len) / rollAccel(BETA[b], r.theta).a);
+
+/**
+ * State of one body at time t, released from rest at t = 0. It stops at the finish line, so
+ * everything after its finish time is the value at the line.
+ * s: distance of the contact point along the incline; v: centre speed; w: angular speed (v / R);
+ * phi: turn angle, positive anticlockwise (rolling down to the right turns clockwise).
+ */
+export function rollState(r: Incline, b: Body, t: number) {
+  const { a } = rollAccel(BETA[b], r.theta);
+  const tt = Math.min(Math.max(t, 0), finishTime(r, b));
+  const s = 0.5 * a * tt * tt;
+  const v = a * tt;
+  const w = b === 'block' ? 0 : v / r.R;
+  const Kt = 0.5 * r.M * v * v;
+  const Kr = 0.5 * BETA[b] * r.M * r.R * r.R * w * w;
+  return { s, v, w, phi: b === 'block' ? 0 : -s / r.R, a, Kt, Kr, drop: r.M * G * s * Math.sin(r.theta), done: t >= finishTime(r, b) };
+}
+
+/** Velocity of a point of a rigid body: v_cm + ω ẑ × r (ω positive anticlockwise). */
+export function pointVelocity(vcm: { x: number; y: number }, wz: number, rel: { x: number; y: number }) {
+  return { x: vcm.x - wz * rel.y, y: vcm.y + wz * rel.x };
+}
