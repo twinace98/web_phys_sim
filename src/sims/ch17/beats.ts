@@ -1,6 +1,7 @@
 // Ch 17 scene: beats. Two waves of nearby frequency (y₁ blue, y₂ orange) and their sum (black)
 // with its envelope. The strip above shows the two amplitudes as arrows in a frame turning at
 // the mean frequency: they drift apart at f₂ − f₁, so the sum swells and fades.
+import { t } from '../../core/i18n';
 import type { ParamSchema, Role, Scene, UiState, Vec2 } from '../../core/types';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { color, withAlpha } from '../../draw/theme';
@@ -80,9 +81,12 @@ export const beats: Scene<P, S> = {
     const sum: Vec2 = { x: a1.x + a2.x, y: a1.y + a2.y };
     g.arrow(O, a1, { role: 'position', width: 2.25 });
     g.arrow(a1, a2, { role: 'energyU', width: 2.25 });
-    g.arrow(O, sum, { role: 'fg', width: 2.5 });
+    // The resultant phasor y = y₁ + y₂ (as in the bottom plot); its label sits past the tip.
+    g.arrow(O, sum, { role: 'fg', width: 2.5, label: Math.abs(sum.y) > 0.25 * A ? '*y*' : undefined });
     phasorLabels(g, a1, sum);
     g.circle(O, 3, { fill: '#5c5c5c' });
+    // Name of the diagram, to the upper left of the ring.
+    g.text({ x: -2 * A, y: 2 * A }, t('ch17.b.phasor'), { size: 12, color: '#6b6b6b', align: 'right', dx: -6 });
   },
 
   // Traces are drawn analytically in drawPlot: as waveforms while the carrier is resolved, else as envelopes.
