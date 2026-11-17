@@ -72,8 +72,10 @@ export class WaveField {
   readonly i0: number;
   readonly sources: number[][];
   private groups: Group[] = [];
-  /** Σ A_j per cell: largest possible |ψ|, for display. */
+  /** Σ A_j per cell: largest possible |ψ|. */
   private norm: Float32Array;
+  /** Largest steady amplitude in each column behind the barrier: the crest-line brightness scale. */
+  private colMax: Float32Array;
   readonly screenY: Float64Array;
   private screen: { C: Float64Array; S: Float64Array; R: Float64Array }[] = [];
 
@@ -84,7 +86,8 @@ export class WaveField {
     this.tb = -s.xL / C_LIGHT;
     const W = s.x1 - s.xL;
     const H = s.y1 - s.y0;
-    let cell = lambda / 5;
+    // λ/4: four samples per wavelength are enough to place the crest lines by linear interpolation.
+    let cell = lambda / 4;
     const max = s.maxCells ?? 110000;
     if ((W / cell) * (H / cell) > max) cell = Math.sqrt((W * H) / max);
     this.nx = Math.ceil(W / cell);
@@ -147,6 +150,22 @@ export class WaveField {
           to.R.set(from.R.subarray(src, src + cols), dst);
         });
         this.norm.set(this.norm.subarray(src, src + cols), dst);
+      }
+    }
+
+    // Steady amplitude |Σ (C, S)| per cell; its maximum over each column (one distance from the barrier).
+    this.colMax = new Float32Array(cols);
+    for (let j = 0; j < this.ny; j++) {
+      for (let i = 0; i < cols; i++) {
+        const idx = j * cols + i;
+        let c = 0;
+        let sn = 0;
+        for (const g of this.groups) {
+          c += g.C[idx];
+          sn += g.S[idx];
+        }
+        const a = Math.hypot(c, sn);
+        if (a > this.colMax[i]) this.colMax[i] = a;
       }
     }
 
@@ -218,57 +237,93 @@ export class WaveField {
   }
 
   /**
-   * Paints ψ(t) into an RGBA buffer of nx × ny (row 0 at the top). Colour: crest → rgb,
-   * trough → rgb darkened, zero → white. Each cell is scaled by its largest possible
-   * amplitude, so nodal lines read as white everywhere.
+   * Wavefronts at time t: the crest lines, where the phase of ψ is 0 (mod 2π).
+   * With ψ = C cos ωt + S sin ωt = A cos(φ − ωt), the quadrature ψq = S cos ωt − C sin ωt
+   * = A sin(φ − ωt) is zero on crests (ψ > 0) and troughs (ψ < 0). Marching squares on ψq,
+   * keeping the crossings where ψ > 0, gives the crest lines behind the barrier; each segment
+   * carries the local amplitude over the brightest steady amplitude at the same distance from
+   * the barrier (its column): 1 in the main beam, 0 on nodal lines.
+   * In front of the barrier the incident plane wave cos(kx − ωt) has straight crests at
+   * kx − ωt = 2πn, up to the advancing front.
    */
-  paint(t: number, data: Uint8ClampedArray, rgb: [number, number, number]): void {
+  crests(t: number): { plane: number[]; segs: number[] } {
     const { nx, ny, i0, s } = this;
     const cw = Math.cos(this.omega * t);
     const sw = Math.sin(this.omega * t);
-    const front = s.xL + C_LIGHT * t;
     const cols = nx - i0;
-    const [r1, g1, b1] = rgb;
-    const r2 = r1 * 0.35;
-    const g2 = g1 * 0.35;
-    const b2 = b1 * 0.35;
-    // Mild gamma so weak side lobes stay visible next to the bright central beam.
-    const put = (o: number, v0: number) => {
-      const v = v0 >= 0 ? v0 ** 0.7 : -((-v0) ** 0.7);
-      if (v >= 0) {
-        data[o] = 255 + (r1 - 255) * v;
-        data[o + 1] = 255 + (g1 - 255) * v;
-        data[o + 2] = 255 + (b1 - 255) * v;
-      } else {
-        data[o] = 255 + (r2 - 255) * -v;
-        data[o + 1] = 255 + (g2 - 255) * -v;
-        data[o + 2] = 255 + (b2 - 255) * -v;
-      }
-      data[o + 3] = 255;
-    };
-    // Incident plane wave: one value per column.
-    const colVal = new Float32Array(i0);
-    for (let i = 0; i < i0; i++) {
-      const x = s.xL + (i + 0.5) * this.dx;
-      const m = Math.min(1, Math.max(0, (front - x) / (0.5 * s.lambda)));
-      colVal[i] = m * Math.cos(this.k * x - this.omega * t);
+    const front = s.xL + C_LIGHT * t;
+
+    const plane: number[] = [];
+    const xEnd = Math.min(front, 0);
+    for (let n = Math.ceil((this.k * s.xL - this.omega * t) / (2 * Math.PI)); ; n++) {
+      const x = (2 * Math.PI * n + this.omega * t) / this.k;
+      if (x >= xEnd) break;
+      plane.push(x);
     }
+
+    const P = new Float32Array(cols * ny);
+    const Q = new Float32Array(cols * ny);
+    const Wt = new Float32Array(cols * ny);
     const ng = this.groups.length;
-    for (let j = 0; j < ny; j++) {
-      let o = j * nx * 4;
-      for (let i = 0; i < i0; i++, o += 4) put(o, colVal[i]);
-      for (let i = 0; i < cols; i++, o += 4) {
-        const idx = j * cols + i;
-        let psi = 0;
-        for (let gI = 0; gI < ng; gI++) {
-          const g = this.groups[gI];
-          const m = this.mask(t, g.R[idx]);
-          if (m > 0) psi += m * (g.C[idx] * cw + g.S[idx] * sw);
+    for (let idx = 0; idx < cols * ny; idx++) {
+      let psi = 0;
+      let q = 0;
+      for (let gI = 0; gI < ng; gI++) {
+        const g = this.groups[gI];
+        const m = this.mask(t, g.R[idx]);
+        if (m > 0) {
+          psi += m * (g.C[idx] * cw + g.S[idx] * sw);
+          q += m * (g.S[idx] * cw - g.C[idx] * sw);
         }
-        const n = this.norm[idx];
-        put(o, n > 0 ? Math.max(-1, Math.min(1, psi / n)) : 0);
+      }
+      P[idx] = psi;
+      Q[idx] = q;
+      const n = this.colMax[idx % cols];
+      Wt[idx] = n > 0 ? Math.min(1, Math.sqrt(psi * psi + q * q) / n) : 0;
+    }
+
+    const segs: number[] = [];
+    // Crossing points of the current cell (up to 4 edges × 2 coordinates).
+    const pts = new Float64Array(8);
+    let np = 0;
+    const edge = (q0: number, q1: number, x0: number, y0: number, x1: number, y1: number) => {
+      if (q0 < 0 === q1 < 0) return;
+      const u = q0 / (q0 - q1);
+      pts[np++] = x0 + (x1 - x0) * u;
+      pts[np++] = y0 + (y1 - y0) * u;
+    };
+    const x0g = s.xL + (i0 + 0.5) * this.dx;
+    const y0g = s.y1 - 0.5 * this.dy;
+    for (let j = 0; j < ny - 1; j++) {
+      for (let i = 0; i < cols - 1; i++) {
+        const a = j * cols + i;
+        const b = a + 1;
+        const c = a + cols + 1;
+        const d = a + cols;
+        const qa = Q[a];
+        const qb = Q[b];
+        const qc = Q[c];
+        const qd = Q[d];
+        // Most cells have no zero of ψq: skip them before anything else.
+        const neg = (qa < 0 ? 1 : 0) + (qb < 0 ? 1 : 0) + (qc < 0 ? 1 : 0) + (qd < 0 ? 1 : 0);
+        if (neg === 0 || neg === 4) continue;
+        if (P[a] + P[b] + P[c] + P[d] <= 0) continue;
+        const w = 0.25 * (Wt[a] + Wt[b] + Wt[c] + Wt[d]);
+        if (w < 0.03) continue;
+        np = 0;
+        // Edges a→b (top), b→c (right), d→c (bottom), a→d (left); grid row j is at the top.
+        const xa = x0g + i * this.dx;
+        const xb = xa + this.dx;
+        const ya = y0g - j * this.dy;
+        const yd = ya - this.dy;
+        edge(qa, qb, xa, ya, xb, ya);
+        edge(qb, qc, xb, ya, xb, yd);
+        edge(qd, qc, xa, yd, xb, yd);
+        edge(qa, qd, xa, ya, xa, yd);
+        for (let k = 0; k + 3 < np; k += 4) segs.push(pts[k], pts[k + 1], pts[k + 2], pts[k + 3], w);
       }
     }
+    return { plane, segs };
   }
 }
 
