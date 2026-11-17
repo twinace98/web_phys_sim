@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { bounce, contracted, gamma, interval, inverse, lorentz, movingPeriod, restPeriod, ticks, trainEvents } from '../src/sims/ch37/physics';
-import { arrowTail, lightClocks, rods, views } from '../src/sims/ch37/scene';
-import { probe } from './stage-probe';
+import { defaults, fromQuery } from '../src/core/params';
+import { bounce, contracted, dilationEvents, gamma, interval, inverse, lorentz, movingPeriod, restPeriod, rodEvents, ticks, trainEvents } from '../src/sims/ch37/physics';
+import { ROD_L0, TAU_TICK, arrowTail, diagramEvents, diagramResult, eventTable, lightClocks, rods, spacetime, views } from '../src/sims/ch37/scene';
+import { offStage, probe } from './stage-probe';
 
 describe('ch37 velocity arrows stay inside their view', () => {
   it('clocks and rods, β up to 0.99, desktop and phone: label inside the view box', () => {
@@ -99,5 +100,84 @@ describe('ch37 train flash', () => {
       expect(inverse(-2, 2, b)[1]).toBeCloseTo(e.rearS, 12);
       expect(inverse(2, 2, b)[1]).toBeCloseTo(e.frontS, 12);
     }
+  });
+});
+
+describe('ch37 spacetime diagram readings', () => {
+  const at = (mode: string, beta: number, B = [3, 1]) => ({ ...defaults(spacetime.params), mode, beta, B });
+
+  it('time dilation: the S′ clock tick at ct′ = Δt₀ = 2 s is simultaneous in S with ct = γ·2 s on the S clock', () => {
+    expect(TAU_TICK).toBe(restPeriod(1));
+    for (const b of [0, 0.37, 0.6, 0.8]) {
+      const { E, S } = dilationEvents(TAU_TICK, b);
+      // E lies on the S′ clock's worldline (x′ = 0, the ct′ axis) at its second tick.
+      expect(E.xp).toBeCloseTo(0, 12);
+      expect(E.tp).toBeCloseTo(2, 12);
+      expect(E.x).toBeCloseTo(b * E.t, 12);
+      // Same S time, on the S clock at x = 0: the reading is γ times the tick.
+      expect(S.x).toBe(0);
+      expect(S.t).toBeCloseTo(E.t, 12);
+      expect(S.t / E.tp).toBeCloseTo(gamma(b), 12);
+    }
+    // Default β = 0.6: γ = 1.25, Δt = 2.50 s; the panel shows the same numbers.
+    const tex = eventTable(at('dilate', 0.6));
+    expect(tex).toContain('(1.50,\\ 2.50)');
+    expect(tex).toContain('(0.00,\\ 2.00)');
+    expect(diagramResult(at('dilate', 0.6))).toContain('1.25 \\times 2.00 = 2.50');
+    expect(diagramResult(at('dilate', 0.8))).toContain('1.67 \\times 2.00 = 3.33');
+  });
+
+  it('length contraction: the rod cut along S simultaneity is L₀/γ, along S′ simultaneity L₀', () => {
+    for (const b of [0, 0.37, 0.6, 0.8]) {
+      const r = rodEvents(ROD_L0, -0.5, 2.5, b);
+      // F and R at the same ct (S cut), F and R′ at the same ct′ (S′ cut), R and R′ on the rear worldline.
+      expect(r.R.t).toBeCloseTo(r.F.t, 12);
+      expect(r.Rp.tp).toBeCloseTo(r.F.tp, 12);
+      expect(r.R.xp).toBeCloseTo(-3.5, 12);
+      expect(r.Rp.xp).toBeCloseTo(-3.5, 12);
+      expect(r.F.x - r.R.x).toBeCloseTo(ROD_L0 / gamma(b), 12);
+      expect(r.F.xp - r.Rp.xp).toBeCloseTo(ROD_L0, 12);
+      expect(ROD_L0 / (r.F.x - r.R.x)).toBeCloseTo(gamma(b), 12);
+    }
+    // Default β = 0.6: F (1.25, 2.75), R (−1.15, 2.75) → L = 2.40 ls = 3/1.25.
+    const tex = eventTable(at('contract', 0.6));
+    expect(tex).toContain('(1.25,\\ 2.75)');
+    expect(tex).toContain('(-1.15,\\ 2.75)');
+    expect(diagramResult(at('contract', 0.6))).toContain('3.00/1.25 = 2.40');
+    expect(diagramResult(at('contract', 0.8))).toContain('3.00/1.67 = 1.80');
+  });
+
+  it('event order: B = (3, 1) is after A in S but before it in S′ at β = 0.6; a timelike B keeps its order', () => {
+    const [, B] = diagramEvents(at('order', 0.6))[1];
+    expect(B.t).toBeCloseTo(1, 12);
+    expect(B.tp).toBeCloseTo(-1, 12);
+    expect(diagramResult(at('order', 0.6))).toContain("\\Delta t' = -1.00");
+    for (const b of [0, 0.3, 0.6, 0.8]) {
+      const [, T] = diagramEvents(at('order', b, [1, 3]))[1];
+      expect(T.tp).toBeGreaterThan(0);
+      expect(interval(T.xp, T.tp)).toBeCloseTo(interval(1, 3), 12);
+    }
+  });
+
+  it('labels stay on the stage and the segment names clear the ct axis', () => {
+    for (const [w, h] of [
+      [1280, 704],
+      [390, 600],
+    ])
+      for (const mode of ['dilate', 'contract', 'order'])
+        for (const b of [0, 0.15, 0.37, 0.6, 0.8]) {
+          const g = probe(spacetime, { t: 0 }, at(mode, b), w, h);
+          expect(offStage(g)).toEqual([]);
+          if (mode !== 'contract') continue;
+          const [x0] = g.vp.toPx(0, 0);
+          for (const m of g.marks.filter((k) => k.text === '*L*' || k.text === '*L*_{0}')) expect(m.x > x0 + 2 || m.x + m.w < x0 - 2).toBe(true);
+        }
+  });
+
+  it('old share links: removed values fall back to the defaults', () => {
+    const p = fromQuery(spacetime.params, new URLSearchParams('mode=bogus&A=-1.5,3&beta=0.5'));
+    expect(p.mode).toBe('dilate');
+    expect(p.beta).toBe(0.5);
+    expect('A' in p).toBe(false);
   });
 });
