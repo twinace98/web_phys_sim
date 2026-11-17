@@ -131,7 +131,7 @@ export function forceAt(f: ForceKind, p: V2, dir: V2): V2 {
 
 // ------------------------------------------------------------------ energy diagram
 
-export type PotKind = 'double' | 'spring' | 'hill';
+export type PotKind = 'double' | 'hill';
 
 export interface Potential {
   U: (x: number) => number;
@@ -144,7 +144,6 @@ const C_HILL = 2 / 4.5;
 
 export const POTENTIALS: Record<PotKind, Potential> = {
   double: { U: (x) => (x * x - 4) ** 2 / 8, dU: (x) => (x * (x * x - 4)) / 2, lo: -3.2, hi: 3.2 },
-  spring: { U: (x) => 0.3 * x * x, dU: (x) => 0.6 * x, lo: -3.2, hi: 3.2 },
   hill: { U: (x) => 1.2 + C_HILL * (x ** 3 / 3 - 2.25 * x), dU: (x) => C_HILL * (x * x - 2.25), lo: -3.2, hi: 3.2 },
 };
 

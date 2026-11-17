@@ -1,8 +1,9 @@
 // Ch 16 scene: a pulse or a continuous wave reflects at a fixed or free end. Incident (blue
-// dashed) + reflected (orange dashed) = string (black). A continuous wave becomes a standing wave.
+// dashed) + reflected (orange dashed) = string (black). The scene is about reflection: node
+// markers and the envelope of the standing wave belong to the resonance tab.
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { envelope, nodes, reflectAt, type End, type Mode, type Reflect } from './physics';
+import { reflectAt, type End, type Mode, type Reflect } from './physics';
 
 type P = { mode: string; end: string; lambda: number; parts: boolean };
 
@@ -10,7 +11,6 @@ const L = 4;
 const V = 2;
 const TAU = 0.5; // pulse duration: 1 m long on the string
 const X_LEFT = -0.3;
-const ENV = '#8c8c8c';
 
 function cfg(p: P): Reflect {
   const pulse = p.mode === 'pulse';
@@ -113,16 +113,6 @@ export const reflect: Scene<P, { t: number }> = {
     const t = s.t;
     g.line({ x: X_LEFT, y: 0 }, { x: L, y: 0 }, { color: '#e0e0e0', width: 1 });
 
-    // Standing-wave region: where the reflected wave has already arrived.
-    if (r.mode === 'wave') {
-      const xs = Math.max(X_LEFT, 2 * L - V * (t + r.t0));
-      if (xs < L) {
-        curve(g, (x) => envelope(r, x), xs, L, { color: ENV, width: 1, dash: [2, 3] });
-        curve(g, (x) => -envelope(r, x), xs, L, { color: ENV, width: 1, dash: [2, 3] });
-        for (const xn of nodes(r)) if (xn >= xs) g.circle({ x: xn, y: 0 }, 4, { fill: '#1a1a1a' });
-      }
-    }
-
     // String first; the two waves dashed on top so they stay visible where they coincide with it.
     curve(g, (x) => reflectAt(r, x, t).y, X_LEFT, L, { role: 'fg', width: 2.5 });
     if (p.parts) {
@@ -136,7 +126,7 @@ export const reflect: Scene<P, { t: number }> = {
 
   info: {
     goals: ['ch16.goal.reflect', 'ch16.goal.standing'],
-    observe: ['ch16.obs.fixed', 'ch16.obs.free', 'ch16.obs.sum', 'ch16.obs.nodes', 'ch16.obs.freeNodes'],
+    observe: ['ch16.obs.fixed', 'ch16.obs.free', 'ch16.obs.sum', 'ch16.obs.wave', 'ch16.obs.waveEnd'],
     equations: [
       "y = h(t - x/v) \\mp h\\big(t - (2L - x)/v\\big)",
       "y = [2y_m \\sin kx']\\cos\\omega t, \\quad x' = L - x",

@@ -19,7 +19,7 @@ interface S {
 const RATE = 240;
 const M = 1;
 const F_FRICTION = 0.15; // N
-const KINDS: PotKind[] = ['double', 'spring', 'hill'];
+const KINDS: PotKind[] = ['double', 'hill'];
 const Y_LO = -0.9;
 const Y_HI = 4.3;
 const KF = 0.5; // world units per N
@@ -42,13 +42,12 @@ const params: ParamSchema<P> = {
     default: 'double',
     options: [
       { value: 'double', label: 'ch08.e.pot.double' },
-      { value: 'spring', label: 'ch08.e.pot.spring' },
       { value: 'hill', label: 'ch08.e.pot.hill' },
     ],
   },
   // Structural: the run is fixed by (potential, start, friction), so its end time is known in advance.
   friction: { kind: 'toggle', label: 'ch08.e.p.friction', desc: 'ch08.e.d.friction', group: 'main', live: false, default: false },
-  x0s: { kind: 'array', label: 'ch08.e.p.x0', desc: 'ch08.e.d.x0', group: 'hidden', live: false, default: [-2.7, -2.5, 2.9], min: -3.1, max: 3.1 },
+  x0s: { kind: 'array', label: 'ch08.e.p.x0', desc: 'ch08.e.d.x0', group: 'hidden', live: false, default: [-2.7, 2.9], min: -3.1, max: 3.1 },
 };
 
 const T_MAX = 120; // s: longest run searched for an end
@@ -172,13 +171,15 @@ export const energyScene: Scene<P, S> = {
     // Equilibria: filled = stable (minimum), hollow = unstable (maximum).
     for (const q of equilibria(pot)) {
       const y = pot.U(q.x);
+      // An unstable label goes above the hump unless the E line runs through that band.
+      const below = q.stable || (E > y && E - y < g.px(30));
       if (q.stable) g.circle({ x: q.x, y }, 4.5, { fill: '#5c5c5c' });
       else g.circle({ x: q.x, y }, 4.5, { fill: '#ffffff', color: '#5c5c5c', width: 1.5 });
       g.text({ x: q.x, y }, tr(q.stable ? 'ch08.e.stable' : 'ch08.e.unstable'), {
         size: 11,
         color: TICK,
         align: 'center',
-        dy: q.stable ? 17 : -11,
+        dy: below ? 17 : -11,
       });
     }
 
