@@ -5,7 +5,7 @@ import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { drawRich } from '../../draw/text';
 import { ROLE_COLOR, theme } from '../../draw/theme';
 import { chart, inPanel, split, stageRect, TICK, type Rect } from '../ch18/panels';
-import { J_PER_V, SIGMA, WIN, idealForce, idealPressure, impulseTop, initGas, pCum, pWin, pressureTop, sigmaV, speedPdf, stepGas, type Gas } from './physics';
+import { J_PER_V, WIN, idealForce, idealPressure, impulseTop, initGas, pCum, pWin, pressureTop, sigmaV, speedPdf, stepGas, type Gas } from './physics';
 
 type P = { N: number; T: number; L: number; init: string; arrows: boolean };
 
@@ -51,7 +51,7 @@ const params: ParamSchema<P> = {
     live: false,
     control: 'slider',
     min: 20,
-    max: 150,
+    max: 1000,
     step: 10,
     default: 100,
   },
@@ -113,7 +113,7 @@ function drawBox(g: Parameters<Scene['draw']>[0], r: Rect, s: S, p: P): void {
       { color: WALL, width: 2 },
     );
     d.line({ x: L, y: 0 }, { x: L, y: L }, { color: FORCE, width: 3 });
-    const rPx = Math.max(1.8, (SIGMA / 2) / d.px(1));
+    const rPx = Math.max(1.8, (gas.sigma / 2) / d.px(1));
     const k = (0.035 * L) / sigmaV(p.T);
     for (let i = 0; i < gas.N; i++) {
       const c: Vec2 = { x: gas.x[i], y: gas.y[i] };

@@ -20,7 +20,7 @@
   "ch19.obs.T": "Doubling the temperature: molecules move faster and hit more often, so the pressure doubles",
   "ch19.obs.hist": "Even when every molecule starts at the same speed, collisions turn the speed distribution into the 2D Maxwell-Boltzmann distribution (dashed)",
   "ch19.assume.2d": "2D gas: pressure = force per unit wall length (mN/m = pN/nm), area $A = L^2$",
-  "ch19.assume.disk": "Hard disks the size of helium atoms (diameter 0.26 nm, mass $6.65\\times10^{-27}$ kg), perfectly elastic collisions, smooth walls",
-  "ch19.assume.dense": "Because the disks take up area, the measured pressure is a little above the ideal-gas value: about 9 % at $N = 150$, $L = 15$ nm and about 4 % at the defaults ($N = 100$, $L = 20$ nm)",
+  "ch19.assume.disk": "Hard disks the size of helium atoms (diameter 0.26 nm, mass $6.65\\times10^{-27}$ kg), perfectly elastic collisions, smooth walls. Where the disks would cover more than 1.5 % of the box, their diameter shrinks to keep 1.5 % (ideal gas: molecule size negligible; 0.066 nm at $N = 1000$, $L = 15$ nm)",
+  "ch19.assume.dense": "The area the disks occupy makes the measured pressure slightly higher than the ideal value ($p/nkT \\approx 1 + 2\\varphi$ with area fraction $\\varphi \\le 1.5$ %): within about 3 % at every setting",
   "ch19.assume.win": "During the first 10 ps both pressure plots divide the impulse so far by 10 ps, so they start from 0"
 }
