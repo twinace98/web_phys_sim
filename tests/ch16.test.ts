@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { envelope, harmonic, nodes, reflectAt, resonance, steadyAmp, stringAdvance, stringInit, stringStep, type Driven, type Reflect } from '../src/sims/ch16/physics';
+import { defaults } from '../src/core/params';
+import { reflect } from '../src/sims/ch16/reflect';
+import { resonanceScene } from '../src/sims/ch16/resonance';
+import { ProbeDraw } from './stage-probe';
 
 const base: Reflect = { L: 4, v: 2, A: 0.3, mode: 'pulse', end: 'fixed', lambda: 1.6, tau: 0.5, t0: 0.6 };
 
@@ -72,5 +76,50 @@ describe('ch16 resonance', () => {
       expect(Math.abs(amp - exact) / exact).toBeLessThan(0.03);
       expect(st.y[s.N]).toBe(0);
     }
+  });
+});
+
+describe('ch16 tab 1 is about reflection (nodes and envelope live in tab 2)', () => {
+  class CountDraw extends ProbeDraw {
+    circles = 0;
+    dashed = 0;
+    override circle(): void {
+      this.circles++;
+    }
+    override polyline(...args: unknown[]): void {
+      const st = (args[1] ?? {}) as { dash?: number[]; color?: string };
+      if (st.dash && st.color === '#8c8c8c') this.dashed++;
+    }
+  }
+  const draw = (p: any, t: number) => {
+    const g = new CountDraw(1280, 600);
+    g.vp.fit(reflect.world(p), 1280, 600);
+    reflect.draw(g, { t }, p, { t, cursorT: t, scrubbing: false, lecture: false });
+    return g;
+  };
+
+  it('regression: a continuous wave in the steady state draws no node dots and no grey envelope', () => {
+    for (const end of ['fixed', 'free']) {
+      for (const lambda of [0.4, 1.3, 2.4]) {
+        const g = draw({ ...defaults(reflect.params), mode: 'wave', end, lambda }, 12);
+        // Only the free-end ring is a circle; before, every node added a black dot.
+        expect(g.circles, `${end} ${lambda}`).toBe(end === 'free' ? 1 : 0);
+        expect(g.dashed).toBe(0);
+      }
+    }
+  });
+
+  it('continuous wave at the boundary: fixed end at rest, free end swings with 2A', () => {
+    for (const end of ['fixed', 'free'] as const) {
+      const r: Reflect = { ...base, mode: 'wave', end, A: 0.2, t0: 0 };
+      let m = 0;
+      for (let k = 0; k < 2000; k++) m = Math.max(m, Math.abs(reflectAt(r, r.L, 4 + k * 0.001).y));
+      if (end === 'fixed') expect(m).toBeLessThan(1e-12);
+      else expect(m).toBeCloseTo(2 * r.A, 4);
+    }
+  });
+
+  it('the resonance tab keeps the envelope-and-nodes toggle', () => {
+    expect(resonanceScene.params.env.default).toBe(true);
   });
 });

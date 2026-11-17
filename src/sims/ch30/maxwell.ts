@@ -1,26 +1,30 @@
-// Ch 30 scene: the four Maxwell equations, one small scene each, with the integral form and a
-// numerical check in the stage panel.
-//   gaussE   line charges and a Gaussian circle: ∮E_n dl = λ_enc/ε0
+// Ch 30 scene: the four Maxwell equations with the integral form and a numerical check in the
+// stage panel. Gauss's law for E has its own scene in Ch 23 (tab 1), so three mini scenes here:
 //   gaussB   bar magnet (bound surface currents) and a circle: net flux 0
 //   faraday  growing uniform B in a disc: circulating E, ∮E·ds = −dΦ_B/dt
 //   ampere   charging capacitor: flat or bulging surface on the same loop
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { ENC_FLUX, LINE_E } from '../ch23/physics';
 import { WIRE_B } from '../ch29/physics';
 import { FieldLayers } from '../field/layers';
-import { circlePoly, closedCirc, edgeIntegrals, enclosed, fieldAt, fieldFn, perimeter, resample, type Src, type V2 } from '../field/physics';
-import { IN, Memo, OUT, chargeGlyph, componentArrows, drawSurface, drawVectorGrid, knob, srcKey, texNum, vectorGrid, vpKey, wireGlyph } from '../field/render';
-import { freeDefault, keepOff, knobs, surfaceHandles } from '../field/surface';
+import { circlePoly, closedCirc, edgeIntegrals, fieldAt, fieldFn, perimeter, resample, type Src, type V2 } from '../field/physics';
+import { IN, Memo, OUT, componentArrows, drawSurface, drawVectorGrid, knob, texNum, vectorGrid, vpKey, wireGlyph } from '../field/render';
+import { freeDefault, knobs, surfaceHandles } from '../field/surface';
 import { GAP, R_AMP, R_B, R_PLATE, ampereMaxwell, faradayRhs, inducedE } from './physics';
 
-type P = { eq: string; dBdt: number; surf: string; shape: string; G: number[]; F: number[]; C: number[]; X: number[] };
+type P = { eq: string; dBdt: number; surf: string; shape: string; G: number[]; F: number[]; X: number[] };
 type S = { t: number };
 
-const EQS = ['gaussE', 'gaussB', 'faraday', 'ampere'] as const;
+export const EQS = ['gaussB', 'faraday', 'ampere'] as const;
+/**
+ * Default: Faraday, the field form of tab 1's law (a changing B makes a circulating E) and the
+ * one equation with a live slider. Old links with the removed eq=gaussE fall back to it.
+ */
+export const EQ0 = 'faraday';
+/** Tag kept in G[3] so each equation keeps its own circle; fixed values keep old links valid. */
+const TAG: Record<string, number> = { gaussB: 1, faraday: 2, ampere: 3 };
 const BOX: [number, number, number, number] = [-1.15, -0.75, 1.15, 0.75];
-const G0: Record<string, number[]> = { gaussE: [-0.15, 0, 0.4], gaussB: [-0.05, 0.05, 0.3], faraday: [0.1, 0.05, 0.25] };
-const Q = [1, -1];
+const G0: Record<string, number[]> = { gaussB: [-0.05, 0.05, 0.3], faraday: [0.1, 0.05, 0.25] };
 const GREY = '#8c8c8c';
 
 const params: ParamSchema<P> = {
@@ -30,7 +34,7 @@ const params: ParamSchema<P> = {
     desc: 'ch30.m.d.eq',
     group: 'main',
     live: true,
-    default: 'gaussE',
+    default: EQ0,
     options: EQS.map((v) => ({ value: v, label: `ch30.m.eq.${v}` })),
   },
   dBdt: {
@@ -61,17 +65,15 @@ const params: ParamSchema<P> = {
     visibleIf: (p) => p.eq === 'ampere',
   },
   shape: { kind: 'select', label: 'ch30.m.p.G', group: 'hidden', live: true, default: 'circle', options: [{ value: 'circle', label: 'field.shape.circle' }] },
-  G: { kind: 'array', label: 'ch30.m.p.G', group: 'hidden', live: true, default: [...G0.gaussE, 0], min: -2, max: 4 },
+  G: { kind: 'array', label: 'ch30.m.p.G', group: 'hidden', live: true, default: [...G0[EQ0], TAG[EQ0]], min: -2, max: 4 },
   F: { kind: 'array', label: 'ch30.m.p.G', group: 'hidden', live: true, default: freeDefault(0.3), min: -2, max: 2 },
-  C: { kind: 'array', label: 'ch30.m.p.C', group: 'hidden', live: true, default: [-0.25, 0.12, 0.6, -0.15], min: -2, max: 2 },
   X: { kind: 'array', label: 'ch30.m.p.X', group: 'hidden', live: true, default: [-0.6], min: -1, max: 1 },
 };
 
-const tag = (p: P) => Math.max(0, EQS.indexOf(p.eq as (typeof EQS)[number]));
+const tag = (p: P) => TAG[p.eq] ?? TAG[EQ0];
 /** Circle [cx, cy, r] of the current equation (each keeps its own). */
-const Gin = (p: P) => (p.G.length === 4 && p.G[3] === tag(p) ? p.G.slice(0, 3) : (G0[p.eq] ?? G0.gaussE));
+export const Gin = (p: P) => (p.G.length === 4 && p.G[3] === tag(p) ? p.G.slice(0, 3) : (G0[p.eq] ?? G0[EQ0]));
 const poly = (p: P) => circlePoly(Gin(p)[0], Gin(p)[1], Gin(p)[2], 160);
-const charges = (p: P): Src[] => Q.map((s, i) => ({ x: p.C[2 * i], y: p.C[2 * i + 1], s }));
 
 /** Magnet: 0.6 m × 0.16 m, N on the right; bound currents ⊙ along the top, ⊗ along the bottom. */
 const MAG = { x0: 0, x1: 0.6, h: 0.08 };
@@ -82,7 +84,6 @@ for (let i = 0; i < N_MAG; i++) {
   MAG_WIRES.push({ x, y: MAG.h, s: 1 }, { x, y: -MAG.h, s: -1 });
 }
 
-const lineLayers = new FieldLayers('line', 8);
 const wireLayers = new FieldLayers('wire', 8);
 const eVec = new Memo<Float32Array>();
 const fluxMemo = new Memo<{ flux: number; out: number; inn: number }>();
@@ -104,17 +105,7 @@ function drawKnobs(g: Draw, p: P): void {
   for (const k of knobs('circle', Gin(p), [])) knob(g, k.p, k.kind);
 }
 
-// ------------------------------------------------------------------ the four mini scenes
-
-function drawGaussE(g: Draw, p: P): void {
-  const src = charges(p);
-  lineLayers.lines(g, src);
-  const pl = poly(p);
-  drawSurface(g, pl);
-  componentsOn(g, pl, (x, y) => fieldAt(src, 'line', x, y), 'flux');
-  for (const c of src) chargeGlyph(g, c, c.s);
-  drawKnobs(g, p);
-}
+// ------------------------------------------------------------------ the three mini scenes
 
 function drawGaussB(g: Draw, p: P): void {
   wireLayers.lines(g, MAG_WIRES);
@@ -230,14 +221,6 @@ function overlay(p: P): string {
         row('\\oint B_n\\,dl', `${texNum(b.flux, 3, 5e-3)}${u}`),
       ])}`;
     }
-    case 'faraday': {
-      const circ = closedCirc((x, y) => inducedE(x, y, p.dBdt), poly(p));
-      const rhs = faradayRhs(G[0], G[1], G[2], p.dBdt);
-      return `\\oint \\vec E\\cdot d\\vec s = -\\frac{d\\Phi_B}{dt} \\\\[4pt] ${arr([
-        row('\\oint \\vec E\\cdot d\\vec s', `${texNum(circ, 3, 1e-5)}\\ \\mathrm{V}`),
-        row('-d\\Phi_B/dt', `${texNum(rhs, 3, 1e-5)}\\ \\mathrm{V}`),
-      ])}`;
-    }
     case 'ampere': {
       const a = ampereMaxwell(p.X[0], p.surf === 'bulge' ? 'bulge' : 'flat');
       return `\\oint \\vec B\\cdot d\\vec s = \\mu_0 i_\\text{enc} + \\mu_0\\varepsilon_0\\frac{d\\Phi_E}{dt} \\\\[4pt] ${arr([
@@ -247,22 +230,16 @@ function overlay(p: P): string {
       ])}`;
     }
     default: {
-      const src = charges(p);
-      const pl = poly(p);
-      const flux = LINE_E * fluxOf(src, p);
-      const enc = enclosed(src, pl);
-      const u = '\\ \\mathrm{N\\,m/C}';
-      return `\\oint \\vec E\\cdot d\\vec A = \\frac{q_\\text{enc}}{\\varepsilon_0} \\\\[4pt] ${arr([
-        row('\\oint E_n\\,dl', `${texNum(flux, 3, 0.05)}${u}`),
-        row('\\lambda_\\text{enc}/\\varepsilon_0', `${texNum(enc * ENC_FLUX, 3, 0.05)}${u}`),
+      // faraday (also any unknown eq value)
+      const circ = closedCirc((x, y) => inducedE(x, y, p.dBdt), poly(p));
+      const rhs = faradayRhs(G[0], G[1], G[2], p.dBdt);
+      return `\\oint \\vec E\\cdot d\\vec s = -\\frac{d\\Phi_B}{dt} \\\\[4pt] ${arr([
+        row('\\oint \\vec E\\cdot d\\vec s', `${texNum(circ, 3, 1e-5)}\\ \\mathrm{V}`),
+        row('-d\\Phi_B/dt', `${texNum(rhs, 3, 1e-5)}\\ \\mathrm{V}`),
       ])}`;
     }
   }
 }
-
-const gaussEMemo = new Memo<number>();
-const fluxOf = (src: Src[], p: P) =>
-  gaussEMemo.get(`${srcKey(src)}|${Gin(p).join(',')}`, () => edgeIntegrals(fieldFn(src, 'line'), poly(p), 'flux').reduce((a, v) => a + v, 0));
 
 // ------------------------------------------------------------------ scene
 
@@ -275,30 +252,15 @@ export const maxwell: Scene<P, S> = {
 
   draw: (g, _s, p) => {
     if (p.eq === 'gaussB') drawGaussB(g, p);
-    else if (p.eq === 'faraday') drawFaraday(g, p);
     else if (p.eq === 'ampere') drawAmpere(g, p);
-    else drawGaussE(g, p);
+    else drawFaraday(g, p);
   },
 
   overlay: (_s, p) => overlay(p),
 
   handles: [
-    ...Q.map((_q, i) => ({
-      radiusPx: 16,
-      when: (p: P) => p.eq === 'gaussE',
-      pos: (_s: S, p: P) => ({ x: p.C[2 * i], y: p.C[2 * i + 1] }),
-      onDrag: (ctx: { params: P; set: (k: 'C', v: number[]) => void }, _s: S, w: Vec2) => {
-        const x = Math.min(BOX[2], Math.max(BOX[0], w.x));
-        const y = Math.min(BOX[3], Math.max(BOX[1], w.y));
-        const q = keepOff(poly(ctx.params), { x, y });
-        const C = [...ctx.params.C];
-        C[2 * i] = Math.round(q.x * 1000) / 1000;
-        C[2 * i + 1] = Math.round(q.y * 1000) / 1000;
-        if (C.some((v, k) => v !== ctx.params.C[k])) ctx.set('C', C);
-      },
-    })),
     ...surfaceHandles<P, S>({
-      sources: (p) => (p.eq === 'gaussE' ? charges(p) : []),
+      sources: () => [],
       box: BOX,
       shapes: ['circle'],
       when: (p) => p.eq !== 'ampere',
@@ -318,13 +280,13 @@ export const maxwell: Scene<P, S> = {
 
   info: {
     goals: ['ch30.m.goal.four', 'ch30.m.goal.pairs'],
-    observe: ['ch30.m.obs.gaussE', 'ch30.m.obs.gaussB', 'ch30.m.obs.faraday', 'ch30.m.obs.ampere', 'ch30.m.obs.drag'],
+    observe: ['ch30.m.obs.gaussB', 'ch30.m.obs.faraday', 'ch30.m.obs.ampere', 'ch30.m.obs.drag'],
     equations: [
       '\\oint \\vec E\\cdot d\\vec A = \\frac{q_\\text{enc}}{\\varepsilon_0}',
       '\\oint \\vec B\\cdot d\\vec A = 0',
       '\\oint \\vec E\\cdot d\\vec s = -\\frac{d\\Phi_B}{dt}',
       '\\oint \\vec B\\cdot d\\vec s = \\mu_0 i_\\text{enc} + \\mu_0\\varepsilon_0\\frac{d\\Phi_E}{dt}',
     ],
-    assumptions: ['ch30.m.as.2d', 'ch30.m.as.magnet', 'ch30.m.as.faraday', 'ch30.m.as.cap'],
+    assumptions: ['ch30.m.as.magnet', 'ch30.m.as.faraday', 'ch30.m.as.cap'],
   },
 };

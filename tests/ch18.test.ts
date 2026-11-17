@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Runner } from '../src/core/runner';
-import { defaults } from '../src/core/params';
+import { defaults, fromQuery } from '../src/core/params';
 import {
   A0,
   NR,
@@ -151,6 +151,38 @@ describe('ch18 scenes', () => {
       r.play();
       for (let i = 0; i < 100 && r.playing; i++) r.advance(0.1);
       expect(r.done).toBe(true);
+    }
+  });
+});
+
+describe('ch18 cycle scene: rectangle only (the Carnot cycle is Ch 20 tab 3)', () => {
+  const sc = page.scenes.find((s) => s.id === 'cycle')!;
+
+  it('has no cycle-kind parameter; an old cyc=carnot link falls back to the rectangle', () => {
+    expect(Object.keys(sc.params).sort()).toEqual(['dir', 'gas']);
+    const p = fromQuery(sc.params, new URLSearchParams('cyc=carnot&dir=ccw'));
+    expect(p).toEqual({ dir: 'ccw', gas: 'mono' });
+  });
+
+  it('cumulative Q peaks at C (11500 J monatomic, 16500 J diatomic) and ends at W_net = ±2000 J', () => {
+    for (const [gas, f, qin] of [['mono', 3, 11500], ['di', 5, 16500]] as const) {
+      for (const dir of ['cw', 'ccw']) {
+        const r = new Runner(sc, { dir, gas } as any);
+        r.play();
+        let qmax = -Infinity;
+        for (let i = 0; i < 200 && r.playing; i++) {
+          r.advance(0.05);
+          qmax = Math.max(qmax, sc.readouts![1].value(r.state, r.params));
+        }
+        expect(r.done).toBe(true);
+        const [W, Q, dE] = sc.readouts!.map((ro) => ro.value(r.state, r.params));
+        expect(W).toBeCloseTo(dir === 'cw' ? 2000 : -2000, 6);
+        expect(Q).toBeCloseTo(W, 6);
+        expect(dE).toBeCloseTo(0, 6);
+        if (dir === 'cw') expect(qmax).toBeCloseTo(qin, 0);
+        const { qin: qi, qout } = heatSplit(cycle('rect', dir === 'cw', f).legs, f);
+        expect(qi - qout).toBeCloseTo(W, 6);
+      }
     }
   });
 });

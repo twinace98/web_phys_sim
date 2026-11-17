@@ -16,6 +16,8 @@ import {
 } from '../src/sims/ch41/physics';
 import { gapOf } from '../src/sims/ch41/bands';
 import { layout } from '../src/sims/ch41/filling';
+import { doping } from '../src/sims/ch41/doping';
+import { fromQuery } from '../src/core/params';
 
 describe('ch41 band formation', () => {
   it('N wells give N levels in each band, inside the Kronig-Penney bands', () => {
@@ -117,7 +119,15 @@ describe('ch41 doping', () => {
     expect(hot.n / ni(MATERIALS.si, 800)).toBeLessThan(1.1);
   });
 
-  it('intrinsic: n = p = n_i', () => {
+  it('doping tab offers n- and p-type only; an old "pure" link falls back to n-type with the dopant density shown', () => {
+    const spec = doping.params.type;
+    expect(spec.kind === 'select' && spec.options.map((o) => o.value)).toEqual(['n', 'p']);
+    expect(doping.params.conc.visibleIf).toBeUndefined();
+    const p = fromQuery(doping.params, new URLSearchParams('type=i&T=400'));
+    expect(p).toEqual({ type: 'n', T: 400, conc: 1e16 });
+  });
+
+  it('intrinsic: n = p = n_i (the reference curve on the doping graph)', () => {
     const c = carriers(300, 0, 0);
     expect(c.n / ni(MATERIALS.si, 300)).toBeCloseTo(1, 6);
     expect(c.p / c.n).toBeCloseTo(1, 6);

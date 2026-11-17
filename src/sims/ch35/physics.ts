@@ -22,9 +22,7 @@ export function brightAt(m: number, lambda: number, d: number, D: number): numbe
   return (lo + hi) / 2;
 }
 
-/** Far-field relative intensity: cos²(π d sinθ / λ) × single-slit envelope of width a. */
-export function doubleSlitFar(sinTheta: number, lambda: number, d: number, a = 0): number {
-  const beta = (Math.PI * a * sinTheta) / lambda;
-  const env = Math.abs(beta) < 1e-12 ? 1 : (Math.sin(beta) / beta) ** 2;
-  return Math.cos((Math.PI * d * sinTheta) / lambda) ** 2 * env;
+/** Far-field relative intensity of two narrow slits: cos²(π d sinθ / λ). */
+export function doubleSlitFar(sinTheta: number, lambda: number, d: number): number {
+  return Math.cos((Math.PI * d * sinTheta) / lambda) ** 2;
 }

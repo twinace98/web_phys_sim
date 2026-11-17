@@ -1,12 +1,13 @@
-// Ch 18 scene: cyclic process. Over a full cycle ΔE_int = 0 and the net work = net heat =
-// the area enclosed by the loop (clockwise: engine, W > 0; counter-clockwise: W < 0).
+// Ch 18 scene: rectangular cyclic process (two isochores, two isobars). Over a full cycle
+// ΔE_int = 0 and the net work = net heat = the area enclosed by the loop (clockwise: engine,
+// W > 0; counter-clockwise: W < 0). The Carnot cycle lives in Ch 20 (carnot.ts).
 import type { ParamSchema, Scene } from '../../core/types';
 import { split, stageRect } from './panels';
-import { cycle, eint, legWork, pathAt, temp, type Cycle, type CycleKind } from './physics';
+import { cycle, eint, legWork, pathAt, temp, type Cycle } from './physics';
 import { dofOf } from './process';
 import { barRange, drawBars, drawCylinder, drawPV, gasHeight, initMolecules, isWide, stepMolecules } from './view';
 
-type P = { cyc: string; dir: string; gas: string };
+type P = { dir: string; gas: string };
 interface S {
   t: number;
   mol: number[];
@@ -19,10 +20,10 @@ const NAMES = ['A', 'B', 'C', 'D'];
 let memoKey = '';
 let memo: { c: Cycle; Vmax: number; pmax: number; yr: [number, number] } | null = null;
 function model(p: P) {
-  const key = `${p.cyc}|${p.dir}|${p.gas}`;
+  const key = `${p.dir}|${p.gas}`;
   if (key !== memoKey || !memo) {
     const f = dofOf(p.gas);
-    const c = cycle(p.cyc as CycleKind, p.dir === 'cw', f);
+    const c = cycle('rect', p.dir === 'cw', f);
     const Vmax = 1.12 * Math.max(...c.corners.map((q) => q.V));
     const pmax = 1.15 * Math.max(...c.corners.map((q) => q.p));
     const v: number[] = [];
@@ -39,18 +40,6 @@ function model(p: P) {
 const sOf = (t: number) => Math.min(t / DUR, 1);
 
 const params: ParamSchema<P> = {
-  cyc: {
-    kind: 'select',
-    label: 'ch18.p.cyc',
-    desc: 'ch18.d.cyc',
-    group: 'main',
-    live: false,
-    default: 'rect',
-    options: [
-      { value: 'rect', label: 'ch18.cyc.rect' },
-      { value: 'carnot', label: 'ch18.cyc.carnot' },
-    ],
-  },
   dir: {
     kind: 'select',
     label: 'ch18.p.dir',
@@ -122,7 +111,7 @@ export const cycleScene: Scene<P, S> = {
       pmax,
       traces: [{ legs: c.legs, s: sOf(s.t), shade: true }],
       loop: c.legs,
-      isotherms: c.TH ? [c.TH, c.TC!] : [],
+      isotherms: [],
       points: c.corners.map((q, i) => ({ st: q, name: NAMES[i], dx: 0, dy: 0 })),
     });
     drawBars(g, bars, [{ Q: pt.Q, W: pt.W, dE: pt.dE }], yr);
@@ -136,7 +125,7 @@ export const cycleScene: Scene<P, S> = {
 
   info: {
     goals: ['ch18.c.goal.cycle', 'ch18.c.goal.area'],
-    observe: ['ch18.c.obs.zero', 'ch18.c.obs.area', 'ch18.c.obs.ccw', 'ch18.c.obs.carnot'],
+    observe: ['ch18.c.obs.zero', 'ch18.c.obs.area', 'ch18.c.obs.ccw', 'ch18.c.obs.legs'],
     equations: ['\\Delta E_\\text{int} = 0 \\;\\Rightarrow\\; Q_\\text{net} = W_\\text{net} = \\oint p\\,dV'],
     assumptions: ['ch18.assume.ideal', 'ch18.assume.quasi'],
   },

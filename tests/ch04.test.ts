@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { defaults } from '../src/core/params';
+import { defaults, fromQuery } from '../src/core/params';
 import { Runner } from '../src/core/runner';
 import { G, flightTime, maxHeight, range, stateAt, v0x, type Launch } from '../src/sims/ch04/physics';
+import { circular } from '../src/sims/ch04/circular';
 import { projectile } from '../src/sims/ch04/scene';
 
 const deg = Math.PI / 180;
@@ -89,5 +90,20 @@ describe('ch04 angle and height together', () => {
     r.play();
     r.advance(0.1);
     expect(r.playing).toBe(false);
+  });
+});
+
+describe('ch04 circular: no velocity circle', () => {
+  it('an old share link with hodo=… still loads: the key is ignored, the other values are kept', () => {
+    for (const q of ['hodo=0&r=2.5', 'hodo=1&r=2.5', 'hodo=garbage&r=2.5']) {
+      const p = fromQuery(circular.params, new URLSearchParams(q)) as Record<string, unknown>;
+      expect(p).toEqual({ r: 2.5, v: 2 });
+    }
+  });
+
+  it('the world is square around the circle, so the circle fills the stage height', () => {
+    const w = circular.world(defaults(circular.params));
+    expect(w.x[1] - w.x[0]).toBeCloseTo(w.y[1] - w.y[0], 12);
+    expect(w.x[0]).toBeCloseTo(-w.x[1], 12);
   });
 });

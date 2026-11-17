@@ -1,5 +1,5 @@
-// Ch 40 scenes: one Stern-Gerlach device (classical prediction vs quantum result), devices in
-// sequence, and the cos²(θ/2) statistics of a measurement at an angle.
+// Ch 40 scenes: one Stern-Gerlach device (classical prediction vs quantum result), the z → x → z
+// sequence, and the cos²(θ/2) statistics of a measurement at an angle (z → θ).
 import type { Rng } from '../../core/rng';
 import type { ParamSchema, Scene } from '../../core/types';
 import type { Draw } from '../../draw/draw';
@@ -175,45 +175,18 @@ export const single: Scene<P1, S1> = {
 
 // ------------------------------------------------------------------ sequential devices
 
-type P2 = { setup: string; pass: string; N: number };
+type P2 = { pass: string; N: number };
 
-export function devicesOf(setup: string, pass: string): Device[] {
-  const z = 0;
-  const x = 90 * DEG;
-  switch (setup) {
-    case 'zz':
-      return [
-        { theta: z, pass: '+' },
-        { theta: z, pass: 'both' },
-      ];
-    case 'zx':
-      return [
-        { theta: z, pass: '+' },
-        { theta: x, pass: 'both' },
-      ];
-    default:
-      return [
-        { theta: z, pass: '+' },
-        { theta: x, pass: pass === '-' ? '-' : '+' },
-        { theta: z, pass: 'both' },
-      ];
-  }
+/** z → x → z: +z passed at the first device, +x or −x at the second, both exits counted at the last. */
+export function devicesOf(pass: string): Device[] {
+  return [
+    { theta: 0, pass: '+' },
+    { theta: 90 * DEG, pass: pass === '-' ? '-' : '+' },
+    { theta: 0, pass: 'both' },
+  ];
 }
 
 const seqParams: ParamSchema<P2> = {
-  setup: {
-    kind: 'select',
-    label: 'ch40.q.p.setup',
-    desc: 'ch40.q.d.setup',
-    group: 'main',
-    live: false,
-    default: 'zxz',
-    options: [
-      { value: 'zz', label: 'ch40.setup.zz' },
-      { value: 'zx', label: 'ch40.setup.zx' },
-      { value: 'zxz', label: 'ch40.setup.zxz' },
-    ],
-  },
   pass: {
     kind: 'select',
     label: 'ch40.q.p.pass',
@@ -225,13 +198,12 @@ const seqParams: ParamSchema<P2> = {
       { value: '+', label: 'ch40.pass.up' },
       { value: '-', label: 'ch40.pass.down' },
     ],
-    visibleIf: (p) => p.setup === 'zxz',
   },
   N: {
     kind: 'number',
     label: 'ch40.p.N',
     desc: 'ch40.d.N',
-    group: 'advanced',
+    group: 'main',
     live: false,
     control: 'select',
     choices: [100, 400, 1000],
@@ -274,7 +246,7 @@ function chainScene<P extends { N: number }>(devs: (p: P) => Device[]) {
   };
 }
 
-const seq = chainScene<P2>((p) => devicesOf(p.setup, p.pass));
+const seq = chainScene<P2>((p) => devicesOf(p.pass));
 
 export const sequential: Scene<P2, ChainState> = {
   id: 'sequential',
@@ -290,12 +262,12 @@ export const sequential: Scene<P2, ChainState> = {
   },
   readouts: [
     { label: 'N_+/(N_+ + N_-)', unit: '', value: (s) => fracUp(s), sig: 2 },
-    { label: 'P_+', unit: '', value: (_s, p) => predicted(devicesOf(p.setup, p.pass)), sig: 2 },
+    { label: 'P_+', unit: '', value: (_s, p) => predicted(devicesOf(p.pass)), sig: 2 },
   ],
   info: {
-    goals: ['ch40.q.goal.repeat', 'ch40.q.goal.erase'],
-    observe: ['ch40.q.obs.zz', 'ch40.q.obs.zx', 'ch40.q.obs.zxz', 'ch40.q.obs.pass'],
-    equations: ['P(+z \\mid +z) = 1, \\quad P(\\pm x \\mid +z) = \\tfrac12', 'P(\\pm z \\mid +x) = \\tfrac12'],
+    goals: ['ch40.q.goal.erase', 'ch40.q.goal.state'],
+    observe: ['ch40.q.obs.zxz', 'ch40.q.obs.mid', 'ch40.q.obs.pass', 'ch40.q.obs.angle'],
+    equations: ['P(\\pm x \\mid +z) = \\tfrac12, \\quad P(\\pm z \\mid \\pm x) = \\tfrac12'],
     assumptions: ['ch40.q.assume.ideal', 'ch40.s.assume.view'],
   },
 };

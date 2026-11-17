@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaults } from '../src/core/params';
+import { defaults, fromQuery } from '../src/core/params';
 import { Rng } from '../src/core/rng';
 import { Runner } from '../src/core/runner';
 import { DEG, chainProbs, probUp, runChain } from '../src/sims/ch40/physics';
@@ -15,18 +15,30 @@ describe('ch40 spin-½ measurement', () => {
     expect(probUp(180 * DEG, 180 * DEG)).toBeCloseTo(1, 12);
   });
 
-  it('chain predictions: zz → all +, zx → ½, zxz → ½ (information erased)', () => {
-    const fr = (setup: string, pass = '+') => {
-      const [a, b] = chainProbs(devicesOf(setup, pass));
+  it('chain predictions: z → x → z gives ½ for either x exit (information erased)', () => {
+    const fr = (pass: string) => {
+      const [a, b] = chainProbs(devicesOf(pass));
       return a / (a + b);
     };
-    expect(fr('zz')).toBeCloseTo(1, 12);
-    expect(fr('zx')).toBeCloseTo(0.5, 12);
-    expect(fr('zxz')).toBeCloseTo(0.5, 12);
-    expect(fr('zxz', '-')).toBeCloseTo(0.5, 12);
+    expect(devicesOf('+').map((d) => d.theta / DEG)).toEqual([0, 90, 0]);
+    expect(fr('+')).toBeCloseTo(0.5, 12);
+    expect(fr('-')).toBeCloseTo(0.5, 12);
     // Fraction of all atoms reaching the last device of z → x → z: ½ · ½.
-    const [a, b] = chainProbs(devicesOf('zxz', '+'));
+    const [a, b] = chainProbs(devicesOf('+'));
     expect(a + b).toBeCloseTo(0.25, 12);
+    // The removed z → z and z → x arrangements are θ = 0° and 90° of the angle tab.
+    const ang = (theta: number) => {
+      const [u, d] = chainProbs(angleDevices(theta));
+      return u / (u + d);
+    };
+    expect(ang(0)).toBeCloseTo(1, 12);
+    expect(ang(90)).toBeCloseTo(0.5, 12);
+  });
+
+  it('old share links: a removed arrangement is ignored, an unknown exit falls back to +x', () => {
+    const p = fromQuery(sequential.params, new URLSearchParams('setup=zz&pass=-'));
+    expect(p).toEqual({ pass: '-', N: 400 });
+    expect(fromQuery(sequential.params, new URLSearchParams('pass=x')).pass).toBe('+');
   });
 
   it('Monte Carlo agrees with the predictions within 4σ', () => {

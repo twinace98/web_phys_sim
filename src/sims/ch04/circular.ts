@@ -1,13 +1,11 @@
 // Ch 4 scene: uniform circular motion. Constant speed, turning velocity, centripetal a = v²/r.
-// A velocity circle (hodograph) beside the path shows where a comes from.
-import { t } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { centripetal, circularAt, period, type Circular } from './physics';
 
-type P = { r: number; v: number; hodo: boolean };
+type P = { r: number; v: number };
 
 const R_MAX = 3;
-const KV = 0.35; // world m per (m/s), same on the path and in the velocity circle
+const KV = 0.35; // world m per (m/s)
 const KA = 0.3; // world m per (m/s²) for small a
 const A_MIN_PX = 18; // shortest a arrow on screen
 
@@ -19,7 +17,6 @@ export function aArrowLen(a: number, r: number): number {
   const cap = 0.55 * r;
   return cap * (1 - Math.exp((-KA * a) / cap));
 }
-const HX = R_MAX + 2.2; // centre of the velocity circle
 const GREY = '#9a9a9a';
 const LABEL = '#6b6b6b';
 
@@ -50,7 +47,6 @@ const params: ParamSchema<P> = {
     default: 2,
     unit: 'm/s',
   },
-  hodo: { kind: 'toggle', label: 'ch04.c.p.hodo', desc: 'ch04.c.d.hodo', group: 'advanced', live: true, default: true },
 };
 
 const circ = (p: P): Circular => ({ r: p.r, v: p.v });
@@ -60,8 +56,9 @@ export const circular: Scene<P, { t: number }> = {
   title: 'ch04.c.scene',
   params,
   time: { h: 1 / 120, recordEvery: 4, frameStep: 0.05 },
-  world: (p) => ({
-    x: [-R_MAX - 0.8, p.hodo ? HX + KV * 3 + 0.8 : R_MAX + 0.8],
+  // Fixed to the largest radius, so a smaller r draws a smaller circle; the circle fills the stage height.
+  world: () => ({
+    x: [-R_MAX - 0.8, R_MAX + 0.8],
     y: [-R_MAX - 0.8, R_MAX + 0.8],
     aspect: 'contain',
     padPx: 20,
@@ -101,21 +98,6 @@ export const circular: Scene<P, { t: number }> = {
       baseline: 'middle',
     });
     g.circle(P0, 8, { fill: 'position' });
-
-    if (p.hodo) {
-      // Velocity circle: every velocity vector drawn from one point. Its tip moves along the
-      // circle, in the direction of a, so a ⊥ v and |a| = ω v = v²/r.
-      const H: Vec2 = { x: HX, y: 0 };
-      const rv = c.v * KV;
-      const hring: Vec2[] = [];
-      for (let i = 0; i <= 64; i++) hring.push({ x: HX + rv * Math.cos((i / 64) * 2 * Math.PI), y: rv * Math.sin((i / 64) * 2 * Math.PI) });
-      g.polyline(hring, { color: GREY, width: 1, dash: [3, 4] });
-      g.circle(H, 3, { fill: GREY });
-      const tip: Vec2 = { x: HX + k.vx * KV, y: k.vy * KV };
-      g.arrow(H, { x: k.vx * KV, y: k.vy * KV }, { role: 'velocity', width: 2.5, label: '*v*' });
-      g.arrow(tip, aVec, { role: 'acceleration', width: 2, label: '*a*' });
-      g.text({ x: HX, y: rv }, t('ch04.c.hodo.title'), { size: 12, color: LABEL, align: 'center', dy: -40 });
-    }
   },
 
   readouts: [
@@ -126,7 +108,7 @@ export const circular: Scene<P, { t: number }> = {
 
   info: {
     goals: ['ch04.c.goal.dir', 'ch04.c.goal.a'],
-    observe: ['ch04.c.obs.perp', 'ch04.c.obs.hodo', 'ch04.c.obs.scale', 'ch04.c.obs.T'],
+    observe: ['ch04.c.obs.perp', 'ch04.c.obs.center', 'ch04.c.obs.scale', 'ch04.c.obs.T'],
     equations: ['a = \\frac{v^2}{r}, \\quad \\vec a \\perp \\vec v', 'T = \\frac{2\\pi r}{v}'],
     assumptions: ['ch04.c.assume'],
   },
