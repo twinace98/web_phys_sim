@@ -87,7 +87,7 @@ export const REVIEW: ChapterMeta[] = [
   r(102, 39, '수소 원자', 'The Hydrogen Atom', '에너지 준위, 전이와 선스펙트럼', 'Energy levels, transitions and line spectra', () => import('./review/hydrogen').then((m) => m.default)),
   r(103, 39, '퍼텐셜 우물: 전이', 'Potential Well: Transitions', '두 준위를 골라 광자 파장', 'Pick two levels for the photon wavelength', () => import('./review/welljump').then((m) => m.default)),
   r(104, 3, '내적과 외적', 'Dot and Cross Products', '정사영, 평행사변형 넓이', 'Projection, parallelogram area', () => import('./review/products').then((m) => m.default)),
-  r(105, 12, '평형과 탄성', 'Equilibrium and Elasticity', '정적 평형: 사다리', 'Static equilibrium: the ladder', () => import('./review/ladder').then((m) => m.default)),
+  r(105, 12, '평형과 탄성', 'Equilibrium and Elasticity', '사다리의 평형과 미끄러짐', 'The ladder: equilibrium and slipping', () => import('./review/ladder').then((m) => m.default)),
   r(106, 13, '중력장과 등퍼텐셜선', 'Gravitational Field and Equipotentials', '두 질량의 장, g = 0 지점', 'Field of two masses, the point where g = 0', () => import('./review/gravfield').then((m) => m.default)),
   r(107, 14, '부력', 'Buoyancy', '아르키메데스 원리, 잠긴 비율', "Archimedes' principle, submerged fraction", () => import('./review/buoyancy').then((m) => m.default)),
   r(108, 15, '감쇠 진동', 'Damped Oscillations', '부족·임계·과감쇠, 포락선', 'Under-, critically and overdamped; envelope', () => import('./review/damped').then((m) => m.default)),
