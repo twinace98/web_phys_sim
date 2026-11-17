@@ -1,7 +1,7 @@
 {
   "ch24.scene": "Equipotentials",
   "ch24.p.preset": "Arrangement",
-  "ch24.d.preset": "Starting arrangement of the charges (drag to move; the tray at the lower left adds and removes)",
+  "ch24.d.preset": "Starting arrangement of the charges (drag to move; drag out of the tray at the lower left to add; drop on the bin or double-click to remove)",
   "ch24.p.layout": "Charge layout",
   "ch24.p.view": "Show",
   "ch24.d.view": "Show the potential as equipotential lines, a colour map (vermilion +, blue −), or both",

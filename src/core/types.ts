@@ -121,6 +121,8 @@ export interface UiState {
   cursorT: number;
   scrubbing: boolean;
   lecture: boolean;
+  /** Stage drag in progress: handle index, pointer now and where the drag began [world]. */
+  drag?: { i: number; w: Vec2; w0: Vec2 } | null;
 }
 
 export interface SceneCtx<P extends Params> {
@@ -188,6 +190,8 @@ export interface Handle<S, P extends Params> {
   pos: (s: S, p: P) => Vec2;
   radiusPx: number;
   onDrag: (ctx: SceneCtx<P>, s: S, w: Vec2) => void;
+  /** Double click or double tap on the handle (e.g. delete a placed source). */
+  onDoubleTap?: (ctx: SceneCtx<P>, s: S) => void;
   when?: (p: P) => boolean;
 }
 

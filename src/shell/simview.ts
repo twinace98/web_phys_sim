@@ -17,6 +17,10 @@ import { isLecture, onLectureChange, setLecture, toggleLang } from './prefs';
 import { StagePanel, resizableSidePanel, restoreSize } from './resize';
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
+/** Pointer travel [CSS px] below which a press is a tap, not a drag. */
+const TAP_PX = 4;
+/** Two taps on one handle within this time [ms] make a double tap. */
+const DOUBLE_MS = 400;
 
 /** "30°" but "2 m/s": no space before the degree sign. */
 /** Value shown with as many decimals as the control's step has. */
@@ -75,7 +79,8 @@ export class SimView {
   private raf = 0;
   private last = 0;
   private urlTimer = 0;
-  private stageDrag: { i: number; pointerId: number } | null = null;
+  private stageDrag: { i: number; pointerId: number; x: number; y: number; moved: boolean } | null = null;
+  private lastTap: { i: number; t: number } | null = null;
   private off: (() => void)[] = [];
 
   constructor(
@@ -604,7 +609,9 @@ export class SimView {
     c.addEventListener('pointerdown', (e) => {
       const i = this.hitHandle(e, handles());
       if (i < 0) return;
-      this.stageDrag = { i, pointerId: e.pointerId };
+      const w = world(e);
+      this.stageDrag = { i, pointerId: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
+      this.ui.drag = { i, w, w0: w };
       c.setPointerCapture(e.pointerId);
       c.style.cursor = 'grabbing';
       e.preventDefault();
@@ -614,13 +621,29 @@ export class SimView {
         if (e.pointerType === 'mouse') c.style.cursor = this.hitHandle(e, handles()) >= 0 ? 'grab' : '';
         return;
       }
-      const hd = this.scene.handles![this.stageDrag.i];
-      hd.onDrag(this.runner.ctx(() => this.onParamsChanged(false)), this.runner.state, world(e));
+      const d = this.stageDrag;
+      // A press that has not moved yet is still a tap: a few px of jitter does not drag.
+      if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) < TAP_PX) return;
+      d.moved = true;
+      const hd = this.scene.handles![d.i];
+      const w = world(e);
+      if (this.ui.drag) this.ui.drag.w = w;
+      hd.onDrag(this.runner.ctx(() => this.onParamsChanged(false)), this.runner.state, w);
     });
     const end = (e: PointerEvent) => {
-      if (this.stageDrag?.pointerId === e.pointerId) {
-        this.stageDrag = null;
-        c.style.cursor = '';
+      const d = this.stageDrag;
+      if (d?.pointerId !== e.pointerId) return;
+      this.stageDrag = null;
+      this.ui.drag = null;
+      c.style.cursor = '';
+      if (d.moved || e.type !== 'pointerup') return;
+      // Two taps on the same handle within DOUBLE_MS: double tap.
+      const now = performance.now();
+      const last = this.lastTap;
+      this.lastTap = { i: d.i, t: now };
+      if (last && last.i === d.i && now - last.t < DOUBLE_MS) {
+        this.lastTap = null;
+        this.scene.handles![d.i].onDoubleTap?.(this.runner.ctx(() => this.onParamsChanged(false)), this.runner.state);
       }
     };
     c.addEventListener('pointerup', end);

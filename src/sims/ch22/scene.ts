@@ -95,7 +95,7 @@ export const field: Scene<P, S> = {
   world: pointWorld,
   init: () => ({ t: 0 }),
 
-  draw: (g, s, p) => {
+  draw: (g, s, p, ui) => {
     const src = pointSources(p);
     const at = testPos(p);
     // Grid arrows leave room for the test charge, its force arrows and their labels.
@@ -110,7 +110,7 @@ export const field: Scene<P, S> = {
       const q0 = q0Spot(g, p);
       g.text(q0.at, '*q*_{0}', { size: 13, color: '#1a1a1a', align: q0.align, baseline: 'middle' });
     }
-    palette(g, s, POINT_POOL, pointCoords(p), chargeGlyph);
+    palette(g, s, POINT_POOL, pointCoords(p), chargeGlyph, ui);
   },
 
   handles: [

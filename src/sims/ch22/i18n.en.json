@@ -1,7 +1,7 @@
 {
   "ch22.scene": "Electric field",
   "ch22.p.preset": "Arrangement",
-  "ch22.d.preset": "Starting arrangement of the charges (drag to move; the tray at the lower left adds and removes)",
+  "ch22.d.preset": "Starting arrangement of the charges (drag to move; drag out of the tray at the lower left to add; drop on the bin or double-click to remove)",
   "ch22.p.layout": "Charge layout",
   "ch22.p.view": "Show",
   "ch22.d.view": "Draw the field as grid arrows, field lines, or both",
@@ -14,7 +14,7 @@
   "ch22.goal.field": "Electric field: the force per unit charge on a test charge at each point, $\\vec E = \\vec F / q_0$",
   "ch22.goal.super": "Superposition: the field of several charges is the vector sum of the fields of each charge",
   "ch22.obs.drag": "Drag a charge and the whole field updates at once. Field lines leave positive charges and end on negative ones",
-  "ch22.obs.tray": "Tray at the lower left: drag a charge out to add it, drop it back to remove it ($+1$, $+2$, $-1$, $-2$ nC)",
+  "ch22.obs.tray": "Tray at the lower left: drag a charge out to add it ($+1$, $+2$, $-1$, $-2$ nC); drop it on the tray (bin) or double-click (double-tap) it to remove it",
   "ch22.obs.dipole": "Dipole: the field is strongest between the charges and falls off quickly farther away",
   "ch22.obs.like": "Like pair: a point of zero field midway between the charges; the field lines push each other apart",
   "ch22.obs.plates": "Parallel plates: nearly uniform field between the plates, weak field outside",

@@ -114,6 +114,14 @@ export function slotHandles<P extends Params, S extends { t: number }>(b: SlotBi
         for (let j = 0; j < i; j++) if (pool.kindOf[j] === kind && c[2 * j] >= PARK / 2) return false;
         return true;
       },
+      // Double click / double tap on a placed source removes it (parks it in the tray).
+      onDoubleTap: (ctx: SceneCtx<P>) => {
+        const c = b.coords(ctx.params);
+        if (parked(c)) return;
+        c[2 * i] = PARK;
+        c[2 * i + 1] = PARK;
+        ctx.set(b.key, [b.tag(ctx.params), ...c] as P[typeof b.key]);
+      },
       onDrag: (ctx: SceneCtx<P>, s: S, w: Vec2) => {
         const c = b.coords(ctx.params);
         const tray = b.tray(s);

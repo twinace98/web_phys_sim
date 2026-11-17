@@ -358,43 +358,76 @@ export function componentArrows(g: Draw, samples: { p: V2; dir: V2; v: number }[
 // ------------------------------------------------------------------ tray (charge palette)
 
 export interface Tray {
-  /** World rectangle [x0, y0, x1, y1]. */
+  /** World rectangle [x0, y0, x1, y1], chips and the trash cell. */
   rect: [number, number, number, number];
   /** World centre of each chip. */
   chips: Vec2[];
+  /** World centre of the trash cell at the right end: dropping a source on the tray removes it. */
+  trash: Vec2;
 }
 
-/** Tray anchored to the bottom-left of the canvas, chips 44 px apart. */
+/** Tray anchored to the bottom-left of the canvas, chips 44 px apart, then a trash cell. */
 export function layoutTray(g: Draw, nChips: number): Tray {
   const s = theme.scale;
   const step = 44 * s;
   const pad = 10 * s;
   const h = 40 * s;
-  const w = nChips * step;
+  const w = (nChips + 1) * step;
   const x0 = pad;
   const y1 = g.vp.h - pad;
   const y0 = y1 - h;
   const [wx0, wy0] = g.vp.toWorld(x0, y1);
   const [wx1, wy1] = g.vp.toWorld(x0 + w, y0);
-  const chips: Vec2[] = [];
-  for (let i = 0; i < nChips; i++) {
+  const at = (i: number): Vec2 => {
     const [cx, cy] = g.vp.toWorld(x0 + step * (i + 0.5), (y0 + y1) / 2);
-    chips.push({ x: cx, y: cy });
-  }
-  return { rect: [wx0, wy0, wx1, wy1], chips };
+    return { x: cx, y: cy };
+  };
+  const chips: Vec2[] = [];
+  for (let i = 0; i < nChips; i++) chips.push(at(i));
+  return { rect: [wx0, wy0, wx1, wy1], chips, trash: at(nChips) };
 }
 
-export function drawTray(g: Draw, tray: Tray): void {
+/** Tray box and its trash cell; `hot` while a placed source is held over the tray (drop removes it). */
+export function drawTray(g: Draw, tray: Tray, hot = false): void {
   const { ctx } = g;
+  const k = theme.scale;
   const [x0, y0] = g.vp.toPx(tray.rect[0], tray.rect[3]);
   const [x1, y1] = g.vp.toPx(tray.rect[2], tray.rect[1]);
+  const [tx, ty] = g.vp.toPx(tray.trash.x, tray.trash.y);
   ctx.save();
-  ctx.fillStyle = 'rgba(255,255,255,0.94)';
-  ctx.strokeStyle = '#c8c8c8';
+  ctx.fillStyle = hot ? 'rgba(235,235,235,0.97)' : 'rgba(255,255,255,0.94)';
+  ctx.strokeStyle = hot ? '#1a1a1a' : '#c8c8c8';
+  ctx.lineWidth = hot ? 2 : 1;
+  ctx.beginPath();
+  ctx.roundRect(x0, y0, x1 - x0, y1 - y0, 6 * k);
+  ctx.fill();
+  ctx.stroke();
+  // Divider before the trash cell, then a bin: lid with a handle, tapered body, two ribs.
+  ctx.strokeStyle = '#dcdcdc';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.roundRect(x0, y0, x1 - x0, y1 - y0, 6 * theme.scale);
-  ctx.fill();
+  ctx.moveTo(tx - 22 * k, y0 + 7 * k);
+  ctx.lineTo(tx - 22 * k, y1 - 7 * k);
+  ctx.stroke();
+  ctx.strokeStyle = hot ? '#1a1a1a' : '#8a8a8a';
+  ctx.lineWidth = 1.5 * k;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(tx - 7 * k, ty - 6 * k);
+  ctx.lineTo(tx + 7 * k, ty - 6 * k);
+  ctx.moveTo(tx - 2.5 * k, ty - 6 * k);
+  ctx.lineTo(tx - 2.5 * k, ty - 8.5 * k);
+  ctx.lineTo(tx + 2.5 * k, ty - 8.5 * k);
+  ctx.lineTo(tx + 2.5 * k, ty - 6 * k);
+  ctx.moveTo(tx - 5.5 * k, ty - 4 * k);
+  ctx.lineTo(tx - 4.5 * k, ty + 8 * k);
+  ctx.lineTo(tx + 4.5 * k, ty + 8 * k);
+  ctx.lineTo(tx + 5.5 * k, ty - 4 * k);
+  ctx.moveTo(tx - 1.6 * k, ty - 1.5 * k);
+  ctx.lineTo(tx - 1.4 * k, ty + 5.5 * k);
+  ctx.moveTo(tx + 1.6 * k, ty - 1.5 * k);
+  ctx.lineTo(tx + 1.4 * k, ty + 5.5 * k);
   ctx.stroke();
   ctx.restore();
 }
