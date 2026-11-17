@@ -11,11 +11,11 @@
   "ch17.b.obs.phase": "$y_1$ and $y_2$ start in phase, drift apart, and after $1/(2\\Delta f)$ are exactly out of phase",
   "ch17.b.obs.env": "Sum $y$: amplitude $2A$ when in phase, 0 when out of phase. Grey dashed = envelope",
   "ch17.b.obs.df": "Frequency difference 1 → 4 Hz: beat period 1 s → 0.25 s. Changing $f_1$ leaves the beat period unchanged",
-  "ch17.b.obs.arrows": "Arrows above: the two amplitudes drift apart and back together at $f_2 - f_1$; the black arrow's length is the envelope",
+  "ch17.b.obs.arrows": "Phasors above: $y_1$ and $y_2$ drift apart and back together at $f_2 - f_1$; the length of the resultant phasor $y$ (black) is the envelope",
   "ch17.b.obs.sound": "Sound on with $f_1$ = 440 Hz: the tone swells and fades as many times per second as the frequency difference",
   "ch17.b.assume.amp": "Both waves have the same amplitude ($A = 1$, arbitrary units)",
   "ch17.b.assume.slow": "Graphs are drawn at 1/4 of real speed; the sound plays at the real frequencies",
-  "ch17.b.assume.arrows": "Arrows above: the two amplitudes seen in a frame turning at the mean frequency $(f_1 + f_2)/2$",
+  "ch17.b.assume.arrows": "Phasors above: the two waves seen in a frame turning at the mean frequency $(f_1 + f_2)/2$, so the resultant stays on the vertical axis and only its length changes",
   "ch17.b.assume.env": "When $f_1$ is so high that a cycle is too short to resolve on the plot, each wave is drawn as the band between its envelopes",
   "ch17.d.scene": "Doppler effect",
   "ch17.d.p.who": "Moving",
@@ -34,5 +34,6 @@
   "ch17.d.obs.cone": "Source speed 510 m/s: Mach cone with half-angle $\\sin\\theta = v/v_S = 0.67$",
   "ch17.d.obs.observer": "Moving observers: the fronts stay concentric; A, moving towards the source, meets them more often, B less often",
   "ch17.d.assume.medium": "Still air, speed of sound $v = 340\\ \\text{m/s}$, source frequency $f = 100\\ \\text{Hz}$ (wavelength 3.4 m). One front is drawn per period",
-  "ch17.d.assume.slow": "Shown at 1/40 of real speed"
+  "ch17.d.assume.slow": "Shown at 1/40 of real speed",
+  "ch17.b.phasor": "Phasors"
 }
