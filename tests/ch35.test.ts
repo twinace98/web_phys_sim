@@ -95,10 +95,10 @@ describe('ch35 wave field', () => {
   it('wavefronts: no crests behind the barrier before the wave arrives; afterwards crests are λ apart along the axis', () => {
     const before = f.crests(0);
     expect(before.segs.length).toBe(0);
-    for (let i = 1; i < before.plane.length; i++) expect(before.plane[i] - before.plane[i - 1]).toBeCloseTo(0.5, 9);
+    for (let i = 1; i < before.plane.length; i++) expect(before.plane[i].x - before.plane[i - 1].x).toBeCloseTo(0.5, 9);
     const t = f.tb + 9 / C_LIGHT;
     const { plane, segs } = f.crests(t);
-    expect(plane.every((x) => x < 0)).toBe(true);
+    expect(plane.every((c) => c.x < 0)).toBe(true);
     // Crest crossings of the axis y = 0 (between the slits' symmetric beams): spacing ≈ λ far from the slits.
     const xs: number[] = [];
     for (let k = 0; k < segs.length; k += 5) {
@@ -111,6 +111,22 @@ describe('ch35 wave field', () => {
     for (let i = 1; i < xs.length; i++) expect(xs[i] - xs[i - 1]).toBeLessThan(0.6);
     // Every segment carries an amplitude weight in (0, 1].
     for (let k = 4; k < segs.length; k += 5) expect(segs[k] > 0 && segs[k] <= 1).toBe(true);
+  });
+
+  it('no flicker at the start: the plane-wave crests and their strengths change smoothly from frame to frame', () => {
+    // x_L = −4 μm is 8 wavelengths: one crest rides exactly on the front. It must stay invisible
+    // (ramp 0), not appear and vanish with rounding.
+    const frame = 0.1667; // fs per 60 Hz frame at the default 10 fs/s
+    let prev = f.crests(0.5).plane;
+    for (let t = 0.5 + frame; t < f.tb; t += frame) {
+      const cur = f.crests(t).plane;
+      // A crest moves λ/10 per frame; the set only changes when a crest enters at the barrier
+      // side, never at the front: the leading crest's ramp stays the same.
+      const lead = (p: { x: number; a: number }[]) => p[p.length - 1];
+      if (prev.length && cur.length) expect(lead(cur).a).toBeCloseTo(lead(prev).a, 6);
+      expect(Math.abs(cur.length - prev.length)).toBeLessThanOrEqual(1);
+      prev = cur;
+    }
   });
 
   it('sources: one per narrow slit, spacing ≤ λ/2 across a wide one', () => {
