@@ -1,5 +1,6 @@
 // Memoised field layers for a set of sources: grid arrows, field lines, equipotentials,
 // potential heatmap, and the palette tray. One instance per scene.
+import type { UiState } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { chargeLines, fieldFn, potentialAt, type Kernel, type Src } from './physics';
 import {
@@ -10,6 +11,7 @@ import {
   drawVectorGrid,
   gridContours,
   heatCanvas,
+  inRect,
   layoutTray,
   linesPx,
   scalarGrid,
@@ -111,10 +113,19 @@ export class FieldLayers {
  * Palette tray: lays out one chip per pool kind at the bottom-left of the canvas, stores the
  * layout on the state (handles read it) and draws chips; a kind with no parked slot is faint.
  */
-export function palette<S extends { tray?: Tray }>(g: Draw, s: S, pool: Pool, coords: readonly number[], glyph: (g: Draw, p: { x: number; y: number }, strength: number, alpha: number) => void): void {
+export function palette<S extends { tray?: Tray }>(
+  g: Draw,
+  s: S,
+  pool: Pool,
+  coords: readonly number[],
+  glyph: (g: Draw, p: { x: number; y: number }, strength: number, alpha: number) => void,
+  ui?: UiState,
+): void {
   const tray = layoutTray(g, pool.kinds.length);
   s.tray = tray;
-  drawTray(g, tray);
+  // A drag that began on the stage and is now over the tray will remove that source on release.
+  const d = ui?.drag;
+  drawTray(g, tray, !!d && !inRect(tray.rect, d.w0) && inRect(tray.rect, d.w));
   const live = pool.available(coords);
   pool.kinds.forEach((q, k) => glyph(g, tray.chips[k], q, live[k] ? 1 : 0.22));
 }

@@ -130,22 +130,26 @@ describe('closed-path integrals', () => {
 });
 
 describe('field lines and contours', () => {
-  it('dipole lines leave the positive charge and end on the negative one', () => {
+  it('dipole lines leave the positive charge and end on the negative one; −q gets its full count', () => {
     const src: Src[] = [
       { x: -0.4, y: 0, s: 1 },
       { x: 0.4, y: 0, s: -1 },
     ];
     const lines = chargeLines(src, 'point', 8, 0.03, 0.005, [-3, -3, 3, 3]);
-    expect(lines.length).toBe(8);
+    const fromPos = lines.filter((l) => Math.abs(l[0] + 0.4) < 1e-12);
+    const fromNeg = lines.filter((l) => Math.abs(l[0] - 0.4) < 1e-12);
+    expect(fromPos.length).toBe(8);
     let ended = 0;
-    for (const l of lines) {
-      expect(l[0]).toBeCloseTo(-0.4, 12);
+    for (const l of fromPos) {
       const x = l[l.length - 2];
       const y = l[l.length - 1];
       if (Math.hypot(x - 0.4, y) < 0.031) ended += 1;
     }
     // Lines close to the axis on the far side escape the bounds; most end on −q.
     expect(ended).toBeGreaterThanOrEqual(6);
+    // −q traces the lines it still lacks itself, so 8 lines touch it as well.
+    expect(fromNeg.length).toBe(8 - ended);
+    expect(lines.length).toBe(16 - ended);
   });
 
   it('contours of r² on a grid are circles', () => {

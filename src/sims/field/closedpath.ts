@@ -111,7 +111,7 @@ export function pathScene(cfg: PathSceneCfg): Scene<PathP, S> {
     world: () => ({ x: [-1.2, 1.2], y: [-0.8, 0.8], aspect: 'contain', padPx: 8 }),
     init: () => ({ t: 0 }),
 
-    draw: (g, s, pp) => {
+    draw: (g, s, pp, ui) => {
       const m = model(pp);
       if (pp.view === 'lines') layers.lines(g, m.src);
       else if (pp.view === 'vectors') layers.vectors(g, m.src);
@@ -126,7 +126,7 @@ export function pathScene(cfg: PathSceneCfg): Scene<PathP, S> {
       componentArrows(g, samples);
       for (const c of m.src) cfg.glyph(g, c, c.s, 1, false);
       for (const k of knobs(pp.shape, Gin(pp), pp.F)) knob(g, k.p, k.kind);
-      palette(g, s, cfg.pool, coords(pp), (gg, q, v, a) => cfg.glyph(gg, q, v, a, true));
+      palette(g, s, cfg.pool, coords(pp), (gg, q, v, a) => cfg.glyph(gg, q, v, a, true), ui);
     },
 
     overlay: (_s, pp) => {

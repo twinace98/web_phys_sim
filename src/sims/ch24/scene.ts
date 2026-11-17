@@ -46,7 +46,7 @@ export const potential: Scene<P, S> = {
   world: pointWorld,
   init: () => ({ t: 0, A: { ...START }, path: [START.x, START.y] }),
 
-  draw: (g, s, p) => {
+  draw: (g, s, p, ui) => {
     const src = pointSources(p);
     if (p.view !== 'eq') layers.heatmap(g, src, 25 / KQ, 600 / KQ);
     if (p.lines) layers.lines(g, src, '#c4c4c4', 1);
@@ -70,7 +70,7 @@ export const potential: Scene<P, S> = {
     g.circle(q, 7, { fill: '#ffffff', color: '#1a1a1a', width: 1.5 });
     g.text(q, '+', { size: 12, color: '#1a1a1a', align: 'center', baseline: 'middle', dy: 0.5 });
     g.text(q0.at, '*q*_{0}', { size: 13, color: '#1a1a1a', align: q0.align, baseline: 'middle' });
-    palette(g, s, POINT_POOL, pointCoords(p), chargeGlyph);
+    palette(g, s, POINT_POOL, pointCoords(p), chargeGlyph, ui);
   },
 
   handles: [
