@@ -43,8 +43,6 @@
   "ch04.c.obs.T": "Period $T = 2\\pi r / v$",
   "ch04.c.assume": "Acceleration arrows: length compressed at large $a$ so they never reach the centre. Order and direction are kept; exact values in the readouts",
   "ch04.r.scene": "Relative motion",
-  "ch04.r.p.frame": "Frame",
-  "ch04.r.d.frame": "View from the ground, or moving along with the water",
   "ch04.r.frame.ground": "Ground",
   "ch04.r.frame.water": "Water",
   "ch04.r.p.heading": "Heading",
@@ -57,7 +55,7 @@
   "ch04.r.goal.frame": "The same motion traces different paths in different frames",
   "ch04.r.obs.straight": "Heading 0°: the boat drifts downstream; the crossing time $W/v_{BW}$ does not depend on the current",
   "ch04.r.obs.cancel": "Heading 30° (default speeds): $v_{BW}\\sin\\theta = v_{WG}$ cancels the current, so the boat lands straight across but takes longer",
-  "ch04.r.obs.switch": "Water frame: the boat goes straight along its heading while the banks move at $-\\vec v_{WG}$",
+  "ch04.r.obs.switch": "Bottom, water frame: the boat goes straight along its heading while the banks move at $-\\vec v_{WG}$",
   "ch04.r.obs.up": "Heading 60°: the boat lands upstream of its start",
   "ch04.r.assume": "River 20 m wide; the current is the same across the river"
 }

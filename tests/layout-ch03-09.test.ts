@@ -91,34 +91,74 @@ describe('ch04 projectile labels', () => {
   });
 });
 
-describe('ch04 relative on a phone', () => {
+describe('ch04 relative: ground frame on top, water frame below', () => {
   const W = 20;
-  it('the river fills at least 40 % of a tall stage and the labels stay apart', () => {
-    phone(true);
-    for (const over of [{ heading: 60, vb: 1, u: 1.5 }, { vb: 1 }, { u: 1.5 }, {}, { vb: 3, heading: 60 }]) {
-      for (const t of [0, 1.2, 8]) {
-        const { g } = run(relative, over, t, 390, 590);
-        const [, yNear] = g.vp.toPx(0, 0);
-        const [, yFar] = g.vp.toPx(0, W);
-        expect(yNear - yFar, JSON.stringify(over)).toBeGreaterThan(0.4 * 590);
-        const labels = texts(g, /^\*v\*_\{(BW|WG|BG)\}$/).map(midBox);
-        for (let i = 0; i < labels.length; i++) for (let j = i + 1; j < labels.length; j++) expect(overlap(labels[i], labels[j]), `${JSON.stringify(over)} t = ${t}`).toBe(false);
-        // The boat (first polygon after the water) is clear of every label.
-        const boat = bbox(g.polys[1]);
-        for (const b of labels) expect(overlap(b, boat), `${JSON.stringify(over)} t = ${t}`).toBe(false);
+  const CASES = [{}, { heading: 0 }, { heading: 60 }, { heading: 60, vb: 1, u: 1.5 }, { heading: 0, vb: 1, u: 1.5 }, { vb: 3, heading: 60 }, { u: 0 }, { vb: 1 }];
+  const SIZES = [
+    [1280, 690],
+    [390, 590],
+  ] as const;
+  /** Water band [y top, y bottom] of each panel: polygons 0 and 2 are the water, 1 and 3 the boats. */
+  const band = (g: ShapeProbe, i: 0 | 1) => {
+    const b = bbox(g.polys[2 * i]);
+    return [b.y0, b.y1] as const;
+  };
+
+  it('both panels use one scale; the ground panel sits above the water panel', () => {
+    for (const [w, h] of SIZES) {
+      for (const over of CASES) {
+        const { g } = run(relative, over, 0, w, h);
+        const [t0, b0] = band(g, 0);
+        const [t1, b1] = band(g, 1);
+        expect(b0 - t0, JSON.stringify(over)).toBeCloseTo(b1 - t1, 6);
+        expect(b0).toBeLessThan(t1);
+        // The river takes at least 45 % of its panel height (30 % on a phone, below the formula panel).
+        expect(b0 - t0).toBeGreaterThan(((h - 2 * 12 - 14) / 2) * (w < 600 ? 0.3 : 0.45));
+        const titles = g.marks.filter((m) => m.kind === 'text' && /^ch04\.r\.frame\.|^(Ground|Water|지면 기준|물 기준)$/.test(m.text ?? ''));
+        expect(titles.length).toBe(2);
       }
     }
   });
 
-  it('the boat stays inside the stage for the whole crossing', () => {
-    phone(true);
-    const p = { ...defaults(relative.params), heading: 60, vb: 1, u: 1.5 };
-    const T = (relative.time!.tEnd as (q: Params) => number)(p);
-    for (const t of [0, 0.25 * T, 0.5 * T, T]) {
-      const { g } = run(relative, { heading: 60, vb: 1, u: 1.5 }, t, 390, 590);
-      const b = bbox(g.polys[1]);
-      expect(b.x0).toBeGreaterThan(0);
-      expect(b.x1).toBeLessThan(390);
+  it('when the whole crossing fits, the start lines up in both panels and the boats differ by u·t', () => {
+    const p = { ...defaults(relative.params) };
+    const t = 6;
+    const { g } = run(relative, {}, t, 1280, 690);
+    const b0 = bbox(g.polys[1]);
+    const b1 = bbox(g.polys[3]);
+    const [t0, bt0] = band(g, 0);
+    const s = (bt0 - t0) / W; // px per m
+    expect((b0.x0 + b0.x1) / 2 - (b1.x0 + b1.x1) / 2).toBeCloseTo(p.u * t * s, 3);
+  });
+
+  it('boats inside their panels, labels apart from each other, the boats and the frame titles', () => {
+    for (const [w, h] of SIZES) {
+      for (const over of CASES) {
+        const p = { ...defaults(relative.params), ...over };
+        const T = (relative.time!.tEnd as (q: Params) => number)(p);
+        for (const t of [0, 1.2, 0.5 * T, T]) {
+          const { g } = run(relative, over, t, w, h);
+          const tag = `${w}×${h} ${JSON.stringify(over)} t = ${t.toFixed(1)}`;
+          const boats = [bbox(g.polys[1]), bbox(g.polys[3])];
+          for (const b of boats) {
+            expect(b.x0, tag).toBeGreaterThan(0);
+            expect(b.x1, tag).toBeLessThan(w);
+          }
+          const labels = [
+            ...texts(g, /^\*v\*_\{(BW|WG|BG)\}$/).map(midBox),
+            ...g.marks.filter((m) => m.kind === 'arrow-label').map((m) => ({ x0: m.x - m.w / 2, x1: m.x + m.w / 2, y0: m.y - 8, y1: m.y + 8 })),
+          ];
+          for (const b of labels) {
+            expect(b.x0, tag).toBeGreaterThan(-1);
+            expect(b.x1, tag).toBeLessThan(w + 1);
+          }
+          for (let i = 0; i < labels.length; i++) for (let j = i + 1; j < labels.length; j++) expect(overlap(labels[i], labels[j]), tag).toBe(false);
+          for (const b of labels) for (const boat of boats) expect(overlap(b, boat), tag).toBe(false);
+          const titles = g.marks.filter((m) => m.kind === 'text' && /^ch04\.r\.frame\.|^(Ground|Water|지면 기준|물 기준)$/.test(m.text ?? '')).map(midBox);
+          expect(titles.length, tag).toBe(2);
+          for (const b of labels) for (const tb of titles) expect(overlap(b, tb), tag).toBe(false);
+        }
+      }
     }
   });
 });

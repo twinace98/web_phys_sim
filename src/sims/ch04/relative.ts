@@ -1,49 +1,47 @@
 // Ch 4 scene: relative motion. A boat crosses a river: v_BG = v_BW + v_WG.
-// The same crossing is drawn from the ground frame or from the water frame.
+// The same crossing is drawn at once from the ground frame (top) and from the water frame (bottom).
+import { t } from '../../core/i18n';
 import type { ParamSchema, Role, Scene, Vec2 } from '../../core/types';
+import type { Viewport } from '../../core/viewport';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR, theme } from '../../draw/theme';
+import { PX_WORLD } from '../modern/frame';
 import { crossingTime, vBG, vBW, vWG, type River } from './physics';
 
-type P = { frame: string; heading: number; vb: number; u: number };
+type P = { heading: number; vb: number; u: number };
+type Frame = 'ground' | 'water';
 
 const W = 20; // river width [m]
 const DEG = Math.PI / 180;
-const KV = 2.4; // world m per (m/s)
-/** Phone: the river fills the tall stage and the camera follows the boat along the bank. */
-const KV_NARROW = 4;
-const WIN_NARROW = 1.15 * W; // visible length of river [m]
+const KV = 4; // world m per (m/s)
+const PAD = 12; // stage inset [CSS px]
+const GAP = 14; // between the two panels [CSS px]
+const STRIP = 22; // title strip at the top of each panel [CSS px]
+/** Narrow stage: the formula panel spans most of the width, so the top panel starts below it. */
+const NARROW = 600;
+const RESERVE = 84;
 const BANK = '#5c5c5c';
 const WATER = '#eef5fb';
 const RIPPLE = '#b9d4ea';
 const POST = '#9a9a9a';
-
-const narrow = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
-const kvOf = () => (narrow() ? KV_NARROW : KV);
+const EDGE = '#e3e3e3';
 
 const riverOf = (p: P): River => ({ W, vb: p.vb, u: p.u, theta: p.heading * DEG });
 
-/** x-extent covering the whole crossing in both frames, so switching frames never rescales. */
+/** x-extent covering the whole crossing in both frames, so the two panels can share it. */
 function xSpan(p: P): [number, number] {
   const r = riverOf(p);
   const T = crossingTime(r);
   const xs = [0, vBG(r)[0] * T, vBW(r)[0] * T, -r.u * T];
-  return [Math.min(...xs) - 0.3 * W, Math.max(...xs) + 0.3 * W];
+  // Margin: the velocity arrows (up to v_BW·KV long) and their labels past the end of the path.
+  const m = Math.max(0.3 * W, r.vb * KV + 3);
+  return [Math.min(...xs) - m, Math.max(...xs) + m];
 }
 
+/** y-extent of one panel: room below the near bank for the −v_WG arrow, above the far bank for the triangle. */
+const ySpan = (p: P): [number, number] => [-0.25 * W, W + p.vb * KV + 0.18 * W];
+
 const params: ParamSchema<P> = {
-  frame: {
-    kind: 'select',
-    label: 'ch04.r.p.frame',
-    desc: 'ch04.r.d.frame',
-    group: 'main',
-    live: true,
-    default: 'ground',
-    options: [
-      { value: 'ground', label: 'ch04.r.frame.ground' },
-      { value: 'water', label: 'ch04.r.frame.water' },
-    ],
-  },
   heading: {
     kind: 'number',
     label: 'ch04.r.p.heading',
@@ -104,40 +102,66 @@ export function velocityPanel(p: P): string {
   return `\\begin{array}{l} ${eq} \\\\ \\begin{array}{ll} ${row('x', 0)} \\\\ ${row('y', 1)} \\end{array} \\end{array}`;
 }
 
+/** Box in canvas CSS px. */
+type Box = { l: number; t: number; r: number; b: number };
+
 /**
- * Narrow screens: x of the window centre at time t. It follows the boat and its velocity
- * triangle but stops at the ends of the whole crossing, so the start stays in view when it can.
+ * The two panels, ground frame on top and water frame below, and the common scale [px per m]
+ * that fits the panel height. Both panels use the same scale so the two motions compare directly.
  */
-function cameraX(p: P, t: number): number {
+function layout(w: number, h: number, p: P): { boxes: [Box, Box]; s: number } {
+  const y0 = PAD + (w < NARROW ? RESERVE : 0);
+  const hb = Math.max(1, (h - y0 - PAD - GAP) / 2);
+  const top: Box = { l: PAD, t: y0, r: w - PAD, b: y0 + hb };
+  const bot: Box = { l: PAD, t: y0 + hb + GAP, r: w - PAD, b: h - PAD };
+  const [ya, yb] = ySpan(p);
+  return { boxes: [top, bot], s: Math.max(1, hb - STRIP) / (yb - ya) };
+}
+
+/**
+ * x of the panel centre at time t. When the whole crossing (both frames) fits the panel, both
+ * panels show the same fixed x-range, so the start lines up. Otherwise the panel follows its own
+ * boat and velocity arrows but stops at the ends of the crossing, so the start stays in view when it can.
+ */
+function cameraX(p: P, t: number, f: Frame, win: number): number {
   const [x0, x1] = xSpan(p);
-  if (x1 - x0 <= WIN_NARROW) return (x0 + x1) / 2;
+  if (x1 - x0 <= win) return (x0 + x1) / 2;
   const r = riverOf(p);
   const vb = vBW(r);
   const vg = vBG(r);
-  const v = p.frame !== 'water' ? vg : vb;
-  const px = v[0] * t;
-  const k = KV_NARROW;
-  const lo = px + Math.min(0, vb[0] * k, vg[0] * k);
-  const hi = px + Math.max(0, vb[0] * k, vg[0] * k);
-  const c = (lo + hi) / 2;
-  return Math.min(Math.max(c, x0 + WIN_NARROW / 2), x1 - WIN_NARROW / 2);
+  const px = (f === 'ground' ? vg : vb)[0] * t;
+  const ext = f === 'ground' ? [0, vb[0] * KV, vg[0] * KV] : [0, vb[0] * KV];
+  const c = px + (Math.min(...ext) + Math.max(...ext)) / 2;
+  return Math.min(Math.max(c, x0 + win / 2), x1 - win / 2);
 }
 
-/** The same drawing API with every world point shifted by dx along x. */
-function shifted(g: Draw, dx: number): Draw {
-  const m = (q: Vec2): Vec2 => ({ x: q.x + dx, y: q.y });
+/**
+ * The drawing API for one panel: panel world (x, y) [m] maps to the box with scale s and centre
+ * (xc, yc), then through the stage viewport, so every mark still goes through g0.
+ */
+function panelDraw(g0: Draw, box: Box, s: number, xc: number, yc: number): Draw {
+  const cx = (box.l + box.r) / 2;
+  const cy = (box.t + box.b) / 2;
+  const toPx = (x: number, y: number): [number, number] => [cx + (x - xc) * s, cy - (y - yc) * s];
+  const toWorld = (px: number, py: number): [number, number] => [xc + (px - cx) / s, yc - (py - cy) / s];
+  const vp = { w: g0.vp.w, h: g0.vp.h, scale: s, toPx, toWorld, fit: () => {} } as unknown as Viewport;
+  const m = (q: Vec2): Vec2 => {
+    const [x, y] = g0.vp.toWorld(...toPx(q.x, q.y));
+    return { x, y };
+  };
+  const k = s / g0.vp.scale;
   return {
-    ctx: g.ctx,
-    vp: g.vp,
-    px: (n) => g.px(n),
-    line: (a, b, st) => g.line(m(a), m(b), st),
-    polyline: (pts, st) => g.polyline(pts.map(m), st),
-    arrow: (from, vec, st) => g.arrow(m(from), vec, st),
-    circle: (c, r, st) => g.circle(m(c), r, st),
-    polygon: (pts, st) => g.polygon(pts.map(m), st),
-    arc: (c, r, a0, a1, st) => g.arc(m(c), r, a0, a1, st),
-    text: (q, str, st) => g.text(m(q), str, st),
-    screenText: (x, y, str, st) => g.screenText(x, y, str, st),
+    ctx: g0.ctx,
+    vp,
+    px: (n) => g0.px(n) / k,
+    line: (a, b, st) => g0.line(m(a), m(b), st),
+    polyline: (pts, st) => g0.polyline(pts.map(m), st),
+    arrow: (from, vec, st) => g0.arrow(m(from), { x: vec.x * k, y: vec.y * k }, st),
+    circle: (c, r, st) => g0.circle(m(c), r, st),
+    polygon: (pts, st) => g0.polygon(pts.map(m), st),
+    arc: (c, r, a0, a1, st) => g0.arc(m(c), r, a0, a1, st),
+    text: (q, str, st) => g0.text(m(q), str, st),
+    screenText: (x, y, str, st) => g0.screenText(x, y, str, st),
   };
 }
 
@@ -155,10 +179,10 @@ function boat(c: Vec2, d: Vec2): Vec2[] {
  * vector triangle), so the three labels never sit inside the triangle or on another arrow.
  * When `opp` lies on the arrow's line, `side` (+1 left of a→b on screen, −1 right) decides.
  */
-function edgeLabel(g: Draw, dx: number, a: Vec2, b: Vec2, opp: Vec2, side: 1 | -1, text: string, role: Role): void {
-  const [ax, ay] = g.vp.toPx(a.x + dx, a.y);
-  const [bx, by] = g.vp.toPx(b.x + dx, b.y);
-  const [ox, oy] = g.vp.toPx(opp.x + dx, opp.y);
+function edgeLabel(g: Draw, a: Vec2, b: Vec2, opp: Vec2, side: 1 | -1, text: string, role: Role): void {
+  const [ax, ay] = g.vp.toPx(a.x, a.y);
+  const [bx, by] = g.vp.toPx(b.x, b.y);
+  const [ox, oy] = g.vp.toPx(opp.x, opp.y);
   const len = Math.hypot(bx - ax, by - ay);
   if (len < 1e-6) return;
   let nx = (by - ay) / len;
@@ -176,22 +200,82 @@ function edgeLabel(g: Draw, dx: number, a: Vec2, b: Vec2, opp: Vec2, side: 1 | -
   g.screenText((mx + nx * d) / theme.scale, (my + ny * d) / theme.scale, text, { size: 13, role, align, baseline: 'middle' });
 }
 
+/** One frame of the crossing at time t, in panel world coordinates (start at the origin). */
+function drawFrame(g: Draw, p: P, t: number, f: Frame): void {
+  const r = riverOf(p);
+  const ground = f === 'ground';
+  // Water, banks, ripples and posts span the visible panel width plus a margin.
+  const [vl] = g.vp.toWorld(0, 0);
+  const [vr] = g.vp.toWorld(g.vp.w, 0);
+  const L = vl - 0.5 * W;
+  const R = vr + 0.5 * W;
+
+  g.polygon(
+    [
+      { x: L, y: 0 },
+      { x: R, y: 0 },
+      { x: R, y: W },
+      { x: L, y: W },
+    ],
+    { fill: WATER },
+  );
+  g.line({ x: L, y: 0 }, { x: R, y: 0 }, { color: BANK, width: 2 });
+  g.line({ x: L, y: W }, { x: R, y: W }, { color: BANK, width: 2 });
+
+  // Ripples move with the water (ground frame); banks move the other way (water frame).
+  const rip = ground ? r.u * t : 0;
+  const bank = ground ? 0 : -r.u * t;
+  const step = 4;
+  for (const yy of [0.25 * W, 0.5 * W, 0.75 * W]) {
+    const off = yy === 0.5 * W ? step / 2 : 0;
+    for (let x = Math.floor((L - rip - off) / step) * step + rip + off; x < R; x += step) {
+      g.line({ x, y: yy }, { x: x + 1, y: yy }, { color: RIPPLE, width: 2 });
+    }
+  }
+  for (let x = Math.floor((L - bank) / 5) * 5 + bank; x < R; x += 5) {
+    for (const yy of [0, W]) g.line({ x, y: yy }, { x, y: yy + (yy === 0 ? -g.px(6) : g.px(6)) }, { color: POST, width: 1.5 });
+  }
+  // Start and the point straight across from it, fixed to the banks.
+  g.line({ x: bank, y: 0 }, { x: bank, y: -g.px(14) }, { color: BANK, width: 2.5 });
+  g.line({ x: bank, y: W }, { x: bank, y: W + g.px(14) }, { color: BANK, width: 2.5 });
+  g.line({ x: bank, y: 0 }, { x: bank, y: W }, { color: POST, width: 1, dash: [2, 5] });
+
+  const vb = vBW(r);
+  const vw = vWG(r);
+  const vg = vBG(r);
+  const v = ground ? vg : vb;
+  const pos: Vec2 = { x: v[0] * t, y: v[1] * t };
+  g.line({ x: 0, y: 0 }, pos, { color: '#1a1a1a', width: 1.25, dash: [5, 4], alpha: 0.6 });
+
+  const len = Math.hypot(vb[0], vb[1]);
+  g.polygon(boat(pos, { x: vb[0] / len, y: vb[1] / len }), { fill: 'position', fillAlpha: 0.85 });
+
+  const tipA: Vec2 = { x: pos.x + vb[0] * KV, y: pos.y + vb[1] * KV };
+  const tipC: Vec2 = { x: pos.x + vg[0] * KV, y: pos.y + vg[1] * KV };
+  if (ground) {
+    // Triangle P → A (v_BW), A → C (v_WG), P → C (v_BG): each label on the outer side of its arrow.
+    g.arrow(pos, { x: vb[0] * KV, y: vb[1] * KV }, { role: 'position', width: 2.25 });
+    if (r.u > 0) g.arrow(tipA, { x: vw[0] * KV, y: 0 }, { role: 'energyU', width: 2.25 });
+    g.arrow(pos, { x: vg[0] * KV, y: vg[1] * KV }, { role: 'fg', width: 2.5 });
+    edgeLabel(g, pos, tipA, tipC, -1, '*v*_{BW}', 'position');
+    if (r.u > 0) edgeLabel(g, tipA, tipC, pos, 1, '*v*_{WG}', 'energyU');
+    edgeLabel(g, pos, tipC, tipA, 1, '*v*_{BG}', 'fg');
+    return;
+  }
+  g.arrow(pos, { x: vb[0] * KV, y: vb[1] * KV }, { role: 'position', width: 2.25, label: '*v*_{BW}' });
+  if (r.u > 0) {
+    // Seen from the water, the banks move at −v_WG.
+    g.arrow({ x: bank, y: -0.12 * W }, { x: -r.u * KV, y: 0 }, { role: 'energyU', width: 2 });
+    g.text({ x: bank - (r.u * KV) / 2, y: -0.12 * W }, '−*v*_{WG}', { size: 13, role: 'energyU', align: 'center', dy: 16 });
+  }
+}
+
 export const relative: Scene<P, { t: number; n: number }> = {
   id: 'relative',
   title: 'ch04.r.scene',
   params,
   time: { h: 1 / 120, recordEvery: 4, frameStep: 0.1, tEnd: (p) => crossingTime(riverOf(p as P)) },
-  world: (p) => {
-    // On arrival the velocity triangle (up to v_BW·KV tall) and its labels stand above the far bank.
-    if (narrow()) {
-      // Tall stage: a window of the river, as wide as the stage allows; the camera pans (draw).
-      const top = W + p.vb * KV_NARROW + 0.15 * W;
-      return { x: [-WIN_NARROW / 2, WIN_NARROW / 2], y: [-0.25 * W, top], aspect: 'contain', padPx: 12 };
-    }
-    const [x0, x1] = xSpan(p);
-    const top = Math.max(1.25 * W, W + p.vb * KV + 0.1 * W);
-    return { x: [x0, x1], y: [-0.25 * W, top], aspect: 'contain', padPx: 16 };
-  },
+  world: PX_WORLD,
   init: () => ({ t: 0, n: 0 }),
   step: (s, _h, p) => {
     s.n += 1;
@@ -199,84 +283,40 @@ export const relative: Scene<P, { t: number; n: number }> = {
   },
 
   draw: (g0, s, p) => {
-    const dx = narrow() ? -cameraX(p, s.t) : 0;
-    const g = dx ? shifted(g0, dx) : g0;
-    const KV = kvOf();
-    const r = riverOf(p);
-    const ground = p.frame !== 'water';
-    const [x0, x1] = xSpan(p);
-    const t = s.t;
-    // Water, banks, ripples and posts all span the whole visible stage width (plus a margin),
-    // so no dash or post runs past the end of the water on a wide stage.
-    const [vl] = g0.vp.toWorld(0, 0);
-    const [vr] = g0.vp.toWorld(g0.vp.w, 0);
-    const L = Math.min(x0, vl - dx) - 0.5 * W;
-    const R = Math.max(x1, vr - dx) + 0.5 * W;
-
-    g.polygon(
-      [
-        { x: L, y: 0 },
-        { x: R, y: 0 },
-        { x: R, y: W },
-        { x: L, y: W },
-      ],
-      { fill: WATER },
-    );
-    g.line({ x: L, y: 0 }, { x: R, y: 0 }, { color: BANK, width: 2 });
-    g.line({ x: L, y: W }, { x: R, y: W }, { color: BANK, width: 2 });
-
-    // Ripples move with the water (ground frame); banks move the other way (water frame).
-    const rip = ground ? r.u * t : 0;
-    const bank = ground ? 0 : -r.u * t;
-    const step = 4;
-    for (const yy of [0.25 * W, 0.5 * W, 0.75 * W]) {
-      const off = yy === 0.5 * W ? step / 2 : 0;
-      for (let x = Math.floor((L - rip - off) / step) * step + rip + off; x < R; x += step) {
-        g.line({ x, y: yy }, { x: x + 1, y: yy }, { color: RIPPLE, width: 2 });
-      }
-    }
-    for (let x = Math.floor((L - bank) / 5) * 5 + bank; x < R; x += 5) {
-      for (const yy of [0, W]) g.line({ x, y: yy }, { x, y: yy + (yy === 0 ? -g.px(6) : g.px(6)) }, { color: POST, width: 1.5 });
-    }
-    // Start and the point straight across from it, fixed to the banks.
-    g.line({ x: bank, y: 0 }, { x: bank, y: -g.px(14) }, { color: BANK, width: 2.5 });
-    g.line({ x: bank, y: W }, { x: bank, y: W + g.px(14) }, { color: BANK, width: 2.5 });
-    g.line({ x: bank, y: 0 }, { x: bank, y: W }, { color: POST, width: 1, dash: [2, 5] });
-
-    const vb = vBW(r);
-    const vw = vWG(r);
-    const vg = vBG(r);
-    const v = ground ? vg : vb;
-    const pos: Vec2 = { x: v[0] * t, y: v[1] * t };
-    g.line({ x: 0, y: 0 }, pos, { color: '#1a1a1a', width: 1.25, dash: [5, 4], alpha: 0.6 });
-
-    const len = Math.hypot(vb[0], vb[1]);
-    g.polygon(boat(pos, { x: vb[0] / len, y: vb[1] / len }), { fill: 'position', fillAlpha: 0.85 });
-
-    const tipA: Vec2 = { x: pos.x + vb[0] * KV, y: pos.y + vb[1] * KV };
-    const tipC: Vec2 = { x: pos.x + vg[0] * KV, y: pos.y + vg[1] * KV };
-    if (ground) {
-      // Triangle P → A (v_BW), A → C (v_WG), P → C (v_BG): each label on the outer side of its arrow.
-      g.arrow(pos, { x: vb[0] * KV, y: vb[1] * KV }, { role: 'position', width: 2.25 });
-      if (r.u > 0) g.arrow(tipA, { x: vw[0] * KV, y: 0 }, { role: 'energyU', width: 2.25 });
-      g.arrow(pos, { x: vg[0] * KV, y: vg[1] * KV }, { role: 'fg', width: 2.5 });
-      edgeLabel(g0, dx, pos, tipA, tipC, -1, '*v*_{BW}', 'position');
-      if (r.u > 0) edgeLabel(g0, dx, tipA, tipC, pos, 1, '*v*_{WG}', 'energyU');
-      edgeLabel(g0, dx, pos, tipC, tipA, 1, '*v*_{BG}', 'fg');
-    } else {
-      g.arrow(pos, { x: vb[0] * KV, y: vb[1] * KV }, { role: 'position', width: 2.25, label: '*v*_{BW}' });
-    }
-    if (!ground && r.u > 0) {
-      // Seen from the water, the banks move at −v_WG.
-      g.arrow({ x: bank, y: -0.12 * W }, { x: -r.u * KV, y: 0 }, { role: 'energyU', width: 2 });
-      g.text({ x: bank - (r.u * KV) / 2, y: -0.12 * W }, '−*v*_{WG}', { size: 13, role: 'energyU', align: 'center', dy: 16 });
-    }
+    const { boxes, s: sc } = layout(g0.vp.w, g0.vp.h, p);
+    const [y0, y1] = ySpan(p);
+    (['ground', 'water'] as const).forEach((f, i) => {
+      const box = boxes[i];
+      const win = (box.r - box.l) / sc;
+      const g = panelDraw(g0, { ...box, t: box.t + STRIP }, sc, cameraX(p, s.t, f, win), (y0 + y1) / 2);
+      const { ctx } = g0;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(box.l, box.t, box.r - box.l, box.b - box.t);
+      ctx.clip();
+      drawFrame(g, p, s.t, f);
+      ctx.restore();
+      ctx.save();
+      ctx.strokeStyle = EDGE;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(box.l + 0.5, box.t + 0.5, box.r - box.l - 1, box.b - box.t - 1);
+      ctx.restore();
+      // Frame name at the top right (the formula panel sits at the top left of the stage).
+      g0.screenText((box.r - 10) / theme.scale, (box.t + 12) / theme.scale, t(`ch04.r.frame.${f}`), {
+        size: 13,
+        color: '#4a4a4a',
+        weight: 600,
+        align: 'right',
+        baseline: 'middle',
+      });
+    });
   },
 
   overlay: (_s, p) => velocityPanel(p),
 
   readouts: [
-    { label: 'x', unit: 'm', value: (s, p) => (p.frame === 'water' ? vBW(riverOf(p))[0] : vBG(riverOf(p))[0]) * s.t },
+    { label: 'x_{BG}', unit: 'm', value: (s, p) => vBG(riverOf(p))[0] * s.t },
+    { label: 'x_{BW}', unit: 'm', value: (s, p) => vBW(riverOf(p))[0] * s.t },
     { label: 'y', unit: 'm', value: (s, p) => vBW(riverOf(p))[1] * s.t },
   ],
 
