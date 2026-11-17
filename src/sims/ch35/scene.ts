@@ -1,5 +1,7 @@
-// Ch 35 scene: a plane wave passes two slits; the 2D wave behind them interferes and the
+// Ch 35 scene: a plane wave passes two narrow slits; the 2D wave behind them interferes and the
 // screen records the time-averaged intensity, building up bright and dark fringes.
+// Pure two-source interference: each slit is one point source. Slits of finite width (the
+// diffraction envelope) are the two-slit option of Ch 36 tab 1.
 import type { ParamSchema, Scene } from '../../core/types';
 import { fmt } from '../../core/format';
 import { ROLE_COLOR } from '../../draw/theme';
@@ -27,11 +29,12 @@ import {
 import { drawWave } from '../wave2d/view';
 import { brightAt, pathDiff } from './physics';
 
-type P = { d: number; lambda: number; D: number; a: number; yp: number };
+type P = { d: number; lambda: number; D: number; yp: number };
 
-const apsOf = (p: P): Aperture[] => [
-  { yc: p.d / 2, w: p.a },
-  { yc: -p.d / 2, w: p.a },
+/** Two narrow slits: one Huygens point source each. */
+export const apsOf = (p: Pick<P, 'd'>): Aperture[] => [
+  { yc: p.d / 2, w: 0 },
+  { yc: -p.d / 2, w: 0 },
 ];
 const field = (p: P) => fieldFor(p.lambda, apsOf(p), p.D);
 
@@ -80,19 +83,6 @@ const params: ParamSchema<P> = {
     max: 25,
     step: 1,
     default: 20,
-    unit: 'μm',
-  },
-  a: {
-    kind: 'number',
-    label: 'ch35.p.a',
-    desc: 'ch35.d.a',
-    group: 'advanced',
-    live: false,
-    control: 'slider',
-    min: 0,
-    max: 1.5,
-    step: 0.1,
-    default: 0,
     unit: 'μm',
   },
   // Screen point for the path-difference construction; default: first bright fringe.
@@ -166,7 +156,7 @@ export const doubleSlit: Scene<P, SlitState> = {
 
   info: {
     goals: ['ch35.goal.path', 'ch35.goal.spacing'],
-    observe: ['ch35.obs.build', 'ch35.obs.marker', 'ch35.obs.nodal', 'ch35.obs.lambda', 'ch35.obs.d', 'ch35.obs.width'],
+    observe: ['ch35.obs.build', 'ch35.obs.marker', 'ch35.obs.nodal', 'ch35.obs.lambda', 'ch35.obs.d'],
     equations: [
       '\\Delta L = d\\sin\\theta',
       'd\\sin\\theta = m\\lambda \\;\\; (I_\\text{max}), \\quad d\\sin\\theta = (m + \\tfrac12)\\lambda \\;\\; (I = 0)',

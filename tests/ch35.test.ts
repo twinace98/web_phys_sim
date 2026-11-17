@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { defaults } from '../src/core/params';
+import { defaults, fromQuery } from '../src/core/params';
 import { brightAt, doubleSlitFar, fringeSpacing, pathDiff } from '../src/sims/ch35/physics';
-import { doubleSlit, firstBright } from '../src/sims/ch35/scene';
+import { apsOf, doubleSlit, firstBright } from '../src/sims/ch35/scene';
 import { C_LIGHT, WaveField, sourcesOf, wavelengthRGB } from '../src/sims/wave2d/field';
 
 const lambda = 0.5;
@@ -35,8 +35,6 @@ describe('ch35 double slit geometry', () => {
     expect(brightAt(1, lambda, d, big) / big).toBeCloseTo(Math.tan(th), 6);
     expect(doubleSlitFar(lambda / d, lambda, d)).toBeCloseTo(1, 12);
     expect(doubleSlitFar((0.5 * lambda) / d, lambda, d)).toBeCloseTo(0, 12);
-    // Envelope: a zero of the single-slit factor removes that fringe.
-    expect(doubleSlitFar(lambda / 1, lambda, d, 1)).toBeCloseTo(0, 12);
   });
 
   it('default marker sits on the first bright fringe', () => {
@@ -113,7 +111,7 @@ describe('ch35 wave field', () => {
 
 describe('ch35 review fixes: the Δy mark sits on the first bright fringe', () => {
   it('at the slider extremes the mark follows the wave-field maximum, not λD/d', () => {
-    const p = { ...defaults(doubleSlit.params), lambda: 700, d: 1.5, D: 12, a: 0 };
+    const p = { ...defaults(doubleSlit.params), lambda: 700, d: 1.5, D: 12 };
     const f = new WaveField({ lambda: 0.7, apertures: [{ yc: 0.75, w: 0 }, { yc: -0.75, w: 0 }], xL: -4, x1: 12, y0: -12, y1: 12, screenX: 12, screenN: 481, maxCells: 20000 });
     const I = f.screenSteady();
     const ys = f.screenY;
@@ -137,5 +135,23 @@ describe('ch35 review fixes: the Δy mark sits on the first bright fringe', () =
     for (const d of [1.5, 2.3, 5])
       for (const lambda of [400, 570, 700])
         for (const D of [12, 17, 25]) expect(Number.isFinite(firstBright({ ...p0, d, lambda, D }))).toBe(true);
+  });
+});
+
+describe('ch35 overlap cleanup: pure two-source interference', () => {
+  it('no slit-width parameter; each slit is one point source', () => {
+    expect(Object.keys(doubleSlit.params)).not.toContain('a');
+    expect(apsOf({ d: 3 })).toEqual([
+      { yc: 1.5, w: 0 },
+      { yc: -1.5, w: 0 },
+    ]);
+    // Without an envelope every order is a full-height maximum.
+    for (const m of [1, 2, 3, 5]) expect(doubleSlitFar((m * lambda) / d, lambda, d)).toBeCloseTo(1, 12);
+  });
+
+  it('old share links with a slit width fall back safely', () => {
+    const p = fromQuery(doubleSlit.params, new URLSearchParams('a=1&d=2.5'));
+    expect(p).toEqual({ ...defaults(doubleSlit.params), d: 2.5 });
+    expect('a' in p).toBe(false);
   });
 });
