@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defaults, fromQuery } from '../src/core/params';
 import { brightAt, doubleSlitFar, fringeSpacing, pathDiff } from '../src/sims/ch35/physics';
 import { apsOf, doubleSlit, firstBright } from '../src/sims/ch35/scene';
-import { C_LIGHT, WaveField, sourcesOf, wavelengthRGB } from '../src/sims/wave2d/field';
+import { C_LIGHT, WaveField, sourcesOf } from '../src/sims/wave2d/field';
 
 const lambda = 0.5;
 const d = 3;
@@ -92,13 +92,25 @@ describe('ch35 wave field', () => {
     expect(acc / n).toBeCloseTo(I[k], 6);
   });
 
-  it('paints an opaque image; front not yet past the barrier at t = 0', () => {
-    const data = new Uint8ClampedArray(f.nx * f.ny * 4);
-    f.paint(0, data, wavelengthRGB(500));
-    for (let i = 3; i < data.length; i += 4) expect(data[i]).toBe(255);
-    // Behind the barrier nothing has arrived: white.
-    const o = (Math.floor(f.ny / 2) * f.nx + f.nx - 2) * 4;
-    expect([data[o], data[o + 1], data[o + 2]]).toEqual([255, 255, 255]);
+  it('wavefronts: no crests behind the barrier before the wave arrives; afterwards crests are λ apart along the axis', () => {
+    const before = f.crests(0);
+    expect(before.segs.length).toBe(0);
+    for (let i = 1; i < before.plane.length; i++) expect(before.plane[i] - before.plane[i - 1]).toBeCloseTo(0.5, 9);
+    const t = f.tb + 9 / C_LIGHT;
+    const { plane, segs } = f.crests(t);
+    expect(plane.every((x) => x < 0)).toBe(true);
+    // Crest crossings of the axis y = 0 (between the slits' symmetric beams): spacing ≈ λ far from the slits.
+    const xs: number[] = [];
+    for (let k = 0; k < segs.length; k += 5) {
+      const [x0, y0, x1, y1] = [segs[k], segs[k + 1], segs[k + 2], segs[k + 3]];
+      if ((y0 <= 0) !== (y1 <= 0) && x0 > 3 && x0 < 8) xs.push(x0 + ((x1 - x0) * (0 - y0)) / (y1 - y0));
+    }
+    xs.sort((p, q) => p - q);
+    expect(xs.length).toBeGreaterThan(5);
+    for (let i = 1; i < xs.length; i++) expect(xs[i] - xs[i - 1]).toBeGreaterThan(0.4);
+    for (let i = 1; i < xs.length; i++) expect(xs[i] - xs[i - 1]).toBeLessThan(0.6);
+    // Every segment carries an amplitude weight in (0, 1].
+    for (let k = 4; k < segs.length; k += 5) expect(segs[k] > 0 && segs[k] <= 1).toBe(true);
   });
 
   it('sources: one per narrow slit, spacing ≤ λ/2 across a wide one', () => {

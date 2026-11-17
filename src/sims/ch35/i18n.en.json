@@ -12,10 +12,10 @@
   "ch35.goal.spacing": "Bright-fringe spacing $\\Delta y \\approx \\lambda D/d$: proportional to the wavelength, inversely proportional to the slit separation",
   "ch35.obs.build": "Play: the plane wave reaches the slits, two circular waves spread and overlap, and the screen accumulates the time-averaged intensity until the fringes and the intensity graph appear",
   "ch35.obs.marker": "Drag the white dot on the screen: $\\Delta L/\\lambda$ = 0, 1, 2, … on bright fringes and 0.5, 1.5, … on dark fringes",
-  "ch35.obs.nodal": "White lines (nodal lines): crest meets trough and the waves always cancel; they run from the slits to the dark fringes",
+  "ch35.obs.nodal": "Gaps in the wavefronts (nodal lines): crest meets trough and the waves always cancel; they run from the slits to the dark fringes. Across a nodal line the wavefronts shift by half a wavelength",
   "ch35.obs.lambda": "Wavelength 400 → 700 nm: the fringes spread apart",
   "ch35.obs.d": "Slit separation 2 → 4 μm: the fringes move closer together",
   "ch35.assume.model": "2D model: each slit is one Huygens point source (a very narrow slit), amplitude $\\propto r^{-1/2}$, no reflection from the barrier. The diffraction envelope of slits with a width is in Ch 36 tab 1 (two slits)",
   "ch35.assume.scale": "Slit separation and screen distance are scaled down to μm to fit the stage. Real set-ups have $D \\gg d$, where $\\Delta y = \\lambda D/d$ becomes exact. Here $\\Delta y$ (mark and readout) is the exact first bright fringe, $\\Delta L = \\lambda$",
-  "ch35.assume.colour": "Wave colour depth is the field divided by the largest amplitude possible at that point; the graph shows intensity relative to the central maximum"
+  "ch35.assume.colour": "Lines are wavefronts (crests); their strength is the amplitude relative to the brightest point at the same distance (left out near nodal lines). The intensity graph is relative to the central maximum"
 }
