@@ -192,6 +192,8 @@ export interface Handle<S, P extends Params> {
   pos: (s: S, p: P) => Vec2;
   radiusPx: number;
   onDrag: (ctx: SceneCtx<P>, s: S, w: Vec2) => void;
+  /** Single click or tap on the handle without moving (e.g. a stage button). */
+  onTap?: (ctx: SceneCtx<P>, s: S) => void;
   /** Double click or double tap on the handle (e.g. delete a placed source). */
   onDoubleTap?: (ctx: SceneCtx<P>, s: S) => void;
   when?: (p: P) => boolean;

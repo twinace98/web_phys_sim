@@ -675,14 +675,29 @@ export class SimView {
       this.stageDrag = null;
       this.ui.drag = null;
       c.style.cursor = '';
-      if (d.moved || e.type !== 'pointerup') return;
+      if (d.moved) {
+        // A drag can move a parameter that also has a slider (Ch 33 polarizer angle, the ladder
+        // angle): rebuild the controls once at the end, so the slider shows the new value.
+        this.onParamsChanged(true);
+        return;
+      }
+      if (e.type !== 'pointerup') return;
+      const tapped = this.scene.handles![d.i];
+      if (tapped.onTap) {
+        tapped.onTap(this.runner.ctx(() => this.onParamsChanged(false)), this.runner.state);
+        this.onParamsChanged(true);
+      }
       // Two taps on the same handle within DOUBLE_MS: double tap.
       const now = performance.now();
       const last = this.lastTap;
       this.lastTap = { i: d.i, t: now };
       if (last && last.i === d.i && now - last.t < DOUBLE_MS) {
         this.lastTap = null;
-        this.scene.handles![d.i].onDoubleTap?.(this.runner.ctx(() => this.onParamsChanged(false)), this.runner.state);
+        const hd = this.scene.handles![d.i];
+        if (hd.onDoubleTap) {
+          hd.onDoubleTap(this.runner.ctx(() => this.onParamsChanged(false)), this.runner.state);
+          this.onParamsChanged(true);
+        }
       }
     };
     c.addEventListener('pointerup', end);

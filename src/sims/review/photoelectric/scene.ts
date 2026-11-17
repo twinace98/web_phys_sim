@@ -561,19 +561,14 @@ function clearAll(ctx: SceneCtx<P>): void {
   if (readPoints(ctx.params.D).length) ctx.set('D', emptyPoints());
 }
 
-/**
- * Stage buttons. The shell reports a drag and a double tap on a handle; `onTap` is read by a shell
- * that also reports a single tap. Adding the same point twice is a no-op, so the gestures overlap safely.
- */
-const buttonHandle = (which: 'measure' | 'clear', act: (ctx: SceneCtx<P>) => void): Handle<S, P> =>
-  ({
-    radiusPx: 20,
-    when: (p: P) => which === 'measure' || readPoints(p.D).length > 0,
-    pos: () => lastBtn[which]?.c ?? { x: -1e6, y: -1e6 },
-    onDrag: (ctx: SceneCtx<P>) => act(ctx),
-    onDoubleTap: (ctx: SceneCtx<P>) => act(ctx),
-    onTap: (ctx: SceneCtx<P>) => act(ctx),
-  }) as Handle<S, P>;
+/** Stage buttons: a single click or tap acts (Handle.onTap); dragging does nothing. */
+const buttonHandle = (which: 'measure' | 'clear', act: (ctx: SceneCtx<P>) => void): Handle<S, P> => ({
+  radiusPx: 20,
+  when: (p: P) => which === 'measure' || readPoints(p.D).length > 0,
+  pos: () => lastBtn[which]?.c ?? { x: -1e6, y: -1e6 },
+  onDrag: () => {},
+  onTap: (ctx: SceneCtx<P>) => act(ctx),
+});
 
 // ------------------------------------------------------------------ TeX helpers
 

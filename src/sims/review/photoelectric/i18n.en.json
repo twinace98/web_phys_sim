@@ -24,7 +24,7 @@
   "pe.obs.threshold": "Increase the wavelength until $hf < \\Phi$: no electrons leave, however many photons arrive (Na: cutoff wavelength $\\lambda_0$ = 544 nm). The energy bar drops below the $\\Phi$ line",
   "pe.obs.stop": "Raise the retarding voltage: the current falls and reaches 0 at $V = -V_\\text{stop}$; with a forward voltage it saturates",
   "pe.obs.power": "Change the light power: only the saturation current changes, in proportion; the stopping voltage stays",
-  "pe.obs.measure": "The Measure button (double tap or double click, or a short drag) adds the current $(f, V_\\text{stop})$ point. Each metal gives a parallel line, all with slope $h/e$",
+  "pe.obs.measure": "The Measure button (tap or click) adds the current $(f, V_\\text{stop})$ point. Each metal gives a parallel line, all with slope $h/e$",
   "pe.obs.classical": "Classical prediction: the stopping voltage grows with intensity and does not depend on frequency (horizontal dashed line), no cutoff frequency, and a delay $t_\\text{cl}$ (Σ panel) of tens of minutes before emission. Observation contradicts all three",
   "pe.as.yield": "Quantum yield 1: each photon with $hf > \\Phi$ frees one electron, so the saturation current is $I_\\text{sat} = eP/(hf)$. Real photocathodes have a much lower yield",
   "pe.as.dist": "Photoelectron kinetic energies are uniform from 0 to $K_\\text{max}$ and all directed at the collector (one dimension), so the current falls linearly with retarding voltage. Real curves are rounded by emission angles and the band structure, but $V_\\text{stop}$ is set by $K_\\text{max}$ alone",
