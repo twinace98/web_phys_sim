@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { envelope, harmonic, nodes, reflectAt, resonance, steadyAmp, stringAdvance, stringInit, stringStep, type Driven, type Reflect } from '../src/sims/ch16/physics';
 import { defaults } from '../src/core/params';
 import { reflect } from '../src/sims/ch16/reflect';
-import { resonanceScene } from '../src/sims/ch16/resonance';
+import { STR, resonanceScene } from '../src/sims/ch16/resonance';
 import { ProbeDraw } from './stage-probe';
 
 const base: Reflect = { L: 4, v: 2, A: 0.3, mode: 'pulse', end: 'fixed', lambda: 1.6, tau: 0.5, t0: 0.6 };
@@ -121,5 +121,52 @@ describe('ch16 tab 1 is about reflection (nodes and envelope live in tab 2)', ()
 
   it('the resonance tab keeps the envelope-and-nodes toggle', () => {
     expect(resonanceScene.params.env.default).toBe(true);
+  });
+});
+
+describe('ch16 amplitude marker: steady, no phase-dependent wobble (review §0-1)', () => {
+  /** Relative half-spread (max − min)/(max + min) of st.amp over the last two periods after 40 s. */
+  function wobble(f: number): { now: number; old: number; amp: number } {
+    const s = STR;
+    const h = stringStep(s);
+    const st = stringInit(s);
+    const steps = Math.round(40 / h);
+    const last = Math.round(2 / f / h);
+    let lo = Infinity;
+    let hi = 0;
+    let oLo = Infinity;
+    let oHi = 0;
+    for (let i = 0; i < steps; i++) {
+      const prev = st.y;
+      stringAdvance(s, st, f);
+      if (i < steps - last) continue;
+      lo = Math.min(lo, st.amp);
+      hi = Math.max(hi, st.amp);
+      // The old estimate: forward-difference velocity (next − y)/h.
+      let a = 0;
+      for (let k = 0; k <= s.N; k++) a = Math.max(a, Math.hypot(st.y[k], (st.y[k] - prev[k]) / h / (2 * Math.PI * f)));
+      oLo = Math.min(oLo, a);
+      oHi = Math.max(oHi, a);
+    }
+    return { now: (hi - lo) / (hi + lo), old: (oHi - oLo) / (oHi + oLo), amp: (hi + lo) / 2 };
+  }
+
+  it('review case: 1 Hz and 4 Hz wobbled ±0.8 % and ±3.1 %, now under 0.05 %', () => {
+    const w1 = wobble(1);
+    const w4 = wobble(4);
+    expect(w1.old).toBeCloseTo(0.008, 3);
+    expect(w4.old).toBeCloseTo(0.031, 3);
+    expect(w1.now).toBeLessThan(5e-4);
+    expect(w4.now).toBeLessThan(5e-4);
+  });
+
+  it('sweep over the f slider (0.5–4.5 Hz, harmonics and between): wobble < 0.05 %, level near the resonance curve', () => {
+    const p = resonanceScene.params.f as { min: number; max: number };
+    for (const f of [p.min, 0.75, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.25, p.max]) {
+      const w = wobble(f);
+      expect(w.now).toBeLessThan(5e-4);
+      // Finite-difference steady state against the continuous one (grid N = 100).
+      expect(Math.abs(w.amp / resonance(STR, f) - 1)).toBeLessThan(0.03);
+    }
   });
 });

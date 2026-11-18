@@ -10,7 +10,7 @@ import { harmonic, resonance, steadyAmp, stringAdvance, stringInit, stringStep, 
 
 type P = { f: number; env: boolean };
 
-const STR: Driven = { L: 2, v: 4, beta: 0.3, d: 0.03, N: 100 };
+export const STR: Driven = { L: 2, v: 4, beta: 0.3, d: 0.03, N: 100 };
 const Y0 = 0.55; // string axis
 const CH_Y = -0.75; // chart baseline
 const CH_H = 0.55; // chart height for AMP_MAX
