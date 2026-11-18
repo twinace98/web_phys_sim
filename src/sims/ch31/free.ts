@@ -4,7 +4,7 @@ import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
 import { num, tn, u } from '../../core/tex';
-import { fitSig } from './fit';
+import { fitSig, tns } from './fit';
 import { energies, freeAt, gamma, omega0, omegaDamped, type RLC } from './physics';
 
 type P = { R: number; L: number; C: number; spring: boolean };
@@ -263,8 +263,9 @@ export function formulaFree(s: S, p: P): string[] {
   const UE = e.UE * 1e6;
   const UB = e.UB * 1e6;
   const U = UE + UB;
-  const su = fitSig((r) => tn(r(UE) + r(UB)), tn(U));
-  lines.push(`U = \\frac{q^2}{2C} + \\tfrac12 Li^2 = ${tn(UE, su)} + ${tn(UB, su)} = ${tn(U)}\\ \\mu\\mathrm{J}`);
+  // tns: once overdamped, U falls below 10⁻⁹ μJ, and tn would print both terms as 0.00.
+  const su = fitSig((r) => tns(r(UE) + r(UB)), tns(U));
+  lines.push(`U = \\frac{q^2}{2C} + \\tfrac12 Li^2 = ${tns(UE, su)} + ${tns(UB, su)} = ${tns(U)}\\ \\mu\\mathrm{J}`);
   return lines;
 }
 

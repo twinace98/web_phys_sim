@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formulaFree, freeScene } from '../src/sims/ch31/free';
+import { tns } from '../src/sims/ch31/fit';
 import { defaults } from '../src/core/params';
 import { fmt } from '../src/core/format';
 import ko from '../src/sims/ch31/i18n.ko.json';
@@ -102,6 +103,26 @@ describe('ch31 free RLC: the 100 Ω ⓘ line is tied to R ≥ 2√(L/C) (review 
     expect(osc100).toBe(16);
     expect(lo).toBeCloseTo(31.62, 2);
     expect(hi).toBeCloseTo(126.49, 2);
+  });
+
+  it('Σ U line: printed terms add up to the printed U, also once U < 10⁻⁹ μJ (100 Ω, 20 mH, 5 μF at 5.55 ms)', () => {
+    const val = (s: string) => Number(s.replace(/\\times 10\^\{(-?\d+)\}/, 'e$1'));
+    for (const [R, L, C] of [
+      [100, 20, 5],
+      [100, 10, 10],
+      [100, 5, 20],
+      [20, 10, 10],
+      [0, 10, 10],
+    ])
+      for (const t of [0, 0.37, 1.1, 2.2, 3.3, 5.55, 7.9, 10]) {
+        const line = formulaFree({ t, n: 0 } as never, { ...base, R, L, C }).at(-1)!;
+        const m = line.match(/= ([-\d.e\\times{}^ ]+) \+ ([-\d.e\\times{}^ ]+) = ([-\d.e\\times{}^ ]+)\\ \\mu/);
+        expect(m, line).not.toBeNull();
+        const [a, b, c] = [m![1], m![2], m![3]].map((x) => val(x.trim()));
+        expect(tns(a + b), line).toBe(m![3].trim());
+        expect(c).toBeCloseTo(val(tns(c)), 15);
+        if (c !== 0) expect(a + b, line).toBeGreaterThan(0);
+      }
   });
 
   it('ⓘ text: the claim carries the condition, the defaults and the 20 mH, 5 μF counter-example', () => {
