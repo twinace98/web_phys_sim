@@ -1,3 +1,4 @@
+import { timeScale } from '../src/core/types';
 // Frame time: scenes that can draw at any time move by the same amount every frame, even when
 // a frame holds 1 or 2 simulation steps in turn (h = 0.1 fs, 1/6 fs per 60 Hz frame in Ch 35).
 import { describe, expect, it } from 'vitest';
@@ -13,7 +14,7 @@ describe('runner frame time', () => {
     const r = new Runner(doubleSlit, defaults(doubleSlit.params), 1);
     r.play();
     const dt = 1 / 60;
-    const per = (doubleSlit.time!.scale ?? 1) * dt;
+    const per = timeScale(doubleSlit.time, defaults(doubleSlit.params)) * dt;
     let prevS = r.state.t;
     let prevF = r.frameTime();
     const jumpsS = new Set<string>();

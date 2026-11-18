@@ -2,7 +2,7 @@
 // Static scenes (no `time`) never advance.
 import { History } from './history';
 import { freshSeed, Rng } from './rng';
-import type { Params, Scene, SceneCtx } from './types';
+import { timeScale, type Params, type Scene, type SceneCtx } from './types';
 
 const MAX_STEPS_PER_CALL = 50000;
 
@@ -67,7 +67,7 @@ export class Runner<P extends Params = Params, S extends { t: number } = { t: nu
   advance(wallDt: number): void {
     const time = this.scene.time;
     if (!this.playing || !time) return;
-    this.acc += wallDt * this.speed * (time.scale ?? 1);
+    this.acc += wallDt * this.speed * timeScale(time, this.params);
     let n = 0;
     while (this.acc >= time.h && n < MAX_STEPS_PER_CALL) {
       this.stepOnce();

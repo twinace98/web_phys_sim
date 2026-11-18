@@ -1,3 +1,4 @@
+import { timeScale, timeWindow } from '../src/core/types';
 // Parameter sweep over every registered scene (all chapters).
 // For each scene: defaults, every number param at min / max / two in-between values (one at a time),
 // every select option, every toggle flipped, and a few random combinations.
@@ -118,13 +119,13 @@ function check(scene: Scene, c: Case): string[] {
   const time = scene.time;
   if (time) {
     const tEnd = r.tEnd;
-    const want = tEnd !== undefined ? Math.ceil(tEnd / time.h) : Math.ceil((time.window ?? 10) / time.h);
+    const want = tEnd !== undefined ? Math.ceil(tEnd / time.h) : Math.ceil(timeWindow(time, r.params) / time.h);
     const n = Math.min(MAX_STEPS, want);
     try {
       r.play();
       for (let i = 0; i < n && r.playing; i++) {
         if (c.live && i === Math.floor(n / 2)) r.setParam(c.live[0], c.live[1]);
-        r.advance(time.h / (time.scale ?? 1));
+        r.advance(time.h / timeScale(time, r.params));
       }
     } catch (e) {
       issues.push(tag(`step threw at t=${r.state.t}: ${(e as Error).message}`));

@@ -1,3 +1,4 @@
+import { timeScale } from '../src/core/types';
 // Parameter sweeps with physics checks for the electromagnetism scenes changed in the
 // 2026-11-11 review fixes (Ch 24, 26, 27, 28, 31). The site-wide param-sweep test covers
 // finiteness and plot ranges; these add the physics that must hold at every setting.
@@ -23,7 +24,7 @@ function run(scene: Scene, p: Record<string, unknown>, n = 40000, seed = 3): Any
   const r: AnyRunner = new Runner(scene, p as never, seed);
   r.play();
   const h = scene.time!.h;
-  for (let i = 0; i < n && r.playing; i++) r.advance(h / (scene.time!.scale ?? 1));
+  for (let i = 0; i < n && r.playing; i++) r.advance(h / timeScale(scene.time, r.params));
   return r;
 }
 

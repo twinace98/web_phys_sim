@@ -92,13 +92,25 @@ export interface TimeSpec {
   frameStep: number;
   /** Auto-pause at this sim time; may depend on parameters (e.g. a flight time). */
   tEnd?: number | ((p: Params) => number | undefined);
-  /** Rolling plot window [sim s] when there is no tEnd. */
-  window?: number;
-  /** Sim seconds per wall second at 1x (default 1). */
-  scale?: number;
+  /** Rolling plot window [sim s] when there is no tEnd; may depend on the params (e.g. a few periods). */
+  window?: number | ((p: Params) => number);
+  /** Sim seconds per wall second at 1x (default 1); may depend on the params (e.g. one period in a few seconds). */
+  scale?: number | ((p: Params) => number);
   /** Display unit of sim time (default 's'), e.g. 'ps' or '10³ y'; may depend on parameters. '' hides the clock. */
   unit?: string | ((p: Params) => string);
 }
+
+/** Rolling plot window [sim s] for these params (default 10). */
+export const timeWindow = (t: TimeSpec | undefined, p: Params): number => {
+  const w = t?.window;
+  return typeof w === 'function' ? w(p) : (w ?? 10);
+};
+
+/** Sim seconds per wall second at 1× for these params (default 1). */
+export const timeScale = (t: TimeSpec | undefined, p: Params): number => {
+  const k = t?.scale;
+  return typeof k === 'function' ? k(p) : (k ?? 1);
+};
 
 /** Display unit of a scene's sim time. */
 export function timeUnit(time: TimeSpec | undefined, p: Params): string {
