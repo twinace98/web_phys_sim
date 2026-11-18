@@ -1,13 +1,28 @@
 // Ch 23 scene: Gaussian surface (circle, square, free curve) around line charges; the outward
 // field component along it and ∮ E_n dl next to λ_enc / ε0.
 import { tn, u } from '../../core/tex';
-import type { Params } from '../../core/types';
+import type { Params, Vec2 } from '../../core/types';
+import type { Draw } from '../../draw/draw';
 import { pathScene } from '../field/closedpath';
 import { EPS0 } from '../field/physics';
 import { chargeGlyph, texNum } from '../field/render';
 import { ENC_FLUX, LINE_E, LINE_LAYOUT, LINE_POOL } from './physics';
 
 const UNIT = '\\ \\mathrm{N\\,m/C}';
+
+/** Gap between the ± disc and the ring around a line charge, and the ring's stroke [px]. */
+export const RING_GAP = 3.5;
+export const RING_W = 2;
+
+/**
+ * Line charge seen end-on (⊥ page): the point-charge ± disc inside a ring of its colour on a
+ * white halo, so it reads as a different object from the point charges of Ch 22 and 24.
+ */
+export function lineChargeGlyph(g: Draw, p: Vec2, s: number, alpha = 1): void {
+  const r = Math.abs(s) > 1.5 ? 13 : 10;
+  g.circle(p, r + RING_GAP, { fill: '#ffffff', role: s > 0 ? 'positive' : 'negative', width: RING_W, alpha });
+  chargeGlyph(g, p, s, alpha);
+}
 
 /** Values the factory last passed to the stage panel: ∮ E_n dl, λ_enc/ε0 [N m/C], λ_enc [nC/m]. */
 let shown = { flux: 0, rhs: 0, enc: 0 };
@@ -22,7 +37,7 @@ const base = pathScene({
   defaultPreset: 'default',
   presetMain: false,
   viewMain: true,
-  glyph: chargeGlyph,
+  glyph: lineChargeGlyph,
   integralScale: LINE_E,
   encScale: ENC_FLUX,
   overlay: (flux, rhs, enc) => {
