@@ -22,6 +22,6 @@
   "ch24.obs.edit": "Moving a charge recomputes $W$ along the path already drawn, in the new field",
   "ch24.as.units": "Charges in nC, lengths in m, test charge $q_0 = +1$ nC, so $W$ is in nJ",
   "ch24.as.ref": "Potential reference: $V = 0$ infinitely far away",
-  "ch24.as.levels": "Equipotentials are drawn for $\\lvert V \\rvert \\le 12\\,\\Delta V$. Map colours are compressed as $\\tanh(V/25\\,\\mathrm{V})$",
-  "ch24.as.num": "$W$ integrates $q_0\\vec E\\cdot d\\vec s$ numerically along the dragged path; $\\Delta V$ is the potential difference of its end points"
+  "ch24.as.levels": "Equipotentials are left out only where adjacent lines would be less than about 3 px apart on screen (near a charge). Map colours are compressed as $\\tanh(V/25\\,\\mathrm{V})$",
+  "ch24.as.num": "$W$ integrates $q_0\\vec E\\cdot d\\vec s$ numerically along the dragged path (a long path has its older points thinned; $W$ does not depend on the path, so it is unchanged); $\\Delta V$ is the potential difference of its end points"
 }

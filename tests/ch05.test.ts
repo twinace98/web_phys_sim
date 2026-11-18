@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
+import { first, firstStep, FIRST_G } from '../src/sims/ch05/first';
 import { frames } from '../src/sims/ch05/frames';
 import { newton } from '../src/sims/ch05/newton';
 import { ballGround, ballInTrain, cartsAt, netForce, pushState, trainAt, type Train } from '../src/sims/ch05/physics';
@@ -43,10 +44,67 @@ describe('ch05 first and second law', () => {
     expect(pushState(pu, 5).a).toBe(0);
   });
 
-  it('the scene stops at 6 s with v = (F/m) · 2 s by default', () => {
+  it('the second-law scene stops at 4 s with v = (F/m) · 4 s by default (4 N, 2 kg)', () => {
     const r = run(newton, defaults(newton.params));
+    expect(r.state.t).toBeCloseTo(4, 12);
+    expect(r.state.v).toBeCloseTo(8, 12);
+    expect(r.state.a).toBeCloseTo(2, 12);
+  });
+});
+
+describe('ch05 first law', () => {
+  const end = (over: Record<string, unknown>) => run(first, { ...defaults(first.params), ...over }).state as any;
+
+  it('defaults (no friction): constant v, evenly spaced strobe marks, F_net = 0 throughout', () => {
+    const r = run(first, defaults(first.params));
     expect(r.state.t).toBeCloseTo(6, 12);
-    expect(r.state.v).toBeCloseTo(2, 12);
+    expect(r.state.v).toBe(3);
+    expect(r.state.x).toBeCloseTo(18, 9);
+    const m = r.state.marks as number[];
+    expect(m.length).toBe(13);
+    for (let i = 1; i < m.length; i++) expect(m[i] - m[i - 1]).toBeCloseTo(1.5, 9);
+    for (const F of r.hist.col('Fnet')) expect(F).toBe(0);
+  });
+
+  it('friction stops the puck after v0/(mu g), at v0²/(2 mu g), then f = 0 at rest', () => {
+    for (const [v0, mu] of [[3, 0.1], [5, 0.3], [1, 0.05]]) {
+      const s = end({ v0, mu });
+      expect(s.v).toBe(0);
+      expect(s.x).toBeCloseTo((v0 * v0) / (2 * mu * FIRST_G), 9);
+      expect(s.f).toBe(0);
+      expect(s.f + s.F).toBe(0);
+    }
+    // While sliding: F_net = -mu m g (m = 1 kg).
+    const r = run(first, { ...defaults(first.params), mu: 0.2 });
+    const t = r.hist.col('t');
+    const F = r.hist.col('Fnet');
+    const i = t.findIndex((x) => x > 0.5);
+    expect(F[i]).toBeCloseTo(-0.2 * FIRST_G, 12);
+  });
+
+  it('push to match friction: two forces, zero net force, constant velocity', () => {
+    const s = end({ mu: 0.3, push: true });
+    expect(s.v).toBe(3);
+    expect(s.x).toBeCloseTo(18, 9);
+    expect(s.f).toBeCloseTo(-0.3 * FIRST_G, 12);
+    expect(s.F).toBeCloseTo(0.3 * FIRST_G, 12);
+  });
+
+  it('friction lowered to 0 mid-run: the puck keeps the velocity it had', () => {
+    const r = new Runner(first as any, { ...defaults(first.params), mu: 0.1 } as any);
+    r.play();
+    for (let i = 0; i < 20; i++) r.advance(0.05);
+    const v1 = (r.state as any).v;
+    expect(v1).toBeCloseTo(3 - 0.1 * FIRST_G * 1, 6);
+    r.setParam('mu', 0);
+    for (let i = 0; i < 2000 && r.playing; i++) r.advance(0.05);
+    expect((r.state as any).v).toBeCloseTo(v1, 12);
+  });
+
+  it('one step is exact: stopping inside a step lands at v²/(2 mu g)', () => {
+    const k = firstStep(0, 0.01, 0.3, false, 1 / 60);
+    expect(k.v).toBe(0);
+    expect(k.x).toBeCloseTo(0.0001 / (2 * 0.3 * FIRST_G), 15);
   });
 });
 
@@ -123,8 +181,9 @@ describe('ch05 inertial frames', () => {
 
 describe('ch05 slider ranges', () => {
   it('every scene runs to its end at the slider extremes with finite worlds and states', () => {
-    const cases: [any, Record<string, number>[]][] = [
-      [newton, [{ m: 0.5, F: 5 }, { m: 5, F: 0.5 }]],
+    const cases: [any, Record<string, number | boolean>[]][] = [
+      [newton, [{ m: 1, F: 5 }, { m: 5, F: 0.5 }]],
+      [first, [{ v0: 1, mu: 0.3 }, { v0: 5, mu: 0 }, { v0: 5, mu: 0.3, push: true }]],
       [third, [{ mA: 0.5, mB: 5, F: 5 }, { mA: 5, mB: 0.5, F: 0.5 }]],
       [frames, [{ A: 0.5 }, { A: 2 }]],
     ];

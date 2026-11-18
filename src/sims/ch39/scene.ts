@@ -331,7 +331,46 @@ export function supStates(m: WellModel, pair: string): Sup {
   return { a, b, w: single ? 0 : (st.E[b] - st.E[a]) / HBAR_EVFS, xm: single ? xa * st.dx : 0.5 * (xa + xb) * st.dx, xc: single ? 0 : xab * st.dx };
 }
 
-const supOf = (p: PS) => supStates(model(p), pairOf(p));
+// Memo: record() calls this every few steps, and long periods mean many steps per frame.
+let supKey = '';
+let supMemo: Sup | null = null;
+const supOf = (p: PS): Sup => {
+  const key = `${p.pot}|${p.L}|${p.U0}|${p.hw}|${p.Ub}|${p.b}|${pairOf(p)}`;
+  if (key !== supKey || !supMemo) {
+    supMemo = supStates(model(p), pairOf(p));
+    supKey = key;
+  }
+  return supMemo;
+};
+
+/** Oscillation period T = h/ΔE [fs] of the chosen pair (NaN for a single state). */
+export const supPeriod = (p: PS): number => {
+  const w = supOf(p).w;
+  return w > 0 ? (2 * Math.PI) / w : NaN;
+};
+/** ΔE = E_b − E_a [eV] of the chosen pair. */
+export const supGap = (p: PS): number => {
+  const m = model(p);
+  const q = supOf(p);
+  return m.st.E[q.b] - m.st.E[q.a];
+};
+/**
+ * The period spans 1.4 fs (infinite well, 1 + 3) to about 13 000 fs (double well, high and wide
+ * barrier): the ⟨x⟩ plot shows SUP_PERIODS periods and one period takes SUP_WALL wall seconds at 1×.
+ */
+export const SUP_PERIODS = 3;
+export const SUP_WALL = 2;
+/** Runner step [fs] (TimeSpec.h). */
+const H_SUP = 0.005;
+/** Steps per period: the record density stays the same for every period. */
+const STEPS_PER_T = 280;
+const periodOr = (p: PS, fallback: number) => (Number.isFinite(supPeriod(p)) ? supPeriod(p) : fallback);
+/**
+ * Time advanced per runner step [fs]: H_SUP, or T/280 for longer periods. With a fixed step a
+ * 13 000 fs period would need 2.6 million steps, and the history (10 000 samples, oldest thinned
+ * first) would keep only the last ~350 fs of the 3-period window; the ⟨x⟩ plot looked flat.
+ */
+export const supDt = (p: PS) => Math.max(H_SUP, periodOr(p, 0) / STEPS_PER_T);
 
 export const superposition: Scene<PS, { t: number; n: number }> = {
   id: 'superposition',
@@ -339,11 +378,19 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
   layout: 'side',
   params: supParams,
   world: PX_WORLD,
-  time: { h: 0.005, recordEvery: 4, frameStep: 0.1, window: 40, scale: 2, unit: 'fs' },
+  time: {
+    h: H_SUP,
+    recordEvery: 4,
+    frameStep: 0.1,
+    window: (p) => SUP_PERIODS * periodOr(p as PS, 40 / SUP_PERIODS),
+    // Runner steps per wall second = scale/h; each step is supDt fs, so T/SUP_WALL fs per wall second.
+    scale: (p) => (periodOr(p as PS, 2 * SUP_WALL) / SUP_WALL) * (H_SUP / supDt(p as PS)),
+    unit: 'fs',
+  },
   init: () => ({ t: 0, n: 0 }),
-  step: (s) => {
+  step: (s, _h, p) => {
     s.n += 1;
-    s.t = s.n * 0.005;
+    s.t = s.n * supDt(p);
   },
   record: (s, p) => {
     const q = supOf(p);
@@ -354,8 +401,9 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
   draw: (g, s, p, ui) => {
     const m = model(p);
     const q = supStates(m, pairOf(p));
-    // Analytic in t: drawn at the frame's own time, so |Ψ|² sloshes smoothly between steps.
-    const tt = ui?.tFrame ?? s.t;
+    // Analytic in t: drawn at the frame's own time, so |Ψ|² sloshes smoothly between steps. The
+    // runner's lead over s.t counts in steps of h; one step here is supDt.
+    const tt = s.t + ((ui?.tFrame ?? s.t) - s.t) * (supDt(p) / H_SUP);
     const { st } = m;
     const narrow = g.vp.w < 640;
     const f = new Frame(g, diagramBox(g, true), m.xr, m.yr);
@@ -414,7 +462,9 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
   ],
 
   readouts: [
-    { label: 'T', unit: 'fs', value: (_s, p) => (supOf(p).w > 0 ? (2 * Math.PI) / supOf(p).w : NaN) },
+    // ΔE: in the double well E₁ and E₂ round to the same printed value (0.148 eV both by default).
+    { label: '\\Delta E', unit: 'eV', value: (_s, p) => supGap(p) },
+    { label: 'T', unit: 'fs', value: (_s, p) => supPeriod(p) },
     { label: '\\langle x\\rangle', unit: 'nm', value: (s, p) => supOf(p).xm + supOf(p).xc * Math.cos(supOf(p).w * s.t) },
   ],
 
@@ -426,6 +476,6 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
       '|\\Psi|^2 = \\tfrac12\\left(\\psi_a^2 + \\psi_b^2 + 2\\psi_a\\psi_b\\cos\\frac{(E_b - E_a)t}{\\hbar}\\right)',
       'T = \\frac{h}{E_b - E_a}',
     ],
-    assumptions: ['ch39.assume.electron', 'ch39.assume.fd', 'ch39.assume.supamp', 'ch39.s.assume.range'],
+    assumptions: ['ch39.s.assume.terms', 'ch39.s.assume.mean', 'ch39.s.assume.time', 'ch39.assume.electron', 'ch39.assume.fd', 'ch39.assume.supamp', 'ch39.s.assume.range'],
   },
 };

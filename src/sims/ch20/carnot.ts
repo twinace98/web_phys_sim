@@ -6,7 +6,7 @@ import type { Draw } from '../../draw/draw';
 import { bar, chart, split, stageRect, type Rect } from '../ch18/panels';
 import { cycle, eint, entropy, heatSplit, legAt, legWork, pathAt, pathPoints, temp, type Cycle, type Leg } from '../ch18/physics';
 import { dofOf } from '../ch18/process';
-import { QC, WC, drawPV, isWide } from '../ch18/view';
+import { EC, QC, WC, barRange, drawPV, isWide } from '../ch18/view';
 
 type P = { tc: number; gas: string };
 
@@ -16,7 +16,7 @@ const QC_OUT = '#56B4E9';
 const NAMES = ['A', 'B', 'C', 'D'];
 
 let memoKey = '';
-let memo: { c: Cycle; Vmax: number; pmax: number; qin: number; qout: number; W: number; top: number } | null = null;
+let memo: { c: Cycle; Vmax: number; pmax: number; qin: number; qout: number; W: number; yr: [number, number] } | null = null;
 function model(p: P) {
   const key = `${p.tc}|${p.gas}`;
   if (key !== memoKey || !memo) {
@@ -30,7 +30,7 @@ function model(p: P) {
       qin,
       qout,
       W: qin - qout,
-      top: barTop(c, f),
+      yr: barYRange(c, f),
     };
     memoKey = key;
   }
@@ -39,18 +39,22 @@ function model(p: P) {
 
 const sOf = (t: number) => Math.min(t / DUR, 1);
 
-/** Bar scale: the largest of Q_H, W, Q_C anywhere in the cycle (W peaks after the adiabatic expansion). */
-function barTop(c: Cycle, f: number): number {
-  let m = 0;
+/** Bar scale: every value of Q_H, Q_C, ΔE_int and W anywhere in the cycle (W peaks after the adiabatic expansion, ΔE_int dips there). */
+function barYRange(c: Cycle, f: number): [number, number] {
+  const vals: number[] = [];
   for (let i = 0; i <= 200; i++) {
     const h = heatsAt(c.legs, i / 200, f);
-    m = Math.max(m, h.qh, h.W, h.qc);
+    vals.push(h.qh, h.qc, h.dE, h.W);
   }
-  return 1.2 * m;
+  return barRange(vals);
 }
 
-/** Heat in on the hot isotherm and heat out on the cold one, so far [J]. */
-function heatsAt(legs: Leg[], s: number, f: number): { qh: number; qc: number; W: number } {
+/**
+ * Heat in on the hot isotherm and heat out on the cold one so far, the change of internal energy
+ * since A and the work done by the gas so far [J]. First law: W = Q_H − Q_C − ΔE_int at every
+ * point; ΔE_int = 0 only when the loop closes.
+ */
+export function heatsAt(legs: Leg[], s: number, f: number): { qh: number; qc: number; dE: number; W: number } {
   const pt = pathAt(legs, s, f);
   let qh = 0;
   let qc = 0;
@@ -62,7 +66,7 @@ function heatsAt(legs: Leg[], s: number, f: number): { qh: number; qc: number; W
     if (q > 0) qh += q;
     else qc -= q;
   }
-  return { qh, qc, W: pt.W };
+  return { qh, qc, dE: pt.dE, W: pt.W };
 }
 
 const params: ParamSchema<P> = {
@@ -141,23 +145,29 @@ function drawTS(g: Draw, r: Rect, s: number, p: P): void {
   });
 }
 
+/** Title over the bars: the first law, true at every point of the cycle. */
+export const BAR_TITLE = '*W* = *Q*_{H} − *Q*_{C} − Δ*E*_{int}  (J)';
+
+/** Bars [value J, colour, symbol] in the order of the title, at cycle fraction s. */
+export function barItems(p: P, s: number): [number, string, string][] {
+  const h = heatsAt(model(p).c.legs, s, dofOf(p.gas));
+  return [
+    [h.W, WC, '*W*'],
+    [h.qh, QC, '*Q*_{H}'],
+    [h.qc, QC_OUT, '*Q*_{C}'],
+    [h.dE, EC, 'Δ*E*_{int}'],
+  ];
+}
+
 function drawHeatBars(g: Draw, r0: Rect, s: number, p: P): void {
-  const f = dofOf(p.gas);
   const m = model(p);
-  const h = heatsAt(m.c.legs, s, f);
   const hh = Math.min(r0.h, Math.max(240, 1.4 * r0.w));
   const r = { ...r0, y: r0.y + (r0.h - hh) / 2, h: hh };
-  const top = m.top;
-  chart(g, r, [-0.6, 2.6], [-0.08 * top, top], { l: 8, r: 8, t: 30, b: 26 }, (ch) => {
-    ch.d.line(ch.P(-0.6, 0), ch.P(2.6, 0), { role: 'axis', width: 1.25 });
-    const half = Math.min(20, (ch.R - ch.L) * 0.07);
-    const items: [number, string, string][] = [
-      [h.qh, QC, '*Q*_{H}'],
-      [h.W, WC, '*W*'],
-      [h.qc, QC_OUT, '*Q*_{C}'],
-    ];
-    items.forEach(([v, col, lbl], k) => bar(ch, k, half, v, col, `${Math.abs(v) < 0.5 ? '0' : Math.round(v)} J`, lbl));
-    ch.d.text({ x: (ch.L + ch.R) / 2, y: ch.T }, '*W* = *Q*_{H} − *Q*_{C}', { size: 14, color: '#1a1a1a', align: 'center', dy: -12 });
+  chart(g, r, [-0.6, 3.6], m.yr, { l: 8, r: 8, t: 30, b: 26 }, (ch) => {
+    ch.d.line(ch.P(-0.6, 0), ch.P(3.6, 0), { role: 'axis', width: 1.25 });
+    const half = Math.min(16, (ch.R - ch.L) * 0.055);
+    barItems(p, s).forEach(([v, col, lbl], k) => bar(ch, k, half, v, col, Math.abs(v) < 0.5 ? '0' : String(Math.round(v)).replace('-', '−'), lbl));
+    ch.d.text({ x: (ch.L + ch.R) / 2, y: ch.T }, BAR_TITLE, { size: 13, color: '#1a1a1a', align: 'center', dy: -12 });
   });
 }
 
@@ -203,7 +213,7 @@ export const carnotScene: Scene<P, { t: number }> = {
 
   info: {
     goals: ['ch20.c.goal.limit', 'ch20.c.goal.ts'],
-    observe: ['ch20.c.obs.legs', 'ch20.c.obs.ratio', 'ch20.c.obs.tc', 'ch20.c.obs.gas'],
+    observe: ['ch20.c.obs.legs', 'ch20.c.obs.first', 'ch20.c.obs.ratio', 'ch20.c.obs.tc', 'ch20.c.obs.gas'],
     equations: [
       'Q_\\text{H} = nRT_\\text{H}\\ln\\frac{V_\\text{B}}{V_\\text{A}}, \\quad Q_\\text{C} = nRT_\\text{C}\\ln\\frac{V_\\text{C}}{V_\\text{D}}',
       '\\frac{Q_\\text{H}}{T_\\text{H}} = \\frac{Q_\\text{C}}{T_\\text{C}} \\;\\Rightarrow\\; \\Delta S_\\text{cycle} = 0',

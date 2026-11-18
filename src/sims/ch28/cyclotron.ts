@@ -1,6 +1,8 @@
 // Ch 28 scene: cyclotron. A proton starts at rest in the gap between two dees; the gap
 // voltage alternates, and the field turns the proton back to the gap every half period.
-// Only when the oscillator frequency equals the cyclotron frequency does every crossing accelerate.
+// In tune (f = f_c) every crossing accelerates. A small detuning only slips the phase a little
+// per turn and adds turns; beyond a few percent (fewer turns allowed at low V0) the proton falls
+// out of step before it reaches the extraction radius.
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { withAlpha, ROLE_COLOR } from '../../draw/theme';
 import { fieldGrid, particle } from './common';
@@ -42,6 +44,12 @@ function runOf(p: P): Run {
 }
 /** End of the run [ns]: the proton has left the view, or the run length. */
 const tEndNs = (p: P) => Math.min(tMax(p), runOf(p).tStop) * 1e9;
+
+/** Orbit radius m v / |q| B [cm] at sim time t [ns]. */
+export const orbitRadiusCm = (p: P, tNs: number) => {
+  const k = sampleRun(runOf(p), tNs * 1e-9);
+  return (Math.hypot(k.vx, k.vy) / cyclotronOmega(cfgOf(p))) * 100;
+};
 
 const params: ParamSchema<P> = {
   ratio: {
@@ -181,18 +189,17 @@ export const cyclotronScene: Scene<P, S> = {
   readouts: [
     { label: 'K', unit: 'keV', value: (s, p) => sampleRun(runOf(p), s.t * 1e-9).K / KEV },
     {
+      // Orbit radius m v / |q| B (the spiral's centre wanders, so it differs from the distance
+      // to the centre of the dees); it reaches R = 5.00 cm exactly at extraction.
       label: 'r',
       unit: 'cm',
-      value: (s, p) => {
-        const k = sampleRun(runOf(p), s.t * 1e-9);
-        return Math.hypot(k.x, k.y) * 100;
-      },
+      value: (s, p) => orbitRadiusCm(p, s.t),
     },
   ],
 
   info: {
     goals: ['ch28.c.goal.res', 'ch28.c.goal.K'],
-    observe: ['ch28.c.obs.step', 'ch28.c.obs.spiral', 'ch28.c.obs.detune', 'ch28.c.obs.V0'],
+    observe: ['ch28.c.obs.step', 'ch28.c.obs.spiral', 'ch28.c.obs.r', 'ch28.c.obs.detune', 'ch28.c.obs.V0'],
     equations: ['f_c = \\frac{\\lvert q\\rvert B}{2\\pi m}', 'K_\\text{max} = \\frac{(qBR)^2}{2m}'],
     assumptions: ['ch28.c.assume'],
   },

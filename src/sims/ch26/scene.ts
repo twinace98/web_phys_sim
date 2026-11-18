@@ -4,7 +4,10 @@ import { fmtTick, niceTicks } from '../../core/format';
 import type { Rng } from '../../core/rng';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { DENSITY, Q_E, SAMPLE, V_TH, currentOf, driftSpeed, heightOf, makeGas, resistanceOf, stepGas, type Gas, type Wire } from './physics';
+import { t as tr } from '../../core/i18n';
+import { measureRich } from '../../draw/text';
+import { theme } from '../../draw/theme';
+import { DENSITY, Q_E, SAMPLE, V_TH, currentOf, driftSpeed, heightOf, makeGas, resistanceOf, stepGas, tauOf, type Gas, type Wire } from './physics';
 
 type P = { V: number; T: number; L: number; A: number };
 
@@ -15,6 +18,9 @@ interface S {
   rng: Rng;
   /** Trail of the tracer electron (NaN breaks the line at a wrap). */
   trail: number[];
+  /** Net count and time when counting for Ī began (NaN before COUNT_FROM). */
+  c0: number;
+  t0: number;
 }
 
 const RATE = 120;
@@ -34,16 +40,22 @@ const V_D_DRAW = 1.6;
 const measured = new Map<string, Map<number, number>>();
 const keyOf = (p: P) => `${p.L}|${p.A}|${p.T}`;
 
-/** The readout and the I-V point wait until Q/t has settled within the counting noise [s]. */
-export const T_READ = 3;
 /**
- * The Q/t graph starts earlier, after four mean free times at 300 K: the drift has built up
- * (Q/t then lags the prediction by τ/t, visibly rising onto it) and the noise bound stays in range.
+ * Counting for Ī starts after this many mean free times. The drift builds up as
+ * v_d (1 − e^{−t/τ}), so Q/t counted from t = 0 lags I by the fraction (τ/t)(1 − e^{−t/τ})
+ * (−8 % at 3 s, 300 K). From 4τ on the drift is within e^{−4} ≈ 2 % of v_d and the remaining
+ * bias of ΔQ/Δt is below 0.5 % at the first reading.
  */
-export const T_PLOT = 1;
-/** Average current [mA] since t = 0, from the net count through the cross-section. */
-const runningI = (s: S, from: number) => (s.t >= from ? (s.gas.count * Q_E * 1e3) / s.t : NaN);
-const measuredI = (s: S) => runningI(s, T_READ);
+export const COUNT_FROM = 4;
+/** Start of counting [s]: 1 s at 300 K, 1.5 s at 200 K. */
+export const countStart = (T: number) => COUNT_FROM * tauOf(T);
+/** The Ī graph starts after 1 s of counting (noise bound in range). */
+export const PLOT_AFTER = 1;
+/** The readout and the I-V point wait for 2 s of counting (3 s in all at 300 K). */
+export const READ_AFTER = 2;
+/** Average current [mA] ΔQ/Δt since counting began, once `after` seconds have been counted. */
+const runningI = (s: S, after: number) => (s.t - s.t0 >= after - 1e-9 ? ((s.gas.count - s.c0) * Q_E * 1e3) / (s.t - s.t0) : NaN);
+const measuredI = (s: S) => runningI(s, READ_AFTER);
 /**
  * Upper bound on the thermal counting noise of Q/t [mA] after t seconds: crossings of the
  * section in both directions at rate n h ⟨|v_x|⟩, each ±1, treated as independent (back-and-forth
@@ -146,7 +158,29 @@ function drawChart(g: Draw, p: P, s: S): void {
     if (V === p.V) continue;
     g.circle({ x: X(V), y: Y(Math.min(I, iMax)) }, 4.5, { fill: '#ffffff', role: 'velocity', width: 2 });
   }
-  if (s.t >= T_READ) g.circle({ x: X(p.V), y: Y(Math.max(0, Math.min(measuredI(s), iMax))) }, 5, { fill: 'velocity' });
+  if (Number.isFinite(measuredI(s))) g.circle({ x: X(p.V), y: Y(Math.max(0, Math.min(measuredI(s), iMax))) }, 5, { fill: 'velocity' });
+}
+
+/** Tiny key at the top right of the stage: grey dot = lattice ion, blue dot = electron. */
+function particleKey(g: Draw, rIon: number, rEl: number): void {
+  const k = theme.scale;
+  const size = 12;
+  const y = 14 * k;
+  let x = g.vp.w - 8 * k;
+  const at = (px: number): Vec2 => {
+    const [wx, wy] = g.vp.toWorld(px, y);
+    return { x: wx, y: wy };
+  };
+  // Same dots as on the stage, but never below 2.5 px so the colour reads on a phone.
+  for (const [label, r, fill] of [
+    [tr('ch26.key.electron'), Math.max(2.5, rEl), 'negative'],
+    [tr('ch26.key.ion'), Math.max(2.5, rIon), ION],
+  ] as const) {
+    g.text(at(x), label, { size, color: TICK, align: 'right', baseline: 'middle' });
+    x -= measureRich(g.ctx, label, { size }) + (5 + r) * k;
+    g.circle(at(x), r, { fill });
+    x -= (r + 14) * k;
+  }
 }
 
 export const conduction: Scene<P, S> = {
@@ -156,7 +190,7 @@ export const conduction: Scene<P, S> = {
   time: { h: 1 / RATE, recordEvery: 6, frameStep: 0.1, tEnd: 30 },
   world: () => ({ x: [-0.7, LMAX + 0.5], y: [CH.y0 - 0.9, 2.1], aspect: 'contain', padPx: 14 }),
 
-  init: (p, rng) => ({ t: 0, n: 0, gas: makeGas(wireOf(p), rng), rng, trail: [] }),
+  init: (p, rng) => ({ t: 0, n: 0, gas: makeGas(wireOf(p), rng), rng, trail: [], c0: NaN, t0: NaN }),
 
   step: (s, h, p) => {
     const w = wireOf(p);
@@ -167,9 +201,13 @@ export const conduction: Scene<P, S> = {
     if (s.trail.length > 2 * TRAIL) s.trail.splice(0, s.trail.length - 2 * TRAIL);
     s.n += 1;
     s.t = s.n / RATE;
+    if (Number.isNaN(s.c0) && s.t >= countStart(p.T) - 1e-9) {
+      s.c0 = s.gas.count;
+      s.t0 = s.t;
+    }
   },
 
-  record: (s) => ({ t: s.t, q: s.gas.count * Q_E, i: runningI(s, T_PLOT) }),
+  record: (s) => ({ t: s.t, q: s.gas.count * Q_E, i: runningI(s, PLOT_AFTER) }),
 
   draw: (g, s, p) => {
     const w = wireOf(p);
@@ -249,6 +287,7 @@ export const conduction: Scene<P, S> = {
     }
 
     drawChart(g, p, s);
+    particleKey(g, rIon, rEl);
   },
 
   plots: [
@@ -267,13 +306,13 @@ export const conduction: Scene<P, S> = {
     },
     {
       id: 'i',
-      label: '\\bar I = Q/t\\,(\\mathrm{mA})',
+      label: '\\bar I = \\Delta Q/\\Delta t\\,(\\mathrm{mA})',
       traces: [{ channel: 'i', role: 'velocity' }],
       yRange: (p) => {
         // Prediction plus four (bounding) standard deviations of the noise at the first reading
-        // (about 2.3 at the start of the graph, T_PLOT).
+        // (about 2.8 at the start of the graph, after PLOT_AFTER of counting).
         const I = currentOf(wireOf(p), p.V) * 1e3;
-        const n4 = 4 * noiseI(p, T_READ);
+        const n4 = 4 * noiseI(p, READ_AFTER);
         const hi = Math.max(1.6 * I, I + n4, 20);
         return [Math.min(-0.25 * hi, I - n4), hi];
       },

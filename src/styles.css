@@ -698,6 +698,11 @@ kbd {
     border-top: 1px solid var(--line);
     transform: translateY(100%);
   }
+  /* The formula sheet is read while operating the sim: only as tall as its lines. */
+  .panel.formula {
+    height: auto;
+    max-height: 62vh;
+  }
   .chapters .sum {
     display: none;
   }

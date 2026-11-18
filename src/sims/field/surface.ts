@@ -4,7 +4,7 @@
 //   F = [dx0, dy0, ..., dx7, dy7]   control points of the free curve relative to the centre
 //                                   (closed Catmull-Rom)
 import type { Handle, Params, SceneCtx, Vec2 } from '../../core/types';
-import { ccw, circlePoly, distToPoly, distToSeg, splinePoly, squarePoly, type Src, type V2 } from './physics';
+import { ccw, circlePoly, distToPoly, distToSeg, selfIntersects, splinePoly, squarePoly, type Src, type V2 } from './physics';
 
 export type Shape = 'circle' | 'square' | 'free';
 
@@ -134,7 +134,9 @@ export function surfaceHandles<P extends SurfaceParams, S extends { t: number }>
   const tryF = (ctx: SceneCtx<P>, F: number[]) => {
     const f = F.map(r3);
     if (f.every((v, k) => v === ctx.params.F[k])) return;
-    if (ok(ctx.params, 'free', getG(ctx.params), f)) ctx.set('F', f as P['F']);
+    // A self-intersecting curve bounds no region (winding −1 in one lobe): refuse it like a
+    // move onto a source.
+    if (ok(ctx.params, 'free', getG(ctx.params), f) && !selfIntersects(surfacePoly('free', getG(ctx.params), f))) ctx.set('F', f as P['F']);
   };
   const on = (p: P, shapes: Shape[]) => (b.when?.(p) ?? true) && shapes.includes(p.shape as Shape) && (!b.shapes || b.shapes.includes(p.shape as Shape));
 

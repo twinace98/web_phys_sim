@@ -36,17 +36,27 @@ export function fieldFor(lambdaNm: number, apertures: Aperture[], D: number): Wa
 
 export interface SlitState {
   t: number;
-  /** ∫ ψ² dt at each screen sample. */
+  /** ∫ ψ² dt at each screen sample, from the time all apertures' waves have fully arrived there. */
   acc: Float64Array;
   psi: Float64Array;
 }
 
 export const initSlit = (): SlitState => ({ t: 0, acc: new Float64Array(SCREEN_N), psi: new Float64Array(SCREEN_N) });
 
+/**
+ * One step: ψ² is accumulated at each sample only after its own start time (WaveField.screenFull).
+ * Outer samples are reached ~10 fs later than the centre; starting each average there, not at the
+ * first arrival anywhere on the screen, keeps the running average equal to the steady pattern.
+ */
 export function stepSlit(s: SlitState, h: number, f: WaveField): void {
   s.t += h;
   f.screenPsi(s.t, s.psi);
-  for (let i = 0; i < SCREEN_N; i++) s.acc[i] += s.psi[i] * s.psi[i] * h;
+  const t0 = f.screenFull();
+  for (let i = 0; i < SCREEN_N; i++) {
+    // Part of this step after the sample's start time (rectangle rule on the step's end point).
+    const w = Math.min(h, s.t - t0[i]);
+    if (w > 0) s.acc[i] += s.psi[i] * s.psi[i] * w;
+  }
 }
 
 /** Run ends after the wave has covered the whole screen and been averaged for a while. */
@@ -55,14 +65,17 @@ export function slitEnd(f: WaveField, D: number): number {
   return f.tb + far / C_LIGHT + AVG_PERIODS * f.period;
 }
 
-/** Time-averaged screen intensity so far, relative to the steady maximum. */
+/**
+ * Time-averaged screen intensity so far, relative to the steady maximum: each sample is divided by
+ * its own averaging time t − t_full,i (at least one period, so a sample fades in over its first period).
+ */
 export function relIntensity(s: SlitState, f: WaveField): Float64Array {
   const steady = f.screenSteady();
   let max = 0;
   for (const v of steady) max = Math.max(max, v);
-  const span = Math.max(s.t - f.screenArrival(), f.period);
+  const t0 = f.screenFull();
   const out = new Float64Array(SCREEN_N);
-  for (let i = 0; i < SCREEN_N; i++) out[i] = s.acc[i] / (max * span);
+  for (let i = 0; i < SCREEN_N; i++) out[i] = s.acc[i] / (max * Math.max(s.t - t0[i], f.period));
   return out;
 }
 
@@ -121,14 +134,14 @@ export function drawScreen(g: Draw, D: number, f: WaveField, I: Float64Array, rg
 }
 
 /** Dimension line with end ticks and a label beside its middle. */
-export function dimLine(g: Draw, a: Vec2, b: Vec2, label: string, dx: number, dy: number): void {
+export function dimLine(g: Draw, a: Vec2, b: Vec2, label: string, dx: number, dy: number, color = TICK): void {
   const len = Math.hypot(b.x - a.x, b.y - a.y);
   if (len <= 0) return;
   const n = { x: -(b.y - a.y) / len, y: (b.x - a.x) / len };
   const t = g.px(4);
-  g.line(a, b, { color: TICK, width: 1.25 });
-  for (const p of [a, b]) g.line({ x: p.x - n.x * t, y: p.y - n.y * t }, { x: p.x + n.x * t, y: p.y + n.y * t }, { color: TICK, width: 1.25 });
-  boxText(g, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, label, { size: 14, color: TICK, align: 'center', dx, dy });
+  g.line(a, b, { color, width: 1.25 });
+  for (const p of [a, b]) g.line({ x: p.x - n.x * t, y: p.y - n.y * t }, { x: p.x + n.x * t, y: p.y + n.y * t }, { color, width: 1.25 });
+  boxText(g, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, label, { size: 14, color, align: 'center', dx, dy });
 }
 
 /** Draggable point on the screen. */

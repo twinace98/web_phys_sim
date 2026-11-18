@@ -1,10 +1,10 @@
-// Ch 5 scene: first and second law. A puck on a frictionless surface is pushed by a constant
-// force; a = F/m while it acts, and the velocity stays constant once it is removed.
+// Ch 5 scene: second law. A puck on a frictionless surface is pushed from rest by a constant
+// force: a = F/m, so v grows linearly with slope F/m.
 import type { ParamSchema, Scene } from '../../core/types';
 import { drawTrack, padded } from './common';
 import { netForce, pushState, type Push } from './physics';
 
-type P = { force: string; m: number; F: number; strobe: boolean };
+type P = { m: number; F: number; strobe: boolean };
 
 interface S {
   t: number;
@@ -16,29 +16,37 @@ interface S {
 }
 
 const RATE = 240;
-const T_END = 6;
-const T_OFF = 2;
+const T_END = 4;
 const STROBE_DT = 0.5;
 
-const pushOf = (p: P): Push => ({ F: p.F, m: p.m, tOff: p.force === 'off' ? T_OFF : Infinity });
+const M_MIN = 1;
+const M_MAX = 5;
+const F_MIN = 0.5;
+const F_MAX = 5;
 
-function track(p: P): [number, number] {
-  const end = pushState(pushOf(p), T_END).x;
-  return [0, Math.max(end, 4)];
-}
+const pushOf = (p: P): Push => ({ F: p.F, m: p.m, tOff: Infinity });
+
+/**
+ * Fixed scales for the track, arrows and plots: the largest acceleration on the sliders
+ * (F_MAX on M_MIN). They change with neither F nor m, so a = F/m shows directly on screen.
+ */
+const A_MAX = F_MAX / M_MIN;
+const V_MAX = A_MAX * T_END;
+const TRACK: [number, number] = [0, 0.5 * A_MAX * T_END * T_END];
 
 const params: ParamSchema<P> = {
-  force: {
-    kind: 'select',
-    label: 'ch05.n.p.force',
-    desc: 'ch05.n.d.force',
+  F: {
+    kind: 'number',
+    label: 'ch05.n.p.F',
+    desc: 'ch05.n.d.F',
     group: 'main',
     live: false,
-    default: 'off',
-    options: [
-      { value: 'off', label: 'ch05.n.force.off' },
-      { value: 'on', label: 'ch05.n.force.on' },
-    ],
+    control: 'slider',
+    min: F_MIN,
+    max: F_MAX,
+    step: 0.1,
+    default: 4,
+    unit: 'N',
   },
   m: {
     kind: 'number',
@@ -47,24 +55,11 @@ const params: ParamSchema<P> = {
     group: 'main',
     live: false,
     control: 'slider',
-    min: 0.5,
-    max: 5,
+    min: M_MIN,
+    max: M_MAX,
     step: 0.1,
     default: 2,
     unit: 'kg',
-  },
-  F: {
-    kind: 'number',
-    label: 'ch05.n.p.F',
-    desc: 'ch05.n.d.F',
-    group: 'advanced',
-    live: false,
-    control: 'slider',
-    min: 0.5,
-    max: 5,
-    step: 0.1,
-    default: 2,
-    unit: 'N',
   },
   strobe: { kind: 'toggle', label: 'ch05.n.p.strobe', desc: 'ch05.n.d.strobe', group: 'advanced', live: true, default: true },
 };
@@ -81,8 +76,8 @@ export const newton: Scene<P, S> = {
   params,
   time: { h: 1 / RATE, recordEvery: 1, frameStep: 0.1, tEnd: T_END },
 
-  world: (p) => {
-    const [lo, hi] = track(p);
+  world: () => {
+    const [lo, hi] = TRACK;
     const pad = 0.16 * (hi - lo);
     return { x: [lo - pad, hi + pad], y: [-1, 1], aspect: 'fit-x', padPx: 28 };
   },
@@ -99,11 +94,11 @@ export const newton: Scene<P, S> = {
   snapshot: (s) => ({ ...s }),
 
   draw: (g, s, p) => {
-    const [lo, hi] = track(p);
+    const [lo, hi] = TRACK;
     const span = hi - lo;
     drawTrack(g, lo, hi);
 
-    // Equal time steps: once the force is gone the marks are evenly spaced.
+    // Equal time steps: the spacing grows by the same amount a·Δt² each step.
     if (p.strobe) {
       for (let k = 0; k * STROBE_DT <= s.t + 1e-9; k++) {
         const q = stateAt(p, k * STROBE_DT);
@@ -112,17 +107,19 @@ export const newton: Scene<P, S> = {
       }
     }
 
-    const vMax = (p.F / p.m) * (p.force === 'off' ? T_OFF : T_END);
-    const aMax = p.F / p.m;
+    const vMax = V_MAX;
+    const aMax = A_MAX;
     const r = g.px(10);
     if (s.F > 0) {
-      // F lies along the track: its label goes just above the tip.
-      const fx = Math.max((s.F / 4) * 0.12 * span, g.px(18));
+      // F lies along the track: its label goes just above the tip. Scaled by the largest force.
+      const fx = Math.max((s.F / F_MAX) * 0.15 * span, g.px(18));
       g.arrow({ x: s.x + r, y: 0 }, { x: fx, y: 0 }, { role: 'force', width: 2.5 });
       g.text({ x: s.x + r + fx, y: 0 }, '*F*', { size: 13, role: 'force', align: 'left', dx: 4, dy: -6 });
     }
-    if (s.v > 0) g.arrow({ x: s.x, y: g.px(26) }, { x: (s.v / vMax) * 0.12 * span, y: 0 }, { role: 'velocity', label: '*v*' });
-    if (s.a > 0) g.arrow({ x: s.x, y: g.px(48) }, { x: (s.a / aMax) * 0.08 * span, y: 0 }, { role: 'acceleration', label: '*a*' });
+    // Proportional to v and a on the fixed scale, but never shorter than an arrow head can show.
+    const minLen = g.px(14);
+    if (s.v > 0) g.arrow({ x: s.x, y: g.px(26) }, { x: Math.max((s.v / vMax) * 0.12 * span, minLen), y: 0 }, { role: 'velocity', label: '*v*' });
+    if (s.a > 0) g.arrow({ x: s.x, y: g.px(48) }, { x: Math.max((s.a / aMax) * 0.08 * span, minLen), y: 0 }, { role: 'acceleration', label: '*a*' });
     g.circle({ x: s.x, y: 0 }, 10, { fill: 'position' });
   },
 
@@ -131,19 +128,19 @@ export const newton: Scene<P, S> = {
       id: 'F',
       label: 'F_\\text{net}\\,(\\mathrm{N})',
       traces: [{ channel: 'F', role: 'force' }],
-      yRange: (p) => padded(0, p.F, 1),
+      yRange: () => padded(0, F_MAX, 1),
     },
     {
       id: 'a',
       label: 'a\\,(\\mathrm{m/s^2})',
       traces: [{ channel: 'a', role: 'acceleration' }],
-      yRange: (p) => padded(0, p.F / p.m, 0.5),
+      yRange: () => padded(0, A_MAX, 0.5),
     },
     {
       id: 'v',
       label: 'v\\,(\\mathrm{m/s})',
       traces: [{ channel: 'v', role: 'velocity' }],
-      yRange: (p) => padded(0, (p.F / p.m) * (p.force === 'off' ? T_OFF : T_END), 1),
+      yRange: () => padded(0, V_MAX, 1),
       overlays: () => [{ kind: 'tangent', channel: 'v', slopeChannel: 'a', role: 'acceleration', unit: 'm/s²', target: { plot: 'a', channel: 'a' } }],
     },
   ],
@@ -155,9 +152,9 @@ export const newton: Scene<P, S> = {
   ],
 
   info: {
-    goals: ['ch05.n.goal.first', 'ch05.n.goal.second'],
-    observe: ['ch05.n.obs.off', 'ch05.n.obs.slope', 'ch05.n.obs.mass', 'ch05.n.obs.strobe'],
-    equations: ['\\vec F_\\text{net} = m\\vec a', '\\vec F_\\text{net} = 0 \\;\\Rightarrow\\; \\vec v = \\text{const}'],
+    goals: ['ch05.n.goal.second'],
+    observe: ['ch05.n.obs.slope', 'ch05.n.obs.force', 'ch05.n.obs.mass', 'ch05.n.obs.strobe'],
+    equations: ['\\vec F_\\text{net} = m\\vec a', 'a = F_\\text{net}/m'],
     assumptions: ['ch05.n.assume'],
   },
 };

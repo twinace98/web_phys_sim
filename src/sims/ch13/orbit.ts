@@ -132,6 +132,8 @@ export interface Model {
   period: number;
   sectorDt: number;
   rMax: number;
+  /** Lowest distance along the computed path [m] (R_EARTH after a crash). */
+  rMin: number;
   /** Largest speed and escape speed reached [m/s]. */
   vMax: number;
   /** Plot range of the specific energies [J/kg]. */
@@ -197,6 +199,7 @@ export function model(p: P): Model {
     period: el.period,
     sectorDt: (kind === 'ellipse' ? el.period : tCirc) / 12,
     rMax,
+    rMin,
     vMax: Math.max(vMax, escapeSpeed(rMin)),
     eMin: Math.min(-GM / rMin, E),
     eMax: Math.max(0.5 * vMax * vMax, E, 0),
@@ -318,11 +321,26 @@ function sectors(g: Draw, p: P, n: number): void {
   }
 }
 
+/** Sim seconds per wall second at 1×: 4000, faster for long ellipses so one orbit takes at most ORBIT_WALL s. */
+const SCALE = 4000;
+const ORBIT_WALL = 10;
+export function timeScaleOf(p: P): number {
+  // The period depends only on the energy (speed and altitude), not on the dragged direction.
+  const r0 = r0Of(p);
+  const f = fraction(p);
+  if (p.speed === 1 || f >= 1) return SCALE;
+  const a = r0 / (2 * (1 - f * f));
+  return Math.max(SCALE, (2 * Math.PI * Math.sqrt(a ** 3 / GM)) / ORBIT_WALL);
+}
+
+/** Smallest drawn Earth radius [px], kept inside the lowest point of the path. */
+const EARTH_MIN_PX = 6;
+
 export const orbitScene: Scene<P, S> = {
   id: 'orbit',
   title: 'ch13.o.scene',
   params,
-  time: { h: H, recordEvery: 2, frameStep: 200, scale: 4000, tEnd: (p) => model(p as P).N * H },
+  time: { h: H, recordEvery: 2, frameStep: 200, scale: (p) => timeScaleOf(p as P), tEnd: (p) => model(p as P).N * H },
 
   world: (p) => {
     const v = view(p);
@@ -353,8 +371,11 @@ export const orbitScene: Scene<P, S> = {
     if (p.areas) sectors(g, p, s.n);
 
     // Earth.
+    // On huge near-escape orbits the Earth would shrink to a few px: draw it at least EARTH_MIN_PX,
+    // but never out to the lowest point of the path (a crash keeps the true size).
+    const rE = Math.max(R_EARTH / MM, Math.min(g.px(EARTH_MIN_PX), (0.8 * m.rMin) / MM));
     const earth: Vec2[] = [];
-    for (let i = 0; i < 96; i++) earth.push({ x: (R_EARTH / MM) * Math.cos((i / 96) * 2 * Math.PI), y: (R_EARTH / MM) * Math.sin((i / 96) * 2 * Math.PI) });
+    for (let i = 0; i < 96; i++) earth.push({ x: rE * Math.cos((i / 96) * 2 * Math.PI), y: rE * Math.sin((i / 96) * 2 * Math.PI) });
     g.polygon(earth, { fill: EARTH_FILL, color: EARTH_LINE, width: 1.25 });
     g.circle(O, 2, { fill: EARTH_LINE });
 

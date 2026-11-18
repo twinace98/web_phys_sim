@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PARTICLES, cyclotronOmega, gyrate, lorentz, maxEnergy, period, radius, runCyclotron, type Cyclotron, type Kin } from '../src/sims/ch28/physics';
+import { cyclotronScene } from '../src/sims/ch28/cyclotron';
+import ko from '../src/sims/ch28/i18n.ko.json';
+import en from '../src/sims/ch28/i18n.en.json';
 
 const p = PARTICLES.proton;
 const e = PARTICLES.electron;
@@ -84,5 +87,47 @@ describe('ch28 cyclotron', () => {
     expect(kMax).toBeLessThan(0.75 * maxEnergy(c));
     const at11 = Math.floor((11 * T) / (run.t[1] - run.t[0]));
     expect(run.K[at11]).toBeLessThan(0.3 * kMax);
+  });
+});
+
+describe('ch28 cyclotron detuning and the r readout (QA E6)', () => {
+  const p0 = { ratio: 1, V0: 10 };
+  const cfgP = (ratio: number, V0: number): Cyclotron => ({ pt: p, B: 1, R: 0.05, gap: 0.006, V0: V0 * 1e3, ratio });
+  const TC = (2 * Math.PI) / cyclotronOmega(cfgP(1, 10));
+  /** The scene's run length: 12 turns or enough for ≈ qV0 per crossing, plus 3 turns. */
+  const tMax = (V0: number) => Math.max(12, maxEnergy(cfgP(1, 10)) / (p.q * 1e3) / (2 * V0) + 3) * TC;
+
+  it('at 10 kV a small detuning (0.97 to 1.02) still extracts at ≈ 120 keV; 0.95 and 1.04 do not', () => {
+    for (const ratio of [0.97, 0.98, 0.99, 1, 1.01, 1.02]) {
+      const run = runCyclotron(cfgP(ratio, 10), tMax(10), 1e-11, 10, 0.065);
+      expect(Number.isFinite(run.tExit)).toBe(true);
+      expect(run.kExit / (p.q * 1e3)).toBeGreaterThan(119.5);
+      expect(run.kExit / (p.q * 1e3)).toBeLessThan(120);
+    }
+    for (const ratio of [0.95, 1.04]) expect(runCyclotron(cfgP(ratio, 10), tMax(10), 1e-11, 10, 0.065).tExit).toBe(Infinity);
+    // The window is narrower with more turns (5 kV): 0.98 already falls out of step.
+    expect(runCyclotron(cfgP(0.98, 5), tMax(5), 1e-11, 10, 0.065).tExit).toBe(Infinity);
+    expect(Number.isFinite(runCyclotron(cfgP(0.99, 5), tMax(5), 1e-11, 10, 0.065).tExit)).toBe(true);
+  });
+
+  it('the ⓘ no longer says acceleration needs f = f_c exactly; 진동수, not 주파수', () => {
+    expect(ko['ch28.c.obs.detune']).toMatch(/0\.97–1\.02/);
+    expect(en['ch28.c.obs.detune']).toMatch(/0\.97–1\.02/);
+    expect(ko['ch28.c.obs.detune']).not.toMatch(/크게 낮음/);
+    expect(JSON.stringify(ko)).not.toMatch(/주파수/);
+  });
+
+  it('r is the orbit radius mv/|q|B (4.82 cm just before extraction, not the 5.00 cm distance), R at extraction', () => {
+    const run = runCyclotron(cfgP(1, 10), tMax(10), 1e-11, 10, 0.065);
+    const ro = cyclotronScene.readouts!.find((r) => r.label === 'r')!;
+    const at = (tS: number) => ro.value({ t: tS * 1e9, n: 0 }, p0);
+    const t99 = 0.99 * run.tExit;
+    const i = Math.round(t99 / (run.t[1] - run.t[0]));
+    expect(Math.hypot(run.x[i], run.y[i]) * 100).toBeGreaterThan(4.95); // distance from the centre
+    expect(at(t99)).toBeGreaterThan(4.75);
+    expect(at(t99)).toBeLessThan(4.9);
+    expect(at(t99)).toBeCloseTo((Math.hypot(run.vx[i], run.vy[i]) / cyclotronOmega(cfgP(1, 10))) * 100, 2);
+    expect(at(run.tExit + 0.2 * TC)).toBeCloseTo(5, 1);
+    expect(at(0)).toBe(0);
   });
 });

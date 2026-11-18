@@ -4,7 +4,7 @@ import { clockDecimals, fmt, fmtClock, fmtTick } from '../core/format';
 import { getLang, onLangChange, t } from '../core/i18n';
 import { defaults, fromQuery, toQuery } from '../core/params';
 import { Runner } from '../core/runner';
-import { timeUnit, type Params, type ParamSpec, type Scene, type SimPage, type UiState } from '../core/types';
+import { timeUnit, timeWindow, type Params, type ParamSpec, type Scene, type SimPage, type UiState } from '../core/types';
 import { chapterHash } from '../core/url';
 import { Viewport } from '../core/viewport';
 import { CanvasDraw } from '../draw/draw';
@@ -75,6 +75,8 @@ export class SimView {
   private formulaTex = '';
   private formulaAt = -Infinity;
   private formulaW = 0;
+  private mainEl: HTMLElement | null = null;
+  private dockRo?: ResizeObserver;
   private playBtn: HTMLButtonElement | null = null;
   private shownPlaying: boolean | null = null;
   private timeVal: HTMLElement | null = null;
@@ -157,6 +159,7 @@ export class SimView {
     );
 
     const main = h('main', { class: `sim ${scene.plots?.length ? (scene.layout ?? 'side') : 'solo'}` });
+    this.mainEl = main;
     this.stageWrap = h('section', { class: 'stage-wrap' });
     this.stageCanvas = h('canvas', { class: 'stage', 'aria-label': t(scene.title), role: 'img' });
     this.stageCtx = this.stageCanvas.getContext('2d')!;
@@ -464,6 +467,26 @@ export class SimView {
     return panel;
   }
 
+  /**
+   * The formula panel is read while the sim keeps running, so on a wide screen it docks: the sim
+   * narrows by the panel width (the stage and plots re-lay out) instead of being covered. The
+   * settings and info panels still overlay (read, then close). Phones keep the bottom sheet.
+   */
+  private dockFormula(): void {
+    const main = this.mainEl;
+    if (!main) return;
+    const docked = this.panel === 'formula' && !window.matchMedia('(max-width: 767px)').matches;
+    main.style.marginRight = docked ? `${this.formula.offsetWidth}px` : '';
+    this.dockRo?.disconnect();
+    if (docked) {
+      // Follow the panel when its edge is dragged.
+      this.dockRo = new ResizeObserver(() => {
+        if (this.panel === 'formula') main.style.marginRight = `${this.formula.offsetWidth}px`;
+      });
+      this.dockRo.observe(this.formula);
+    }
+  }
+
   /** Formula panel: filled while open from Scene.formula, re-rendered only when the text changes. */
   private buildFormula(): HTMLElement {
     const { panel, body } = this.sidePanel('formula', t('ui.formula'), t('ui.formula'));
@@ -580,6 +603,7 @@ export class SimView {
     this.formula.classList.toggle('open', this.panel === 'formula');
     this.formulaTex = '';
     this.formulaAt = -Infinity;
+    this.dockFormula();
     if (this.panel === 'info' && this.eqBox) fitEquations(this.eqBox);
   }
 
@@ -783,7 +807,7 @@ export class SimView {
 
     if (this.plots) {
       const tEnd = r.tEnd;
-      const win = scene.time?.window ?? 10;
+      const win = timeWindow(scene.time, p);
       // A zero-length run (e.g. a projectile that lands at once) still needs a non-empty time axis.
       const tRange: [number, number] = tEnd !== undefined ? [0, tEnd > 0 ? tEnd : 1] : [Math.max(0, this.ui.t - win), Math.max(win, this.ui.t)];
       this.plots.render({ hist, p, ui: this.ui, idx, tRange });
@@ -793,7 +817,7 @@ export class SimView {
     // recorded sample, which lags by up to recordEvery steps).
     if (this.timeVal) {
       const time = scene.time!;
-      const span = r.tEnd ?? time.window ?? 10;
+      const span = r.tEnd ?? timeWindow(time, r.params);
       this.timeVal.textContent = fmtClock(s.t, clockDecimals(time.frameStep, span));
     }
     (scene.readouts ?? []).forEach((spec, i) => {

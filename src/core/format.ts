@@ -26,7 +26,9 @@ export function fmt(v: number, sig = 3, zeroTol = 1e-9): string {
   if (Math.abs(v) < zeroTol) v = 0;
   const a = Math.abs(v);
   const sign = v < 0 ? MINUS : '';
-  if (a !== 0 && (a >= 1e5 || a < 1e-3)) {
+  // Decide the notation from the value as it will be printed (99999.6 at 3 figures is 1.00×10⁵).
+  const ar = a === 0 ? 0 : Number(a.toPrecision(sig));
+  if (a !== 0 && (ar >= 1e5 || ar < 1e-3)) {
     let e = Math.floor(Math.log10(a));
     let m = a / 10 ** e;
     if (Number(m.toFixed(sig - 1)) >= 10) {
@@ -35,7 +37,9 @@ export function fmt(v: number, sig = 3, zeroTol = 1e-9): string {
     }
     return `${sign}${m.toFixed(sig - 1)}×10${sup(e)}`;
   }
-  const mag = a === 0 ? 0 : Math.floor(Math.log10(a));
+  // Decimals from the printed magnitude: 9.996 at 3 figures prints 10.0, not 10.00. Values of
+  // 10^sig and more keep all their integer digits (3567 N, not 3570 N).
+  const mag = ar === 0 ? 0 : Math.floor(Math.log10(ar));
   const decimals = Math.max(0, sig - 1 - mag);
   return sign + a.toFixed(decimals);
 }

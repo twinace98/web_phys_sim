@@ -92,3 +92,34 @@ export function extendPath(src: readonly Src[], path: number[], tx: number, ty: 
     if (!push(x, y)) return;
   }
 }
+
+/**
+ * Thin a long dragged path in place so it can keep growing: while it has more than `maxPts`
+ * points, drop every other point of its older half, except where the shortened chord would come
+ * within 0.95 d of a charge (the path never cuts into a charge's disc). W = −q0 ΔV for any path,
+ * so thinning leaves the work unchanged.
+ */
+export function thinPath(src: readonly Src[], path: number[], maxPts: number, d = 0.05): void {
+  while (path.length > 2 * maxPts) {
+    const n = path.length / 2;
+    const half = Math.floor(n / 2);
+    const out = [path[0], path[1]];
+    let dropped = 0;
+    for (let i = 1; i < n; i++) {
+      if (i < half && i % 2 === 1) {
+        const ax = out[out.length - 2];
+        const ay = out[out.length - 1];
+        const bx = path[2 * i + 2];
+        const by = path[2 * i + 3];
+        if (!src.some((c) => segDist(ax, ay, bx, by, c.x, c.y) < 0.95 * d)) {
+          dropped++;
+          continue;
+        }
+      }
+      out.push(path[2 * i], path[2 * i + 1]);
+    }
+    if (!dropped) return;
+    path.length = out.length;
+    for (let k = 0; k < out.length; k++) path[k] = out[k];
+  }
+}

@@ -218,6 +218,11 @@ function tauMarkers(id: string, pd: PlotDraw, p: P): void {
 
 // ------------------------------------------------------------------ scene
 
+/** Rolling plot window [s]: 10τ, kept between 0.5 s and 20 s. */
+export const plotWindow = (p: P) => Math.min(20, Math.max(0.5, 10 * tau(rcOf(p))));
+/** Sim seconds per wall second: 1 for τ ≥ 0.5 s, 2τ per s below (5τ then takes 2.5 s). */
+export const timeScaleOf = (p: P) => Math.min(1, Math.max(0.1, 2 * tau(rcOf(p))));
+
 const span = (lo: number, hi: number): [number, number] => {
   const m = 0.1 * (hi - lo);
   return [lo - m, hi + m];
@@ -242,7 +247,15 @@ export const rcCircuit: Scene<P, S> = {
   id: 'rc',
   title: 'ch27.scene',
   params,
-  time: { h: 1 / RATE, recordEvery: 2, frameStep: 0.1, window: 20 },
+  time: {
+    h: 1 / RATE,
+    recordEvery: 1,
+    frameStep: 0.1,
+    // Ten time constants in view (2 s at τ = 0.2 s, 20 s at the default 2 s), and a short τ runs
+    // slower than real time so the charging can be watched (0.1× at τ = 0.05 s).
+    window: (p) => plotWindow(p as P),
+    scale: (p) => timeScaleOf(p as P),
+  },
   world: () => ({ x: [-0.4, 10.6], y: [0.2, 6.3], aspect: 'contain', padPx: 20 }),
 
   init: (p) => {

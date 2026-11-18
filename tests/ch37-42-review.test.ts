@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { Runner } from '../src/core/runner';
 import { gamma } from '../src/sims/ch37/physics';
 import { groundPosts } from '../src/sims/ch37/scene';
-import { EV, ME, deBroglie } from '../src/sims/ch38/physics';
-import { deBroglieScene, momentum } from '../src/sims/ch38/scene';
+import { EV, ME, deBroglie, pFromK } from '../src/sims/ch38/physics';
+import { diffractionScene } from '../src/sims/ch38/diffraction';
 import { HBAR_EVFS, SUP_L_MIN, SUP_U0_MIN, model, pairOf, superposition, supStates } from '../src/sims/ch39/scene';
 import { angle } from '../src/sims/ch40/scene';
 import { carriersOf, doping } from '../src/sims/ch41/doping';
@@ -25,13 +25,11 @@ describe('ch37 simultaneity: ground posts', () => {
   });
 });
 
-describe('ch38 electron energy slider', () => {
-  it('log slider 1–10000 eV; λ falls monotonically and matches h/√(2mK) at low energy', () => {
-    const spec = deBroglieScene.params.eK;
-    expect(spec.kind === 'number' && spec.control === 'slider' && spec.log && spec.min === 1 && spec.max === 10000).toBe(true);
+describe('ch38 electron wavelength', () => {
+  it('λ falls monotonically with energy and matches h/√(2mK) at low energy', () => {
     let prev = Infinity;
     for (const eK of [1, 3.7, 54, 270, 2300, 10000]) {
-      const lam = deBroglie(momentum({ part: 'electron', eK, vn: 2200, vc: 220, vb: 40 }));
+      const lam = deBroglie(pFromK(ME, eK * EV));
       expect(lam).toBeLessThan(prev);
       prev = lam;
       if (eK < 100) expect(lam / (6.62607015e-34 / Math.sqrt(2 * ME * eK * EV))).toBeCloseTo(1, 3);
@@ -39,7 +37,7 @@ describe('ch38 electron energy slider', () => {
   });
 
   it('info equations carry no English words', () => {
-    for (const s of [deBroglieScene, superposition]) for (const e of s.info.equations ?? []) expect(e).not.toMatch(/\\text\{\s*[a-z]{2,}/i);
+    for (const s of [diffractionScene, superposition]) for (const e of s.info.equations ?? []) expect(e).not.toMatch(/\\text\{\s*[a-z]{2,}/i);
   });
 });
 
