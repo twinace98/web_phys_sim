@@ -5,6 +5,7 @@ import { fmt, fmtTick, niceTicks } from '../../core/format';
 import { t as tr } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
+import { measureRich } from '../../draw/text';
 import { color, theme, withAlpha } from '../../draw/theme';
 import { LabelLayout } from '../ch03/labels';
 import { F_MAX, SEG, TRACK, force, kinetic, makeSetup, trajectory, work, type Preset, type Setup, type Trajectory } from './physics';
@@ -283,13 +284,20 @@ export const workEnergy: Scene<P, S> = {
         lay.boxes.push({ x0: hx - 15, y0: hy - 6, x1: hx + 15, y1: hy + 6 });
       }
     }
+    // The F (N) axis title (drawn by bandAxis at the band top, 6 px right of the axis) is an obstacle too.
+    {
+      const [ax, ay] = g.vp.toPx(0, F_BAND[1]);
+      const tw = measureRich(g.ctx, '*F* (N)', { size: 13 });
+      const sc0 = theme.scale;
+      lay.boxes.push({ x0: ax + 4 * sc0, y0: ay - 19 * sc0, x1: ax + 8 * sc0 + tw, y1: ay + 1 * sc0 });
+    }
     const [gx, gTop] = g.vp.toPx(ub, F_BAND[1]);
     const [, gBot] = g.vp.toPx(ub, F_BAND[0]);
     const sc = theme.scale;
     const rightFirst = ub <= TRACK * 0.7;
     const sides: ('left' | 'right')[] = rightFirst ? ['left', 'right'] : ['right', 'left'];
     const cands: { x: number; y: number; align: 'left' | 'right' }[] = [];
-    for (const y of [gTop - 4 * sc, gTop + 12 * sc, gBot - 6 * sc]) {
+    for (const y of [gTop - 4 * sc, gTop + 12 * sc, gTop + 26 * sc, gBot - 6 * sc, gBot - 20 * sc]) {
       for (const al of sides) cands.push({ x: gx + (al === 'left' ? 8 : -8) * sc, y, align: al });
     }
     lay.place(cands, `${tr('plot.area')} = ${fmt(W)} J`, 'force', 12, 500);
