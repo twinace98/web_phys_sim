@@ -20,10 +20,22 @@ const T_END = 6;
 const T_OFF = 2;
 const STROBE_DT = 0.5;
 
+const M_MIN = 0.5;
+const M_MAX = 5;
+const F_MIN = 0.5;
+const F_MAX = 5;
+
 const pushOf = (p: P): Push => ({ F: p.F, m: p.m, tOff: p.force === 'off' ? T_OFF : Infinity });
 
+/**
+ * Scales for the track, arrows and plots: the largest acceleration this force can give (lightest
+ * mass), so they do not change with m and a heavier puck visibly accelerates less.
+ */
+const aRef = (p: P) => p.F / M_MIN;
+const vRef = (p: P) => aRef(p) * (p.force === 'off' ? T_OFF : T_END);
+
 function track(p: P): [number, number] {
-  const end = pushState(pushOf(p), T_END).x;
+  const end = pushState({ ...pushOf(p), m: M_MIN }, T_END).x;
   return [0, Math.max(end, 4)];
 }
 
@@ -47,8 +59,8 @@ const params: ParamSchema<P> = {
     group: 'main',
     live: false,
     control: 'slider',
-    min: 0.5,
-    max: 5,
+    min: M_MIN,
+    max: M_MAX,
     step: 0.1,
     default: 2,
     unit: 'kg',
@@ -60,8 +72,8 @@ const params: ParamSchema<P> = {
     group: 'advanced',
     live: false,
     control: 'slider',
-    min: 0.5,
-    max: 5,
+    min: F_MIN,
+    max: F_MAX,
     step: 0.1,
     default: 2,
     unit: 'N',
@@ -112,17 +124,19 @@ export const newton: Scene<P, S> = {
       }
     }
 
-    const vMax = (p.F / p.m) * (p.force === 'off' ? T_OFF : T_END);
-    const aMax = p.F / p.m;
+    const vMax = vRef(p);
+    const aMax = aRef(p);
     const r = g.px(10);
     if (s.F > 0) {
-      // F lies along the track: its label goes just above the tip.
-      const fx = Math.max((s.F / 4) * 0.12 * span, g.px(18));
+      // F lies along the track: its label goes just above the tip. Scaled by the largest force.
+      const fx = Math.max((s.F / F_MAX) * 0.15 * span, g.px(18));
       g.arrow({ x: s.x + r, y: 0 }, { x: fx, y: 0 }, { role: 'force', width: 2.5 });
       g.text({ x: s.x + r + fx, y: 0 }, '*F*', { size: 13, role: 'force', align: 'left', dx: 4, dy: -6 });
     }
-    if (s.v > 0) g.arrow({ x: s.x, y: g.px(26) }, { x: (s.v / vMax) * 0.12 * span, y: 0 }, { role: 'velocity', label: '*v*' });
-    if (s.a > 0) g.arrow({ x: s.x, y: g.px(48) }, { x: (s.a / aMax) * 0.08 * span, y: 0 }, { role: 'acceleration', label: '*a*' });
+    // Proportional to v and a on the fixed scale, but never shorter than an arrow head can show.
+    const minLen = g.px(14);
+    if (s.v > 0) g.arrow({ x: s.x, y: g.px(26) }, { x: Math.max((s.v / vMax) * 0.12 * span, minLen), y: 0 }, { role: 'velocity', label: '*v*' });
+    if (s.a > 0) g.arrow({ x: s.x, y: g.px(48) }, { x: Math.max((s.a / aMax) * 0.08 * span, minLen), y: 0 }, { role: 'acceleration', label: '*a*' });
     g.circle({ x: s.x, y: 0 }, 10, { fill: 'position' });
   },
 
@@ -131,19 +145,19 @@ export const newton: Scene<P, S> = {
       id: 'F',
       label: 'F_\\text{net}\\,(\\mathrm{N})',
       traces: [{ channel: 'F', role: 'force' }],
-      yRange: (p) => padded(0, p.F, 1),
+      yRange: () => padded(0, F_MAX, 1),
     },
     {
       id: 'a',
       label: 'a\\,(\\mathrm{m/s^2})',
       traces: [{ channel: 'a', role: 'acceleration' }],
-      yRange: (p) => padded(0, p.F / p.m, 0.5),
+      yRange: (p) => padded(0, aRef(p), 0.5),
     },
     {
       id: 'v',
       label: 'v\\,(\\mathrm{m/s})',
       traces: [{ channel: 'v', role: 'velocity' }],
-      yRange: (p) => padded(0, (p.F / p.m) * (p.force === 'off' ? T_OFF : T_END), 1),
+      yRange: (p) => padded(0, vRef(p), 1),
       overlays: () => [{ kind: 'tangent', channel: 'v', slopeChannel: 'a', role: 'acceleration', unit: 'm/s²', target: { plot: 'a', channel: 'a' } }],
     },
   ],

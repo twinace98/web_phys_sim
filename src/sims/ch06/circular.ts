@@ -12,7 +12,7 @@ import type { Viewport } from '../../core/viewport';
 import type { Draw } from '../../draw/draw';
 import { theme } from '../../draw/theme';
 import { PX_WORLD } from '../modern/frame';
-import { G, SETUPS, fictitious, forces, lapTime, netForce, omega, required, rotatingViewAt, topViewAt, type Force, type Preset } from './physics';
+import { G, SETUPS, fictitious, forces, lapTime, netForce, omega, required, rotatingViewAt, speedAt, topViewAt, type Force, type Preset } from './physics';
 
 type P = { preset: string; cut: boolean; ice: boolean };
 type Frame = 'inertial' | 'rotating';
@@ -435,7 +435,7 @@ export const circular: Scene<P, { t: number; n: number }> = {
   },
 
   readouts: [
-    { label: 'v', unit: 'm/s', value: (_s, p) => SETUPS[presetOf(p)].v },
+    { label: 'v', unit: 'm/s', value: (s, p) => speedAt(presetOf(p), s.t, tRel(p)) },
     { label: 'F_{\\text{net},r}', unit: 'N', value: (s, p) => netForce(presetOf(p), s.t >= tRel(p)).r },
     { label: 'mv^2/r', unit: 'N', value: (_s, p) => required(SETUPS[presetOf(p)]) },
   ],

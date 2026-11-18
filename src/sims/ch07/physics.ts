@@ -72,22 +72,31 @@ export function work(p: Profile, xa: number, xb: number): number {
   return sgn * w;
 }
 
-/** Smallest τ > 0 with x + vτ + aτ²/2 = b, or Infinity. */
-function hitTime(x: number, v: number, a: number, b: number): number {
+/**
+ * Time τ ≥ 0 at which x + vτ + aτ²/2 first reaches the edge b while moving out through it
+ * (out = +1 for the upper edge, −1 for the lower one), or Infinity. A root at τ ≈ 0 counts when the
+ * block is moving outward then: rounding can leave x a few ulps short of an edge it has reached,
+ * and treating that as "no crossing" would run the whole step with the wrong segment's force.
+ */
+function hitTime(x: number, v: number, a: number, b: number, out: 1 | -1): number {
   const d = b - x;
   const eps = 1e-12;
+  const ok = (r: number) => r > eps || (r >= -eps && (v + a * Math.max(r, 0)) * out > 0);
   if (Math.abs(a) < 1e-15) {
     if (Math.abs(v) < 1e-15) return Infinity;
     const t = d / v;
-    return t > eps ? t : Infinity;
+    return ok(t) ? Math.max(t, 0) : Infinity;
   }
-  const disc = v * v + 2 * a * d;
+  let disc = v * v + 2 * a * d;
+  // A turning point on the edge itself (K used up exactly there) comes out a rounding error short
+  // after many steps (~1e-13 m): a turning point within 1 nm of the edge counts as reaching it.
+  if (disc < 0 && Math.abs(disc / (2 * a)) < 1e-9) disc = 0;
   if (disc < 0) return Infinity;
   const s = Math.sqrt(disc);
   const r1 = (-v - s) / a;
   const r2 = (-v + s) / a;
   let best = Infinity;
-  for (const r of [r1, r2]) if (r > eps && r < best) best = r;
+  for (const r of [r1, r2]) if (ok(r) && Math.max(r, 0) < best) best = Math.max(r, 0);
   return best;
 }
 
@@ -109,13 +118,15 @@ export function advance(su: Setup, x: number, v: number, dt: number): { x: numbe
     const a = p.Fs[i] / su.m;
     const lo = i === 0 ? -Infinity : p.xs[i];
     const hi = i === p.Fs.length - 1 ? Infinity : p.xs[i + 1];
-    const tLo = Number.isFinite(lo) ? hitTime(x, v, a, lo) : Infinity;
-    const tHi = Number.isFinite(hi) ? hitTime(x, v, a, hi) : Infinity;
+    const tLo = Number.isFinite(lo) ? hitTime(x, v, a, lo, -1) : Infinity;
+    const tHi = Number.isFinite(hi) ? hitTime(x, v, a, hi, 1) : Infinity;
     const tx = Math.min(tLo, tHi);
     if (tx >= rem) {
       return { x: x + v * rem + 0.5 * a * rem * rem, v: v + a * rem };
     }
     v = v + a * tx;
+    // Arriving at rest on the edge: drop the rounding residue so the rest rule below decides.
+    if (Math.abs(v) < 1e-9) v = 0;
     x = tLo < tHi ? lo : hi;
     rem -= tx;
   }
