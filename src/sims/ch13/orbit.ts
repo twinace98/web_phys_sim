@@ -1,15 +1,17 @@
 // Ch 13 scene: launch a probe from a given altitude with a speed set as a fraction of the local
 // escape speed, and drag its direction. The sign of E = K + U decides: ellipse, parabola or
 // hyperbola. The dashed circle around the probe is the escape speed at its current distance.
+// Free-body diagram: the one force on the probe, F_g = GMm/r² towards the Earth's centre.
 import { t as tr } from '../../core/i18n';
 import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
+import { drawFbd, fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
 import { ROLE_COLOR } from '../../draw/theme';
 import { sigFit } from '../ch07/sigfit';
-import { GM, R_EARTH, classify, elements, energy, escapeSpeed, radius, speed, yoshida, type Body, type OrbitKind, type V2 } from './physics';
+import { GM, R_EARTH, accel, classify, elements, energy, escapeSpeed, radius, speed, yoshida, type Body, type OrbitKind, type V2 } from './physics';
 
-export type P = { speed: number; alt: number; dir: number; predict: boolean; areas: boolean; ueff: boolean };
+export type P = { speed: number; alt: number; dir: number; predict: boolean; areas: boolean; ueff: boolean; fbd: boolean };
 
 interface S {
   t: number;
@@ -218,9 +220,37 @@ function bodyAt(p: P, n: number): Body {
 
 const w = (x: number[] | Float64Array, i: number): Vec2 => ({ x: x[i] / MM, y: x[i + 1] / MM });
 
+/** Probe state after n physics steps (the run's last state beyond its end). */
+export const probeAt = (p: P, n: number): Body => bodyAt(p, n);
+export { MASS as PROBE_MASS };
+
+/** The one force on the probe [N]: gravitation of the Earth, m times the acceleration the integrator uses. */
+export function fbdForces(b: Body): FbdForce[] {
+  const a = accel(b.x);
+  return [{ F: { x: MASS * a[0], y: MASS * a[1] }, label: '*F*_{g}', field: true }];
+}
+
+/** Px per newton for the run: the largest F_g, at the lowest point of the path, gets the full length. */
+export const fbdPerN = (p: P) => fbdScale((GM * MASS) / model(p).rMin ** 2);
+
+/**
+ * With the diagram on, v gives way where it would run along F_g (within 30°: a launch close to
+ * straight down, or falling back); elsewhere the two arrows point apart.
+ */
+export function velocityClear(b: Body): boolean {
+  const vx = b.v[0];
+  const vy = b.v[1];
+  const sp = Math.hypot(vx, vy);
+  const r = radius(b);
+  if (sp === 0) return true;
+  // cos of the angle between v and the inward radial (−x/r).
+  return (-(vx * b.x[0] + vy * b.x[1]) / (sp * r)) < Math.cos(30 * DEG);
+}
+
 const params: ParamSchema<P> = {
   speed: { kind: 'number', label: 'ch13.p.speed', desc: 'ch13.d.speed', group: 'main', live: false, control: 'slider', min: 0.3, max: 1.4, step: 0.01, default: 0.85 },
   alt: { kind: 'number', label: 'ch13.p.alt', desc: 'ch13.d.alt', group: 'main', live: false, control: 'slider', min: 1000, max: 15000, step: 500, default: 6000, unit: 'km' },
+  fbd: fbdParam(),
   dir: { kind: 'number', label: 'ch13.p.dir', desc: 'ch13.d.dir', group: 'hidden', live: false, control: 'slider', min: -90, max: 90, default: 0 },
   predict: { kind: 'toggle', label: 'ch13.p.predict', desc: 'ch13.d.predict', group: 'advanced', live: true, default: true },
   areas: { kind: 'toggle', label: 'ch13.p.areas', desc: 'ch13.d.areas', group: 'advanced', live: true, default: false },
@@ -357,13 +387,20 @@ export function formulaLines(s: S, p: P): string[] {
   const se = sigFit([K, U], (a, c) => a + c, E);
   const sx = sigFit([r], (q) => escapeSpeed(q) / 1e3, vesc / 1e3, 3, 4);
   const rel = m.kind === 'ellipse' ? '<' : m.kind === 'hyperbola' ? '>' : '=';
-  return [
+  const lines = [
     `K = \\tfrac12 mv^2 = \\tfrac12(${num(MASS)})(${tn(v, sv)})^2\\ \\mathrm{J} = ${tn(K)}${u('GJ')}`,
     `U = -\\frac{GMm}{r} = -\\frac{(${gm})(${num(MASS)})}{${tn(r, sr)}}\\ \\mathrm{J} = ${tn(U)}${u('GJ')}`,
     `E = K + U = ${tn(K, se)} + (${tn(U, se)}) = ${tn(E)}${u('GJ')}`,
     `v_\\mathrm{esc} = \\sqrt{\\frac{2GM}{r}} = \\sqrt{\\frac{2(${gm})}{${tn(r, sx)}}}\\ \\mathrm{m/s} = ${tn(vesc / 1e3)}${u('km/s')}`,
     `v = ${tn(v / 1e3)}${u('km/s')} ${rel} v_\\mathrm{esc}`,
   ];
+  if (p.fbd) {
+    // The free-body diagram has one force: the net force is F_g.
+    const F = (GM * MASS) / (r * r);
+    const sf = sigFit([r], (q) => (GM * MASS) / (q * q), F, 3, 4);
+    lines.push(`\\Sigma F = F_g = \\frac{GMm}{r^2} = \\frac{(${gm})(${num(MASS)})}{(${tn(r, sf)})^2} = ${tn(F)}${u('N')} = ma`);
+  }
+  return lines;
 }
 
 export const orbitScene: Scene<P, S> = {
@@ -469,8 +506,11 @@ export const orbitScene: Scene<P, S> = {
       g.line({ x: P0.x - d, y: P0.y - d }, { x: P0.x + d, y: P0.y + d }, { color: '#1a1a1a', width: 2.5 });
       g.line({ x: P0.x - d, y: P0.y + d }, { x: P0.x + d, y: P0.y - d }, { color: '#1a1a1a', width: 2.5 });
     } else {
-      g.arrow(P0, { x: b.v[0] * k, y: b.v[1] * k }, { role: 'velocity', width: 2.5, label: '*v*' });
-      g.circle(P0, 6, { fill: 'position' });
+      const fbd = p.fbd;
+      if (!fbd || velocityClear(b)) g.arrow(P0, { x: b.v[0] * k, y: b.v[1] * k }, { role: 'velocity', width: 2.5, label: '*v*' });
+      // Faded under the free-body diagram, so the arrow from its centre reads.
+      g.circle(P0, 6, { fill: 'position', alpha: fbd ? 0.25 : 1 });
+      if (fbd) drawFbd(g, P0, fbdForces(b), fbdPerN(p));
     }
 
     // Orbit type from the sign of E.

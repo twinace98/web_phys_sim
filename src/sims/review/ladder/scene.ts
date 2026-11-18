@@ -357,15 +357,16 @@ export const ladderScene: Scene<P, S> = {
     }
 
     // Forces on the ladder at their points of application.
-    const arrow = (from: Vec2, vec: Vec2, col: string) => {
-      g.arrow(from, vec, { color: col, width: 2.5 });
+    // Weights (forces at a distance) dashed, contact forces solid, as in every free-body diagram.
+    const arrow = (from: Vec2, vec: Vec2, col: string, field = false) => {
+      g.arrow(from, vec, { color: col, width: 2.5, dash: field ? [5, 3] : undefined });
       seg(from, add(from, vec));
     };
     const mgTip = add(C, { x: 0, y: -p.m * G * k });
-    arrow(C, { x: 0, y: -p.m * G * k }, WEIGHT);
+    arrow(C, { x: 0, y: -p.m * G * k }, WEIGHT, true);
     // The weight of M acts on the ladder at d: that arrow ends on the circle.
     const MgTail = add(Pp, { x: 0, y: rM + p.M * G * k });
-    if (p.M > 0) arrow(MgTail, { x: 0, y: -p.M * G * k }, WEIGHT);
+    if (p.M > 0) arrow(MgTail, { x: 0, y: -p.M * G * k }, WEIGHT, true);
     const Ntip = add(A, { x: 0, y: F.N * k });
     if (F.N * k > g.px(2)) arrow(A, { x: 0, y: F.N * k }, NORMAL);
     const Fwtip = add(T, { x: -F.Fw * k, y: 0 });

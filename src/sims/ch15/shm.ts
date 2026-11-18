@@ -1,12 +1,14 @@
 // Ch 15 scene: SHM as the projection of uniform circular motion. Reference circle (left) and
-// mass on a spring (right) share one horizontal projection line.
-import { num, tn, u } from '../../core/tex';
+// mass on a spring (right) share one horizontal projection line. Free-body diagram of the hanging
+// mass: spring force F_s = mg − kx (x from equilibrium, up +), weight mg and, with damping, F_d.
+import { num, tn, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
+import { drawFbd, fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
 import { sigFit } from '../ch07/sigfit';
 import { omega0, omegaD, oscAt, period, type OscState, type Oscillator } from './physics';
 
-type P = { A: number; k: number; m: number; zeta: number; vectors: boolean };
+type P = { A: number; k: number; m: number; zeta: number; vectors: boolean; fbd: boolean };
 type S = { t: number } & OscState;
 
 const A_MAX = 0.3;
@@ -18,6 +20,10 @@ const CEIL = 0.54;
 const BOX = 0.11;
 const GREY = '#9a9a9a';
 const GUIDE = '#c8c8c8';
+/** Free fall [m/s²]: gravity shifts the equilibrium by mg/k and appears only in the free-body diagram. */
+export const SHM_G = 9.8;
+/** Half-width of the spring's zigzag [m]. */
+const ZIG = 0.045;
 
 const oscOf = (p: P): Oscillator => ({ A: p.A, k: p.k, m: p.m, zeta: p.zeta });
 
@@ -73,16 +79,51 @@ const params: ParamSchema<P> = {
     step: 0.01,
     default: 0,
   },
+  fbd: fbdParam(),
   vectors: { kind: 'toggle', label: 'ch15.p.vectors', desc: 'ch15.d.vectors', group: 'advanced', live: true, default: true },
+};
+
+/**
+ * Forces on the mass [N] (y up): the spring holds mg at equilibrium, so it pulls with mg − kx; the
+ * damping force −bv with b = 2ζ√(km) = 2ζω₀m only when ζ > 0. Their sum is −kx − bv = ma.
+ */
+export function fbdForces(s: { x: number; v: number }, p: P): FbdForce[] {
+  const W = p.m * SHM_G;
+  const out: FbdForce[] = [
+    { F: { x: 0, y: W - p.k * s.x }, label: '*F*_{s}' },
+    { F: { x: 0, y: -W }, label: '*m**g*', field: true },
+  ];
+  if (p.zeta > 0) out.push({ F: { x: 0, y: -2 * p.zeta * omega0(oscOf(p)) * p.m * s.v }, label: '*F*_{d}' });
+  return out;
+}
+
+/**
+ * Px per newton for the run: the spring force at the lowest point, mg + kA, is the largest and gets
+ * up to 56 px; shorter where the stage has no room for mg and its label below the lowest point.
+ */
+export const fbdPerN = (g: Draw, p: P) => {
+  const W = p.m * SHM_G;
+  const max = W + p.k * p.A;
+  // Room below the mass at x = −A: to the world bottom plus the 18 px padding, less the label.
+  const room = (A_MAX + 0.11 - p.A) / g.px(1) + 18 - 20;
+  return fbdScale(max, Math.min(56, Math.max(24, (room * max) / W)));
+};
+
+/**
+ * Column offsets [px] of the vertical forces F_s, mg, F_d: the spring force just left of the spring's
+ * zigzag, the weight as far right, F_d (small) in the middle, so no arrow or label lies on another.
+ */
+export const fbdColumns = (g: Draw) => {
+  const c = Math.max(16, ZIG / g.px(1) + 11);
+  return [-c, c, 0];
 };
 
 function spring(g: Draw, x: number, y0: number, y1: number): void {
   const n = 10;
-  const w = 0.045;
   const lead = 0.025;
   const pts: Vec2[] = [{ x, y: y0 }, { x, y: y0 - lead }];
   const span = y0 - y1 - 2 * lead;
-  for (let i = 0; i < n; i++) pts.push({ x: x + (i % 2 ? -w : w), y: y0 - lead - (span * (i + 0.5)) / n });
+  for (let i = 0; i < n; i++) pts.push({ x: x + (i % 2 ? -ZIG : ZIG), y: y0 - lead - (span * (i + 0.5)) / n });
   pts.push({ x, y: y1 + lead }, { x, y: y1 });
   g.polyline(pts, { color: '#5c5c5c', width: 1.5 });
 }
@@ -93,6 +134,22 @@ function spring(g: Draw, x: number, y0: number, y1: number): void {
  * (which decays, so no ½kA²).
  */
 export function formulaLines(s: S, p: P): string[] {
+  const lines = oscLines(s, p);
+  if (p.fbd) {
+    // Net force from the drawn forces (y up): F_s − mg (+ F_d) = −kx (− bv) = ma.
+    const [Fs, mg, Fd] = fbdForces(s, p).map((f, i) => (i === 1 ? -f.F.y : f.F.y));
+    const net = Fs - mg + (Fd ?? 0);
+    const sf = sigFit(Fd === undefined ? [Fs, mg] : [Fs, mg, Fd], (a, b, c = 0) => a - b + c, net);
+    lines.push(
+      Fd === undefined
+        ? `\\Sigma F = F_s - mg = ${tn(Fs, sf)} - ${tn(mg, sf)} = ${tn(net)}${u('N')} = ma`
+        : `\\Sigma F = F_s - mg + F_d = ${tn(Fs, sf)} - ${tn(mg, sf)} + ${tp(Fd, sf)} = ${tn(net)}${u('N')} = ma`,
+    );
+  }
+  return lines;
+}
+
+function oscLines(s: S, p: P): string[] {
   const o = oscOf(p);
   const w0 = omega0(o);
   const w = omegaD(o);
@@ -175,8 +232,13 @@ export const shm: Scene<P, S> = {
         { x: SX + BOX / 2, y: s.x + BOX / 2 },
         { x: SX - BOX / 2, y: s.x + BOX / 2 },
       ],
-      { fill: 'position', fillAlpha: 0.9 },
+      { fill: 'position', fillAlpha: p.fbd ? 0.25 : 0.9 },
     );
+    if (p.fbd) {
+      // Vertical forces side by side, one column each, from the height of the mass's centre.
+      const cols = fbdColumns(g);
+      fbdForces(s, p).forEach((f, i) => drawFbd(g, { x: SX + g.px(cols[i]), y: s.x }, [f], fbdPerN(g, p)));
+    }
     if (p.vectors) {
       // On the circle: full v (tangent) and a (towards the centre). On the mass: their vertical parts.
       // Labels only on arrows long enough to keep them clear of the dot and of each other.
@@ -185,11 +247,13 @@ export const shm: Scene<P, S> = {
       const ac = { x: s.pax * ka, y: s.pay * ka };
       g.arrow(P0, vc, { role: 'velocity', width: 2.25, label: lbl(Math.hypot(vc.x, vc.y), '*v*') });
       g.arrow(P0, ac, { role: 'acceleration', width: 2.25, label: lbl(Math.hypot(ac.x, ac.y), '*a*') });
-      const side = SX + BOX / 2 + 0.05;
+      // With the free-body diagram, v moves right of the mg column and its label.
+      const side = Math.max(SX + BOX / 2 + 0.05, p.fbd ? SX + g.px(fbdColumns(g)[1] + 18) : 0);
       const vm = s.v * kv;
       const am = s.a * ka;
       if (Math.abs(vm) > g.px(3)) g.arrow({ x: side, y: s.x }, { x: 0, y: vm }, { role: 'velocity', width: 2.25, label: lbl(Math.abs(vm), '*v*') });
-      if (Math.abs(am) > g.px(3)) g.arrow({ x: side + 0.07, y: s.x }, { x: 0, y: am }, { role: 'acceleration', width: 2.25, label: lbl(Math.abs(am), '*a*') });
+      // The mass's acceleration gives way to the free-body diagram (ΣF = ma in the Σ panel).
+      if (!p.fbd && Math.abs(am) > g.px(3)) g.arrow({ x: side + 0.07, y: s.x }, { x: 0, y: am }, { role: 'acceleration', width: 2.25, label: lbl(Math.abs(am), '*a*') });
     }
     g.circle(P0, 7, { fill: 'position' });
   },

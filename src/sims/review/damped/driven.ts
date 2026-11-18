@@ -2,16 +2,20 @@
 // Scotch yoke, which is the driving force F = kd cos ω_d t on the block. RK4 from rest; the drive
 // angle is integrated so that ω_d can change while running.
 // Stage: oscillator (left) and steady-state amplitude against ω_d/ω₀ for several b (right). Plot: x(t).
+// Free-body diagram of the block: F_s = mg − kx, mg, F_d = −bv and the driving force F = k y_s, the
+// part of the spring force that the moving support adds (m x'' + b x' + kx = F_m cos ω_d t).
 import { fmtTick, niceTicks } from '../../../core/format';
 import { t as tr } from '../../../core/i18n';
 import type { ParamSchema, Scene } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
 import { Frame, W, textPx } from '../../modern/frame';
-import { drawMech, mechLayout } from './mech';
+import { fbdParam, type FbdForce } from '../../../draw/fbd';
+import { sigFit } from '../../ch07/sigfit';
+import { DAMPED_G, drawColumns, drawMech, mechLayout } from './mech';
 import { drivenAmp, drivenLag, gamma, omega0, peakAmp, peakOmega, rk4, type Osc } from './physics';
-import { tn, u } from './tex';
+import { tn, tp, u } from './tex';
 
-type P = { ratio: number; b: number; m: number; k: number };
+type P = { ratio: number; b: number; m: number; k: number; fbd: boolean };
 type S = { t: number; x: number; v: number; th: number };
 
 /** Support amplitude [m]. */
@@ -83,6 +87,31 @@ const params: ParamSchema<P> = {
     default: 16,
     unit: 'N/m',
   },
+  fbd: fbdParam(),
+};
+
+/**
+ * Forces on the block [N] (y up): the spring pulls with mg + k(y_s − x), split as Halliday writes the
+ * equation of motion into F_s = mg − kx and the driving force F = k y_s = kd cos θ; weight; damping
+ * −bv. Their sum is −kx − bv + F_m cos ω_d t = ma.
+ */
+export function fbdForces(s: { x: number; v: number; th: number }, p: P): FbdForce[] {
+  const W = p.m * DAMPED_G;
+  return [
+    { F: { x: 0, y: W - p.k * s.x }, label: '*F*_{s}' },
+    { F: { x: 0, y: -W }, label: '*m**g*', field: true },
+    { F: { x: 0, y: -p.b * s.v }, label: '*F*_{d}' },
+    { F: { x: 0, y: p.k * D * Math.cos(s.th) }, label: '*F*' },
+  ];
+}
+
+/**
+ * Largest force [N] for the arrow scale, fixed while ω_d is dragged: |x| stays below xSpan for every
+ * ω_d (tested), so |F_s| ≤ mg + k xSpan and |F_d| ≤ b ω_d,max xSpan; F ≤ kd.
+ */
+export const fbdMaxForce = (p: P) => {
+  const X = xSpan(p);
+  return Math.max(p.m * DAMPED_G + p.k * X, p.b * R_MAX * omega0(oscOf(p)) * X, p.k * D);
 };
 
 /** Steady-state amplitude against ω_d/ω₀: grey curves for B_REF, the current b in blue, the current ω_d. */
@@ -165,7 +194,8 @@ export const drivenScene: Scene<P, S> = {
     const M = mechLayout(cx, pad, h - pad, span, D);
     const lin = (x0: number, x1: number, y: number) => g.line(W(g, x0, y), W(g, x1, y), { color: '#c8c8c8', width: 1, dash: [4, 4] });
     lin(cx - M.block, cx + M.block, M.yEq);
-    drawMech(g, M, Math.max(-span, Math.min(span, s.x)), { d: D, theta: s.th });
+    const blk = drawMech(g, M, Math.max(-span, Math.min(span, s.x)), { d: D, theta: s.th }, p.fbd);
+    if (p.fbd) drawColumns(g, M, blk.y, fbdForces(s, p), fbdMaxForce(p));
     const l = Math.max(cx + M.block + 64, w * 0.4);
     const top = Math.max(pad + 10, h * 0.12);
     chart(g, s, p, l, top, w - 18, Math.min(h - 40, top + Math.max(120, h * 0.68)));
@@ -203,7 +233,7 @@ export const drivenScene: Scene<P, S> = {
     { label: 'x_m', unit: 'm', value: (_s, p) => drivenAmp(oscOf(p), { d: D, wd: wdOf(p) }) },
   ],
 
-  formula: (_s, p) => {
+  formula: (s, p) => {
     const o = oscOf(p);
     const w0 = omega0(o);
     const wd = wdOf(p);
@@ -212,7 +242,7 @@ export const drivenScene: Scene<P, S> = {
     const lag = (drivenLag(o, { d: D, wd }) * 180) / Math.PI;
     const wr = peakOmega(o);
     const den = Math.hypot(p.k - p.m * wd * wd, p.b * wd);
-    return [
+    const lines = [
       `\\omega_d = ${p.ratio.toFixed(2)}\\,\\omega_0 = ${p.ratio.toFixed(2)}\\sqrt{${p.k}/${p.m.toFixed(1)}} = ${tn(wd)}${u('rad/s')}`,
       `F_m = kd = ${p.k} \\times ${D.toFixed(3)} = ${tn(Fm)}${u('N')}`,
       `x_m = \\frac{F_m}{\\sqrt{(k - m\\omega_d^2)^2 + (b\\omega_d)^2}} = \\frac{${tn(Fm)}}{${tn(den)}} = ${tn(xm)}${u('m')}`,
@@ -221,6 +251,15 @@ export const drivenScene: Scene<P, S> = {
         ? `\\omega_\\text{peak} = \\sqrt{\\omega_0^2 - 2\\gamma^2} = ${tn(wr)}${u('rad/s')} = ${tn(wr / w0)}\\,\\omega_0`
         : `\\gamma = ${tn(gamma(o))}${u('s^{-1}')} \\ge \\omega_0/\\sqrt{2}:\\ \\text{${tr('damped.nopeak')}}`,
     ];
+    if (p.fbd) {
+      // Net force from the drawn forces (y up): F_s − mg + F_d + F = ma.
+      const [Fs, , Fd, Fdr] = fbdForces(s, p).map((f) => f.F.y);
+      const mg = p.m * DAMPED_G;
+      const net = Fs - mg + Fd + Fdr;
+      const sf = sigFit([Fs, mg, Fd, Fdr], (a, b, c, e) => a - b + c + e, net);
+      lines.push(`\\Sigma F = F_s - mg + F_d + F = ${tn(Fs, sf)} - ${tn(mg, sf)} + ${tp(Fd, sf)} + ${tp(Fdr, sf)} = ${tn(net)}${u('N')} = ma`);
+    }
+    return lines;
   },
 
   info: {
