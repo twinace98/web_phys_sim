@@ -3,6 +3,7 @@
 // half) then wanders towards N/2, where the number of microstates W = C(N, n) is largest.
 import { fmtTick } from '../../core/format';
 import { t as tr } from '../../core/i18n';
+import { num, tn } from '../../core/tex';
 import type { Handle, ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { drawRich, measureRich } from '../../draw/text';
@@ -213,6 +214,8 @@ export const expansionScene: Scene<P, S> = {
     { label: '\\Delta S/k', unit: '', value: (s, p) => entropyLR(p.N, s.n) },
   ],
 
+  formula: (s, p) => formulaLines(s.n, p),
+
   info: {
     goals: ['ch20.e.goal.S', 'ch20.e.goal.irr'],
     observe: ['ch20.e.obs.remove', 'ch20.e.obs.peak', 'ch20.e.obs.small', 'ch20.e.obs.large', 'ch20.e.obs.S'],
@@ -225,3 +228,35 @@ export const expansionScene: Scene<P, S> = {
     assumptions: ['ch20.e.assume', 'ch20.e.assume.ref'],
   },
 };
+
+/**
+ * Σ panel: W(n) = C(N, n) of the current macrostate, ΔS/k = ln W relative to the all-left state
+ * (W = 1), its largest value at n = N/2 with the large-N form, and P(n = N) = 1/2^N.
+ */
+export function formulaLines(n: number, p: P): string[] {
+  const N = p.N;
+  const W = Math.exp(lnBinom(N, n));
+  // W exactly while it prints as an integer, else four figures, so ln W reproduces ΔS/k.
+  const Wsub = W < 1e5 ? String(Math.round(W)) : tn(W, 4);
+  const half = Math.floor(N / 2);
+  return [
+    `W(n) = \\binom{N}{n} = \\binom{${N}}{${n}} = ${tn(W)}`,
+    `\\Delta S/k = \\ln W(n) = \\ln(${Wsub}) = ${tn(entropyLR(N, n))}`,
+    `\\Delta S_\\text{max}/k = \\ln\\binom{${N}}{${half}} = ${tn(Smax(N))}`,
+    `\\approx N\\ln 2 - \\tfrac{1}{2}\\ln\\frac{\\pi N}{2} = ${N}\\ln 2 - \\tfrac{1}{2}\\ln(${num(N / 2)}\\pi) = ${tn(N * Math.LN2 - 0.5 * Math.log((Math.PI * N) / 2))}`,
+    `P(n = N) = 1/2^N = 1/2^{${N}} = ${pow2(N)}`,
+  ];
+}
+
+/** 2^−N in TeX, three figures; below 10⁻⁹ (where tn prints 0) from its base-10 logarithm. */
+export function pow2(N: number): string {
+  if (N < 29) return tn(2 ** -N);
+  const x = -N * Math.log10(2);
+  let e = Math.floor(x);
+  let m = (10 ** (x - e)).toFixed(2);
+  if (m === '10.00') {
+    m = '1.00';
+    e += 1;
+  }
+  return `${m}\\times 10^{${e}}`;
+}

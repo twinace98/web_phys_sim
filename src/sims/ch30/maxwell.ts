@@ -7,10 +7,11 @@ import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { WIRE_B } from '../ch29/physics';
 import { FieldLayers } from '../field/layers';
-import { circlePoly, closedCirc, edgeIntegrals, fieldAt, fieldFn, perimeter, resample, type Src, type V2 } from '../field/physics';
+import { num, tn, u } from '../../core/tex';
+import { MU0, circlePoly, closedCirc, discOverlap, edgeIntegrals, fieldAt, fieldFn, perimeter, resample, type Src, type V2 } from '../field/physics';
 import { IN, Memo, OUT, componentArrows, drawSurface, drawVectorGrid, knob, texNum, vectorGrid, vpKey, wireGlyph } from '../field/render';
 import { freeDefault, knobs, surfaceHandles } from '../field/surface';
-import { GAP, R_AMP, R_B, R_PLATE, ampereMaxwell, faradayRhs, inducedE } from './physics';
+import { GAP, I_CAP, R_AMP, R_B, R_PLATE, ampereMaxwell, faradayRhs, inducedE } from './physics';
 
 type P = { eq: string; dBdt: number; surf: string; shape: string; G: number[]; F: number[]; X: number[] };
 type S = { t: number };
@@ -209,8 +210,50 @@ function gaussB(p: P) {
   });
 }
 
-function overlay(p: P): string {
+/** Faraday panel values: numerical ∮ E·ds and −dΦ_B/dt [V]. */
+export function faradayValues(p: P): { circ: number; rhs: number } {
   const G = Gin(p);
+  return { circ: closedCirc((x, y) => inducedE(x, y, p.dBdt), poly(p)), rhs: faradayRhs(G[0], G[1], G[2], p.dBdt) };
+}
+
+/** Below the stage panel's zero tolerance a value prints as 0, as there. */
+const z = (v: number, tol: number) => (Math.abs(v) < tol ? 0 : v);
+const UT = '\\ \\mu\\mathrm{T\\,m}';
+const MU0_TEX = '4\\pi\\times 10^{-7}';
+
+/** Σ panel: the numbers of the stage panel with the relation that gives them. */
+export function formulaLines(p: P): string[] {
+  switch (p.eq) {
+    case 'gaussB': {
+      const b = gaussB(p);
+      const out = tn(z(b.out, 1e-4));
+      const inn = tn(z(b.inn, 1e-4));
+      return [
+        `\\Phi_\\text{out} = ${out}${UT},\\quad \\Phi_\\text{in} = ${inn}${UT}`,
+        `\\oint B_n\\,dl = \\Phi_\\text{out} + \\Phi_\\text{in} = ${out} + (${inn}) = ${tn(z(b.flux, 5e-3))}${UT}`,
+      ];
+    }
+    case 'ampere': {
+      const a = ampereMaxwell(p.X[0], p.surf === 'bulge' ? 'bulge' : 'flat');
+      return [
+        `i_\\text{enc} = ${num(a.ic)}\\ \\mathrm{A},\\quad i_d = \\varepsilon_0\\,\\frac{d\\Phi_E}{dt} = ${num(a.id)}\\ \\mathrm{A}`,
+        `\\oint \\vec B\\cdot d\\vec s = \\mu_0(i_\\text{enc} + i_d) = (${MU0_TEX})(${num(a.ic)} + ${num(a.id)})\\ \\mathrm{T\\,m} = ${tn(a.circ * 1e6)}${UT}`,
+        `B = \\frac{\\mu_0 i}{2\\pi r} = \\frac{(${MU0_TEX})(${I_CAP})}{2\\pi(${R_AMP})}\\ \\mathrm{T} = ${tn(((MU0 * I_CAP) / (2 * Math.PI * R_AMP)) * 1e6)}${u('\\mu T')}`,
+      ];
+    }
+    default: {
+      const { circ, rhs } = faradayValues(p);
+      const G = Gin(p);
+      const A = discOverlap(R_B, G[2], Math.hypot(G[0], G[1]));
+      return [
+        `\\oint \\vec E\\cdot d\\vec s = ${tn(z(circ, 1e-5))}${u('V')}`,
+        `-\\frac{d\\Phi_B}{dt} = -\\frac{dB}{dt}\\,A = -(${num(p.dBdt)}\\ \\mathrm{T/s})(${tn(A, 4)}\\ \\mathrm{m^2}) = ${tn(z(rhs, 1e-5))}${u('V')}`,
+      ];
+    }
+  }
+}
+
+function overlay(p: P): string {
   switch (p.eq) {
     case 'gaussB': {
       const b = gaussB(p);
@@ -231,8 +274,7 @@ function overlay(p: P): string {
     }
     default: {
       // faraday (also any unknown eq value)
-      const circ = closedCirc((x, y) => inducedE(x, y, p.dBdt), poly(p));
-      const rhs = faradayRhs(G[0], G[1], G[2], p.dBdt);
+      const { circ, rhs } = faradayValues(p);
       return `\\oint \\vec E\\cdot d\\vec s = -\\frac{d\\Phi_B}{dt} \\\\[4pt] ${arr([
         row('\\oint \\vec E\\cdot d\\vec s', `${texNum(circ, 3, 1e-5)}\\ \\mathrm{V}`),
         row('-d\\Phi_B/dt', `${texNum(rhs, 3, 1e-5)}\\ \\mathrm{V}`),
@@ -257,6 +299,7 @@ export const maxwell: Scene<P, S> = {
   },
 
   overlay: (_s, p) => overlay(p),
+  formula: (_s, p) => formulaLines(p),
 
   handles: [
     ...surfaceHandles<P, S>({

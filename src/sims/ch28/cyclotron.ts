@@ -3,8 +3,10 @@
 // In tune (f = f_c) every crossing accelerates. A small detuning only slips the phase a little
 // per turn and adds turns; beyond a few percent (fewer turns allowed at low V0) the proton falls
 // out of step before it reaches the extraction radius.
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { withAlpha, ROLE_COLOR } from '../../draw/theme';
+import { texNum } from '../field/render';
 import { fieldGrid, particle } from './common';
 import { PARTICLES, cyclotronOmega, gapVoltage, maxEnergy, runCyclotron, sampleRun, type Cyclotron, type Run } from './physics';
 
@@ -90,6 +92,29 @@ function dee(side: 1 | -1): Vec2[] {
   return pts;
 }
 const DEES = [dee(1), dee(-1)];
+
+/** Readout K [keV] at sim time t [ns]. */
+export const readK = (p: P, tNs: number) => sampleRun(runOf(p), tNs * 1e-9).K / KEV;
+
+/**
+ * Σ panel: f_c and the oscillator f, K_max = (qBR)²/2m, and at the present instant the orbit
+ * radius v/ω_c and K = ½mv². Constants carry four figures so the shown arithmetic gives the result.
+ */
+export function formulaLines(s: S, p: P): string[] {
+  const c = cfgOf(p);
+  const fc = cyclotronOmega(c) / (2 * Math.PI);
+  const m = texNum(c.pt.m, 4, 0);
+  const q = texNum(Math.abs(c.pt.q), 4, 0);
+  const k = sampleRun(runOf(p), s.t * 1e-9);
+  const v = Math.hypot(k.vx, k.vy);
+  return [
+    `f_c = \\frac{\\lvert q\\rvert B}{2\\pi m} = \\frac{(${q})(${num(B)})}{2\\pi(${m})}\\ \\mathrm{Hz} = ${tn(fc / 1e6)}${u('MHz')}`,
+    `f = ${p.ratio.toFixed(2)}\\,f_c = (${p.ratio.toFixed(2)})(${tn(fc / 1e6, 4)}\\ \\mathrm{MHz}) = ${tn((p.ratio * fc) / 1e6)}${u('MHz')}`,
+    `K_\\text{max} = \\frac{(qBR)^2}{2m} = \\frac{[(${q})(${num(B)})(${num(R)})]^2}{2(${m})}\\ \\mathrm{J} = ${tn(maxEnergy(c) / KEV)}${u('keV')}`,
+    `r = \\frac{mv}{\\lvert q\\rvert B} = \\frac{v}{2\\pi f_c} = \\frac{${tn(v, 4)}}{2\\pi(${tn(fc, 4)})}\\ \\mathrm{m} = ${tn(orbitRadiusCm(p, s.t))}${u('cm')}`,
+    `K = \\tfrac{1}{2} m v^2 = \\tfrac{1}{2}(${m})(${tn(v, 4)})^2\\ \\mathrm{J} = ${tn(readK(p, s.t))}${u('keV')}`,
+  ];
+}
 
 export const cyclotronScene: Scene<P, S> = {
   id: 'cyclotron',
@@ -187,7 +212,7 @@ export const cyclotronScene: Scene<P, S> = {
   ],
 
   readouts: [
-    { label: 'K', unit: 'keV', value: (s, p) => sampleRun(runOf(p), s.t * 1e-9).K / KEV },
+    { label: 'K', unit: 'keV', value: (s, p) => readK(p, s.t) },
     {
       // Orbit radius m v / |q| B (the spiral's centre wanders, so it differs from the distance
       // to the centre of the dees); it reaches R = 5.00 cm exactly at extraction.
@@ -196,6 +221,8 @@ export const cyclotronScene: Scene<P, S> = {
       value: (s, p) => orbitRadiusCm(p, s.t),
     },
   ],
+
+  formula: (s, p) => formulaLines(s, p),
 
   info: {
     goals: ['ch28.c.goal.res', 'ch28.c.goal.K'],

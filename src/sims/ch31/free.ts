@@ -3,7 +3,9 @@
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
-import { energies, freeAt, omega0, omegaDamped, type RLC } from './physics';
+import { num, tn, u } from '../../core/tex';
+import { fitSig } from './fit';
+import { energies, freeAt, gamma, omega0, omegaDamped, type RLC } from './physics';
 
 type P = { R: number; L: number; C: number; spring: boolean };
 
@@ -230,6 +232,42 @@ function spring(g: Draw, x: number, v: number): void {
   if (Math.abs(v) > 0.12) g.arrow({ x: xm, y: floor + 1.45 }, { x: v * 1.4, y: 0 }, { role: 'velocity', width: 2.25, label: '*v*' });
 }
 
+const MU_F = '\\ \\mu\\mathrm{F}';
+
+/** Σ panel: ω₀, R/2L, ω' and T' (or the over/critically damped condition), U₀ and the live U = U_E + U_B. */
+export function formulaFree(s: S, p: P): string[] {
+  const c = rlcOf(p);
+  const w0 = omega0(c);
+  const g = gamma(c);
+  const wd = omegaDamped(c);
+  const Tms = ((2 * Math.PI) / wd) * 1e3;
+  // ω₀ and R/2L with enough figures that √(ω₀² − (R/2L)²) reproduces the printed ω'.
+  const sw = Number.isNaN(wd) ? 3 : fitSig((r) => tn(Math.sqrt(r(w0) ** 2 - r(g) ** 2)), tn(wd));
+  const lines = [`\\omega_0 = \\frac{1}{\\sqrt{LC}} = \\frac{1}{\\sqrt{(${num(p.L)}${u('mH')})(${num(p.C)}${MU_F})}} = ${tn(w0, sw)}${u('rad/s')}`];
+  const r2l = `\\frac{R}{2L} = \\frac{${num(p.R)}${u('\\Omega')}}{2(${num(p.L)}${u('mH')})} = ${tn(g, sw)}${u('s^{-1}')}`;
+  const st = fitSig((r) => tn(((2 * Math.PI) / r(wd)) * 1e3), tn(Tms));
+  if (Number.isNaN(wd)) lines.push(`${r2l} \\ge \\omega_0`);
+  else if (p.R === 0) lines.push(`R = 0:\\ T' = \\frac{2\\pi}{\\omega_0} = \\frac{2\\pi}{${tn(wd, st)}} = ${tn(Tms)}${u('ms')}`);
+  else {
+    lines.push(
+      r2l,
+      `\\omega' = \\sqrt{\\omega_0^2 - (R/2L)^2}`,
+      `= \\sqrt{${tn(w0, sw)}^2 - ${tn(g, sw)}^2} = ${tn(wd)}${u('rad/s')}`,
+      `T' = \\frac{2\\pi}{\\omega'} = \\frac{2\\pi}{${tn(wd, st)}} = ${tn(Tms)}${u('ms')}`,
+    );
+  }
+  const q0 = q0Of(p);
+  lines.push(`U_0 = \\tfrac12 CV_0^2 = \\tfrac12(${num(p.C)}${MU_F})(${V0}${u('V')})^2 = ${tn(((q0 * q0) / (2 * c.C)) * 1e6)}\\ \\mu\\mathrm{J}`);
+  const k = at(p, s.t);
+  const e = energies(c, k.q, k.i);
+  const UE = e.UE * 1e6;
+  const UB = e.UB * 1e6;
+  const U = UE + UB;
+  const su = fitSig((r) => tn(r(UE) + r(UB)), tn(U));
+  lines.push(`U = \\frac{q^2}{2C} + \\tfrac12 Li^2 = ${tn(UE, su)} + ${tn(UB, su)} = ${tn(U)}\\ \\mu\\mathrm{J}`);
+  return lines;
+}
+
 export const freeScene: Scene<P, S> = {
   id: 'free',
   title: 'ch31.f.scene',
@@ -313,6 +351,8 @@ export const freeScene: Scene<P, S> = {
       },
     },
   ],
+
+  formula: (s, p) => formulaFree(s, p),
 
   info: {
     goals: ['ch31.f.goal.exchange', 'ch31.f.goal.damp'],

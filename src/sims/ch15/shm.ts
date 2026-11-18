@@ -1,7 +1,9 @@
 // Ch 15 scene: SHM as the projection of uniform circular motion. Reference circle (left) and
 // mass on a spring (right) share one horizontal projection line.
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
+import { sigFit } from '../ch07/sigfit';
 import { omega0, omegaD, oscAt, period, type OscState, type Oscillator } from './physics';
 
 type P = { A: number; k: number; m: number; zeta: number; vectors: boolean };
@@ -83,6 +85,43 @@ function spring(g: Draw, x: number, y0: number, y1: number): void {
   for (let i = 0; i < n; i++) pts.push({ x: x + (i % 2 ? -w : w), y: y0 - lead - (span * (i + 0.5)) / n });
   pts.push({ x, y: y1 + lead }, { x, y: y1 });
   g.polyline(pts, { color: '#5c5c5c', width: 1.5 });
+}
+
+/**
+ * Σ panel. Undamped: ω, T, the live x = A cos ωt (phase in degrees, reduced to one turn), a = −ω²x
+ * and E = K + U = ½kA². Damped: ω₀, ω = ω₀√(1 − ζ²), T = 2π/ω, a = −ω₀²x − 2ζω₀v and E = K + U
+ * (which decays, so no ½kA²).
+ */
+export function formulaLines(s: S, p: P): string[] {
+  const o = oscOf(p);
+  const w0 = omega0(o);
+  const w = omegaD(o);
+  const T = period(o);
+  const km = `\\sqrt{${num(p.k)}/${num(p.m)}}`;
+  const se = sigFit([s.K, s.U], (a, b) => a + b, s.E);
+  const energy = `E = K + U = ${tn(s.K, se)} + ${tn(s.U, se)} = ${tn(s.E)}${u('J')}`;
+  if (p.zeta === 0) {
+    const ph = (((w * s.t) / Math.PI) * 180) % 360;
+    const sa = sigFit([w, s.x], (a, x) => -a * a * x, s.a);
+    return [
+      `\\omega = \\sqrt{k/m} = ${km} = ${tn(w)}${u('rad/s')}`,
+      `T = 2\\pi\\sqrt{m/k} = 2\\pi\\sqrt{${num(p.m)}/${num(p.k)}} = ${tn(T)}${u('s')}`,
+      `x = A\\cos\\omega t = (${num(p.A)})\\cos ${tn(ph, Math.max(4, sigFit([ph], (d) => p.A * Math.cos((d * Math.PI) / 180), s.x)))}^\\circ = ${tn(s.x)}${u('m')}`,
+      `a = -\\omega^2 x = -(${tn(w, sa)})^2(${tn(s.x, sa)}) = ${tn(s.a)}${u('m/s^2')}`,
+      energy,
+      `= \\tfrac12 kA^2 = \\tfrac12(${num(p.k)})(${num(p.A)})^2 = ${tn(0.5 * p.k * p.A * p.A)}${u('J')}`,
+    ];
+  }
+  const sw = sigFit([w0], (a) => a * Math.sqrt(1 - p.zeta * p.zeta), w);
+  const sa = sigFit([w0, s.x, s.v], (a, x, v) => -a * a * x - 2 * p.zeta * a * v, s.a);
+  return [
+    `\\omega_0 = \\sqrt{k/m} = ${km} = ${tn(w0)}${u('rad/s')}`,
+    `\\omega = \\omega_0\\sqrt{1 - \\zeta^2} = (${tn(w0, sw)})\\sqrt{1 - (${num(p.zeta)})^2} = ${tn(w)}${u('rad/s')}`,
+    `T = \\frac{2\\pi}{\\omega} = \\frac{2\\pi}{${tn(w, sigFit([w], (a) => (2 * Math.PI) / a, T))}} = ${tn(T)}${u('s')}`,
+    `a = -\\omega_0^2 x - 2\\zeta\\omega_0 v`,
+    `= -(${tn(w0, sa)})^2(${tn(s.x, sa)}) - 2(${num(p.zeta)})(${tn(w0, sa)})(${tn(s.v, sa)}) = ${tn(s.a)}${u('m/s^2')}`,
+    energy,
+  ];
 }
 
 export const shm: Scene<P, S> = {
@@ -193,6 +232,8 @@ export const shm: Scene<P, S> = {
     { label: 'T', unit: 's', value: (_s, p) => period(oscOf(p)) },
     { label: 'E', unit: 'J', value: (s) => s.E },
   ],
+
+  formula: (s, p) => formulaLines(s, p),
 
   info: {
     goals: ['ch15.goal.proj', 'ch15.goal.props'],

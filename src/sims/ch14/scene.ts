@@ -2,9 +2,11 @@
 // column drops there (Bernoulli), and a table under each tap lists every term.
 import { fmt } from '../../core/format';
 import { t } from '../../core/i18n';
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { TAPS, TUBE, TravelTime, axisY, radiusAt, taps, type Tap, type Venturi } from './physics';
+import { sigFit } from '../ch07/sigfit';
+import { G, RHO, TAPS, TUBE, TravelTime, axisY, radiusAt, taps, type Tap, type Venturi } from './physics';
 
 type P = { ratio: number; Q: number; dy: number };
 
@@ -114,6 +116,28 @@ function drawTable(g: Draw, tp: Tap[], yTop: number): void {
   g.line({ x: x0, y: yr }, { x: xu + 0.06, y: yr }, { color: '#d0d0d0', width: 1 });
 }
 
+/**
+ * Σ panel: continuity v = Q / A at the inlet and the throat, then Bernoulli between them,
+ * p₁ − p₂ = ½ρ(v₂² − v₁²) + ρ g y₂ (heights from the inlet axis; the last term only on a tilted tube).
+ */
+export function formulaLines(p: P): string[] {
+  const [t1, t2] = model(p).tp;
+  const Q = tn(p.Q / 1000);
+  const dp = (t1.p - t2.p) / 1000;
+  const tilt = Math.abs(t2.y) > 1e-12;
+  // v₁ = Q / A₁ and y₂ = Δy / 2 are exact at three figures; v₂ gets the digits the difference needs.
+  const [v1, y2] = [Number(t1.v.toPrecision(3)), Number(t2.y.toPrecision(3))];
+  const sg = sigFit([t2.v], (b) => (0.5 * RHO * (b * b - v1 * v1) + RHO * G * y2) / 1000, dp);
+  const grav = tilt ? ` + (${num(RHO)})(${num(G)})(${tn(t2.y)})` : '';
+  return [
+    `v_1 = \\frac{Q}{A_1} = \\frac{${Q}\\ \\mathrm{m^3/s}}{${tn(t1.A)}\\ \\mathrm{m^2}} = ${tn(t1.v)}${u('m/s')}`,
+    `v_2 = \\frac{Q}{A_2} = \\frac{${Q}\\ \\mathrm{m^3/s}}{${tn(t2.A)}\\ \\mathrm{m^2}} = ${tn(t2.v)}${u('m/s')}`,
+    `p_1 - p_2 = \\tfrac12\\rho(v_2^2 - v_1^2)${tilt ? ' + \\rho g y_2' : ''}`,
+    `= \\tfrac12(${num(RHO)})[(${tn(t2.v, sg)})^2 - (${tn(t1.v)})^2]${grav}\\ \\mathrm{Pa}`,
+    `= ${tn(dp)}${u('kPa')}`,
+  ];
+}
+
 export const venturi: Scene<P, { t: number }> = {
   id: 'venturi',
   title: 'ch14.scene',
@@ -198,6 +222,8 @@ export const venturi: Scene<P, { t: number }> = {
     { label: 'v_2', unit: 'm/s', value: (_s, p) => model(p).tp[1].v },
     { label: 'p_1 - p_2', unit: 'kPa', value: (_s, p) => (model(p).tp[0].p - model(p).tp[1].p) / 1000 },
   ],
+
+  formula: (_s, p) => formulaLines(p),
 
   info: {
     goals: ['ch14.goal.cont', 'ch14.goal.bern'],

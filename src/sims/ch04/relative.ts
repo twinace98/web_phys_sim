@@ -1,11 +1,13 @@
 // Ch 4 scene: relative motion. A boat crosses a river: v_BG = v_BW + v_WG.
 // The same crossing is drawn at once from the ground frame (top) and from the water frame (bottom).
 import { t } from '../../core/i18n';
+import { num as numTex, tn, tp, u } from '../../core/tex';
 import type { ParamSchema, Role, Scene, Vec2 } from '../../core/types';
 import type { Viewport } from '../../core/viewport';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR, theme } from '../../draw/theme';
 import { PX_WORLD } from '../modern/frame';
+import { sigToMatch } from '../ch02/sigma';
 import { crossingTime, vBG, vBW, vWG, type River } from './physics';
 
 type P = { heading: number; vb: number; u: number };
@@ -319,6 +321,30 @@ export const relative: Scene<P, { t: number; n: number }> = {
     { label: 'x_{BW}', unit: 'm', value: (s, p) => vBW(riverOf(p))[0] * s.t },
     { label: 'y', unit: 'm', value: (s, p) => vBW(riverOf(p))[1] * s.t },
   ],
+
+  // Σ panel: components of v_BG, the ground-frame position at the current t, and the crossing time
+  // (the t at which y reaches W).
+  formula: (s, p) => {
+    const r = riverOf(p);
+    const bg = vBG(r);
+    const vb = p.vb.toFixed(1);
+    const th = numTex(p.heading);
+    const x = bg[0] * s.t;
+    const y = bg[1] * s.t;
+    const sig = Math.max(
+      sigToMatch(x, [bg[0], s.t], (a, b) => a * b),
+      sigToMatch(y, [bg[1], s.t], (a, b) => a * b),
+    );
+    const T = tn(s.t, sig);
+    return [
+      `v_{BG,x} = -v_{BW}\\sin\\theta + v_{WG}`,
+      `= -${vb}\\sin ${th}^\\circ + ${p.u.toFixed(1)} = ${tn(bg[0])}${u('m/s')}`,
+      `v_{BG,y} = v_{BW}\\cos\\theta = ${vb}\\cos ${th}^\\circ = ${tn(bg[1])}${u('m/s')}`,
+      `x_{BG} = v_{BG,x}\\,t = ${tp(bg[0], sig)} \\times ${T} = ${tn(x)}${u('m')}`,
+      `y = v_{BG,y}\\,t = ${tn(bg[1], sig)} \\times ${T} = ${tn(y)}${u('m')}`,
+      `y = W:\\ t = \\frac{W}{v_{BW}\\cos\\theta} = \\frac{${W}}{${vb}\\cos ${th}^\\circ} = ${tn(crossingTime(r))}${u('s')}`,
+    ];
+  },
 
   info: {
     goals: ['ch04.r.goal.add', 'ch04.r.goal.frame'],

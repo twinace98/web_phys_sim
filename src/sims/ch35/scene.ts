@@ -27,7 +27,9 @@ import {
   type SlitState,
 } from '../wave2d/slits';
 import { drawWave } from '../wave2d/view';
-import { brightAt, pathDiff } from './physics';
+import { num, tn } from '../../core/tex';
+import { fitSig } from '../ch31/fit';
+import { brightAt, fringeSpacing, pathDiff } from './physics';
 
 type P = { d: number; lambda: number; D: number; yp: number };
 
@@ -99,6 +101,24 @@ const params: ParamSchema<P> = {
   },
 };
 
+const UM = '\\ \\mu\\mathrm{m}';
+
+/**
+ * Σ panel: ΔL/λ at the marked screen point, the small-angle spacing λD/d and the exact first
+ * bright fringe (ΔL = λ) that the Δy readout and mark use. Lengths in μm.
+ */
+export function formulaLines(p: P): string[] {
+  const lam = p.lambda / 1000;
+  const dL = pathDiff(p.d, p.D, p.yp);
+  const n = dL / lam;
+  const sl = fitSig((r) => tn(r(dL) / lam), tn(n));
+  return [
+    `\\frac{\\Delta L}{\\lambda} = \\frac{${tn(dL, sl)}${UM}}{${num(lam)}${UM}} = ${tn(n)}`,
+    `\\Delta y \\approx \\frac{\\lambda D}{d} = \\frac{(${num(lam)})(${num(p.D)})}{${num(p.d)}}${UM} = ${tn(fringeSpacing(lam, p.D, p.d))}${UM}`,
+    `\\Delta L = \\lambda:\\ \\Delta y = ${tn(firstBright(p))}${UM}`,
+  ];
+}
+
 export const doubleSlit: Scene<P, SlitState> = {
   id: 'double',
   title: 'ch35.scene',
@@ -154,6 +174,8 @@ export const doubleSlit: Scene<P, SlitState> = {
     { label: '\\Delta y', unit: 'μm', value: (_s, p) => firstBright(p) },
     { label: '\\Delta L/\\lambda', unit: '', value: (_s, p) => pathDiff(p.d, p.D, p.yp) / (p.lambda / 1000) },
   ],
+
+  formula: (_s, p) => formulaLines(p),
 
   info: {
     goals: ['ch35.goal.path', 'ch35.goal.spacing'],

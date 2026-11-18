@@ -1,10 +1,40 @@
 // Ch 42 scene: a grid of N0 nuclei, each decaying at its own random moment. The count left,
 // N(t), is a staircase that follows N0 e^{−λt} more closely the larger N0 is; it halves every T½.
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { drawRich, measureRich } from '../../draw/text';
 import { ROLE_COLOR, theme } from '../../draw/theme';
-import { ISOTOPES, decayTimes, expected, isotope, remaining } from './physics';
+import { ISOTOPES, decayTimes, expected, isotope, lambdaOf, remaining, type Isotope } from './physics';
+
+// ------------------------------------------------------------------ formula panel
+
+const SUP_DIGIT: Record<string, string> = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' };
+
+/** Display time unit split into its power of ten and base unit: '×10³ y' → [3, 'y']. */
+export function unitParts(unit: string): [number, string] {
+  const m = /^×10([⁰¹²³⁴⁵⁶⁷⁸⁹]+)\s*(.+)$/.exec(unit);
+  return m ? [Number([...m[1]].map((c) => SUP_DIGIT[c]).join('')), m[2]] : [0, unit];
+}
+
+/** λ = ln 2/T½ in the base unit, t/T½, the expected N₀(½)^{t/T½} and the counted N/N₀ (the readouts). */
+export function decayLines(time: number, N: number, p: { iso: string; N0: number }): string[] {
+  const iso: Isotope = isotope(p.iso);
+  const [e, base] = unitParts(iso.unit);
+  const pow = e ? `\\times 10^{${e}}` : '';
+  // λ in the base unit; tn() would print 1.55×10⁻¹⁰ y⁻¹ (²³⁸U) as zero.
+  const lam = lambdaOf(iso.half) / 10 ** e;
+  const le = Math.floor(Math.log10(lam));
+  const lamTex = lam >= 1e-3 ? tn(lam) : `${tn(lam / 10 ** le)}\\times 10^{${le}}`;
+  const ratio = time / iso.half;
+  const r = ratio.toFixed(p.N0 > 1000 ? 5 : 4);
+  return [
+    `\\lambda = \\frac{\\ln 2}{T_{1/2}} = \\frac{0.6931}{${num(iso.half)}${pow}\\ \\mathrm{${base}}} = ${lamTex}${u(`${base}^{-1}`)}`,
+    `\\frac{t}{T_{1/2}} = \\frac{${tn(time, 4)}}{${num(iso.half)}} = ${tn(ratio)}`,
+    `N_0\\,e^{-\\lambda t} = N_0\\,0.5^{t/T_{1/2}} = ${p.N0} \\times 0.5^{${r}} = ${tn(expected(p.N0, iso.half, time))}`,
+    `N/N_0 = ${N}/${p.N0} = ${tn(N / p.N0)}`,
+  ];
+}
 
 type P = { iso: string; N0: number };
 interface S {
@@ -180,6 +210,8 @@ export const decayScene: Scene<P, S> = {
     { label: 'N/N_0', unit: '', value: (s, p) => remaining(s.sorted, s.t) / p.N0 },
     { label: 't/T_{1/2}', unit: '', value: (s, p) => s.t / isotope(p.iso).half },
   ],
+
+  formula: (s, p) => decayLines(s.t, remaining(s.sorted, s.t), p),
 
   info: {
     goals: ['ch42.goal.random', 'ch42.goal.half'],

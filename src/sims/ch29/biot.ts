@@ -1,6 +1,7 @@
 // Ch 29 scene: Biot-Savart law as a sum. Current elements of a straight wire or a circular
 // loop are added one at a time; each dB at the observation point P is ⊥ page.
 import { fmt } from '../../core/format';
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { drawRich } from '../../draw/text';
 import { theme } from '../../draw/theme';
@@ -82,6 +83,37 @@ function pad([lo, hi]: [number, number]): [number, number] {
   hi = Math.max(hi, 0);
   const m = 0.15 * (hi - lo || 1);
   return [lo - m, hi + m];
+}
+
+/** Readouts: running sum B [μT], distance d [m]. */
+export const readB = (s: S, p: P) => model(p).cum[summed(p, s.t) - 1];
+export const readD = (p: P) => (p.wire === 'loop' ? Math.hypot(obs(p).x, obs(p).y) : Math.abs(obs(p).y));
+
+/**
+ * Σ panel: the latest element's dB (signed: + out of the page), the running sum, and the
+ * reference value. Element inputs carry four figures so the shown arithmetic gives the result.
+ */
+export function formulaLines(s: S, p: P): string[] {
+  const m = model(p);
+  const k = summed(p, s.t);
+  const e = m.els[k - 1];
+  const P0 = obs(p);
+  const rx = P0.x - e.x;
+  const ry = P0.y - e.y;
+  const r = Math.hypot(rx, ry);
+  const dl = Math.hypot(e.dx, e.dy);
+  // Angle from dl to r: its sine carries the sign of (dl × r)_z.
+  const phi = (Math.atan2(e.dx * ry - e.dy * rx, e.dx * rx + e.dy * ry) * 180) / Math.PI;
+  const mu = '(4\\pi\\times 10^{-7})(10)';
+  const lines = [
+    `dB_{${k}} = \\frac{\\mu_0}{4\\pi}\\,\\frac{I\\,dl\\,\\sin\\phi}{r^2},\\quad \\phi = \\angle(d\\vec l, \\vec r)`,
+    `dB_{${k}} = 10^{-7}\\,\\frac{(10)(${tn(dl, 4)})\\sin(${tn(phi, 4)}^\\circ)}{(${tn(r, 4)})^2}\\ \\mathrm{T} = ${tn(m.dB[k - 1])}${u('\\mu T')}`,
+    `B = \\sum_{i=1}^{${k}} dB_i = ${tn(readB(s, p))}${u('\\mu T')}`,
+  ];
+  if (p.wire !== 'loop') lines.push(`\\frac{\\mu_0 I}{2\\pi d} = \\frac{${mu}}{2\\pi(${tn(readD(p), 2)})}\\ \\mathrm{T} = ${tn(Math.abs(m.ref))}${u('\\mu T')}`);
+  else if (atCentre(P0)) lines.push(`\\frac{\\mu_0 I}{2R} = \\frac{${mu}}{2(${num(R_LOOP)})}\\ \\mathrm{T} = ${tn(m.ref)}${u('\\mu T')}`);
+  else lines.push(`B_{n\\to\\infty} = ${tn(m.ref)}${u('\\mu T')}`);
+  return lines;
 }
 
 export const biot: Scene<P, S> = {
@@ -204,9 +236,11 @@ export const biot: Scene<P, S> = {
   },
 
   readouts: [
-    { label: 'B', unit: 'μT', value: (s, p) => model(p).cum[summed(p, s.t) - 1] },
-    { label: 'd', unit: 'm', value: (_s, p) => (p.wire === 'loop' ? Math.hypot(obs(p).x, obs(p).y) : Math.abs(obs(p).y)), sig: 2 },
+    { label: 'B', unit: 'μT', value: (s, p) => readB(s, p) },
+    { label: 'd', unit: 'm', value: (_s, p) => readD(p), sig: 2 },
   ],
+
+  formula: (s, p) => formulaLines(s, p),
 
   handles: [
     {

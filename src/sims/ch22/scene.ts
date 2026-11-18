@@ -1,9 +1,11 @@
 // Ch 22 scene: draggable point charges, their field (grid arrows or field lines) and the
 // Coulomb forces on a test charge.
+import { tn, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { BOX, E, POINT_POOL, layoutParam, pointCoords, pointSources, pointWorld, presetParam, presetTag, clearOf } from '../field/charges';
 import { FieldLayers, palette } from '../field/layers';
+import { K_E } from '../field/physics';
 import { chargeGlyph, freeSpot, type Spot, type Tray } from '../field/render';
 import { slotHandles } from '../field/slots';
 import { coulombForces } from './physics';
@@ -88,6 +90,40 @@ function drawForces(g: Draw, p: P): void {
   g.arrow(at, net, { color: FORCE, width: 3, label: '*F*' });
 }
 
+/** E [N/C] at the test charge (the readout). */
+export const fieldAtTest = (p: P) => {
+  const at = testPos(p);
+  return E(pointSources(p), at.x, at.y);
+};
+/** Net force [nN] on q0 = +1 nC (the readout). */
+export const forceOnTest = (p: P) => {
+  const at = testPos(p);
+  const { net } = coulombForces(pointSources(p), at.x, at.y, 1);
+  return Math.hypot(net[0], net[1]) * 1e9;
+};
+
+/** Σ panel: Coulomb force of the nearest charge, the superposed E, and F = q0 E at the test charge. */
+export function formulaLines(p: P): string[] {
+  const src = pointSources(p);
+  const sum = src.reduce((a, c) => a + c.s, 0);
+  if (!p.test || !src.length) return [`k = \\frac{1}{4\\pi\\varepsilon_0} = ${tn(K_E)}${u('N\\,m^2/C^2')}`, `\\sum_i q_i = ${sum}${u('nC')}`];
+  const at = testPos(p);
+  const { parts } = coulombForces(src, at.x, at.y, 1);
+  const dist = (i: number) => Math.hypot(at.x - src[i].x, at.y - src[i].y);
+  // q_1: the source nearest to the test charge.
+  let i1 = 0;
+  for (let i = 1; i < src.length; i++) if (dist(i) < dist(i1)) i1 = i;
+  const F1 = Math.hypot(parts[i1][0], parts[i1][1]) * 1e9;
+  const [ex, ey] = fieldAtTest(p);
+  const Em = Math.hypot(ex, ey);
+  return [
+    `F_1 = k\\,\\frac{\\lvert q_1\\rvert q_0}{r_1^2} = \\frac{(${tn(K_E)})(${Math.abs(src[i1].s)})(1)\\times 10^{-18}}{(${tn(dist(i1))})^2}\\ \\mathrm{N} = ${tn(F1)}${u('nN')}`,
+    `\\vec E = \\sum_i k\\,\\frac{q_i}{r_i^2}\\,\\hat r_i = (${tn(ex)},\\ ${tn(ey)})${u('N/C')}`,
+    `E = \\sqrt{E_x^2 + E_y^2} = \\sqrt{${tp(ex)}^2 + ${tp(ey)}^2} = ${tn(Em)}${u('N/C')}`,
+    `F = q_0 E = (1\\ \\mathrm{nC})(${tn(Em)}\\ \\mathrm{N/C}) = ${tn(forceOnTest(p))}${u('nN')}`,
+  ];
+}
+
 export const field: Scene<P, S> = {
   id: 'field',
   title: 'ch22.scene',
@@ -133,22 +169,14 @@ export const field: Scene<P, S> = {
       unit: 'N/C',
       value: (_s, p) => {
         if (!p.test) return NaN;
-        const at = testPos(p);
-        const [ex, ey] = E(pointSources(p), at.x, at.y);
+        const [ex, ey] = fieldAtTest(p);
         return Math.hypot(ex, ey);
       },
     },
-    {
-      label: 'F',
-      unit: 'nN',
-      value: (_s, p) => {
-        if (!p.test) return NaN;
-        const at = testPos(p);
-        const { net } = coulombForces(pointSources(p), at.x, at.y, 1);
-        return Math.hypot(net[0], net[1]) * 1e9;
-      },
-    },
+    { label: 'F', unit: 'nN', value: (_s, p) => (p.test ? forceOnTest(p) : NaN) },
   ],
+
+  formula: (_s, p) => formulaLines(p),
 
   info: {
     goals: ['ch22.goal.field', 'ch22.goal.super'],
