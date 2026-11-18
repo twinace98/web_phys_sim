@@ -16,7 +16,8 @@ import {
 } from '../src/sims/ch41/physics';
 import { gapOf } from '../src/sims/ch41/bands';
 import { layout } from '../src/sims/ch41/filling';
-import { doping } from '../src/sims/ch41/doping';
+import { intrinsicMu } from '../src/sims/ch41/physics';
+import { REF_UNDOPED, carriersOf, doping, dotRef } from '../src/sims/ch41/doping';
 import { fromQuery } from '../src/core/params';
 
 describe('ch41 band formation', () => {
@@ -119,12 +120,46 @@ describe('ch41 doping', () => {
     expect(hot.n / ni(MATERIALS.si, 800)).toBeLessThan(1.1);
   });
 
-  it('doping tab offers n- and p-type only; an old "pure" link falls back to n-type with the dopant density shown', () => {
+  it('doping tab offers undoped, n- and p-type; the strength slider is on the main bar and hidden when undoped', () => {
     const spec = doping.params.type;
-    expect(spec.kind === 'select' && spec.options.map((o) => o.value)).toEqual(['n', 'p']);
-    expect(doping.params.conc.visibleIf).toBeUndefined();
+    expect(spec.kind === 'select' && spec.options.map((o) => o.value)).toEqual(['i', 'n', 'p']);
+    const conc = doping.params.conc;
+    expect(conc.group).toBe('main');
+    expect(conc.visibleIf!({ type: 'i', T: 300, conc: 1e16 })).toBe(false);
+    expect(conc.visibleIf!({ type: 'n', T: 300, conc: 1e16 })).toBe(true);
+    // An old "pure" link (type=i) is valid again.
     const p = fromQuery(doping.params, new URLSearchParams('type=i&T=400'));
-    expect(p).toEqual({ type: 'n', T: 400, conc: 1e16 });
+    expect(p).toEqual({ type: 'i', T: 400, conc: 1e16 });
+  });
+
+  it('undoped: n = p = n_i at every T, E_F at the intrinsic level, whatever the hidden concentration says', () => {
+    for (const T of [100, 300, 500, 800]) {
+      for (const conc of [1e13, 1e18]) {
+        const c = carriersOf({ type: 'i', T, conc });
+        expect(c.n / ni(MATERIALS.si, T)).toBeCloseTo(1, 6);
+        expect(c.p / c.n).toBeCloseTo(1, 6);
+        expect(c.Dp + c.Am).toBe(0);
+        // Slightly below mid-gap: E_F − E_g/2 = ½ kT ln(N_v/N_c) (−0.034 eV at 800 K).
+        expect(c.mu - MATERIALS.si.Eg / 2).toBeCloseTo(intrinsicMu(MATERIALS.si, T), 6);
+      }
+    }
+    expect(dotRef({ type: 'i', T: 300, conc: 1e13 })).toBe(REF_UNDOPED);
+    expect(dotRef({ type: 'n', T: 300, conc: 1e13 })).toBe(1e13);
+  });
+
+  it('doping strength 10¹³–10¹⁸: E_F approaches the band edge, intrinsic onset moves up', () => {
+    const gap = (N: number) => MATERIALS.si.Eg - carriersOf({ type: 'n', T: 300, conc: N }).mu;
+    expect(gap(1e13)).toBeCloseTo(0.384, 2);
+    expect(gap(1e18)).toBeCloseTo(0.093, 2);
+    // Still non-degenerate at the top of the range (Boltzmann): E_c − E_F > 3 kT.
+    expect(gap(1e18)).toBeGreaterThan(3 * 8.617e-5 * 300);
+    const onset = (N: number) => {
+      let T = 300;
+      while (carriersOf({ type: 'n', T, conc: N }).n < 2 * N) T += 5;
+      return T;
+    };
+    expect(onset(1e13)).toBe(450);
+    expect(onset(1e15)).toBe(620);
   });
 
   it('intrinsic: n = p = n_i (the reference curve on the doping graph)', () => {

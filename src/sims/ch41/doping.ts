@@ -14,6 +14,11 @@ const SITES = 8;
 const T_MIN = 30;
 const T_MAX = 800;
 const NI_COLOR = '#8c8c8c';
+/** Dopant density range [cm⁻³]: from barely above n_i(300 K) to just short of degeneracy. */
+const CONC_MIN = 1e13;
+const CONC_MAX = 1e18;
+/** Undoped: 8 dots stand for this density (n_i reaches it near 800 K). */
+export const REF_UNDOPED = 1e16;
 
 const params: ParamSchema<P> = {
   type: {
@@ -24,6 +29,7 @@ const params: ParamSchema<P> = {
     live: true,
     default: 'n',
     options: [
+      { value: 'i', label: 'ch41.type.i' },
       { value: 'n', label: 'ch41.type.n' },
       { value: 'p', label: 'ch41.type.p' },
     ],
@@ -45,19 +51,22 @@ const params: ParamSchema<P> = {
     kind: 'number',
     label: 'ch41.d.p.conc',
     desc: 'ch41.d.d.conc',
-    group: 'advanced',
+    group: 'main',
     live: true,
     control: 'slider',
     log: true,
     sig: 2,
-    min: 1e15,
-    max: 1e17,
+    min: CONC_MIN,
+    max: CONC_MAX,
     default: 1e16,
     unit: 'cm⁻³',
+    visibleIf: (p) => p.type !== 'i',
   },
 };
 
 const dopants = (p: P): [number, number] => [p.type === 'n' ? p.conc : 0, p.type === 'p' ? p.conc : 0];
+/** Density that the 8 dopant sites stand for; carrier dots are drawn on the same scale. */
+export const dotRef = (p: P) => (p.type === 'i' ? REF_UNDOPED : p.conc);
 export const carriersOf = (p: P, T = p.T): Carriers => carriers(T, ...dopants(p));
 
 const curveCache = new Map<string, { T: number; n: number; p: number; ni: number }[]>();
@@ -95,7 +104,7 @@ export const doping: Scene<P, { t: number }> = {
     const wide = g.vp.w > g.vp.h * 1.1;
     const o = canvasBox(g);
     const [boxA, boxB] = split({ l: o.l + 52, t: o.t + 30, r: o.r - 30, b: o.b - 36 }, wide, wide ? 0.42 : 0.5, wide ? 90 : 56);
-    const ref = p.conc;
+    const ref = dotRef(p);
     const [Nd, Na] = dopants(p);
 
     // ---- band diagram (energies from E_v)
@@ -145,9 +154,13 @@ export const doping: Scene<P, { t: number }> = {
     const c = curves(p);
     fr.clip(() => {
       const pick = (k: 'n' | 'p' | 'ni') => c.map((r) => [r.T, Math.max(r[k], 1)] as [number, number]);
+      const nLine = () => fr.polyline(pick('n'), { color: ELECTRON, width: 2 });
+      // Undoped: n = p = n_i on one curve, so the solid n goes underneath and the dashed p and
+      // dotted n_i stay visible on top of it.
+      if (p.type === 'i') nLine();
       fr.polyline(pick('ni'), { color: NI_COLOR, width: 1.5, dash: [2, 3] });
       fr.polyline(pick('p'), { color: HOLE, width: 2, dash: [6, 4] });
-      fr.polyline(pick('n'), { color: ELECTRON, width: 2 });
+      if (p.type !== 'i') nLine();
       fr.line(p.T, 1e2, p.T, 1e20, { color: '#9a9a9a', width: 1 });
       if (q.n > 1e2) g.circle(fr.P(p.T, q.n), 4.5, { fill: ELECTRON });
       if (q.p > 1e2) g.circle(fr.P(p.T, q.p), 4.5, { fill: HOLE });
@@ -179,7 +192,7 @@ export const doping: Scene<P, { t: number }> = {
 
   info: {
     goals: ['ch41.d.goal.dope', 'ch41.d.goal.T'],
-    observe: ['ch41.d.obs.n', 'ch41.d.obs.p', 'ch41.d.obs.freeze', 'ch41.d.obs.intr', 'ch41.d.obs.law'],
+    observe: ['ch41.d.obs.i', 'ch41.d.obs.n', 'ch41.d.obs.p', 'ch41.d.obs.conc', 'ch41.d.obs.freeze', 'ch41.d.obs.intr', 'ch41.d.obs.law'],
     equations: ['n\\,p = n_i^2', 'n + N_A^- = p + N_D^+'],
     assumptions: ['ch41.d.assume.si', 'ch41.d.assume.dots', 'ch41.d.assume.stat'],
   },
