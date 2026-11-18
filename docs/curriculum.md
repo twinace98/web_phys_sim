@@ -1031,28 +1031,39 @@
 
 ### 6.4 내적과 외적 (→ Ch 3)
 
-- **학습 목표**: 내적 = 크기 × 정사영 ($ab\cos\varphi$), 외적의 크기 = 평행사변형 넓이 ($ab\sin\varphi$), 방향 = 오른손 규칙. 크기·각 계산과 성분 계산의 일치
+- **학습 목표**: 내적 = 크기 × 정사영 ($a\,(b\cos\varphi)$), 외적의 크기 = 평행사변형 넓이 = 밑변 × 높이 ($a\,\lvert b\sin\varphi\rvert$), 방향 = 오른손 규칙. 크기·각 계산과 성분 계산의 일치
 - 경로 `#/ch/104`, 탭 2개 (내적 / 외적). 정적 장면, 플롯 열 없음 → 스테이지 안 그래프
 - 공통 화면
   - Ch 3과 같은 벡터 평면: 단위 격자, $x$·$y$ 축, $\vec a$ 파랑, $\vec b$ 주황, 끝 드래그 손잡이 (옅은 원)
   - 끌기 방식 드롭다운: 부드럽게 / 0.5 간격 맞춤. 벡터 길이 상한 (내적 5, 외적 4.5), 저장값 소수 둘째 자리
-  - 사잇각 호와 $\varphi$ 값, 화살표 옆 $a$, $b$ 값. 라벨끼리·화살표·축·눈금 숫자와 겹치지 않는 자리 선택 (Ch 3 배치 모듈)
-  - 그래프: 넓은 화면은 평면 오른쪽, 좁은 화면은 평면 아래. 곡선 = $\varphi$만 바뀔 때의 곱, 점 = 현재 값, 점 드래그 → $\vec b$ 회전 (길이 유지)
+  - 사잇각 호와 $\varphi$ 값, 화살표 옆 $a$, $b$ 값. 라벨끼리·화살표·축·축 이름·눈금 숫자와 겹치지 않는 자리 선택, 자리가 없으면 가까운 빈자리 탐색 → 그래도 없으면 값만 표시
+  - 격자 한 칸 = 길이 1 (임의 단위) → $a$, $b$, 정사영, 높이 = 길이, 곱 = (길이 단위)² (ⓘ 가정)
+  - 그래프: 넓은 화면은 평면 오른쪽, 좁은 화면은 평면 아래. $\varphi$만 바뀔 때의 곱 (검은 선)과 인수 (정사영 또는 높이, 평면의 띠와 같은 색 반투명 굵은 선), 같은 수치 눈금 → 검은 막대 = 주황 막대의 $a$배
+  - 현재 $\varphi$: 0에서 곱까지 검은 막대 + 점, 0에서 인수까지 반투명 막대 + 작은 점, 막대 끝마다 이름과 값 (예: $\vec a\cdot\vec b$ = 7.00, $b\cos\varphi$ = 1.70). 그래프 안, 곡선·막대와 겹치지 않는 자리, 좁으면 값만
+  - 점 드래그 → $\vec b$ 회전 (길이 유지). y 범위 = $ab$와 $b$ 중 큰 값 이상의 깔끔한 수
   - 값 표시 줄: $\varphi$, 곱
 - 탭 1 내적
   - 정사영 드롭다운: $\vec b$ → $\vec a$ 방향 / $\vec a$ → $\vec b$ 방향
-  - $\vec a$ (또는 $\vec b$) 방향의 연장선 (점선), 다른 벡터 끝에서 내린 수선, 직각 표시, 정사영 = 같은 색 굵은 반투명 띠, 라벨 $b\cos\varphi$ ($a\cos\varphi$)
+  - $\vec a$ (또는 $\vec b$) 방향의 연장선 (점선), 다른 벡터 끝에서 내린 수선, 직각 표시, 정사영 = 같은 색 굵은 반투명 띠 (끝이 각진 띠, 길이 = 정사영 길이), 라벨 $b\cos\varphi$ = 값 (부호 포함)
   - $\varphi > 90^\circ$: 정사영이 원점 뒤쪽 연장선 위 → 음수 내적
-  - 그래프: $0$–$180^\circ$, $ab\cos\varphi$
-  - Σ 패널: $\vec a\cdot\vec b = ab\cos\varphi = a_x b_x + a_y b_y$, 두 방법 각각 대입 (기본값 둘 다 7.00), 정사영 길이 $\vec a\cdot\vec b/a$
+  - 그래프: $0$–$180^\circ$, $ab\cos\varphi$와 $b\cos\varphi$
+  - **곱 직사각형** (그래프 오른쪽, 좁은 화면은 그래프 옆): 가로 = $a$ (파랑 선), 세로 = $b\cos\varphi$ (평면과 같은 주황 띠), 넓이 = $\vec a\cdot\vec b$, 안에 $\vec a\cdot\vec b$ = 값. 고정 축척 (길이 5까지 칸 안), 음수면 기준선 아래 + 빗금
+  - "$\vec a$ → $\vec b$ 방향"이면 역할 교대: 가로 $b$ (주황), 세로 $a\cos\varphi$ (파랑 띠)
+  - Σ 패널 4줄: $\vec a\cdot\vec b = a\,(b\cos\varphi) = a_x b_x + a_y b_y$ / $b\cos\varphi = (3.16)\cos 57.5^\circ = 1.70$ / $a\,(b\cos\varphi) = (4.12)(1.70) = 7.00$ / 성분 대입 = 7.00
 - 탭 2 외적
-  - 평행사변형 (옅은 회색 채움, 맞은편 두 변 = 옮긴 $\vec a$, $\vec b$ 점선), 높이 $b\sin\varphi$ (수선, 직각 표시, 자리가 있을 때만 라벨)
-  - 평행사변형 가운데 $\odot$ (종이 면에서 나옴, $\vec b$가 $\vec a$에서 반시계 방향) / $\otimes$ (들어감, 시계 방향). 평행·반평행이면 기호 없음
+  - 평행사변형 (옅은 회색 채움, 맞은편 두 변 = 옮긴 $\vec a$, $\vec b$ 점선), $\vec a$ 방향 연장선 (점선)
+  - 높이 $b\sin\varphi$: $\vec b$ 끝에서 $\vec a$ 연장선에 내린 수선 = 주황 반투명 띠 (발 F에 직각 표시), 라벨 $b\sin\varphi$ = 값 (부호 포함, $\otimes$이면 음수)
+  - **넓이가 같은 직사각형** (검은 점선): 꼭짓점 F, F + $\vec a$, $\vec a + \vec b$, $\vec b$. 삼각형 O·F·$\vec b$를 잘라 $\vec a$만큼 옮긴 모양 → 밑변 $a$, 높이 $\lvert b\sin\varphi\rvert$, 윗변 = 평행사변형 윗변
+  - 평행사변형 가운데 $\odot$ (종이 면에서 나옴, $\vec b$가 $\vec a$에서 반시계 방향) / $\otimes$ (들어감, 시계 방향), 옆에 $\lvert\vec a\times\vec b\rvert$ = 넓이 값. 평행·반평행이면 기호 없음
   - 사잇각 호 끝 화살촉 = $\vec a$에서 $\vec b$로 감는 방향. $\varphi$ = 부호 있는 각 ($-180^\circ$–$180^\circ$, 반시계 양수)
-  - 그래프: $-180^\circ$–$180^\circ$, $(\vec a\times\vec b)_z = ab\sin\varphi$, 양의 봉우리 안 $\odot$, 음의 골 안 $\otimes$
-  - Σ 패널: $(\vec a\times\vec b)_z = ab\sin\varphi = a_x b_y - a_y b_x$, 두 방법 대입 (기본값 11.0), 넓이 $a\,(b\sin\lvert\varphi\rvert)$, 방향 $\pm\hat k$
-- 기본값: $\vec a = (4, 1)$, $\vec b = (1, 3)$ → $\varphi = 57.5^\circ$, $\vec a\cdot\vec b = 7$, $(\vec a\times\vec b)_z = 11$
-- 테스트: 무작위 벡터에서 성분식 = 크기·각 식 (상대 오차 $10^{-12}$), 수직 → 내적 0, 평행 → 외적 0, $\hat x\times\hat y = +\hat k$, $\vec b\times\vec a = -\vec a\times\vec b$, 내적 부호 ↔ $\varphi \lessgtr 90^\circ$, 신발끈 공식 넓이 = $\lvert\vec a\times\vec b\rvert$
+  - 그래프: $-180^\circ$–$180^\circ$, $(\vec a\times\vec b)_z = ab\sin\varphi$와 $b\sin\varphi$, 양의 봉우리 안 $\odot$, 음의 골 안 $\otimes$ (두 곡선 중 낮은 쪽 높이의 절반)
+  - Σ 패널 5줄: $(\vec a\times\vec b)_z = a\,(b\sin\varphi) = a_x b_y - a_y b_x$ / $b\sin\varphi = (3.16)\sin(57.5^\circ) = 2.67$ / $a\,(b\sin\varphi) = (4.12)(2.67) = 11.0$ / 성분 대입 = 11.0 / 방향 $\pm\hat k$
+- 기본값: $\vec a = (4, 1)$, $\vec b = (1, 3)$ → $\varphi = 57.5^\circ$, $\vec a\cdot\vec b = 7$, $b\cos\varphi = 1.70$, $(\vec a\times\vec b)_z = 11$, $b\sin\varphi = 2.67$
+- 테스트
+  - 무작위 벡터에서 성분식 = 크기·각 식 (상대 오차 $10^{-12}$), 수직 → 내적 0, 평행 → 외적 0, $\hat x\times\hat y = +\hat k$, $\vec b\times\vec a = -\vec a\times\vec b$, 내적 부호 ↔ $\varphi \lessgtr 90^\circ$, 신발끈 공식 넓이 = $\lvert\vec a\times\vec b\rvert$
+  - 인수분해: $a\,(b\cos\varphi) = \vec a\cdot\vec b$, $a\,(b\sin\varphi) = (\vec a\times\vec b)_z$, 직사각형 F, F + $\vec a$, $\vec a + \vec b$, $\vec b$의 부호 있는 넓이 = $(\vec a\times\vec b)_z$ ($10^{-9}$)
+  - 그려진 도형 (기록용 Draw, 넓은·좁은 화면, $\varphi$ 15° 간격 × 크기 5조): 그래프 막대 = 곱·인수, 곱 막대 = $a$ × 인수 막대, 평면 띠 길이 = 정사영·높이, 곱 직사각형 넓이 = $\vec a\cdot\vec b$ ($10^{-9}$), 음수 ↔ 기준선 아래 + 빗금
+  - 라벨: 겹침 없음, 스테이지 밖 없음, 곱과 인수 값이 화면에 있음
 
 ### 6.5 평형과 탄성: 사다리의 평형과 미끄러짐 (→ Ch 12)
 
