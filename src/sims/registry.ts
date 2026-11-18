@@ -83,7 +83,7 @@ const r = (ch: number, target: number, ko: string, en: string, sko: string, sen:
 });
 
 export const REVIEW: ChapterMeta[] = [
-  r(101, 38, '광전 효과', 'Photoelectric Effect', '정지전압 측정, 데이터 점 모아 h 구하기', 'Stopping voltage, collecting points to find h', () => import('./review/photoelectric').then((m) => m.default)),
+  r(101, 38, '광전 효과', 'Photoelectric Effect', '문턱 진동수, I–V 곡선과 정지전압', 'Threshold frequency, I–V curve and stopping voltage', () => import('./review/photoelectric').then((m) => m.default)),
   r(102, 39, '수소 원자', 'The Hydrogen Atom', '에너지 준위, 전이와 선스펙트럼', 'Energy levels, transitions and line spectra', () => import('./review/hydrogen').then((m) => m.default)),
   r(103, 39, '퍼텐셜 우물: 전이', 'Potential Well: Transitions', '두 준위를 골라 광자 파장', 'Pick two levels for the photon wavelength', () => import('./review/welljump').then((m) => m.default)),
   r(104, 3, '내적과 외적', 'Dot and Cross Products', '정사영, 평행사변형 넓이', 'Projection, parallelogram area', () => import('./review/products').then((m) => m.default)),
