@@ -29,16 +29,11 @@ describe('ch34 stage extent (round 2)', () => {
     }
   });
 
-  it('the stage widens with a long converging f only, never with p (no rescaling while dragging)', () => {
-    expect(halfWidth('converging', 15)).toBe(60);
-    expect(halfWidth('converging', 30)).toBeCloseTo(96, 9);
-    expect(halfWidth('diverging', 30)).toBe(60);
-    expect(halfWidth('plane', 30)).toBe(60);
+  it('the stage never rescales: not with f (so the image visibly moves and flips) and not with p', () => {
+    for (const k of ['converging', 'diverging', 'concave', 'convex', 'plane']) for (const f of [5, 15, 30]) expect(halfWidth(k, f)).toBe(70);
     const base = defaults(lensScene.params);
-    for (const f of [5, 18, 30]) {
-      const w0 = JSON.stringify(worldOf({ ...base, f, p: 2 }, false));
-      for (const p of [10, 25, 29.5, 55]) expect(JSON.stringify(worldOf({ ...base, f, p }, false))).toBe(w0);
-    }
+    const w0 = JSON.stringify(worldOf({ ...base, f: 5, p: 2 }, false));
+    for (const f of [5, 18, 30]) for (const p of [10, 25, 29.5, 55]) expect(JSON.stringify(worldOf({ ...base, f, p }, false))).toBe(w0);
     // f = 30: the real image of the farthest object (p = 55, i = 66) now lies on the stage (old edge: 60).
     expect(imageDistance(55, 30)).toBeLessThan(halfWidth('converging', 30));
   });
@@ -144,7 +139,7 @@ describe('ch34 review fixes', () => {
             // The ray is drawn reflecting where it meets the curve, on the object's line, inside the rim.
             const hit = mirrorHit('mirror', q, r);
             expect(hit.x).toBeLessThanOrEqual(0);
-            expect(hit.x).toBeGreaterThanOrEqual((-2.5 * halfWidth('concave', f)) / 60 - 1e-9);
+            expect(hit.x).toBeGreaterThanOrEqual(-2.5 - 1e-9);
             expect(Math.abs(hit.y)).toBeLessThanOrEqual(ap);
             expect(hit.y).toBeCloseTo(h + r.sIn * (hit.x + p), 9);
           }
@@ -153,7 +148,8 @@ describe('ch34 review fixes', () => {
     const q = { ...base, kind: 'concave', p: 18, f: 15, h: 4 };
     expect(Math.max(...principalRays(18, 4, 15).map((r) => Math.abs(r.y)))).toBeCloseTo(20, 9);
     expect(apertureOf('mirror', q)).toBeGreaterThanOrEqual(20);
-    expect(apertureOf('mirror', { ...q, p: 25, h: 5 })).toBe(13);
+    // Far object: the aperture is the frame default, 0.65 of the half-height (70/3 cm).
+    expect(apertureOf('mirror', { ...q, p: 25, h: 5 })).toBeCloseTo((0.65 * 70) / 3, 9);
   });
 
   it('readouts are finite or "–" (p = f only) across kinds, f and p', () => {
@@ -166,5 +162,25 @@ describe('ch34 review fixes', () => {
             for (const r of sc.readouts!) expect(Number.isFinite(r.value({ t: 0 }, q))).toBe(true);
             expect(panel(q)).not.toContain('NaN');
           }
+  });
+});
+
+describe('ch34 focal-length slider shows every image type (default object at 18 cm)', () => {
+  it('f sweeps reduced real, enlarged real and upright virtual images on one fixed stage', () => {
+    const p = defaults(lensScene.params).p;
+    expect(p).toBe(18);
+    const img = (f: number) => {
+      const i = 1 / (1 / f - 1 / p);
+      return { i, m: -i / p };
+    };
+    expect(img(6).i).toBeGreaterThan(0);
+    expect(Math.abs(img(6).m)).toBeLessThan(1);
+    expect(img(12).i).toBeGreaterThan(0);
+    expect(Math.abs(img(12).m)).toBeGreaterThan(1);
+    expect(img(25).i).toBeLessThan(0);
+    expect(img(25).m).toBeGreaterThan(1);
+    // The virtual image at f = 25 (i = −64.3 cm) and the real one at f = 12 (i = 36 cm) lie on the 70 cm stage.
+    expect(Math.abs(img(25).i)).toBeLessThan(halfWidth('converging', 25));
+    expect(Math.abs(img(12).i)).toBeLessThan(halfWidth('converging', 12));
   });
 });
