@@ -75,6 +75,25 @@ const params: ParamSchema<P> = {
   vectors: { kind: 'toggle', label: 'ch15.p.vectors', desc: 'ch15.d.vectors', group: 'advanced', live: true, default: true },
 };
 
+/** Phase-space path samples per period: smooth at any run length (a fixed count turns star-shaped). */
+export const PHASE_PER_PERIOD = 48;
+
+/**
+ * Time span and sample count of the phase-space path at time t. Undamped: the last period (the
+ * closed ellipse). Damped: the spiral from the start, but at most the last periods over which the
+ * amplitude falls 50-fold (older rings would be 50 times wider than the current one).
+ */
+export function phaseSamples(o: Oscillator, t: number): { t0: number; n: number } {
+  const T = period(o);
+  let span = T;
+  if (o.zeta > 0) {
+    const perPeriod = (2 * Math.PI * o.zeta) / Math.sqrt(1 - o.zeta * o.zeta); // amplitude decay per period (log)
+    span = Math.ceil(Math.log(50) / perPeriod) * T;
+  }
+  const t0 = Math.max(0, t - span);
+  return { t0, n: Math.max(2, Math.ceil((PHASE_PER_PERIOD * (t - t0)) / T)) };
+}
+
 function spring(g: Draw, x: number, y0: number, y1: number): void {
   const n = 12;
   const w = 0.045;
@@ -147,9 +166,7 @@ export const shm: Scene<P, S> = {
     g.text({ x: PX + PW + 0.06, y: 0 }, '*v*', { size: 13, color: LABEL, align: 'left', baseline: 'middle', dx: 6 });
     g.text({ x: PX, y: A_MAX + 0.06 }, '*x*', { size: 13, color: LABEL, align: 'left', baseline: 'middle', dx: 7 });
     const path: Vec2[] = [];
-    const T = period(o);
-    const t0 = o.zeta > 0 ? 0 : Math.max(0, s.t - T);
-    const N = 160;
+    const { t0, n: N } = phaseSamples(o, s.t);
     for (let i = 0; i <= N; i++) {
       const q = oscAt(o, t0 + ((s.t - t0) * i) / N);
       path.push({ x: PX + q.v * kp, y: q.x });

@@ -4,7 +4,7 @@ import type { ParamSchema, Role, Scene, SceneCtx, SelectParam, Vec2, WorldSpec }
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR, theme } from '../../draw/theme';
 import { LabelLayout } from './labels';
-import { add, axes, clampWithPartner, components, placeTip, setComponent, type V2 } from './physics';
+import { add, axes, clampWithPartner, components, placeComponentTip, placeTip, setComponent, type V2 } from './physics';
 
 const DEG = Math.PI / 180;
 const L = 5.8; // axis half-length
@@ -189,7 +189,7 @@ export const componentsScene: Scene<PC, { t: number }> = {
       pos: (_s, p) => P([p.A[0], p.A[1]]),
       radiusPx: 18,
       onDrag: (ctx, _s, w) => {
-        const next = placeTip([w.x, w.y], ctx.params.phi * DEG, ctx.params.drag === 'snap', LIM);
+        const next = placeComponentTip([w.x, w.y], ctx.params.phi * DEG, ctx.params.drag === 'snap', LIM);
         if (next[0] !== ctx.params.A[0] || next[1] !== ctx.params.A[1]) ctx.set('A', next);
       },
     },

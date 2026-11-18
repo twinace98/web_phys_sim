@@ -188,6 +188,17 @@ export function topViewAt(s: Setup, t: number, tRel = Infinity) {
   return { x: x + vx * d, y: y + vy * d, vx, vy, onCircle: t < tRel };
 }
 
+/**
+ * Speed [m/s] in the ground frame. Every preset keeps its speed v on the circle, and the released
+ * string ball and the car on ice keep it along the tangent (no horizontal force). The cut conical
+ * pendulum also falls freely, so it gains g(t − tRel) downward: |v| = √(v² + (g(t − tRel))²).
+ */
+export function speedAt(pr: Preset, t: number, tRel = Infinity): number {
+  const v = SETUPS[pr].v;
+  if (pr !== 'cone' || t <= tRel) return v;
+  return Math.hypot(v, G * (t - tRel));
+}
+
 // ------------------------------------------------------------------ the frame rotating with the object
 
 /** Angular speed of the circular motion [rad/s]. */

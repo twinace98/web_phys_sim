@@ -41,16 +41,22 @@ export const axisY = (v: Venturi, x: number) => slopeOf(v) * x;
 /** Continuity: v = Q / A. */
 export const speedAt = (v: Venturi, x: number) => v.Q / areaAt(v, x);
 
+/** Smallest visible water column above the top wall in every standpipe [m]. */
+export const LEVEL_MARGIN = 0.03;
+
 /**
- * Gauge pressure head at the inlet tap, chosen so that every standpipe column stays at least
- * 5 cm above the pipe axis, rounded up to a 5 cm water column.
+ * Gauge pressure head at the inlet tap, chosen so that every standpipe level stands at least
+ * LEVEL_MARGIN above the top wall of the pipe at its tap (axis + local radius), rounded up to a
+ * 5 cm water column.
  */
 export function inletHead(v: Venturi): number {
   const v1 = speedAt(v, TAPS[0]);
   const y1 = axisY(v, TAPS[0]);
   let need = 0;
-  for (const x of TAPS) need = Math.max(need, axisY(v, x) - y1 + (speedAt(v, x) ** 2 - v1 * v1) / (2 * G));
-  return Math.ceil((need + 0.05) / 0.05 - 1e-9) * 0.05;
+  for (const x of TAPS) {
+    need = Math.max(need, axisY(v, x) - y1 + (speedAt(v, x) ** 2 - v1 * v1) / (2 * G) + radiusAt(v, x) + LEVEL_MARGIN);
+  }
+  return Math.ceil(need / 0.05 - 1e-9) * 0.05;
 }
 
 export interface Tap {
