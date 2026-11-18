@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import globalEn from '../src/i18n/en.json';
+import globalKo from '../src/i18n/ko.json';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
 import { first, firstStep, FIRST_G } from '../src/sims/ch05/first';
@@ -250,8 +252,10 @@ describe('ch05 slider ranges', () => {
 describe('ch05 i18n', () => {
   it('every key used by the scenes exists in both languages, with the same key sets', async () => {
     const page = (await import('../src/sims/ch05')).default;
-    const { ko, en } = page.i18n;
-    expect(Object.keys(ko).sort()).toEqual(Object.keys(en).sort());
+    expect(Object.keys(page.i18n.ko).sort()).toEqual(Object.keys(page.i18n.en).sort());
+    // Shared strings (e.g. the free-body-diagram toggle) come from src/i18n.
+    const ko: Record<string, string> = { ...globalKo, ...page.i18n.ko };
+    const en: Record<string, string> = { ...globalEn, ...page.i18n.en };
     for (const s of page.scenes) {
       const keys: string[] = [s.title, ...s.info.goals, ...s.info.observe, ...(s.info.assumptions ?? [])];
       for (const spec of Object.values(s.params) as any[]) {

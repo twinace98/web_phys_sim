@@ -35,8 +35,6 @@
   "ch05.t.d.mA": "Mass $m_A$ of the left cart A, which carries the bumper",
   "ch05.t.p.mB": "Mass of B",
   "ch05.t.d.mB": "Mass $m_B$ of the right cart B",
-  "ch05.t.p.fbd": "Free-body diagrams",
-  "ch05.t.d.fbd": "Every force on each cart (contact force, normal force $\\vec N$, weight $m\\vec g$), drawn from the cart centre on one scale",
   "ch05.t.p.v0": "Initial velocity of A",
   "ch05.t.d.v0": "Velocity $v_0$ of A before the collision (B at rest)",
   "ch05.t.p.k": "Bumper stiffness",
