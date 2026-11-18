@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formulaFree, freeScene } from '../src/sims/ch31/free';
 import { tns } from '../src/sims/ch31/fit';
+import { tn } from '../src/core/tex';
 import { defaults } from '../src/core/params';
 import { fmt } from '../src/core/format';
 import ko from '../src/sims/ch31/i18n.ko.json';
@@ -114,14 +115,20 @@ describe('ch31 free RLC: the 100 Ω ⓘ line is tied to R ≥ 2√(L/C) (review 
       [20, 10, 10],
       [0, 10, 10],
     ])
-      for (const t of [0, 0.37, 1.1, 2.2, 3.3, 5.55, 7.9, 10]) {
+      for (const t of [0, 0.37, 1.1, 2.2, 3.3, 4.71, 5.55, 7, 7.9, 10]) {
         const line = formulaFree({ t, n: 0 } as never, { ...base, R, L, C }).at(-1)!;
         const m = line.match(/= ([-\d.e\\times{}^ ]+) \+ ([-\d.e\\times{}^ ]+) = ([-\d.e\\times{}^ ]+)\\ \\mu/);
         expect(m, line).not.toBeNull();
         const [a, b, c] = [m![1], m![2], m![3]].map((x) => val(x.trim()));
-        expect(tns(a + b), line).toBe(m![3].trim());
-        expect(c).toBeCloseTo(val(tns(c)), 15);
-        if (c !== 0) expect(a + b, line).toBeGreaterThan(0);
+        // The printed U is the readout's U (same zero tolerance 10⁻⁹ μJ).
+        const Ur = freeScene.readouts![1].value({ t, n: 0 } as never, { ...base, R, L, C });
+        expect(m![3].trim(), line).toBe(tn(Ur));
+        if (Math.abs(Ur) < 1e-9) expect([a, b, c]).toEqual([0, 0, 0]);
+        else {
+          // Terms in exponent form when tiny: their sum, as printed, is the printed U.
+          expect(tns(a + b), line).toBe(m![3].trim());
+          expect(a + b, line).toBeGreaterThan(0);
+        }
       }
   });
 

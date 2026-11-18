@@ -263,9 +263,11 @@ export function formulaFree(s: S, p: P): string[] {
   const UE = e.UE * 1e6;
   const UB = e.UB * 1e6;
   const U = UE + UB;
-  // tns: once overdamped, U falls below 10⁻⁹ μJ, and tn would print both terms as 0.00.
-  const su = fitSig((r) => tns(r(UE) + r(UB)), tns(U));
-  lines.push(`U = \\frac{q^2}{2C} + \\tfrac12 Li^2 = ${tns(UE, su)} + ${tns(UB, su)} = ${tns(U)}\\ \\mu\\mathrm{J}`);
+  // U below the readout's zero tolerance (10⁻⁹ μJ) prints 0.00 there and here. Above it, the terms
+  // keep exponent form (tns), so a decayed U = 1.76×10⁻⁹ μJ is not shown as 0.00 + 0.00.
+  const f = Math.abs(U) < 1e-9 ? tn : tns;
+  const su = fitSig((r) => f(r(UE) + r(UB)), f(U));
+  lines.push(`U = \\frac{q^2}{2C} + \\tfrac12 Li^2 = ${f(UE, su)} + ${f(UB, su)} = ${f(U)}\\ \\mu\\mathrm{J}`);
   return lines;
 }
 
