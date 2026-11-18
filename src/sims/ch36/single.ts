@@ -51,6 +51,22 @@ export const apsOf = (p: Pick<P, 'slits' | 'a' | 'd'>): Aperture[] =>
     : [{ yc: 0, w: p.a }];
 const field = (p: P) => fieldFor(p.lambda, apsOf(p), p.D);
 
+/** Fresnel number a²/(λD) of one slit: ≪ 1 is the Fraunhofer (far-field) regime. */
+export const fresnelNumber = (p: Pick<P, 'a' | 'lambda' | 'D'>) => (p.a * p.a) / ((p.lambda / 1000) * p.D);
+/**
+ * How the Fraunhofer first-minimum mark y₁ = D tan θ₁ is drawn. Wave field over the slider ranges:
+ * a²/(λD) ≤ 1: the minimum sits at y₁ and drops below 3 % of the maximum; 1-3: still at y₁
+ * (within 0.05 μm) but filled in to 4-28 %; above 3 it moves away from y₁ or is no minimum at all
+ * (a = 6 μm, λ = 400 nm, D = 15 μm: the brightest point lies at y₁ itself).
+ */
+export const FRESNEL_FAINT = 1;
+export const FRESNEL_HIDE = 3;
+export const y1Mark = (p: Pick<P, 'a' | 'lambda' | 'D'>): 'normal' | 'faint' | 'hidden' => {
+  const nf = fresnelNumber(p);
+  return nf > FRESNEL_HIDE ? 'hidden' : nf > FRESNEL_FAINT ? 'faint' : 'normal';
+};
+const FAINT = '#a8a8a8';
+
 /** Heights of the drawn sources, top first, in a slit of width a centred at yc. */
 export const shownSources = (a: number, n = N_SHOW, yc = 0) => Array.from({ length: n }, (_, i) => yc + a / 2 - ((i + 0.5) * a) / n);
 
@@ -191,13 +207,16 @@ export const singleSlit: Scene<P, SlitState> = {
       );
     }
 
-    // First minima a sin θ = λ (of the single-slit envelope), as screen heights.
+    // First minima a sin θ = λ (of the single-slit envelope), as screen heights: normal in the
+    // Fraunhofer regime, light grey where the near-field minimum is shallow, gone beyond that.
     const th = firstMin(p.lambda / 1000, p.a);
     const y1 = p.D * Math.tan(th);
     const bx = inset.r.x1 + 0.9;
-    if (Number.isFinite(y1) && y1 < 11.5) {
-      for (const y of [-y1, 0, y1]) g.line({ x: inset.r.x0, y }, { x: y === 0 ? bx : inset.r.x1, y }, { color: '#b5b5b5', width: 1, dash: [3, 4] });
-      dimLine(g, { x: bx, y: 0 }, { x: bx, y: y1 }, '*y*_{1}', 20, 0);
+    const mark = y1Mark(p);
+    if (mark !== 'hidden' && Number.isFinite(y1) && y1 < 11.5) {
+      const faint = mark === 'faint';
+      for (const y of [-y1, 0, y1]) g.line({ x: inset.r.x0, y }, { x: y === 0 ? bx : inset.r.x1, y }, { color: faint ? '#d6d6d6' : '#b5b5b5', width: 1, dash: [3, 4] });
+      dimLine(g, { x: bx, y: 0 }, { x: bx, y: y1 }, '*y*_{1}', 20, 0, faint ? FAINT : undefined);
     }
 
     dimLine(g, { x: 0, y: Y0 - 1.2 }, { x: p.D, y: Y0 - 1.2 }, '*D*', 0, 0);

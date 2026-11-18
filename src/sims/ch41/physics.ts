@@ -106,14 +106,14 @@ export function shownPairs(n: number, max = 16): number {
 
 // ------------------------------------------------------------------ conduction in E(k)
 
-/** Hopping energy t [eV]: E(k) = −2t cos(ka). */
+/** Hopping energy γ [eV] (not t, the time): E(k) = −2γ cos(ka). */
 export const HOP = 1;
 export const NK = 32;
 /** Scattering time [fs]. */
 export const TAU = 10;
 
 export const bandE = (ka: number) => -2 * HOP * Math.cos(ka);
-/** Group velocity in units of 2ta/ħ. */
+/** Group velocity in units of 2γa/ħ. */
 export const bandV = (ka: number) => Math.sin(ka);
 
 export type Filling = 'half' | 'nearly' | 'full';
@@ -143,7 +143,7 @@ export function shiftStep(d0: number, F: number, h: number, tau = TAU): number {
   return dss + (d0 - dss) * Math.exp(-h / tau);
 }
 
-/** Net current along the field, in units of e·2ta/ħ per state: J = −Σ v (electrons carry −e). */
+/** Net current along the field, in units of e·2γa/ħ per state: J = −Σ v (electrons carry −e). */
 export function current(occ: number[], delta: number): number {
   const ks = kGrid();
   let s = 0;
