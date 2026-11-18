@@ -1,6 +1,8 @@
 // Ch 18 scene: three paths between the same two states. W and Q depend on the path,
 // ΔE_int does not (state function).
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
+import { dELine, qLine } from './formula';
 import { split, stageRect } from './panels';
 import { A0, pathAt, temp, threePaths, type St } from './physics';
 import { dofOf } from './process';
@@ -118,6 +120,8 @@ export const pathsScene: Scene<P, { t: number }> = {
     { label: '\\Delta E_\\text{int}', unit: 'J', value: (s, p) => hlPoint(s, p).dE },
   ],
 
+  formula: (s, p) => formulaLines(s, p),
+
   info: {
     goals: ['ch18.p2.goal.path', 'ch18.p2.goal.state'],
     observe: ['ch18.p2.obs.W', 'ch18.p2.obs.E', 'ch18.p2.obs.Q', 'ch18.p2.obs.b2', 'ch18.p2.obs.b3'],
@@ -125,3 +129,24 @@ export const pathsScene: Scene<P, { t: number }> = {
     assumptions: ['ch18.assume.ideal', 'ch18.assume.quasi'],
   },
 };
+
+/**
+ * Σ panel for the highlighted path at its current point: the work so far (p_A ΔV along ACB,
+ * p_B ΔV along ADB, the trapezoid along AB), ΔE_int (the same on every path) and Q = ΔE_int + W.
+ */
+export function formulaLines(s: { t: number }, p: P): string[] {
+  const f = dofOf(p.gas);
+  const B = endOf(p);
+  const pt = hlPoint(s, p);
+  const { st } = pt;
+  const dV = `(${tn(st.V, 4)} - ${num(A0.V)})`;
+  const W = `${tn(pt.W)}${u('J')}`;
+  // The trapezoid is split over two lines so it stays legible in the docked panel.
+  const work =
+    p.hl === 'ADB'
+      ? [`W = p_\\text{B}(V - V_\\text{A}) = ${num(B.p)} \\times ${dV} = ${W}`]
+      : p.hl === 'AB'
+        ? [`W = \\tfrac{1}{2}(p_\\text{A} + p)(V - V_\\text{A})`, `= \\tfrac{1}{2}(${num(A0.p)} + ${tn(st.p, 4)})${dV} = ${W}`]
+        : [`W = p_\\text{A}(V - V_\\text{A}) = ${num(A0.p)} \\times ${dV} = ${W}`];
+  return [...work, dELine(st, pt.dE, f), qLine(pt.dE, pt.W, pt.Q)];
+}

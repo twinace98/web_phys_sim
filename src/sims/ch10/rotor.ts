@@ -1,9 +1,11 @@
 // Ch 10 scene: the same torque spins up two rotors whose masses sit at different distances
 // from the axis. I = Σ m r², so doubling r makes I four times larger and α four times smaller.
 import { fmt } from '../../core/format';
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
+import { sigFit, tnFit } from '../ch07/sigfit';
 import { pointInertia, spinUp } from './physics';
 
 type P = { rA: number; rB: number; m: number; tau: number };
@@ -153,6 +155,36 @@ export const rotorScene: Scene<P, { t: number; n: number }> = {
     { label: '\\alpha_A', unit: 'rad/s²', value: (_s, p) => p.tau / inertia(p.m, p.rA) },
     { label: '\\alpha_B', unit: 'rad/s²', value: (_s, p) => p.tau / inertia(p.m, p.rB) },
   ],
+
+  // I = Σ m r² for each rotor, α = τ / I (the readouts), and the live ω = α t.
+  formula: (s, p) => {
+    const rows = [
+      ['A', p.rA],
+      ['B', p.rB],
+    ] as const;
+    const lines: string[] = [];
+    for (const [k, r] of rows) {
+      const I = inertia(p.m, r);
+      lines.push(`I_${k} = 2mr_${k}^2 = 2(${num(p.m)})(${num(r)})^2 = ${tn(I)}${u('kg\\,m^2')}`);
+    }
+    for (const [k, r] of rows) {
+      const I = inertia(p.m, r);
+      const a = p.tau / I;
+      lines.push(`\\alpha_${k} = \\frac{\\tau}{I_${k}} = \\frac{${num(p.tau)}}{${tn(I, sigFit([I], (q) => p.tau / q, a))}} = ${tn(a)}${u('rad/s^2')}`);
+    }
+    // One set of digits for both rows, so t reads the same in each.
+    const sg = Math.max(
+      ...rows.map(([, r]) => {
+        const { alpha, omega } = spinUp(p.tau, inertia(p.m, r), s.t);
+        return sigFit([alpha, s.t], (x, y) => x * y, omega);
+      }),
+    );
+    for (const [k, r] of rows) {
+      const { alpha, omega } = spinUp(p.tau, inertia(p.m, r), s.t);
+      lines.push(`\\omega_${k} = \\alpha_${k} t = (${tnFit(alpha, sg)})(${tnFit(s.t, sg)}) = ${tn(omega)}${u('rad/s')}`);
+    }
+    return lines;
+  },
 
   info: {
     goals: ['ch10.r.goal.I', 'ch10.r.goal.alpha'],

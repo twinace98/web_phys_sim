@@ -1,9 +1,10 @@
 // Ch 17 scene: Doppler effect. A point source emits a circular wavefront once per period.
 // Moving source: fronts crowd ahead and spread behind; at v_s > v they form the Mach cone.
 // Moving observers: the fronts stay concentric, but A meets them more often than B.
+import { tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { color } from '../../draw/theme';
-import { arrivalAt, flashing, fronts, heardAll, heardAt, machAngle, observerX, sourceX, type Doppler } from './physics';
+import { arrivalAt, flashing, fronts, heardAll, heardAt, machAngle, observerX, sourceX, wavelengths, type Doppler } from './physics';
 
 type P = { who: string; vs: number; vo: number };
 
@@ -201,6 +202,8 @@ export const doppler: Scene<P, { t: number }> = {
     { label: "f'_{B2}", unit: 'Hz', value: (s, p) => heardAt(cfg(p), s.t).B2 },
   ],
 
+  formula: (s, p) => formulaLines(p, s.t),
+
   info: {
     goals: ['ch17.d.goal.source', 'ch17.d.goal.mach'],
     observe: ['ch17.d.obs.spacing', 'ch17.d.obs.count', 'ch17.d.obs.v', 'ch17.d.obs.cone', 'ch17.d.obs.boom', 'ch17.d.obs.observer'],
@@ -208,3 +211,33 @@ export const doppler: Scene<P, { t: number }> = {
     assumptions: ['ch17.d.assume.medium', 'ch17.d.assume.start', 'ch17.d.assume.slow'],
   },
 };
+
+/**
+ * Σ panel: the frequencies A and B are hearing at time t (a line only while its readout shows a
+ * value), the spacing of the fronts ahead of and behind a moving source, and at or above the
+ * speed of sound the condition v_S ≥ v instead of f'_A, with f'_B2 and the Mach angle above it.
+ */
+export function formulaLines(p: P, t: number): string[] {
+  const d = cfg(p);
+  const h = heardAt(d, t);
+  const { v, f } = d;
+  const lines: string[] = [];
+  const hz = (x: number) => `${tn(x)}${u('Hz')}`;
+  if (p.who !== 'source') {
+    const vo = d.vo;
+    if (Number.isFinite(h.A)) lines.push(`f'_A = f\\,\\frac{v + v_D}{v} = ${f} \\times \\frac{${v} + ${vo}}{${v}} = ${hz(h.A)}`);
+    if (Number.isFinite(h.B)) lines.push(`f'_B = f\\,\\frac{v - v_D}{v} = ${f} \\times \\frac{${v} - ${vo}}{${v}} = ${hz(h.B)}`);
+    lines.push(`\\lambda = v/f = ${v}/${f} = ${tn(v / f)}${u('m')}`);
+    return lines;
+  }
+  const vs = d.vs;
+  const lam = wavelengths(d);
+  if (vs < v && Number.isFinite(h.A)) lines.push(`f'_A = f\\,\\frac{v}{v - v_S} = ${f} \\times \\frac{${v}}{${v} - ${vs}} = ${hz(h.A)}`);
+  if (vs >= v) lines.push(`v_S = ${vs}${u('m/s')} \\ge v`);
+  if (Number.isFinite(h.B)) lines.push(`f'_B = f\\,\\frac{v}{v + v_S} = ${f} \\times \\frac{${v}}{${v} + ${vs}} = ${hz(h.B)}`);
+  if (Number.isFinite(h.B2)) lines.push(`f'_{B2} = f\\,\\frac{v}{v_S - v} = ${f} \\times \\frac{${v}}{${vs} - ${v}} = ${hz(h.B2)}`);
+  if (vs > v) lines.push(`\\theta = \\arcsin\\frac{v}{v_S} = \\arcsin\\frac{${v}}{${vs}} = ${tn((machAngle(d) * 180) / Math.PI)}^\\circ`);
+  if (vs < v) lines.push(`\\lambda_A = (v - v_S)/f = (${v} - ${vs})/${f} = ${tn(lam.ahead)}${u('m')}`);
+  lines.push(`\\lambda_B = (v + v_S)/f = (${v} + ${vs})/${f} = ${tn(lam.behind)}${u('m')}`);
+  return lines;
+}

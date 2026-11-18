@@ -1,10 +1,12 @@
 // Ch 10 scene: parallel-axis theorem. Drag the rotation axis away from the centre of mass;
 // I(d) = I_cm + M d² traces a parabola whose curvature M is the same for every shape.
 import { fmt, fmtTick, niceTicks } from '../../core/format';
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { measureRich } from '../../draw/text';
 import { ROLE_COLOR, theme } from '../../draw/theme';
+import { sigFit, tnFit } from '../ch07/sigfit';
 import { inertiaCm, parallelAxis, type Shape } from './physics';
 
 type P = { shape: string; d: number };
@@ -187,6 +189,24 @@ export const parallelScene: Scene<P, { t: number }> = {
     { label: 'Md^2', unit: 'kg·m²', value: (_s, p) => M * p.d * p.d },
     { label: 'I', unit: 'kg·m²', value: (_s, p) => parallelAxis(inertiaCm(p.shape as Shape, M, R), M, p.d) },
   ],
+
+  // I_cm of the chosen body in closed form, M d², and their sum (the three readouts).
+  formula: (_s, p) => {
+    const shape = p.shape as Shape;
+    const Icm = inertiaCm(shape, M, R);
+    const Md2 = M * p.d * p.d;
+    const I = parallelAxis(Icm, M, p.d);
+    const mr = `(${num(M)})(${num(R)})^2`;
+    const cm =
+      shape === 'ring' ? `MR^2 = ${mr}` : shape === 'disk' ? `\\tfrac12 MR^2 = \\tfrac12${mr}` : `\\tfrac1{12}M(2R)^2 = \\tfrac1{12}(${num(M)})(${num(2 * R)})^2`;
+    const sg = sigFit([Icm, Md2], (a, b) => a + b, I);
+    return [
+      `I_\\mathrm{cm} = ${cm} = ${tn(Icm)}${u('kg\\,m^2')}`,
+      `Md^2 = (${num(M)})(${num(p.d)})^2 = ${tn(Md2)}${u('kg\\,m^2')}`,
+      `I = I_\\mathrm{cm} + Md^2`,
+      `= ${tnFit(Icm, sg)} + ${tnFit(Md2, sg)} = ${tn(I)}${u('kg\\,m^2')}`,
+    ];
+  },
 
   info: {
     goals: ['ch10.pa.goal.theorem', 'ch10.pa.goal.shape'],

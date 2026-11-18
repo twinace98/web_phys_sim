@@ -1,4 +1,5 @@
 // Ch 4 scene: uniform circular motion. Constant speed, turning velocity, centripetal a = v²/r.
+import { tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { centripetal, circularAt, period, type Circular } from './physics';
 
@@ -105,6 +106,16 @@ export const circular: Scene<P, { t: number }> = {
     { label: 'a', unit: 'm/s²', value: (_s, p) => centripetal(circ(p)) },
     { label: 'T', unit: 's', value: (_s, p) => period(circ(p)) },
   ],
+
+  formula: (_s, p) => {
+    const c = circ(p);
+    const r = p.r.toFixed(1);
+    const v = p.v.toFixed(1);
+    return [
+      `a = \\frac{v^2}{r} = \\frac{${v}^2}{${r}} = ${tn(centripetal(c))}${u('m/s^2')}`,
+      `T = \\frac{2\\pi r}{v} = \\frac{2\\pi \\times ${r}}{${v}} = ${tn(period(c))}${u('s')}`,
+    ];
+  },
 
   info: {
     goals: ['ch04.c.goal.dir', 'ch04.c.goal.a'],

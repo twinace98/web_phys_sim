@@ -1,6 +1,7 @@
 // Ch 25 scene: parallel-plate capacitor, dielectric, battery connected or disconnected.
 // Static: every quantity follows from the parameters; the panel lists C, Q, V, E, U and X/X0.
 import { fmt } from '../../core/format';
+import { num } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { KAPPA, capState, type CapState, type Plates } from './physics';
@@ -86,10 +87,35 @@ const PREFIX: [number, string][] = [
 ];
 
 /** Value with an SI prefix as TeX, e.g. 41.6\,\mathrm{pF}. */
-export function siTex(v: number, unit: string): string {
+export function siTex(v: number, unit: string, sig = 3): string {
   const a = Math.abs(v);
   const [f, pre] = PREFIX.find(([f]) => a >= f * 0.9995) ?? PREFIX[PREFIX.length - 1];
-  return `${fmt(v / f).replace('−', '-')}\\,\\mathrm{${pre}${unit}}`;
+  return `${fmt(v / f, sig).replace('−', '-')}\\,\\mathrm{${pre}${unit}}`;
+}
+
+/**
+ * Σ panel: C from the geometry, then Q, V, E and U with the values of the stage table.
+ * Inputs of a quotient or product carry four figures, so the shown arithmetic gives the result.
+ */
+export function formulaLines(p: P): string[] {
+  const c = plates(p);
+  const s = stateOf(p);
+  const on = p.source === 'on';
+  const A = `${num(p.A)}\\times 10^{-4}`;
+  const d = `${num(p.d)}\\times 10^{-3}`;
+  const lines = [`C = \\frac{\\kappa\\varepsilon_0 A}{d} = \\frac{(${c.kappa})(8.854\\times 10^{-12})(${A})}{${d}}\\ \\mathrm{F} = ${siTex(s.C, 'F')}`];
+  if (on) {
+    lines.push(`Q = CV_0 = (${siTex(s.C, 'F', 4)})(${V0}\\ \\mathrm{V}) = ${siTex(s.Q, 'C')}`);
+    lines.push(`V = V_0 = ${siTex(s.V, 'V')}`);
+  } else {
+    const C0 = refState().C;
+    lines.push(`Q = Q_0 = C_0 V_0 = (${siTex(C0, 'F', 4)})(${V0}\\ \\mathrm{V}) = ${siTex(s.Q, 'C')}`);
+    lines.push(`V = \\frac{Q}{C} = \\frac{${siTex(s.Q, 'C', 4)}}{${siTex(s.C, 'F', 4)}} = ${siTex(s.V, 'V')}`);
+  }
+  const Vin = on ? `${V0}\\ \\mathrm{V}` : siTex(s.V, 'V', 4);
+  lines.push(`E = \\frac{V}{d} = \\frac{${Vin}}{${d}\\ \\mathrm{m}} = ${siTex(s.E, 'V/m')}`);
+  lines.push(`U = \\tfrac{1}{2} C V^2 = \\tfrac{1}{2}(${siTex(s.C, 'F', 4)})(${Vin})^2 = ${siTex(s.U, 'J')}`);
+  return lines;
 }
 
 /** Panel: C, Q, V, E, U with values and the ratio to the reference state. */
@@ -273,6 +299,7 @@ export const capacitor: Scene<P, { t: number }> = {
   },
 
   overlay: (_s, p) => capPanel(p),
+  formula: (_s, p) => formulaLines(p),
 
   info: {
     goals: ['ch25.goal.C', 'ch25.goal.U'],

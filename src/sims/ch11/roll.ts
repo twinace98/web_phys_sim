@@ -3,11 +3,13 @@
 // from rest together. a = g sin θ / (1 + β) with β = I / (M R²), so the order is fixed by the mass
 // distribution alone. One body (chosen) shows the velocities of its contact point, centre and top.
 import { t as tr } from '../../core/i18n';
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { drawRich } from '../../draw/text';
 import { ROLE_COLOR } from '../../draw/theme';
-import { BETA, BODIES, G, finishTime, pointVelocity, rollState, type Body, type Incline } from './physics';
+import { sigFit } from '../ch07/sigfit';
+import { BETA, BODIES, G, finishTime, pointVelocity, rollAccel, rollState, type Body, type Incline } from './physics';
 
 type P = { theta: number; focus: string };
 
@@ -218,6 +220,44 @@ function curve(f: (t: number) => number, t1: number): [number, number][] {
   return pts;
 }
 
+/** β of each body as an exact fraction. */
+const BETA_TEX: Record<Body, string> = { hoop: '1', disk: '\\tfrac12', sphere: '\\tfrac25', block: '0' };
+
+/** K_rot / K_trans readout: β before the start, when both are zero. */
+export function kRatio(s: S, p: P): number {
+  const k = rollState(ramp(p), focusOf(p), s.t);
+  return k.Kt > 0 ? k.Kr / k.Kt : BETA[focusOf(p)];
+}
+
+/**
+ * Σ panel for the chosen body: a and the static friction from Newton's law plus the rolling
+ * condition, v_cm = √(2 a s) (from rest), ω = v_cm / R and K_rot / K_trans = β.
+ */
+export function formulaLines(s: S, p: P): string[] {
+  const b = focusOf(p);
+  const rp = ramp(p);
+  const k = rollState(rp, b, s.t);
+  const { f } = rollAccel(BETA[b], rp.theta);
+  const be = BETA_TEX[b];
+  const gs = `${num(G)}\\sin ${num(p.theta)}^\\circ`;
+  // The block slides without friction: a = g sin θ, and no f_s, ω or K_rot.
+  const lines =
+    b === 'block'
+      ? [`a = g\\sin\\theta = ${gs} = ${tn(k.a)}${u('m/s^2')}`]
+      : [
+          `a = \\frac{g\\sin\\theta}{1 + \\beta} = \\frac{${gs}}{1 + ${be}} = ${tn(k.a)}${u('m/s^2')}`,
+          `f_s = \\frac{\\beta}{1 + \\beta} Mg\\sin\\theta`,
+          `= \\frac{${be}}{1 + ${be}}(${num(M)})(${gs}) = ${tn(f * M)}${u('N')}`,
+        ];
+  const sv = sigFit([k.a, k.s], (a, d) => Math.sqrt(2 * a * d), k.v);
+  lines.push(`v_\\mathrm{cm} = \\sqrt{2as} = \\sqrt{2(${tn(k.a, sv)})(${tn(k.s, sv)})} = ${tn(k.v)}${u('m/s')}`);
+  if (b !== 'block') {
+    lines.push(`\\omega = \\frac{v_\\mathrm{cm}}{R} = \\frac{${tn(k.v, sigFit([k.v], (v) => v / R, k.w))}}{${num(R)}} = ${tn(k.w)}${u('rad/s')}`);
+    lines.push(`\\frac{K_\\mathrm{rot}}{K_\\mathrm{trans}} = \\frac{I_\\mathrm{cm}}{MR^2} = \\beta = ${be} = ${tn(kRatio(s, p))}`);
+  }
+  return lines;
+}
+
 export const rollScene: Scene<P, S> = {
   id: 'roll',
   title: 'ch11.r.scene',
@@ -314,12 +354,11 @@ export const rollScene: Scene<P, S> = {
     {
       label: 'K_\\mathrm{rot}/K_\\mathrm{trans}',
       unit: '',
-      value: (s, p) => {
-        const k = rollState(ramp(p), focusOf(p), s.t);
-        return k.Kt > 0 ? k.Kr / k.Kt : BETA[focusOf(p)];
-      },
+      value: (s, p) => kRatio(s, p),
     },
   ],
+
+  formula: (s, p) => formulaLines(s, p),
 
   info: {
     goals: ['ch11.r.goal.roll', 'ch11.r.goal.race'],

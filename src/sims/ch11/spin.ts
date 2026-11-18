@@ -4,6 +4,7 @@
 //  - chair: a person on a spinning chair pulls two dumbbells in. I = I0 + 2 m r² drops, so
 //    ω = L / I rises while L stays fixed.
 // Both share the plots I(t), ω(t), L(t) and K(t).
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import {
@@ -23,6 +24,7 @@ import {
   type Mode,
   type Pull,
 } from './physics';
+import { sigFit } from '../ch07/sigfit';
 
 type P = { sys: string; mode: string; arms: string; rIn: number; wOut: number; m: number; areas: boolean; mDb: number; wArms: number };
 
@@ -283,6 +285,43 @@ function drawChair(g: Draw, s: S, p: P): void {
 
 const tEndOf = (p: P) => endTime(isChair(p) ? chairOf(p) : pullOf(p));
 
+/**
+ * Σ panel: I from the current radius, L = I ω (the same at every instant), K (L²/2I on a circle,
+ * plus the radial term while the radius changes) and, for the puck, the areal velocity L / 2m.
+ */
+export function formulaLines(s: S, p: P): string[] {
+  const k = sample(p, s.t);
+  const L = extremes(p).L;
+  const chair = isChair(p);
+  const c = chair ? chairOf(p) : pullOf(p);
+  const m = num(c.m);
+  const I = chair ? (r: number) => I0 + 2 * c.m * r * r : (r: number) => c.m * r * r;
+  const rs = tn(k.r, sigFit([k.r], I, k.I));
+  const kgm2 = 'kg\\,m^2';
+  const lines = [
+    chair ? `I = I_0 + 2mr^2 = ${num(I0)} + 2(${m})(${rs})^2 = ${tn(k.I)}${u(kgm2)}` : `I = mr^2 = (${m})(${rs})^2 = ${tn(k.I)}${u(kgm2)}`,
+  ];
+  const sl = sigFit([k.I, k.w], (a, b) => a * b, L);
+  lines.push(`L = I\\omega = (${tn(k.I, sl)})(${tn(k.w, sl)}) = ${tn(L)}${u(kgm2 + '/s')}`);
+  const rd = radius(c, s.t).v;
+  if (rd === 0) {
+    lines.push(`K = \\frac{L^2}{2I} = \\frac{(${tn(L)})^2}{2(${tn(k.I, sigFit([k.I], (q) => (L * L) / (2 * q), k.K))})} = ${tn(k.K)}${u('J')}`);
+  } else {
+    // The radial term: ½ m ṙ² for the puck, ½ (2m) ṙ² for the two dumbbells.
+    const mr = chair ? 2 * c.m : c.m;
+    const sk = sigFit([k.I, k.w, rd], (a, b, d) => 0.5 * a * b * b + 0.5 * mr * d * d, k.K);
+    lines.push(
+      `K = \\tfrac12 I\\omega^2 + ${chair ? 'm\\dot r^2' : '\\tfrac12 m\\dot r^2'}`,
+      `= \\tfrac12(${tn(k.I, sk)})(${tn(k.w, sk)})^2 + ${chair ? `(${m})` : `\\tfrac12(${m})`}(${tn(rd, sk)})^2 = ${tn(k.K)}${u('J')}`,
+    );
+  }
+  if (!chair) {
+    const dA = L / (2 * c.m);
+    lines.push(`\\frac{dA}{dt} = \\frac{L}{2m} = \\frac{${tn(L, sigFit([L], (q) => q / (2 * c.m), dA))}}{2(${m})} = ${tn(dA)}${u('m^2/s')}`);
+  }
+  return lines;
+}
+
 export const spinScene: Scene<P, S> = {
   id: 'spin',
   title: 'ch11.s.scene',
@@ -337,6 +376,8 @@ export const spinScene: Scene<P, S> = {
     { label: '\\omega', unit: 'rad/s', value: (s, p) => sample(p, s.t).w },
     { label: 'L', unit: 'kg·m²/s', value: (_s, p) => extremes(p).L },
   ],
+
+  formula: (s, p) => formulaLines(s, p),
 
   info: {
     goals: ['ch11.s.goal.L', 'ch11.s.goal.I', 'ch11.s.goal.K'],

@@ -1,7 +1,9 @@
 // Ch 5 scene: first law. A puck slides off with an initial velocity. Friction (the only horizontal
 // force) slows it down and stops it; with no friction, or with a push that cancels the friction,
 // the net force is zero and the velocity stays constant.
+import { tn, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
+import { sigToMatch } from '../ch02/sigma';
 import { drawTrack, padded } from './common';
 
 type P = { v0: number; mu: number; push: boolean; strobe: boolean };
@@ -157,6 +159,26 @@ export const first: Scene<P, S> = {
     { label: 'F_\\text{net}', unit: 'N', value: (s) => s.f + s.F },
     { label: 'v', unit: 'm/s', value: (s) => s.v },
   ],
+
+  // Σ panel: friction and the net force on the sliding puck; zero net force keeps v = v_0 (first
+  // law), friction alone slows it at a = F_net/m. At rest there is no friction at all.
+  formula: (s, p) => {
+    const Fnet = s.f + s.F;
+    if (s.v <= 0) return [`f = ${tn(-s.f)}${u('N')}`, `F_\\text{net} = 0 \\;\\Rightarrow\\; v = ${tn(s.v)}${u('m/s')}`];
+    const lines = [
+      `f_k = \\mu_k m g = ${p.mu.toFixed(2)} \\times ${FIRST_M} \\times ${FIRST_G} = ${tn(-s.f)}${u('N')}`,
+      p.push ? `F_\\text{net} = F - f_k = ${tn(s.F)} - ${tn(-s.f)} = ${tn(Fnet)}${u('N')}` : `F_\\text{net} = -f_k = ${tn(Fnet)}${u('N')}`,
+    ];
+    if (Fnet === 0) {
+      lines.push(`F_\\text{net} = 0 \\;\\Rightarrow\\; v = v_0 = ${tn(s.v)}${u('m/s')}`);
+      return lines;
+    }
+    const a = Fnet / FIRST_M;
+    const sig = sigToMatch(s.v, [a, s.t], (aa, t) => p.v0 + aa * t);
+    lines.push(`a = \\frac{F_\\text{net}}{m} = \\frac{${tn(Fnet)}}{${FIRST_M}} = ${tn(a)}${u('m/s^2')}`);
+    lines.push(`v = v_0 + at = ${p.v0.toFixed(1)} + ${tp(a, sig)} \\times ${tn(s.t, sig)} = ${tn(s.v)}${u('m/s')}`);
+    return lines;
+  },
 
   info: {
     goals: ['ch05.l1.goal'],

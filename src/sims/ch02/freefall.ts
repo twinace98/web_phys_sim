@@ -1,8 +1,10 @@
 // Ch 2 scene: free fall. Vertical motion with constant acceleration −g, same slope/area plots.
 import { fmtTick, niceTicks } from '../../core/format';
+import { num, paren, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { kinematicPlots } from './common';
 import { G_EARTH, THROW_V0, fallProfile, ranges, stateAt, type Profile, type Ranges, type Throw } from './physics';
+import { sigToMatch } from './sigma';
 
 type P = {
   throw: string;
@@ -154,6 +156,26 @@ export const freefall: Scene<P, S> = {
     { label: 'v', unit: 'm/s', value: (s) => s.v },
     { label: 'a', unit: 'm/s²', value: (s) => s.a },
   ],
+
+  // Constant acceleration −g: v and y at the current t. t gets the digits that make the shown
+  // arithmetic give the shown v and y.
+  formula: (s, p) => {
+    const { pr } = model(p);
+    const v0 = pr.v0;
+    const h = pr.x0;
+    const g = G_EARTH;
+    const sig = Math.max(
+      sigToMatch(s.v, [s.t], (t) => v0 - g * t),
+      sigToMatch(s.y, [s.t], (t) => h + v0 * t - 0.5 * g * t * t),
+    );
+    const T = tn(s.t, sig);
+    return [
+      `a = -g = ${tn(s.a)}${u('m/s^2')}`,
+      `v = v_0 - gt = ${num(v0)} - ${num(g)} \\times ${T} = ${tn(s.v)}${u('m/s')}`,
+      `y = h + v_0 t - \\tfrac{1}{2} g t^2`,
+      `= ${num(h)} + ${paren(num(v0))} \\times ${T} - ${num(g / 2)} \\times ${T}^2 = ${tn(s.y)}${u('m')}`,
+    ];
+  },
 
   info: {
     goals: ['ch02.ff.goal.const', 'ch02.ff.goal.up'],

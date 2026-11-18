@@ -1,10 +1,12 @@
 // Ch 20 scene: Carnot cycle on p–V and T–S diagrams. Heat Q_H enters at T_H, Q_C leaves at
 // T_C, with Q_C/Q_H = T_C/T_H because the two isotherms span the same entropy change. The
 // efficiency W/Q_H = 1 − T_C/T_H is the upper limit for any engine between the two reservoirs.
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
+import { e4 } from '../ch18/formula';
 import { bar, chart, split, stageRect, type Rect } from '../ch18/panels';
-import { cycle, eint, entropy, heatSplit, legAt, legWork, pathAt, pathPoints, temp, type Cycle, type Leg } from '../ch18/physics';
+import { NR, cycle, eint, entropy, heatSplit, legAt, legWork, pathAt, pathPoints, temp, type Cycle, type Leg } from '../ch18/physics';
 import { dofOf } from '../ch18/process';
 import { EC, QC, WC, barRange, drawPV, isWide } from '../ch18/view';
 
@@ -211,6 +213,8 @@ export const carnotScene: Scene<P, { t: number }> = {
     { label: '1 - T_\\text{C}/T_\\text{H}', unit: '', value: (_s, p) => 1 - p.tc / TH },
   ],
 
+  formula: (s, p) => formulaLines(s.t, p),
+
   info: {
     goals: ['ch20.c.goal.limit', 'ch20.c.goal.ts'],
     observe: ['ch20.c.obs.legs', 'ch20.c.obs.first', 'ch20.c.obs.ratio', 'ch20.c.obs.tc', 'ch20.c.obs.gas'],
@@ -222,3 +226,25 @@ export const carnotScene: Scene<P, { t: number }> = {
     assumptions: ['ch20.c.assume.ideal', 'ch20.c.assume'],
   },
 };
+
+/**
+ * Σ panel: Q_H and Q_C on the isotherms, the equal entropy changes Q_H/T_H = Q_C/T_C, the
+ * efficiency W/Q_H = 1 − Q_C/Q_H against 1 − T_C/T_H, and the first law of the bars at time t.
+ */
+export function formulaLines(time: number, p: P): string[] {
+  const m = model(p);
+  const [A, B, C, D] = m.c.corners;
+  const nR = tn(NR, 4);
+  const qh = tn(m.qin);
+  const qc = tn(m.qout);
+  const h = heatsAt(m.c.legs, sOf(time), dofOf(p.gas));
+  const J = u('J');
+  return [
+    `Q_\\text{H} = nRT_\\text{H}\\ln\\frac{V_\\text{B}}{V_\\text{A}} = ${nR} \\times ${TH}\\ln\\frac{${num(B.V)}}{${num(A.V)}} = ${qh}${J}`,
+    `Q_\\text{C} = nRT_\\text{C}\\ln\\frac{V_\\text{C}}{V_\\text{D}} = ${nR} \\times ${p.tc}\\ln\\frac{${tn(C.V, 4)}}{${tn(D.V, 4)}} = ${qc}${J}`,
+    `\\frac{Q_\\text{H}}{T_\\text{H}} = \\frac{${qh}}{${TH}} = \\frac{${qc}}{${p.tc}} = \\frac{Q_\\text{C}}{T_\\text{C}} = ${tn(m.qin / TH)}${u('J/K')}`,
+    `\\frac{W}{Q_\\text{H}} = 1 - \\frac{Q_\\text{C}}{Q_\\text{H}} = 1 - \\frac{${qc}}{${qh}} = ${tn(m.W / m.qin)}`,
+    `1 - \\frac{T_\\text{C}}{T_\\text{H}} = 1 - \\frac{${p.tc}}{${TH}} = ${tn(1 - p.tc / TH)}`,
+    `W = Q_\\text{H} - Q_\\text{C} - \\Delta E_\\text{int} = ${e4(h.qh)} - ${e4(h.qc)} - ${e4(h.dE)} = ${tn(h.W)}${J}`,
+  ];
+}

@@ -3,8 +3,11 @@
 // compression, so F_AB = −F_BA at every instant, whatever the masses; only the accelerations
 // differ. The free-body diagrams add N and mg on each cart: equal and opposite, but on the same
 // body, so they are not a third-law pair.
+import { tn, u } from '../../core/tex';
 import type { NumberParam, ParamSchema, Role, Scene } from '../../core/types';
+import { sigToMatch } from '../ch02/sigma';
 import type { Draw, PlotDraw } from '../../draw/draw';
+import { drawFbd } from '../../draw/fbd';
 import { drawRich } from '../../draw/text';
 import { color, theme } from '../../draw/theme';
 import { padded } from './common';
@@ -111,7 +114,7 @@ const params: ParamSchema<P> = {
   },
   mA: massParam('A', 3),
   mB: massParam('B', 1),
-  fbd: { kind: 'toggle', label: 'ch05.t.p.fbd', desc: 'ch05.t.d.fbd', group: 'main', live: true, default: false },
+  fbd: { kind: 'toggle', label: 'fbd.p', desc: 'fbd.d', group: 'main', live: true, default: false },
   v0: {
     kind: 'number',
     label: 'ch05.t.p.v0',
@@ -203,23 +206,14 @@ function drawB(pd: PlotDraw, p: P, tc: number, key: 'F' | 'a' | 'v', role: Role)
 
 /** Free-body diagram of one cart from its centre: contact force, normal force and weight. */
 function fbd(g: Draw, x: number, F: number, m: number, name: 'A' | 'B', perN: number): void {
-  const y = g.px(19);
-  const len = (f: number) => Math.max(Math.abs(f) * perN, g.px(10));
   const W = m * THIRD_G;
   const other = name === 'A' ? 'B' : 'A';
-  if (Math.abs(F) > 1e-9) {
-    const fx = Math.sign(F) * len(F);
-    g.arrow({ x, y }, { x: fx, y: 0 }, { role: 'force', width: 2.5 });
-    g.text({ x: x + fx, y }, `*F*_{${name}${other}}`, { size: 13, role: 'force', align: F < 0 ? 'right' : 'left', baseline: 'middle', dx: F < 0 ? -5 : 5 });
-  }
-  // N and mg labels just beyond their tips, centred: clear of the horizontal force label even
-  // when a light cart's vertical arrows are short.
-  const n = Math.max(W * perN, g.px(16));
-  g.arrow({ x, y }, { x: 0, y: n }, { role: 'muted', width: 2.5 });
-  g.text({ x, y: y + n }, `*N*_{${name}}`, { size: 13, role: 'muted', align: 'center', baseline: 'middle', dy: -12 });
-  g.arrow({ x, y }, { x: 0, y: -n }, { role: 'muted', width: 2.5, dash: [5, 3] });
-  g.text({ x, y: y - n }, `*m*_{${name}}*g*`, { size: 13, role: 'muted', align: 'center', baseline: 'middle', dy: 12 });
-  g.circle({ x, y }, 2.5, { fill: 'fg' });
+  // The pair force in the force colour; N and mg muted: they balance on one cart and are not a pair.
+  drawFbd(g, { x, y: g.px(19) }, [
+    { F: { x: F, y: 0 }, label: `*F*_{${name}${other}}` },
+    { F: { x: 0, y: W }, label: `*N*_{${name}}`, role: 'muted' },
+    { F: { x: 0, y: -W }, label: `*m*_{${name}}*g*`, role: 'muted', field: true },
+  ], perN / g.px(1));
 }
 
 export const third: Scene<P, S> = {
@@ -327,6 +321,28 @@ export const third: Scene<P, S> = {
     { label: 'F_{AB}', unit: 'N', value: (s) => s.FA },
     { label: 'F_{BA}', unit: 'N', value: (s) => s.FB },
   ],
+
+  // Σ panel: both forces from the same compression c (equal and opposite), each cart's own
+  // acceleration, and with the free-body diagrams the N = mg balance on each cart.
+  formula: (s, p) => {
+    const { c } = bumperAt(bumperOf(p), s.t);
+    const sc = sigToMatch(s.FB, [c], (x) => p.k * x);
+    const sA = sigToMatch(s.aA, [s.FA], (f) => f / p.mA);
+    const sB = sigToMatch(s.aB, [s.FB], (f) => f / p.mB);
+    const mA = p.mA.toFixed(1);
+    const mB = p.mB.toFixed(1);
+    const lines = [
+      `F_{BA} = k\\,c = ${p.k} \\times ${tn(c, sc)} = ${tn(s.FB)}${u('N')}`,
+      `F_{AB} = -F_{BA} = ${tn(s.FA)}${u('N')}`,
+      `a_A = \\frac{F_{AB}}{m_A} = \\frac{${tn(s.FA, sA)}}{${mA}} = ${tn(s.aA)}${u('m/s^2')}`,
+      `a_B = \\frac{F_{BA}}{m_B} = \\frac{${tn(s.FB, sB)}}{${mB}} = ${tn(s.aB)}${u('m/s^2')}`,
+    ];
+    if (p.fbd) {
+      lines.push(`N_A = m_A g = ${mA} \\times ${THIRD_G} = ${tn(p.mA * THIRD_G)}${u('N')}`);
+      lines.push(`N_B = m_B g = ${mB} \\times ${THIRD_G} = ${tn(p.mB * THIRD_G)}${u('N')}`);
+    }
+    return lines;
+  },
 
   info: {
     goals: ['ch05.t.goal.pair', 'ch05.t.goal.fbd'],

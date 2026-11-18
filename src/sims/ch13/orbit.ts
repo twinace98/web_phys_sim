@@ -2,9 +2,11 @@
 // escape speed, and drag its direction. The sign of E = K + U decides: ellipse, parabola or
 // hyperbola. The dashed circle around the probe is the escape speed at its current distance.
 import { t as tr } from '../../core/i18n';
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
+import { sigFit } from '../ch07/sigfit';
 import { GM, R_EARTH, classify, elements, energy, escapeSpeed, radius, speed, yoshida, type Body, type OrbitKind, type V2 } from './physics';
 
 export type P = { speed: number; alt: number; dir: number; predict: boolean; areas: boolean; ueff: boolean };
@@ -336,6 +338,34 @@ export function timeScaleOf(p: P): number {
 /** Smallest drawn Earth radius [px], kept inside the lowest point of the path. */
 const EARTH_MIN_PX = 6;
 
+/**
+ * Σ panel at the probe's current position (SI inside, GJ and km/s out, as in the readouts): K, U,
+ * E = K + U (fixed by the launch), the local escape speed and how v compares with it (E < 0 ⇔ v < v_esc).
+ */
+export function formulaLines(s: S, p: P): string[] {
+  const m = model(p);
+  const b = bodyAt(p, s.n);
+  const r = radius(b);
+  const v = speed(b);
+  const K = (0.5 * MASS * v * v) / 1e9;
+  const U = (-GM * MASS) / r / 1e9;
+  const E = (MASS * energy(m.b0)) / 1e9;
+  const vesc = escapeSpeed(r);
+  const gm = tn(GM, 4);
+  const sv = sigFit([v], (q) => (0.5 * MASS * q * q) / 1e9, K);
+  const sr = sigFit([r], (q) => (-GM * MASS) / q / 1e9, U, 3, 4);
+  const se = sigFit([K, U], (a, c) => a + c, E);
+  const sx = sigFit([r], (q) => escapeSpeed(q) / 1e3, vesc / 1e3, 3, 4);
+  const rel = m.kind === 'ellipse' ? '<' : m.kind === 'hyperbola' ? '>' : '=';
+  return [
+    `K = \\tfrac12 mv^2 = \\tfrac12(${num(MASS)})(${tn(v, sv)})^2\\ \\mathrm{J} = ${tn(K)}${u('GJ')}`,
+    `U = -\\frac{GMm}{r} = -\\frac{(${gm})(${num(MASS)})}{${tn(r, sr)}}\\ \\mathrm{J} = ${tn(U)}${u('GJ')}`,
+    `E = K + U = ${tn(K, se)} + (${tn(U, se)}) = ${tn(E)}${u('GJ')}`,
+    `v_\\mathrm{esc} = \\sqrt{\\frac{2GM}{r}} = \\sqrt{\\frac{2(${gm})}{${tn(r, sx)}}}\\ \\mathrm{m/s} = ${tn(vesc / 1e3)}${u('km/s')}`,
+    `v = ${tn(v / 1e3)}${u('km/s')} ${rel} v_\\mathrm{esc}`,
+  ];
+}
+
 export const orbitScene: Scene<P, S> = {
   id: 'orbit',
   title: 'ch13.o.scene',
@@ -505,6 +535,8 @@ export const orbitScene: Scene<P, S> = {
     { label: 'v_\\mathrm{esc}', unit: 'km/s', value: (s, p) => escapeSpeed(radius(bodyAt(p, s.n))) / 1e3 },
     { label: 'E', unit: 'GJ', value: (_s, p) => (MASS * energy(model(p).b0)) / 1e9 },
   ],
+
+  formula: (s, p) => formulaLines(s, p),
 
   info: {
     goals: ['ch13.o.goal.law', 'ch13.o.goal.E', 'ch13.o.goal.esc'],
