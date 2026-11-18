@@ -1,6 +1,7 @@
 // Ch 40 scenes: one Stern-Gerlach device (classical prediction vs quantum result), the z → x → z
 // sequence, and the cos²(θ/2) statistics of a measurement at an angle (z → θ).
 import type { Rng } from '../../core/rng';
+import { num, tn } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { Frame, PX_WORLD, TICK, W, canvasBox, rectPx, split, textPx, type Box } from '../modern/frame';
@@ -8,6 +9,21 @@ import { DOWN_COLOR, UP_COLOR, chainEnd, chainGeometry, drawChain, initChain, st
 import { DEG, chainProbs, classicalMuZ, probUp, type Device } from './physics';
 
 const H = 1 / 120;
+
+// ------------------------------------------------------------------ formula panel
+
+/**
+ * Measured fraction and its expected scatter σ_P = √(P(1−P)/N) around the prediction P, as in
+ * the readouts (2 figures). `frac` is the readout's symbol; no line for N before the first count.
+ */
+export function statLines(up: number, down: number, P: number, frac: string, nSym: string): string[] {
+  const N = up + down;
+  if (N === 0) return [`${nSym} = 0`];
+  return [
+    `${frac} = \\frac{${up}}{${up} + ${down}} = ${tn(up / N, 2)}`,
+    `\\sigma_P = \\sqrt{\\frac{P(1-P)}{N}} = \\sqrt{\\frac{${tn(P)} \\times ${tn(1 - P)}}{${N}}} = ${tn(Math.sqrt((P * (1 - P)) / N), 2)}`,
+  ];
+}
 
 // ------------------------------------------------------------------ single device
 
@@ -165,6 +181,14 @@ export const single: Scene<P1, S1> = {
     { label: 'N_{\\uparrow}/N', unit: '', value: (s) => (s.hits.length ? s.hits.filter((h) => h.z >= 0).length / s.hits.length : NaN), sig: 2 },
   ],
 
+  formula: (s, p) => {
+    const up = s.hits.filter((h) => h.z >= 0).length;
+    return [
+      p.model === 'classical' ? '\\mu_z \\in [-\\mu, +\\mu] \\;\\Rightarrow\\; P(\\mu_z > 0) = \\tfrac12' : 'S_z = \\pm\\tfrac12\\hbar \\;\\Rightarrow\\; P(\\uparrow) = P(\\downarrow) = \\tfrac12',
+      ...statLines(up, s.hits.length - up, 0.5, 'N_{\\uparrow}/N', 'N'),
+    ];
+  },
+
   info: {
     goals: ['ch40.s.goal.quant', 'ch40.s.goal.classical'],
     observe: ['ch40.s.obs.band', 'ch40.s.obs.two', 'ch40.s.obs.random'],
@@ -264,6 +288,22 @@ export const sequential: Scene<P2, ChainState> = {
     { label: 'N_+/(N_+ + N_-)', unit: '', value: (s) => fracUp(s), sig: 2 },
     { label: 'P_+', unit: '', value: (_s, p) => predicted(devicesOf(p.pass)), sig: 2 },
   ],
+  formula: (s, p) => {
+    const d = devicesOf(p.pass);
+    const [a, b] = chainProbs(d);
+    const x = p.pass === '-' ? '-x' : '+x';
+    // Factors of the + path: ½ passes the first device, then P(x-exit | +z), then P(+z | x-exit).
+    const fx = p.pass === '-' ? 1 - probUp(d[1].theta, 0) : probUp(d[1].theta, 0);
+    const fz = probUp(0, p.pass === '-' ? d[1].theta + Math.PI : d[1].theta);
+    const P = a / (a + b);
+    const c = lastCounts(s);
+    return [
+      `P(+z \\to ${x} \\to +z) = ${num(0.5)} \\times ${num(fx)} \\times ${num(fz)} = ${tn(a)}`,
+      `P(+z \\to ${x} \\to -z) = ${tn(b)}`,
+      `P_+ = \\frac{${tn(a)}}{${tn(a)} + ${tn(b)}} = ${tn(P, 2)}`,
+      ...statLines(c[0], c[1], P, 'N_+/(N_+ + N_-)', 'N_+ + N_-'),
+    ];
+  },
   info: {
     goals: ['ch40.q.goal.erase', 'ch40.q.goal.state'],
     observe: ['ch40.q.obs.zxz', 'ch40.q.obs.mid', 'ch40.q.obs.pass', 'ch40.q.obs.angle'],
@@ -385,6 +425,14 @@ export const angle: Scene<P3, ChainState> = {
     { label: 'N_+/(N_+ + N_-)', unit: '', value: (s) => fracUp(s), sig: 2 },
     { label: '\\cos^2(\\theta/2)', unit: '', value: (_s, p) => probUp(p.theta * DEG, 0), sig: 2 },
   ],
+  formula: (s, p) => {
+    const P = probUp(p.theta * DEG, 0);
+    const c = lastCounts(s);
+    return [
+      `P(+\\theta \\mid +z) = \\cos^2\\frac{\\theta}{2} = \\cos^2 ${num(p.theta / 2)}^\\circ = ${tn(P, 2)}`,
+      ...statLines(c[0], c[1], P, 'N_+/(N_+ + N_-)', 'N_+ + N_-'),
+    ];
+  },
   info: {
     goals: ['ch40.a.goal.prob', 'ch40.a.goal.random'],
     observe: ['ch40.a.obs.0', 'ch40.a.obs.90', 'ch40.a.obs.180', 'ch40.a.obs.N'],

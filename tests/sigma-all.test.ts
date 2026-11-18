@@ -80,3 +80,14 @@ describe('tn: TeX numbers', () => {
     expect(tp(-2.5e-19, 2, 0)).toBe('(-2.5\\times 10^{-19})');
   });
 });
+
+describe('Σ formula panel on every scene', () => {
+  it('every scene of every chapter and review page has a formula', async () => {
+    const missing: string[] = [];
+    for (const meta of [...CHAPTERS, ...REVIEW].filter((m) => m.load)) {
+      const page = await meta.load!();
+      for (const s of page.scenes) if (!s.formula) missing.push(`Ch ${meta.ch} ${s.id}`);
+    }
+    expect(missing).toEqual([]);
+  }, 120_000);
+});

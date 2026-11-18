@@ -1,8 +1,10 @@
 // Ch 41 scene: band formation. N identical wells; every single-well level splits into N
 // levels, which fill the allowed bands of the infinite chain (Kronig-Penney) as N grows.
+import { tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { ROLE_COLOR } from '../../draw/theme';
 import { Frame, PX_WORLD, TICK, canvasBox, linePx, rectPx, split, textPx } from '../modern/frame';
+import { sumSig } from './common';
 import { A, U0, chainLevels, kpBands } from './physics';
 
 type P = { N: number; b: number };
@@ -67,6 +69,28 @@ export const gapOf = (b: number) => {
   const bs = bands(b);
   return bs.length > 1 ? bs[1][0] - bs[0][1] : NaN;
 };
+
+const diff = (lhs: string, a: number, b: number) => {
+  const s = sumSig(a, b);
+  return `${lhs ? `${lhs} ` : ''}= ${tn(a, s)} - ${tn(b, s)} = ${tn(a - b)}${u('eV')}`;
+};
+
+/**
+ * Formula panel: spread of the N levels from the lowest single-well level, then the width of
+ * the first band and the gap of the infinite chain (the readouts).
+ */
+export function bandLines(p: P): string[] {
+  const Es = levels(p.N, p.b);
+  const bs = bands(p.b);
+  const lines = [
+    p.N === 1 ? `E_{1,1} = ${tn(Es[0])}${u('eV')}` : diff(`E_{1,${p.N}} - E_{1,1}`, Es[p.N - 1], Es[0]),
+    // Over two lines: the band edges need up to 5 figures (one line shrank to 0.74 × docked).
+    'W_1 = E_{1,\\max} - E_{1,\\min}',
+    diff('', bs[0][1], bs[0][0]),
+  ];
+  if (bs.length > 1) lines.push(diff('E_\\text{g} = E_{2,\\min} - E_{1,\\max}', bs[1][0], bs[0][1]));
+  return lines;
+}
 
 export const bandsScene: Scene<P, { t: number }> = {
   id: 'bands',
@@ -140,6 +164,8 @@ export const bandsScene: Scene<P, { t: number }> = {
     { label: 'E_\\text{g}', unit: 'eV', value: (_s, p) => gapOf(p.b) },
     { label: 'W_1', unit: 'eV', value: (_s, p) => bands(p.b)[0][1] - bands(p.b)[0][0] },
   ],
+
+  formula: (_s, p) => bandLines(p),
 
   info: {
     goals: ['ch41.b.goal.split', 'ch41.b.goal.gap'],

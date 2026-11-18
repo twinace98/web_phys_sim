@@ -1,9 +1,11 @@
 // Ch 39 scenes: bound states of 1D wells drawn as an energy diagram (U(x), levels, ψ or |ψ|²),
 // and the time evolution of a two-state superposition.
 import { fmt } from '../../core/format';
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, ParamSpec, Scene } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
+import { HB2M } from '../modern/eigen';
 import { Frame, PX_WORLD, linePx, textPx, type Box } from '../modern/frame';
 import { allowed, wellModel, type WellKind, type WellModel, type WellParams } from './physics';
 
@@ -187,6 +189,57 @@ function amplitude(Es: number[], span: number): number {
 
 const label = (n: number, E: number, narrow: boolean) => (narrow ? `${fmt(E, 3)} eV` : `*E*_{${n}} = ${fmt(E, 3)} eV`);
 
+// ------------------------------------------------------------------ formula panel
+
+/** h²/8m for the electron [eV nm²] = π² ħ²/2m. */
+const H2_8M = HB2M * Math.PI ** 2;
+
+/** Significant figures for two inputs whose difference prints at 3 figures, so the shown arithmetic holds. */
+export function diffSig(a: number, b: number): number {
+  const r = (v: number, s: number) => Number(v.toPrecision(s));
+  for (let s = 3; s < 8; s++) if (tn(r(a, s) - r(b, s)) === tn(a - b)) return s;
+  return 8;
+}
+
+const levelDiff = (E: number[], hi: number, lo: number, n0: number) => {
+  const s = diffSig(E[hi], E[lo]);
+  return `E_${hi + n0} - E_${lo + n0} = ${tn(E[hi], s)} - ${tn(E[lo], s)} = ${tn(E[hi] - E[lo])}${u('eV')}`;
+};
+
+/** Wells: the levels of the solver (as labelled on the diagram) against the textbook relations. */
+export function wellLines(p: Common): string[] {
+  const m = model(p);
+  const E = m.st.E;
+  const e1 = `\\frac{h^2}{8mL^2} = \\frac{${tn(H2_8M, 4)}\\ \\mathrm{eV\\,nm^2}}{(${num(p.L)}\\ \\mathrm{nm})^2}`;
+  if (p.pot === 'infinite') {
+    const lines = [`E_1 = ${e1} = ${tn(E[0])}${u('eV')}`];
+    for (let n = 2; n <= Math.min(3, E.length); n++) lines.push(`E_${n} = ${n}^2 E_1 = ${n * n} \\times ${tn(E[0], 4)} = ${tn(E[n - 1])}${u('eV')}`);
+    return lines;
+  }
+  if (p.pot === 'finite') {
+    // Leaking into the walls lowers E₁ below the infinite-well value; δ is the decay length there.
+    const inf = tn(H2_8M / p.L ** 2);
+    return [
+      `${e1} = ${inf}${u('eV')}`,
+      `E_1 = ${tn(E[0])}${u('eV')} < ${inf}${u('eV')}`,
+      `\\delta = \\frac{\\hbar}{\\sqrt{2m(U_0 - E_1)}}`,
+      `= \\sqrt{\\frac{${tn(HB2M, 4)}\\ \\mathrm{eV\\,nm^2}}{(${num(p.U0)} - ${tn(E[0], 4)})\\ \\mathrm{eV}}} = ${tn(Math.sqrt(HB2M / (p.U0 - E[0])))}${u('nm')}`,
+    ];
+  }
+  if (p.pot === 'harmonic') {
+    const hw = num(p.hw);
+    return [
+      `E_0 = \\tfrac12\\hbar\\omega = \\tfrac12 \\times ${hw}\\ \\mathrm{eV} = ${tn(E[0])}${u('eV')}`,
+      `E_1 = \\tfrac32\\hbar\\omega = \\tfrac32 \\times ${hw}\\ \\mathrm{eV} = ${tn(E[1])}${u('eV')}`,
+      `${levelDiff(E, 1, 0, 0)} = \\hbar\\omega`,
+    ];
+  }
+  // Double well: each level of a single well splits into a close pair.
+  const lines: string[] = [];
+  for (let k = 0; k + 1 < E.length && k < 4; k += 2) lines.push(levelDiff(E, k + 1, k, 1));
+  return lines;
+}
+
 // ------------------------------------------------------------------ wells
 
 const wellParams: ParamSchema<PW> = {
@@ -254,6 +307,8 @@ export const wells: Scene<PW, { t: number }> = {
       st.E.map((E, k) => ({ E, text: label(k + m.n0, E, narrow) })),
     );
   },
+
+  formula: (_s, p) => wellLines(p),
 
   info: {
     goals: ['ch39.w.goal.quant', 'ch39.w.goal.shape'],
@@ -372,6 +427,37 @@ const periodOr = (p: PS, fallback: number) => (Number.isFinite(supPeriod(p)) ? s
  */
 export const supDt = (p: PS) => Math.max(H_SUP, periodOr(p, 0) / STEPS_PER_T);
 
+/** Superposition: ΔE of the pair, the period h/ΔE and ⟨x⟩(t) = x̄ + A cos(2πt/T) (the readouts' calls). */
+export function supLines(time: number, p: PS): string[] {
+  const m = model(p);
+  const q = supOf(p);
+  const pair = pairOf(p);
+  const Ea = m.st.E[q.a];
+  const Eb = m.st.E[q.b];
+  const dE = supGap(p);
+  const s = diffSig(Eb, Ea);
+  const lines = [`\\Delta E = E_${pair[1]} - E_${pair[0]} = ${tn(Eb, s)} - ${tn(Ea, s)} = ${tn(dE)}${u('eV')}`];
+  const T = supPeriod(p);
+  if (!Number.isFinite(T)) return lines;
+  // t/T to as many decimals as the shown ⟨x⟩ arithmetic needs (near a zero crossing it is steep).
+  const xmT = tn(q.xm);
+  const aT = tn(Math.abs(q.xc));
+  const target = tn(q.xm + q.xc * Math.cos(q.w * time));
+  const val = (s: string) => Number(s.replace('\\times 10^{', 'e').replace('}', ''));
+  let dec = 3;
+  while (dec < 6 && tn(val(xmT) + Math.sign(q.xc) * val(aT) * Math.cos(2 * Math.PI * Number((time / T).toFixed(dec)))) !== target) dec++;
+  const ph = (time / T).toFixed(dec);
+  const sigT = Math.max(4, dec + 2);
+  const xm = q.xm + q.xc * Math.cos(q.w * time);
+  lines.push(`T = \\frac{h}{\\Delta E} = \\frac{${tn(2 * Math.PI * HBAR_EVFS, 4)}\\ \\mathrm{eV\\,fs}}{${tn(dE, 4)}\\ \\mathrm{eV}} = ${tn(T)}${u('fs')}`);
+  lines.push(`\\frac{t}{T} = \\frac{${tn(time, sigT)}\\ \\mathrm{fs}}{${tn(T, sigT)}\\ \\mathrm{fs}} = ${ph}`);
+  // Pairs of the same parity: ⟨x⟩ stays at x̄.
+  if (Math.abs(q.xc) < 1e-9) lines.push(`A = 0 \\;\\Rightarrow\\; \\langle x\\rangle = \\bar x = ${tn(xm)}${u('nm')}`);
+  // Split over two lines: one line would shrink to about 0.63 × in the docked panel.
+  else lines.push(`\\langle x\\rangle = \\bar x + A\\cos(2\\pi t/T)`, `= ${xmT} ${q.xc < 0 ? '-' : '+'} ${aT}\\cos(2\\pi \\times ${ph}) = ${tn(xm)}${u('nm')}`);
+  return lines;
+}
+
 export const superposition: Scene<PS, { t: number; n: number }> = {
   id: 'superposition',
   title: 'ch39.scene.sup',
@@ -467,6 +553,8 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
     { label: 'T', unit: 'fs', value: (_s, p) => supPeriod(p) },
     { label: '\\langle x\\rangle', unit: 'nm', value: (s, p) => supOf(p).xm + supOf(p).xc * Math.cos(supOf(p).w * s.t) },
   ],
+
+  formula: (s, p) => supLines(s.t, p),
 
   info: {
     goals: ['ch39.s.goal.osc', 'ch39.s.goal.period'],
