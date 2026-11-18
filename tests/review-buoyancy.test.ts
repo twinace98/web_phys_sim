@@ -15,12 +15,16 @@ import {
   normal,
   step,
   tankArea,
+  viewTop,
   weight,
+  yMax,
+  freeForce,
+  drag,
   type Block,
   type Fluid,
   type Motion,
 } from '../src/sims/review/buoyancy/physics';
-import { FLUIDS, buoyancyScene, fluidOf, formulaLines, forcesOf } from '../src/sims/review/buoyancy/scene';
+import { FLUIDS, buoyancyScene, fluidName, fluidOf, formulaLines, forcesOf } from '../src/sims/review/buoyancy/scene';
 
 const water: Fluid = { rho: 1000 };
 
@@ -131,6 +135,69 @@ describe('buoyancy physics', () => {
   });
 });
 
+describe('buoyancy: fast light blocks (QA: 41 m/s and an invisible ceiling)', () => {
+  it('a light block released deep rises at a bounded speed, leaves the fluid, falls back and floats', () => {
+    for (const a of [0.1, 0.2, 0.3, 0.4])
+      for (const [rho, rf] of [
+        [50, 15000],
+        [50, 1000],
+        [50, 500],
+      ]) {
+        const b: Block = { a, rho };
+        const f: Fluid = { rho: rf };
+        const m: Motion = { y: 0, v: 0 };
+        let vMax = 0;
+        let top = 0;
+        let fellBack = false;
+        let wasUp = false;
+        for (let i = 0; i < 40 / 5e-4; i++) {
+          step(b, f, m, 5e-4);
+          vMax = Math.max(vMax, Math.abs(m.v));
+          top = Math.max(top, m.y + a);
+          // Out of the fluid, moving: gravity alone (no ceiling, no air drag).
+          if (levelAt(b, m.y).s === 0) {
+            wasUp = true;
+            expect(freeForce(b, f, m.y, m.v) / (rho * a ** 3)).toBeCloseTo(-GRAV, 9);
+          }
+          if (wasUp && m.v < 0) fellBack = true;
+        }
+        // Terminal speed √(2 (1 − ρ/ρ_f) a g / C_d) ≤ 2.7 m/s (was up to 41 m/s).
+        expect(vMax).toBeLessThan(2.8);
+        expect(wasUp).toBe(true);
+        expect(fellBack).toBe(true);
+        // Stays in view (top of the drawing grows with a).
+        expect(top).toBeLessThan(viewTop(a) - 0.01);
+        // Settles floating at the equilibrium fraction, not stuck at a top limit.
+        expect(levelAt(b, m.y).s / a).toBeCloseTo(rho / rf, 3);
+        expect(Math.abs(m.v)).toBeLessThan(1e-4);
+      }
+  });
+
+  it('a dense block dropped from the highest hold point falls into the fluid and sinks', () => {
+    const b: Block = { a: 0.2, rho: 20000 };
+    const m: Motion = { y: yMax(b), v: 0 };
+    let vMax = 0;
+    for (let i = 0; i < 10 / 5e-4; i++) {
+      step(b, { rho: 500 }, m, 5e-4);
+      vMax = Math.max(vMax, Math.abs(m.v));
+    }
+    expect(m.y).toBe(0);
+    // Free fall from 0.24 m above the surface (√(2 g h) = 2.2 m/s), then it keeps speeding up in
+    // the light fluid until it hits the floor: 3.4 m/s.
+    expect(vMax).toBeLessThan(4);
+  });
+
+  it('form drag is −½ C_d ρ_f A v|v| on the submerged fraction; none in air; small bobbing keeps T', () => {
+    const b: Block = { a: 0.2, rho: 600 };
+    const yIn = 0.1;
+    const { s } = levelAt(b, yIn);
+    const lin = drag(b, water, yIn, 1, 0.05, 0);
+    expect(drag(b, water, yIn, 1) - lin).toBeCloseTo(-0.5 * 1.05 * 1000 * 0.04 * (s / 0.2), 9);
+    expect(drag(b, water, yIn, -1) + lin).toBeCloseTo(0.5 * 1.05 * 1000 * 0.04 * (s / 0.2), 9);
+    expect(drag(b, water, 0.6, 3)).toBe(0);
+  });
+});
+
 describe('buoyancy scene', () => {
   it('runs from the default start to the floating equilibrium; formula lines carry the numbers', () => {
     const p = defaults(buoyancyScene.params);
@@ -147,11 +214,26 @@ describe('buoyancy scene', () => {
     for (const l of lines) expect(l).not.toMatch(/NaN|Infinity|undefined/);
   });
 
-  it('fluid presets set the fluid density', () => {
+  it('water is the reference: default ρ_f = 1000 kg/m³ named water; other fluids named within 1 %', () => {
     const p = defaults(buoyancyScene.params);
+    expect(p.rhoF).toBe(1000);
     expect(fluidOf(p).rho).toBe(1000);
-    for (const [k, v] of Object.entries(FLUIDS)) expect(fluidOf({ ...p, fluid: k, rhoF: 777 }).rho).toBe(v);
+    expect(fluidName(fluidOf(p).rho)).toBe('water');
+    // One fluid control: the ρ_f slider (no fluid select), in the main bar, always shown.
+    expect(Object.keys(buoyancyScene.params)).not.toContain('fluid');
+    expect(buoyancyScene.params.rhoF.group).toBe('main');
+    expect(buoyancyScene.params.rhoF.visibleIf).toBeUndefined();
+    for (const [k, v] of Object.entries(FLUIDS)) {
+      expect(fluidName(v)).toBe(k);
+      expect(fluidName(v * 1.009)).toBe(k);
+      expect(fluidName(v * 0.991)).toBe(k);
+      expect(fluidOf({ ...p, rhoF: v }).rho).toBe(v);
+    }
+    // Between the listed fluids: no name, and the physics uses the slider value as it is.
+    for (const v of [777, 1012, 1100, 5000]) expect(fluidName(v)).toBeNull();
     expect(fluidOf({ ...p, rhoF: 777 }).rho).toBe(777);
+    // The 1 % windows of water and sea water do not overlap.
+    expect(FLUIDS.water * 1.01).toBeLessThan(FLUIDS.sea * 0.99);
   });
 
   it('a held block does not move; released it does', () => {
