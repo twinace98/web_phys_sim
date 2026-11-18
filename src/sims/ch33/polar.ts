@@ -5,6 +5,7 @@ import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
 import { Inset, TICK } from '../inset/inset';
+import { num, tn } from '../../core/tex';
 import { polarizerChain } from './physics';
 
 type P = { n: number; theta: number };
@@ -113,6 +114,23 @@ function eView(g: Draw, x: number, I: number, a: number | null): void {
   g.text({ x, y: BY - RE }, txt, { size: 13, align: 'center', dy: 18 });
 }
 
+/** Σ panel: I₁ = I₀/2, Malus's law through the turned polarizer (and the third), I/I₀ at the detector. */
+export function formulaPolar(p: P): string[] {
+  const th = num(p.theta);
+  const r1 = afterFirst(p.n, p.theta * DEG);
+  const r0 = segments(p).at(-1)!;
+  const lines = ['I_1 = \\tfrac12 I_0'];
+  if (p.n === 3) {
+    lines.push(
+      `\\frac{I_3}{I_1} = \\cos^2\\theta\\,\\sin^2\\theta = \\cos^2 ${th}^\\circ \\sin^2 ${th}^\\circ = ${tn(r1)}`,
+      `\\frac{I_3}{I_0} = \\tfrac18\\sin^2 2\\theta = \\tfrac18\\sin^2 ${num(2 * p.theta)}^\\circ = ${tn(r0)}`,
+    );
+  } else {
+    lines.push(`\\frac{I_2}{I_1} = \\cos^2\\theta = \\cos^2 ${th}^\\circ = ${tn(r1)}`, `\\frac{I_2}{I_0} = \\tfrac12\\cos^2\\theta = \\tfrac12\\cos^2 ${th}^\\circ = ${tn(r0)}`);
+  }
+  return lines;
+}
+
 export const polar: Scene<P, { t: number }> = {
   id: 'polar',
   title: 'ch33.scene.polar',
@@ -204,6 +222,8 @@ export const polar: Scene<P, { t: number }> = {
     { label: 'I/I_1', unit: '', value: (_s, p) => afterFirst(p.n, p.theta * DEG) },
     { label: 'I/I_0', unit: '', value: (_s, p) => segments(p).at(-1)! },
   ],
+
+  formula: (_s, p) => formulaPolar(p),
 
   info: {
     goals: ['ch33.p.goal.malus', 'ch33.p.goal.three'],

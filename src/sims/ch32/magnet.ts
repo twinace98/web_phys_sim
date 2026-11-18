@@ -6,7 +6,9 @@ import type { Draw } from '../../draw/draw';
 import type { Rng } from '../../core/rng';
 import { color, theme } from '../../draw/theme';
 import { Inset } from '../inset/inset';
-import { TC, magnetization, randomLattice, sweep, wolff, type Lattice } from './physics';
+import { num, tn, tp } from '../../core/tex';
+import { fitSig } from '../ch31/fit';
+import { TC, magnetization, onsagerM, paraM, randomLattice, sweep, wolff, type Lattice } from './physics';
 
 type P = { mat: string; T: number; field: string };
 
@@ -166,6 +168,45 @@ function drawMoments(g: Draw, s: S, p: P): void {
   ctx.restore();
 }
 
+/**
+ * Σ panel: the field B/B_max, the live M/M_s from the moment count (or −χB/B_max for the
+ * diamagnet), and the equilibrium reference: tanh(μB/k_BT) for the paramagnet, the spontaneous
+ * |M| at B = 0 below T_C (0 at or above it) for the ferromagnet. Energies in units of the
+ * neighbour coupling J, as in the model.
+ */
+export function formulaMagnet(s: S, p: P): string[] {
+  const b = s.B / B0;
+  const lines: string[] = [];
+  if (p.field === 'sweep') lines.push(`\\frac{B}{B_\\text{max}} = \\sin\\frac{2\\pi t}{${PERIOD}} = \\sin\\frac{2\\pi(${num(s.t)})}{${PERIOD}} = ${tn(b, 2)}`);
+  else lines.push(`\\frac{B}{B_\\text{max}} = ${tn(b, 2)}`);
+  if (p.mat === 'dia') {
+    const sb = fitSig((r) => tn(-CHI * r(b), 2), tn(s.M, 2), 2);
+    lines.push(`\\frac{M}{M_\\text{s}} = -\\chi\\frac{B}{B_\\text{max}} = -${CHI} \\times ${tp(b, sb)} = ${tn(s.M, 2)}`);
+    return lines;
+  }
+  const N = NX * NY;
+  const up = Math.round(((1 + s.M) * N) / 2);
+  lines.push(`\\frac{M}{M_\\text{s}} = \\frac{N_\\uparrow - N_\\downarrow}{N} = \\frac{${up} - ${N - up}}{${N}} = ${tn(s.M, 2)}`);
+  const kT = p.T * TC;
+  if (p.mat === 'para') {
+    const m = tn(paraM(s.B, kT), 2);
+    const sx = fitSig((r) => tn(Math.tanh(r(s.B) / r(kT)), 2), m);
+    lines.push(`\\frac{M}{M_\\text{s}} \\approx \\tanh\\frac{\\mu B}{k_BT} = \\tanh\\frac{${tn(s.B, sx)}\\,J}{${tn(kT, sx)}\\,J} = ${m}`);
+    return lines;
+  }
+  lines.push(`k_BT_C = \\frac{2J}{\\ln(1 + \\sqrt2)} = ${tn(TC, 4)}\\,J`);
+  if (p.T >= 1) lines.push(`T = ${num(p.T)}\\,T_C \\ge T_C:\\ \\lvert M\\rvert_{B=0} = 0`);
+  else {
+    const y = 2 / kT;
+    const sy = fitSig((r) => tn((1 - Math.sinh(r(y)) ** -4) ** 0.125), tn(onsagerM(kT)), 4);
+    lines.push(
+      `\\frac{2J}{k_BT} = \\frac{2}{${num(p.T)} \\times ${tn(TC, 4)}} = ${tn(y, sy)}`,
+      `\\frac{\\lvert M\\rvert_{B=0}}{M_\\text{s}} = \\left[1 - \\sinh^{-4}\\frac{2J}{k_BT}\\right]^{1/8} = ${tn(onsagerM(kT))}`,
+    );
+  }
+  return lines;
+}
+
 export const magnet: Scene<P, S> = {
   id: 'materials',
   title: 'ch32.m.scene',
@@ -207,6 +248,8 @@ export const magnet: Scene<P, S> = {
     { label: 'M/M_\\text{s}', unit: '', value: (s) => s.M, sig: 2 },
     { label: 'B/B_\\text{max}', unit: '', value: (s) => s.B / B0, sig: 2 },
   ],
+
+  formula: (s, p) => formulaMagnet(s, p),
 
   info: {
     goals: ['ch32.m.goal.compete', 'ch32.m.goal.ferro'],
