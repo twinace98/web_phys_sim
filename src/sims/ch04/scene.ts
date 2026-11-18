@@ -1,8 +1,10 @@
 // Ch 4 scene: projectile = uniform motion in x + uniformly accelerated motion in y.
 import { fmtTick, niceTicks } from '../../core/format';
+import { num, tn, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { theme } from '../../draw/theme';
+import { sigToMatch, sigsToMatch } from '../ch02/sigma';
 import { G, flightTime, maxHeight, range, stateAt, v0x, v0y, type Launch } from './physics';
 
 type P = {
@@ -280,6 +282,31 @@ export const projectile: Scene<P, S> = {
     { label: 'v_y', unit: 'm/s', value: (s) => s.vy },
     { label: 'v', unit: 'm/s', value: (s) => Math.hypot(s.vx, s.vy) },
   ],
+
+  // Σ panel: v_x constant, v_y and y uniformly accelerated, at the current t. t gets the digits that
+  // make the shown arithmetic give the shown v_y and y.
+  formula: (s, p) => {
+    const { l } = model(p);
+    const g = l.g;
+    const vy0 = v0y(l);
+    const sig = Math.max(
+      sigToMatch(s.vy, [s.t], (t) => vy0 - g * t),
+      sigToMatch(s.y, [s.t], (t) => l.h + vy0 * t - 0.5 * g * t * t),
+    );
+    const T = tn(s.t, sig);
+    const v = Math.hypot(s.vx, s.vy);
+    const [sx, sy] = sigsToMatch(v, [s.vx, s.vy], (a, b) => Math.hypot(a, b));
+    const sin = `${num(p.v0)}\\sin ${num(p.theta)}^\\circ`;
+    return [
+      `v_x = v_0\\cos\\theta = ${num(p.v0)}\\cos ${num(p.theta)}^\\circ = ${tn(s.vx)}${u('m/s')}`,
+      `v_y = v_0\\sin\\theta - gt`,
+      `= ${sin} - ${num(g)} \\times ${T} = ${tn(s.vy)}${u('m/s')}`,
+      `y = h + v_0\\sin\\theta\\,t - \\tfrac{1}{2}gt^2`,
+      // ½g exactly: 4.9, 1.855, 0.81.
+      `= ${num(l.h)} + ${sin} \\times ${T} - ${String(g / 2)} \\times ${T}^2 = ${tn(s.y)}${u('m')}`,
+      `v = \\sqrt{v_x^2 + v_y^2} = \\sqrt{${tn(s.vx, sx)}^2 + ${tp(s.vy, sy)}^2} = ${tn(v)}${u('m/s')}`,
+    ];
+  },
 
   info: {
     goals: ['ch04.goal.split', 'ch04.goal.indep'],

@@ -3,7 +3,9 @@
 // compression, so F_AB = −F_BA at every instant, whatever the masses; only the accelerations
 // differ. The free-body diagrams add N and mg on each cart: equal and opposite, but on the same
 // body, so they are not a third-law pair.
+import { tn, u } from '../../core/tex';
 import type { NumberParam, ParamSchema, Role, Scene } from '../../core/types';
+import { sigToMatch } from '../ch02/sigma';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { drawRich } from '../../draw/text';
 import { color, theme } from '../../draw/theme';
@@ -327,6 +329,28 @@ export const third: Scene<P, S> = {
     { label: 'F_{AB}', unit: 'N', value: (s) => s.FA },
     { label: 'F_{BA}', unit: 'N', value: (s) => s.FB },
   ],
+
+  // Σ panel: both forces from the same compression c (equal and opposite), each cart's own
+  // acceleration, and with the free-body diagrams the N = mg balance on each cart.
+  formula: (s, p) => {
+    const { c } = bumperAt(bumperOf(p), s.t);
+    const sc = sigToMatch(s.FB, [c], (x) => p.k * x);
+    const sA = sigToMatch(s.aA, [s.FA], (f) => f / p.mA);
+    const sB = sigToMatch(s.aB, [s.FB], (f) => f / p.mB);
+    const mA = p.mA.toFixed(1);
+    const mB = p.mB.toFixed(1);
+    const lines = [
+      `F_{BA} = k\\,c = ${p.k} \\times ${tn(c, sc)} = ${tn(s.FB)}${u('N')}`,
+      `F_{AB} = -F_{BA} = ${tn(s.FA)}${u('N')}`,
+      `a_A = \\frac{F_{AB}}{m_A} = \\frac{${tn(s.FA, sA)}}{${mA}} = ${tn(s.aA)}${u('m/s^2')}`,
+      `a_B = \\frac{F_{BA}}{m_B} = \\frac{${tn(s.FB, sB)}}{${mB}} = ${tn(s.aB)}${u('m/s^2')}`,
+    ];
+    if (p.fbd) {
+      lines.push(`N_A = m_A g = ${mA} \\times ${THIRD_G} = ${tn(p.mA * THIRD_G)}${u('N')}`);
+      lines.push(`N_B = m_B g = ${mB} \\times ${THIRD_G} = ${tn(p.mB * THIRD_G)}${u('N')}`);
+    }
+    return lines;
+  },
 
   info: {
     goals: ['ch05.t.goal.pair', 'ch05.t.goal.fbd'],

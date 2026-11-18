@@ -7,7 +7,9 @@
 // release the object curves outward and backward under the centrifugal and Coriolis forces.
 // Fictitious forces are drawn dashed.
 import { t as tr } from '../../core/i18n';
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
+import { sigToMatch, sigsToMatch } from '../ch02/sigma';
 import type { Viewport } from '../../core/viewport';
 import type { Draw } from '../../draw/draw';
 import { theme } from '../../draw/theme';
@@ -391,6 +393,56 @@ function drawSide(g: Draw, p: P, t: number, frame: Frame): void {
   }
 }
 
+/** The real force that supplies the centripetal force, as written in F_net,r = ... */
+const SUPPLY: Record<Preset, string> = { string: 'T', flat: 'f_s', banked: 'N\\sin\\theta', cone: 'T\\sin\\theta' };
+/** The force that disappears at the release. */
+const LOST: Record<Preset, string> = { string: 'T', flat: 'f_s', banked: 'N', cone: 'T' };
+
+/**
+ * Σ panel. Inertial frame: the net inward force mv²/r and the real force that supplies it (zero after
+ * the release). Rotating frame: ω = v/r and the centrifugal force; on the circle it cancels the real
+ * inward force, after the release it and the Coriolis force act on the object.
+ */
+export function circularFormula(p: P, t: number): string[] {
+  const pr = presetOf(p);
+  const st = SETUPS[pr];
+  const rel = t >= tRel(p);
+  const need = required(st);
+  const Fr = netForce(pr, rel).r;
+  const m = num(st.m);
+  const r = num(st.r);
+  const tilted = pr === 'banked' || pr === 'cone';
+  const th = `${num(st.theta / (Math.PI / 180))}^\\circ`;
+  const lines: string[] = [];
+  // Design speed; the cut conical pendulum then falls and speeds up, so the line goes.
+  if (tilted && !(pr === 'cone' && rel)) lines.push(`v = \\sqrt{g r\\tan\\theta} = \\sqrt{${G} \\times ${r}\\tan ${th}} = ${tn(st.v)}${u('m/s')}`);
+  lines.push(
+    tilted
+      ? `\\frac{mv^2}{r} = mg\\tan\\theta = ${m} \\times ${G}\\tan ${th} = ${tn(need)}${u('N')}`
+      : `\\frac{mv^2}{r} = \\frac{${m} \\times ${num(st.v)}^2}{${r}} = ${tn(need)}${u('N')}`,
+  );
+  lines.push(rel ? `${LOST[pr]} = 0 \\;\\Rightarrow\\; F_{\\text{net},r} = ${tn(Fr)}${u('N')}` : `F_{\\text{net},r} = ${SUPPLY[pr]} = \\frac{mv^2}{r} = ${tn(Fr)}${u('N')}`);
+  const w = omega(st);
+  lines.push(`\\omega = \\frac{v}{r} = \\frac{${tn(st.v, sigToMatch(w, [st.v], (v) => v / st.r))}}{${r}} = ${tn(w)}${u('rad/s')}`);
+  const q = rotatingViewAt(st, t, tRel(p));
+  const { cf, cor } = fictitious(st, q);
+  const Fcf = Math.hypot(cf.x, cf.y);
+  if (!rel) {
+    lines.push(`F_\\text{cf} = m\\omega^2 r = \\frac{mv^2}{r} = ${tn(Fcf)}${u('N')}`);
+    lines.push(`F_{\\text{net},r} - F_\\text{cf} = ${tn(Fr)} - ${tn(Fcf)} = ${tn(Fr - Fcf)}${u('N')}`);
+    return lines;
+  }
+  const d = Math.hypot(q.x, q.y);
+  const vp = Math.hypot(q.vx, q.vy);
+  const Fcor = Math.hypot(cor.x, cor.y);
+  const [s1w, s1d] = sigsToMatch(Fcf, [w, d], (a, b) => st.m * a * a * b);
+  const [s2w, s2v] = sigsToMatch(Fcor, [w, vp], (a, b) => 2 * st.m * a * b);
+  // r′: the object's distance from the axis now, larger than the circle's r once released.
+  lines.push(`F_\\text{cf} = m\\omega^2 r' = ${m} \\times ${tn(w, s1w)}^2 \\times ${tn(d, s1d)} = ${tn(Fcf)}${u('N')}`);
+  lines.push(`F_\\text{Cor} = 2m\\omega v' = 2 \\times ${m} \\times ${tn(w, s2w)} \\times ${tn(vp, s2v)} = ${tn(Fcor)}${u('N')}`);
+  return lines;
+}
+
 export const circular: Scene<P, { t: number; n: number }> = {
   id: 'circular',
   title: 'ch06.c.scene',
@@ -439,6 +491,8 @@ export const circular: Scene<P, { t: number; n: number }> = {
     { label: 'F_{\\text{net},r}', unit: 'N', value: (s, p) => netForce(presetOf(p), s.t >= tRel(p)).r },
     { label: 'mv^2/r', unit: 'N', value: (_s, p) => required(SETUPS[presetOf(p)]) },
   ],
+
+  formula: (s, p) => circularFormula(p, s.t),
 
   info: {
     goals: ['ch06.c.goal.net', 'ch06.c.goal.notnew', 'ch06.c.goal.rot'],
