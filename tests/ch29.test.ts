@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { closedCirc, fieldFn, circlePoly, enclosed, squarePoly, MU0 } from '../src/sims/field/physics';
+import { biot } from '../src/sims/ch29/biot';
+import { defaults } from '../src/core/params';
+import ko from '../src/sims/ch29/i18n.ko.json';
+import en from '../src/sims/ch29/i18n.en.json';
 import { HALF, I_BS, MU0_UT, R_LOOP, WIRE_B, WIRE_POOL, WIRE_PRESETS, dBz, elements, infiniteWire, loopCentre, straightExact } from '../src/sims/ch29/physics';
 
 const sum = (wire: 'straight' | 'loop', n: number, x: number, y: number) => elements(wire, n).reduce((a, e) => a + dBz(e, x, y), 0);
@@ -54,5 +58,59 @@ describe('ch29 Ampère circulation', () => {
     const bout = Math.hypot(...f(0, 0.45));
     expect(f(0, 0)[0]).toBeGreaterThan(0);
     expect(bout / bin).toBeLessThan(0.2);
+  });
+});
+
+describe('ch29 Biot-Savart reference line and convergence (QA E7)', () => {
+  /** The dashed reference value and its label, as drawPlot draws them on the B plot. */
+  function ref(p: Record<string, unknown>): { y: number; label: string } {
+    let y = NaN;
+    let label = '';
+    const ctx = {
+      save() {},
+      restore() {},
+      measureText: (t: string) => ({ width: 7 * t.length }),
+      fillText: (t: string) => {
+        label += t;
+      },
+    };
+    const pd = {
+      ctx,
+      toPx: (t: number, v: number): [number, number] => [t, v],
+      polyline: (pts: [number, number][]) => {
+        y = pts[0][1];
+      },
+      dot: () => {},
+    };
+    biot.drawPlot!('B', pd as never, p as never, {} as never);
+    return { y, label };
+  }
+  const loopAt = (x: number, y: number) => ({ ...defaults(biot.params), wire: 'loop', Pl: [x, y] });
+
+  it('loop: μ0I/2R only with P at the centre; elsewhere the n → ∞ value (22.05 μT at (0.30, 0), not 13.96)', () => {
+    const c = ref(loopAt(0, 0));
+    expect(c.y).toBeCloseTo(loopCentre(), 9);
+    expect(c.label).toMatch(/R/);
+    expect(c.label).not.toMatch(/∞/);
+    const off = ref(loopAt(0.3, 0));
+    expect(off.y).toBeCloseTo(sum('loop', 200000, 0.3, 0), 3);
+    expect(off.y).toBeCloseTo(22.05, 1);
+    expect(off.label).toMatch(/∞/);
+    // Outside the loop the limit is ⊗ (negative).
+    expect(ref(loopAt(0.51, 0)).y).toBeCloseTo(sum('loop', 200000, 0.51, 0), 3);
+    expect(ref(loopAt(0.51, 0)).y).toBeLessThan(0);
+  });
+
+  it('the sum needs elements shorter than the distance to P (the ⓘ now says so)', () => {
+    const ex = straightExact(0, 0.06);
+    expect(sum('straight', 4, 0, 0.06) / ex - 1).toBeCloseTo(-0.908, 2);
+    expect(sum('straight', 24, 0, 0.06) / ex - 1).toBeCloseTo(-0.088, 2);
+    expect(Math.abs(sum('straight', 48, 0, 0.06) / ex - 1)).toBeLessThan(0.003);
+    const fine = sum('loop', 200000, 0.51, 0);
+    expect(Math.sign(sum('loop', 4, 0.51, 0))).toBe(-Math.sign(fine));
+    expect(ko['ch29.b.obs.n']).not.toMatch(/거의 같음/);
+    expect(en['ch29.b.obs.n']).not.toMatch(/nearly the same/);
+    expect(ko['ch29.b.obs.n']).toMatch(/-91/);
+    expect(en['ch29.b.obs.n']).toMatch(/sign/);
   });
 });

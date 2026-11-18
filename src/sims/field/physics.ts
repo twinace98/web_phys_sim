@@ -149,6 +149,38 @@ export function winding(poly: readonly V2[], x: number, y: number): number {
   return w;
 }
 
+/**
+ * True if two non-adjacent edges of the closed polygon cross or touch. A self-intersecting
+ * curve (a figure 8) does not bound a region: its winding number is −1 in one lobe.
+ */
+export function selfIntersects(poly: readonly V2[]): boolean {
+  const n = poly.length;
+  const orient = (a: V2, b: V2, c: V2) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  const onSeg = (a: V2, b: V2, c: V2) =>
+    Math.min(a[0], b[0]) <= c[0] && c[0] <= Math.max(a[0], b[0]) && Math.min(a[1], b[1]) <= c[1] && c[1] <= Math.max(a[1], b[1]);
+  for (let i = 0; i < n; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % n];
+    const x0 = Math.min(a[0], b[0]);
+    const x1 = Math.max(a[0], b[0]);
+    const y0 = Math.min(a[1], b[1]);
+    const y1 = Math.max(a[1], b[1]);
+    for (let j = i + 2; j < n; j++) {
+      if (i === 0 && j === n - 1) continue; // adjacent across the closing edge
+      const c = poly[j];
+      const d = poly[(j + 1) % n];
+      if (Math.max(c[0], d[0]) < x0 || Math.min(c[0], d[0]) > x1 || Math.max(c[1], d[1]) < y0 || Math.min(c[1], d[1]) > y1) continue;
+      const o1 = orient(a, b, c);
+      const o2 = orient(a, b, d);
+      const o3 = orient(c, d, a);
+      const o4 = orient(c, d, b);
+      if (((o1 > 0 && o2 < 0) || (o1 < 0 && o2 > 0)) && ((o3 > 0 && o4 < 0) || (o3 < 0 && o4 > 0))) return true;
+      if ((o1 === 0 && onSeg(a, b, c)) || (o2 === 0 && onSeg(a, b, d)) || (o3 === 0 && onSeg(c, d, a)) || (o4 === 0 && onSeg(c, d, b))) return true;
+    }
+  }
+  return false;
+}
+
 /** Sum of strengths weighted by the winding number of the path around each source. */
 export const enclosed = (src: readonly Src[], poly: readonly V2[]) => src.reduce((a, c) => a + c.s * winding(poly, c.x, c.y), 0);
 
@@ -362,10 +394,46 @@ export function chargeLines(src: readonly Src[], k: 'point' | 'line', perUnit: n
 // ------------------------------------------------------------------ contours
 
 /**
- * Marching squares on an nx × ny grid (row-major, vals[j * nx + i]). Segments are chained into
- * polylines. Coordinates are in grid units (i, j).
+ * Equally spaced contour levels k·step (|k| ≤ kMax) and, for each, the grid cells to march, so
+ * that lines stop where they would be drawn closer than `minGap` grid cells apart (spacing
+ * step / |∇v|, with the gradient estimated per cell). Near a point charge the levels crowd
+ * without bound; this keeps every level whose lines are still distinguishable, however many,
+ * instead of a fixed number of levels. The zero level is kept everywhere. Work is
+ * ∝ cells + segments, not cells × levels.
  */
-export function contour(vals: Float64Array, nx: number, ny: number, level: number): number[][] {
+export function levelCells(vals: Float64Array, nx: number, ny: number, step: number, kMax: number, minGap: number): Map<number, number[]> {
+  const out = new Map<number, number[]>();
+  const gMax = step / minGap; // largest |∇v| per cell that keeps the gap
+  for (let j = 0; j < ny - 1; j++) {
+    for (let i = 0; i < nx - 1; i++) {
+      const c = j * nx + i;
+      const v00 = vals[c];
+      const v10 = vals[c + 1];
+      const v11 = vals[c + nx + 1];
+      const v01 = vals[c + nx];
+      const gx = (v10 - v00 + v11 - v01) / 2;
+      const gy = (v01 - v00 + v11 - v10) / 2;
+      // The zero level (drawn dashed, on its own) is never cut.
+      const wide = gx * gx + gy * gy <= gMax * gMax;
+      const lo = Math.max(-kMax, Math.ceil(Math.min(v00, v10, v11, v01) / step));
+      const hi = Math.min(kMax, Math.floor(Math.max(v00, v10, v11, v01) / step));
+      for (let k = lo; k <= hi; k++) {
+        if (!wide && k !== 0) continue;
+        const l = out.get(k);
+        if (l) l.push(c);
+        else out.set(k, [c]);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Marching squares on an nx × ny grid (row-major, vals[j * nx + i]). Segments are chained into
+ * polylines. Coordinates are in grid units (i, j). `cells` (lower-left node indices j·nx + i)
+ * limits the march to those cells; by default every cell is visited.
+ */
+export function contour(vals: Float64Array, nx: number, ny: number, level: number, cells?: ArrayLike<number>): number[][] {
   // Crossing point of each grid edge, keyed by edge id: 2(j nx + i) horizontal, +1 vertical.
   const pt = new Map<number, V2>();
   const at = (id: number): number => {
@@ -381,58 +449,57 @@ export function contour(vals: Float64Array, nx: number, ny: number, level: numbe
     return id;
   };
   const segs: [number, number][] = [];
-  for (let j = 0; j < ny - 1; j++) {
-    for (let i = 0; i < nx - 1; i++) {
-      const c = j * nx + i;
-      const v00 = vals[c];
-      const v10 = vals[c + 1];
-      const v11 = vals[c + nx + 1];
-      const v01 = vals[c + nx];
-      const idx = (v00 >= level ? 1 : 0) | (v10 >= level ? 2 : 0) | (v11 >= level ? 4 : 0) | (v01 >= level ? 8 : 0);
-      if (idx === 0 || idx === 15) continue;
-      const B = 2 * c; // bottom (i,j)-(i+1,j)
-      const T = 2 * (c + nx); // top
-      const Lf = 2 * c + 1; // left (i,j)-(i,j+1)
-      const R = 2 * (c + 1) + 1; // right
-      const add = (a: number, b: number) => segs.push([at(a), at(b)]);
-      switch (idx) {
-        case 1:
-        case 14:
-          add(Lf, B);
-          break;
-        case 2:
-        case 13:
-          add(B, R);
-          break;
-        case 3:
-        case 12:
-          add(Lf, R);
-          break;
-        case 4:
-        case 11:
-          add(R, T);
-          break;
-        case 6:
-        case 9:
-          add(B, T);
-          break;
-        case 7:
-        case 8:
+  const nc = cells ? cells.length : (nx - 1) * (ny - 1);
+  for (let m = 0; m < nc; m++) {
+    const c = cells ? cells[m] : Math.floor(m / (nx - 1)) * nx + (m % (nx - 1));
+    const v00 = vals[c];
+    const v10 = vals[c + 1];
+    const v11 = vals[c + nx + 1];
+    const v01 = vals[c + nx];
+    const idx = (v00 >= level ? 1 : 0) | (v10 >= level ? 2 : 0) | (v11 >= level ? 4 : 0) | (v01 >= level ? 8 : 0);
+    if (idx === 0 || idx === 15) continue;
+    const B = 2 * c; // bottom (i,j)-(i+1,j)
+    const T = 2 * (c + nx); // top
+    const Lf = 2 * c + 1; // left (i,j)-(i,j+1)
+    const R = 2 * (c + 1) + 1; // right
+    const add = (a: number, b: number) => segs.push([at(a), at(b)]);
+    switch (idx) {
+      case 1:
+      case 14:
+        add(Lf, B);
+        break;
+      case 2:
+      case 13:
+        add(B, R);
+        break;
+      case 3:
+      case 12:
+        add(Lf, R);
+        break;
+      case 4:
+      case 11:
+        add(R, T);
+        break;
+      case 6:
+      case 9:
+        add(B, T);
+        break;
+      case 7:
+      case 8:
+        add(Lf, T);
+        break;
+      case 5:
+      case 10: {
+        const centre = (v00 + v10 + v11 + v01) / 4 >= level;
+        // idx 5: corners 00 and 11 high.
+        if ((idx === 5) === centre) {
           add(Lf, T);
-          break;
-        case 5:
-        case 10: {
-          const centre = (v00 + v10 + v11 + v01) / 4 >= level;
-          // idx 5: corners 00 and 11 high.
-          if ((idx === 5) === centre) {
-            add(Lf, T);
-            add(B, R);
-          } else {
-            add(Lf, B);
-            add(R, T);
-          }
-          break;
+          add(B, R);
+        } else {
+          add(Lf, B);
+          add(R, T);
         }
+        break;
       }
     }
   }

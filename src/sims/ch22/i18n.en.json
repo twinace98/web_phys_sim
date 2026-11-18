@@ -17,11 +17,11 @@
   "ch22.obs.tray": "Tray at the lower left: drag a charge out to add it ($+1$, $+2$, $-1$, $-2$ nC); drop it on the tray (bin) or double-click (double-tap) it to remove it",
   "ch22.obs.dipole": "Dipole: the field is strongest between the charges and falls off quickly farther away",
   "ch22.obs.like": "Like pair: a point of zero field midway between the charges; the field lines push each other apart",
-  "ch22.obs.plates": "Parallel plates: nearly uniform field between the plates, weak field outside",
+  "ch22.obs.plates": "Parallel plates: in the middle between the rows the field points almost the same way (from the $+$ row to the $-$ row); its strength is lowest midway and grows toward each row. Outside, the fields of the two rows point opposite ways and partly cancel",
   "ch22.obs.test": "Test charge: the vector sum of the Coulomb forces of the charges (thin arrows) is the net force $\\vec F$ (thick arrow), of size $F = q_0 E$",
   "ch22.as.units": "Charges in nC, lengths in m",
   "ch22.as.test": "Test charge $q_0 = +1$ nC. Source charges are held fixed (the force of the test charge on them is ignored)",
   "ch22.as.log": "Grid arrow length is a log scale of the field strength (over three decades); the direction is exact",
   "ch22.as.force": "Force arrows share a linear scale set by the largest force. With 7 or more charges only the net force is drawn",
-  "ch22.as.plates": "Each plate is approximated by 8 point charges. The number of field lines is proportional to the charge (10 per nC)"
+  "ch22.as.plates": "Each plate is a row of 8 point charges. A row of point charges acts like a charged rod, not a sheet: a uniform field needs plates much wider than their gap with the charge spread evenly over the surface. The number of field lines is proportional to the charge (10 per nC)"
 }

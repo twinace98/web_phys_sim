@@ -205,10 +205,10 @@ export function scalarGrid(g: Draw, fn: (x: number, y: number) => number, cellPx
 }
 
 /** Contours of the grid at each level → world polylines (via px). */
-export function gridContours(g: Draw, gr: Grid, levels: readonly number[]): { level: number; lines: number[][] }[] {
-  return levels.map((level) => ({
+export function gridContours(g: Draw, gr: Grid, levels: readonly number[], cells?: readonly (ArrayLike<number> | undefined)[]): { level: number; lines: number[][] }[] {
+  return levels.map((level, n) => ({
     level,
-    lines: contour(gr.vals, gr.nx, gr.ny, level).map((l) => {
+    lines: contour(gr.vals, gr.nx, gr.ny, level, cells?.[n]).map((l) => {
       const out: number[] = [];
       for (let k = 0; k < l.length; k += 2) {
         const [wx, wy] = g.vp.toWorld(l[k] * gr.cell, l[k + 1] * gr.cell);

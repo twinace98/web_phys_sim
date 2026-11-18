@@ -5,12 +5,13 @@ import { BOX, KQ, POINT_POOL, V, clearOf, layoutParam, pointCoords, pointSources
 import { FieldLayers, palette } from '../field/layers';
 import { chargeGlyph, freeSpot, Memo, SURFACE, srcKey, type Tray } from '../field/render';
 import { slotHandles } from '../field/slots';
-import { extendPath, workAlong } from './physics';
+import { extendPath, thinPath, workAlong } from './physics';
 
 type P = { preset: string; view: string; lines: boolean; dV: number; Q: number[] };
 type S = { t: number; tray?: Tray; A: Vec2; path: number[] };
 
 const START: Vec2 = { x: -0.15, y: 0.58 };
+/** Path length that triggers thinning of its older half. */
 const MAX_PTS = 6000;
 
 const params: ParamSchema<P> = {
@@ -37,7 +38,7 @@ const layers = new FieldLayers('point');
 const work = new Memo<number>();
 
 const end = (s: S): Vec2 => ({ x: s.path[s.path.length - 2], y: s.path[s.path.length - 1] });
-const W = (s: S, p: P) => work.get(`${srcKey(pointSources(p))}|${s.path.length}|${s.path[0]},${s.path[1]}`, () => workAlong(pointSources(p), s.path, 1));
+const W = (s: S, p: P) => work.get(`${srcKey(pointSources(p))}|${s.path.length}|${s.path[0]},${s.path[1]}|${s.path[s.path.length - 2]},${s.path[s.path.length - 1]}`, () => workAlong(pointSources(p), s.path, 1));
 
 export const potential: Scene<P, S> = {
   id: 'potential',
@@ -51,7 +52,7 @@ export const potential: Scene<P, S> = {
     if (p.view !== 'eq') layers.heatmap(g, src, 25 / KQ, 600 / KQ);
     if (p.lines) layers.lines(g, src, '#c4c4c4', 1);
     // Heat map alone still shows the V = 0 level as a dashed line.
-    layers.equipotentials(g, src, KQ, p.dV, p.view === 'heat' ? 0 : 12);
+    layers.equipotentials(g, src, KQ, p.dV, p.view === 'heat' ? 0 : undefined);
 
     if (s.path.length >= 4) {
       const pts: Vec2[] = [];
@@ -85,7 +86,9 @@ export const potential: Scene<P, S> = {
         const q = end(s);
         if (Math.hypot(x - q.x, y - q.y) < 0.002) return;
         // Fast drags may jump across a charge: the path goes round it, never through it.
-        extendPath(src, s.path, x, y, 0.05, MAX_PTS);
+        extendPath(src, s.path, x, y, 0.05);
+        // A long path keeps following the pointer: its older points are thinned.
+        thinPath(src, s.path, MAX_PTS, 0.05);
       },
     },
     {

@@ -2,7 +2,7 @@
 // potential heatmap, and the palette tray. One instance per scene.
 import type { UiState } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { chargeLines, fieldFn, potentialAt, type Kernel, type Src } from './physics';
+import { chargeLines, fieldFn, levelCells, potentialAt, type Kernel, type Src } from './physics';
 import {
   Memo,
   drawHeat,
@@ -24,6 +24,13 @@ import {
   type Tray,
 } from './render';
 import type { Pool } from './slots';
+
+/** Potential grid cell [CSS px]. */
+const POT_CELL = 5;
+/** Equipotentials stop where adjacent lines would be closer than this [CSS px]. */
+export const EQ_MIN_PX = 3;
+/** Safety cap on the number of levels each side of zero. */
+export const EQ_K_MAX = 400;
 
 export class FieldLayers {
   private vec = new Memo<Float32Array>();
@@ -76,18 +83,28 @@ export class FieldLayers {
   }
 
   private potGrid(g: Draw, src: readonly Src[], cap: number, memo = this.grid): Grid {
-    return memo.get(`${vpKey(g)}|${srcKey(src)}|${cap}`, () => scalarGrid(g, (x, y) => potentialAt(src, this.kernel, x, y, g.px(2)), 5, cap));
+    return memo.get(`${vpKey(g)}|${srcKey(src)}|${cap}`, () => scalarGrid(g, (x, y) => potentialAt(src, this.kernel, x, y, g.px(2)), POT_CELL, cap));
   }
 
-  /** Equipotentials at k·dV (|k| ≤ kMax), coloured by sign; scale converts strength units to volts. */
-  equipotentials(g: Draw, src: readonly Src[], scale: number, dV: number, kMax = 12): void {
+  /**
+   * Equipotentials at k·dV (|k| ≤ kMax), coloured by sign; scale converts strength units to
+   * volts. Lines stop where neighbours would be closer than EQ_MIN_PX on screen (near a charge),
+   * so every level that can still be told apart is drawn.
+   */
+  equipotentials(g: Draw, src: readonly Src[], scale: number, dV: number, kMax = EQ_K_MAX): void {
     const cap = ((kMax + 1) * dV) / scale;
     const key = `${vpKey(g)}|${srcKey(src)}|${scale}|${dV}|${kMax}`;
     const E = this.eq.get(key, () => {
       const gr = this.potGrid(g, src, cap);
-      const levels: number[] = [];
-      for (let k = -kMax; k <= kMax; k++) levels.push((k * dV) / scale);
-      const cs = gridContours(g, gr, levels);
+      const step = dV / scale;
+      const buckets = levelCells(gr.vals, gr.nx, gr.ny, step, kMax, EQ_MIN_PX / POT_CELL);
+      const ks = [...buckets.keys()].sort((a, b) => a - b);
+      const cs = gridContours(
+        g,
+        gr,
+        ks.map((k) => k * step),
+        ks.map((k) => buckets.get(k)),
+      );
       const pick = (sel: (l: number) => boolean) =>
         linesPx(
           g,
