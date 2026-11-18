@@ -1,5 +1,5 @@
-// Ch 15 scene: SHM as the projection of uniform circular motion. Reference circle (left),
-// mass on a spring (middle) and phase space (right) share one horizontal projection line.
+// Ch 15 scene: SHM as the projection of uniform circular motion. Reference circle (left) and
+// mass on a spring (right) share one horizontal projection line.
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { omega0, omegaD, oscAt, period, type OscState, type Oscillator } from './physics';
@@ -8,14 +8,13 @@ type P = { A: number; k: number; m: number; zeta: number; vectors: boolean };
 type S = { t: number } & OscState;
 
 const A_MAX = 0.3;
-const CX = -0.62; // reference circle centre
+const CX = -0.55; // reference circle centre
 const SX = 0; // spring column
-const PX = 0.62; // phase-space origin
-const PW = 0.27; // phase-space half-width for v = Aω₀
-const CEIL = 0.6;
+/** Right edge of the drawing: the block's v and a arrows and their labels. */
+const RIGHT = SX + 0.27;
+const CEIL = 0.54;
 const BOX = 0.11;
 const GREY = '#9a9a9a';
-const LABEL = '#6b6b6b';
 const GUIDE = '#c8c8c8';
 
 const oscOf = (p: P): Oscillator => ({ A: p.A, k: p.k, m: p.m, zeta: p.zeta });
@@ -75,29 +74,10 @@ const params: ParamSchema<P> = {
   vectors: { kind: 'toggle', label: 'ch15.p.vectors', desc: 'ch15.d.vectors', group: 'advanced', live: true, default: true },
 };
 
-/** Phase-space path samples per period: smooth at any run length (a fixed count turns star-shaped). */
-export const PHASE_PER_PERIOD = 48;
-
-/**
- * Time span and sample count of the phase-space path at time t. Undamped: the last period (the
- * closed ellipse). Damped: the spiral from the start, but at most the last periods over which the
- * amplitude falls 50-fold (older rings would be 50 times wider than the current one).
- */
-export function phaseSamples(o: Oscillator, t: number): { t0: number; n: number } {
-  const T = period(o);
-  let span = T;
-  if (o.zeta > 0) {
-    const perPeriod = (2 * Math.PI * o.zeta) / Math.sqrt(1 - o.zeta * o.zeta); // amplitude decay per period (log)
-    span = Math.ceil(Math.log(50) / perPeriod) * T;
-  }
-  const t0 = Math.max(0, t - span);
-  return { t0, n: Math.max(2, Math.ceil((PHASE_PER_PERIOD * (t - t0)) / T)) };
-}
-
 function spring(g: Draw, x: number, y0: number, y1: number): void {
-  const n = 12;
+  const n = 10;
   const w = 0.045;
-  const lead = 0.04;
+  const lead = 0.025;
   const pts: Vec2[] = [{ x, y: y0 }, { x, y: y0 - lead }];
   const span = y0 - y1 - 2 * lead;
   for (let i = 0; i < n; i++) pts.push({ x: x + (i % 2 ? -w : w), y: y0 - lead - (span * (i + 0.5)) / n });
@@ -111,7 +91,7 @@ export const shm: Scene<P, S> = {
   layout: 'side',
   params,
   time: { h: 1 / 480, recordEvery: 4, frameStep: 0.05, window: 6 },
-  world: () => ({ x: [CX - A_MAX - 0.08, PX + PW + 0.14], y: [-A_MAX - 0.16, CEIL + 0.04], aspect: 'contain', padPx: 18 }),
+  world: () => ({ x: [CX - A_MAX - 0.08, RIGHT], y: [-A_MAX - 0.11, CEIL + 0.04], aspect: 'contain', padPx: 18 }),
 
   init: (p) => ({ t: 0, ...oscAt(oscOf(p), 0) }),
   step: (s, h, p) => {
@@ -126,10 +106,9 @@ export const shm: Scene<P, S> = {
     const w0 = omega0(o);
     const kv = 0.6 / w0; // world m per (m/s): v arrow on the circle has length 0.6 R, a arrow 0.5 R
     const ka = 0.5 / (w0 * w0);
-    const kp = PW / (p.A * w0); // phase space: v = Aω₀ maps to PW
 
-    // Equilibrium line through all three panels.
-    g.line({ x: CX - A_MAX - 0.05, y: 0 }, { x: PX + PW + 0.06, y: 0 }, { color: GUIDE, width: 1, dash: [4, 4] });
+    // Equilibrium line through both columns.
+    g.line({ x: CX - A_MAX - 0.05, y: 0 }, { x: RIGHT - 0.02, y: 0 }, { color: GUIDE, width: 1, dash: [4, 4] });
 
     // Reference circle (spiral when damped: the circle of the current radius is drawn).
     const R = Math.hypot(s.px, s.py);
@@ -140,9 +119,8 @@ export const shm: Scene<P, S> = {
     const P0: Vec2 = { x: CX + s.px, y: s.py };
     if (!p.vectors) g.line({ x: CX, y: 0 }, P0, { color: GUIDE, width: 1 });
 
-    // Projection line: circle point → mass → phase point, all at height x.
-    const ph: Vec2 = { x: PX + s.v * kp, y: s.x };
-    g.line(P0, { x: Math.max(P0.x, ph.x), y: s.x }, { color: GUIDE, width: 1, dash: [3, 4] });
+    // Projection line: circle point → mass, both at height x.
+    g.line(P0, { x: SX, y: s.x }, { color: GUIDE, width: 1, dash: [3, 4] });
 
     // Ceiling, spring, mass.
     g.line({ x: SX - 0.12, y: CEIL }, { x: SX + 0.12, y: CEIL }, { color: '#5c5c5c', width: 2 });
@@ -160,20 +138,6 @@ export const shm: Scene<P, S> = {
       ],
       { fill: 'position', fillAlpha: 0.9 },
     );
-    // Phase space: x up, v to the right; the path so far.
-    g.line({ x: PX - PW - 0.04, y: 0 }, { x: PX + PW + 0.06, y: 0 }, { role: 'axis', width: 1 });
-    g.line({ x: PX, y: -A_MAX - 0.06 }, { x: PX, y: A_MAX + 0.06 }, { role: 'axis', width: 1 });
-    g.text({ x: PX + PW + 0.06, y: 0 }, '*v*', { size: 13, color: LABEL, align: 'left', baseline: 'middle', dx: 6 });
-    g.text({ x: PX, y: A_MAX + 0.06 }, '*x*', { size: 13, color: LABEL, align: 'left', baseline: 'middle', dx: 7 });
-    const path: Vec2[] = [];
-    const { t0, n: N } = phaseSamples(o, s.t);
-    for (let i = 0; i <= N; i++) {
-      const q = oscAt(o, t0 + ((s.t - t0) * i) / N);
-      path.push({ x: PX + q.v * kp, y: q.x });
-    }
-    g.polyline(path, { role: 'position', width: 1.5, alpha: 0.6 });
-    g.circle(ph, 5, { fill: 'position' });
-
     if (p.vectors) {
       // On the circle: full v (tangent) and a (towards the centre). On the mass: their vertical parts.
       // Labels only on arrows long enough to keep them clear of the dot and of each other.
@@ -232,7 +196,7 @@ export const shm: Scene<P, S> = {
 
   info: {
     goals: ['ch15.goal.proj', 'ch15.goal.props'],
-    observe: ['ch15.obs.phase', 'ch15.obs.a', 'ch15.obs.iso', 'ch15.obs.km', 'ch15.obs.energy', 'ch15.obs.space', 'ch15.obs.damp'],
+    observe: ['ch15.obs.phase', 'ch15.obs.a', 'ch15.obs.iso', 'ch15.obs.km', 'ch15.obs.energy', 'ch15.obs.damp'],
     equations: [
       'x = A\\cos\\omega t, \\quad v = -\\omega A \\sin\\omega t, \\quad a = -\\omega^2 x',
       '\\omega = \\sqrt{k/m}, \\quad T = 2\\pi\\sqrt{m/k}',

@@ -77,8 +77,24 @@ export function agm(a: number, b: number): number {
   return (a + b) / 2;
 }
 
-/** Exact period for amplitude θ₀: T = T₀ / AGM(1, cos(θ₀/2)). */
-export const exactPeriod = (p: Pendulum, theta0: number) => smallAnglePeriod(p) / agm(1, Math.cos(theta0 / 2));
+/** Complete elliptic integral of the first kind, modulus k (|k| < 1): K(k) = π / (2 AGM(1, √(1 − k²))). */
+export const ellipticK = (k: number) => Math.PI / (2 * agm(1, Math.sqrt(1 - k * k)));
+
+/** Exact period for amplitude θ₀: T = 4√(L/g) K(sin(θ₀/2)) = T₀ / AGM(1, cos(θ₀/2)). */
+export const exactPeriod = (p: Pendulum, theta0: number) => 4 * Math.sqrt(p.L / p.g) * ellipticK(Math.sin(theta0 / 2));
+
+/** How much longer the real period is than the small-angle model: (T − T₀)/T₀ [fraction]. */
+export const periodError = (p: Pendulum, theta0: number) => exactPeriod(p, theta0) / smallAnglePeriod(p) - 1;
+
+/** Tangential and radial (centripetal) acceleration of the bob at angle θ, angular velocity ω. */
+export const pendulumAccel = (p: Pendulum, th: number, w: number) => ({ at: -p.g * Math.sin(th), ar: p.L * w * w });
+
+/** Largest speed (at the bottom) and largest acceleration component over one swing from θ₀. */
+export function pendulumMax(p: Pendulum, theta0: number): { v: number; a: number } {
+  const v = Math.sqrt(2 * p.g * p.L * (1 - Math.cos(theta0)));
+  const at = p.g * Math.sin(Math.min(Math.abs(theta0), Math.PI / 2));
+  return { v, a: Math.max(at, (v * v) / p.L) };
+}
 
 /** One RK4 step of (θ, ω). */
 export function pendulumStep(p: Pendulum, s: { th: number; w: number }, h: number): void {
