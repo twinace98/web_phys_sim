@@ -2,9 +2,11 @@
 // cumulative work of gravity or a spring ends at the same value on every path (zero around a
 // closed path), while the work of kinetic friction grows with the path length.
 import { fmtTick, niceTicks } from '../../core/format';
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { A, ANCHOR, B, along, forceAt, pathPoints, pathWork, pieceWork, type ForceKind, type PathKind, type PathWork, type V2 } from './physics';
+import { sigFit } from '../ch07/sigfit';
+import { A, ANCHOR, B, G, K_SPRING, MASS, MU_K, along, forceAt, pathPoints, pathWork, pieceWork, type ForceKind, type PathKind, type PathWork, type V2 } from './physics';
 
 type P = { path: string; force: string; closed: boolean; via: number[] };
 
@@ -156,6 +158,51 @@ function spring(g: Draw, a: Vec2, b: Vec2): void {
   g.polyline(pts, { color: '#7a7a7a', width: 1.25 });
 }
 
+const sq = (v: V2) => v[0] * v[0] + v[1] * v[1];
+const rel = (q: V2): V2 => [q[0] - ANCHOR[0], q[1] - ANCHOR[1]];
+
+/**
+ * Σ panel: the work so far from the force's closed form (gravity: height; spring: stretch; friction:
+ * path length), then the work over the whole path: W_AB for a conservative force (the same on every
+ * path), zero around a closed path, −μ_k m g L for friction.
+ */
+export function formulaLines(st: S, p: P): string[] {
+  const pw = current(p);
+  const f = forceOf(p);
+  const s = Math.min(st.t * SPEED, pw.L);
+  const here = along(pw, f, s);
+  const W = here.W;
+  const mg = `(${num(MASS)})(${num(G)})`;
+  const end = pw.W[pw.W.length - 1];
+  if (f === 'gravity') {
+    const dy = here.p[1] - A[1];
+    return [
+      `W_g = -mg\\,\\Delta y`,
+      `= -${mg}(${tn(dy, sigFit([dy], (d) => -MASS * G * d, W))}) = ${tn(W)}${u('J')}`,
+      ...(p.closed ? [`\\oint \\vec F_g\\cdot d\\vec r = ${tn(end)}${u('J')}`] : [`W_{AB} = -mg(y_B - y_A)`, `= -${mg}(${num(B[1] - A[1])}) = ${tn(end)}${u('J')}`]),
+    ];
+  }
+  if (f === 'spring') {
+    const r2 = sq(rel(here.p));
+    const rA2 = sq(rel(A));
+    const k = `\\tfrac12(${num(K_SPRING)})`;
+    return [
+      `W_s = -\\tfrac12 k(r^2 - r_A^2)`,
+      `= -${k}(${tn(r2, sigFit([r2], (q) => -0.5 * K_SPRING * (q - rA2), W))} - ${num(rA2)}) = ${tn(W)}${u('J')}`,
+      ...(p.closed
+        ? [`\\oint \\vec F_s\\cdot d\\vec r = ${tn(end)}${u('J')}`]
+        : [`W_{AB} = -\\tfrac12 k(r_B^2 - r_A^2)`, `= -${k}(${num(sq(rel(B)))} - ${num(rA2)}) = ${tn(end)}${u('J')}`]),
+    ];
+  }
+  const fk = `(${num(MU_K)})${mg}`;
+  return [
+    `W_f = -\\mu_k mg\\,s`,
+    `= -${fk}(${tn(s, sigFit([s], (q) => -MU_K * MASS * G * q, W))}) = ${tn(W)}${u('J')}`,
+    `${p.closed ? '\\oint \\vec f_k\\cdot d\\vec r' : 'W_{AB}'} = -\\mu_k mg\\,L`,
+    `= -${fk}(${tn(pw.L, sigFit([pw.L], (q) => -MU_K * MASS * G * q, end))}) = ${tn(end)}${u('J')}`,
+  ];
+}
+
 export const pathScene: Scene<P, S> = {
   id: 'path',
   title: 'ch08.p.scene',
@@ -237,6 +284,8 @@ export const pathScene: Scene<P, S> = {
     { label: 's', unit: 'm', value: (st, p) => Math.min(st.t * SPEED, current(p).L) },
     { label: 'W', unit: 'J', value: (st, p) => along(current(p), forceOf(p), st.t * SPEED).W },
   ],
+
+  formula: (st, p) => formulaLines(st, p),
 
   info: {
     goals: ['ch08.p.goal.cons', 'ch08.p.goal.fric'],
