@@ -38,16 +38,20 @@ export function initParticles(N: number, rng: Rng, speed = 0.45): Particles {
   return p;
 }
 
-/** Free flight with specular walls (no partition). */
-export function moveParticles(p: Particles, h: number): void {
+/**
+ * Free flight with specular walls. While `closed`, the partition at x = 1 is a wall too, so the
+ * gas (all of it starts on the left) stays in the left half.
+ */
+export function moveParticles(p: Particles, h: number, closed = false): void {
+  const right = closed ? 1 : 2;
   for (let i = 0; i < p.N; i++) {
     let x = p.x[i] + p.vx[i] * h;
     let y = p.y[i] + p.vy[i] * h;
     if (x < 0) {
       x = -x;
       p.vx[i] = -p.vx[i];
-    } else if (x > 2) {
-      x = 4 - x;
+    } else if (x > right) {
+      x = 2 * right - x;
       p.vx[i] = -p.vx[i];
     }
     if (y < 0) {

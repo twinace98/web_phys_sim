@@ -1,9 +1,11 @@
-// Ch 20 scene: free expansion. The partition is removed at t = 0; the macrostate n (particles in
-// the left half) wanders towards N/2, where the number of microstates W = C(N, n) is largest.
+// Ch 20 scene: free expansion. The gas starts in the left half behind a partition; the user removes
+// it (button under the box, or a tap on the partition). The macrostate n (particles in the left
+// half) then wanders towards N/2, where the number of microstates W = C(N, n) is largest.
 import { fmtTick } from '../../core/format';
-import type { ParamSchema, Scene, Vec2 } from '../../core/types';
+import { t as tr } from '../../core/i18n';
+import type { Handle, ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { drawRich } from '../../draw/text';
+import { drawRich, measureRich } from '../../draw/text';
 import { ROLE_COLOR, theme } from '../../draw/theme';
 import { chart, inPanel, split, stageRect, TICK, type Rect } from '../ch18/panels';
 import { entropyLR, initParticles, leftCount, lnBinom, moveParticles, type Particles } from './physics';
@@ -13,7 +15,12 @@ interface S {
   t: number;
   part: Particles;
   n: number;
+  /** Partition removed (by the user). */
+  open: boolean;
 }
+
+/** Where the remove button and the partition were drawn last frame [stage world coords]. */
+let lastHit: { button: Vec2 | null; wall: Vec2 | null } = { button: null, wall: null };
 
 const BLUE = ROLE_COLOR.position;
 const HL = ROLE_COLOR.velocity;
@@ -35,7 +42,13 @@ const params: ParamSchema<P> = {
 };
 
 function drawBox(g: Draw, r: Rect, s: S, p: P): void {
-  inPanel(g, r, { x: [-0.05, 2.05], y: [-0.05, 1.12], aspect: 'contain', padPx: 8 }, (d) => {
+  // Room under the box for the remove button.
+  inPanel(g, r, { x: [-0.05, 2.05], y: [-0.4, 1.12], aspect: 'contain', padPx: 8 }, (d) => {
+    // Panel px → stage world (the panel is drawn translated by r.x, r.y).
+    const toStage = (px: number, py: number): Vec2 => {
+      const [x, y] = g.vp.toWorld(r.x + px, r.y + py);
+      return { x, y };
+    };
     const box: Vec2[] = [
       { x: 0, y: 0 },
       { x: 2, y: 0 },
@@ -44,8 +57,32 @@ function drawBox(g: Draw, r: Rect, s: S, p: P): void {
       { x: 0, y: 0 },
     ];
     d.polyline(box, { color: WALL, width: 2.5 });
-    if (s.t === 0) d.line({ x: 1, y: 0 }, { x: 1, y: 1 }, { color: WALL, width: 4 });
-    else d.line({ x: 1, y: 0 }, { x: 1, y: 1 }, { color: '#c8c8c8', width: 1, dash: [4, 5] });
+    if (!s.open) {
+      d.line({ x: 1, y: 0 }, { x: 1, y: 1 }, { color: WALL, width: 4 });
+      // Remove button centred under the partition.
+      const label = tr('ch20.e.remove');
+      // 8 px clear of the box at any scale (the button is 24 px tall).
+      const [cx, by] = d.vp.toPx(1, 0);
+      const cy = by + 20;
+      const w = measureRich(g.ctx, label, { size: 12 }) + 18;
+      const hgt = 24;
+      const ctx = g.ctx;
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(cx - w / 2, cy - hgt / 2, w, hgt, 5);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.lineWidth = 1.25;
+      ctx.strokeStyle = WALL;
+      ctx.stroke();
+      ctx.restore();
+      drawRich(ctx, label, cx, cy + 0.5, { size: 12, color: '#1a1a1a', align: 'center', baseline: 'middle' });
+      const [wx, wy] = d.vp.toPx(1, 0.5);
+      lastHit = { button: toStage(cx, cy), wall: toStage(wx, wy) };
+    } else {
+      d.line({ x: 1, y: 0 }, { x: 1, y: 1 }, { color: '#c8c8c8', width: 1, dash: [4, 5] });
+      lastHit = { button: null, wall: null };
+    }
     // Radius in box units (box height 1), so particles shrink with the box on a narrow screen.
     const rBox = p.N <= 10 ? 0.025 : p.N <= 100 ? 0.014 : 0.0078;
     const rPx = Math.max(1.2, rBox / d.px(1));
@@ -125,13 +162,26 @@ export const expansionScene: Scene<P, S> = {
   world: () => ({ x: [0, 1], y: [0, 1], aspect: 'contain' }),
   init: (p, rng) => {
     const part = initParticles(p.N, rng);
-    return { t: 0, part, n: leftCount(part) };
+    return { t: 0, part, n: leftCount(part), open: false };
   },
   step: (s, h) => {
     s.t += h;
-    moveParticles(s.part, h);
+    moveParticles(s.part, h, !s.open);
     s.n = leftCount(s.part);
   },
+
+  // Remove the partition: the button under the box, or a tap on the partition itself.
+  handles: (['button', 'wall'] as const).map(
+    (which): Handle<S, P> => ({
+      radiusPx: which === 'button' ? 22 : 18,
+      when: () => lastHit[which] !== null,
+      pos: () => lastHit[which] ?? { x: -1e6, y: -1e6 },
+      onDrag: () => {},
+      onTap: (_ctx, s) => {
+        s.open = true;
+      },
+    }),
+  ),
   record: (s, p) => ({ t: s.t, n: s.n, S: entropyLR(p.N, s.n) }),
 
   draw: (g, s, p) => {
@@ -164,7 +214,7 @@ export const expansionScene: Scene<P, S> = {
 
   info: {
     goals: ['ch20.e.goal.S', 'ch20.e.goal.irr'],
-    observe: ['ch20.e.obs.peak', 'ch20.e.obs.small', 'ch20.e.obs.large', 'ch20.e.obs.S'],
+    observe: ['ch20.e.obs.remove', 'ch20.e.obs.peak', 'ch20.e.obs.small', 'ch20.e.obs.large', 'ch20.e.obs.S'],
     equations: ['W(n) = \\binom{N}{n} = \\frac{N!}{n!\\,(N-n)!}', 'S = k \\ln W', 'P(n = N) = \\frac{1}{2^N}'],
     assumptions: ['ch20.e.assume'],
   },

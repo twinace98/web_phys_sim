@@ -17,6 +17,8 @@ import {
   sumRange,
 } from '../src/sims/ch20/physics';
 import { heatScene, relDiff, temps } from '../src/sims/ch20/heat';
+import { expansionScene } from '../src/sims/ch20/expansion';
+import { probe } from './stage-probe';
 import { cycle, entropy, heatSplit, temp } from '../src/sims/ch18/physics';
 
 describe('ch20 counting', () => {
@@ -198,5 +200,56 @@ describe('ch20 Carnot cycle', () => {
         expect(temp(c.corners[2])).toBeCloseTo(tc, 9);
       }
     }
+  });
+});
+
+describe('ch20 free expansion: the user removes the partition', () => {
+  const run = (open: boolean, steps: number) => {
+    const p = defaults(expansionScene.params);
+    const r = new Runner(expansionScene, p, 7);
+    if (open) r.state.open = true;
+    r.play();
+    for (let i = 0; i < steps; i++) r.advance(1 / 60);
+    return r;
+  };
+
+  it('with the partition in place the gas stays on the left (n = N, S = 0) while it runs', () => {
+    const r = run(false, 1200);
+    expect(r.state.open).toBe(false);
+    expect(r.state.n).toBe(10);
+    for (let i = 0; i < r.state.part.N; i++) expect(r.state.part.x[i]).toBeLessThanOrEqual(1);
+    expect(Math.max(...r.hist.col('S'))).toBe(0);
+  });
+
+  it('a tap on the button or on the partition removes it; then the gas spreads towards N/2', () => {
+    const p = defaults(expansionScene.params);
+    const r = new Runner(expansionScene, p, 7);
+    const g = probe(expansionScene, r.state, p, 1280, 520);
+    expect(g).toBeTruthy();
+    const hs = expansionScene.handles!;
+    expect(hs.every((h) => h.when?.(p) ?? true)).toBe(true);
+    // Both handles sit on the stage.
+    for (const h of hs) {
+      const [x, y] = g.vp.toPx(h.pos(r.state, p).x, h.pos(r.state, p).y);
+      expect(x > 0 && x < 1280 && y > 0 && y < 520).toBe(true);
+    }
+    hs[0].onTap!(r.ctx(() => {}), r.state);
+    expect(r.state.open).toBe(true);
+    probe(expansionScene, r.state, p, 1280, 520);
+    expect(hs.every((h) => !(h.when?.(p) ?? true))).toBe(true);
+    r.play();
+    for (let i = 0; i < 1800; i++) r.advance(1 / 60);
+    const n = r.hist.col('n');
+    const late = n.slice(-200);
+    const mean = late.reduce((a, b) => a + b, 0) / late.length;
+    expect(mean).toBeGreaterThan(3);
+    expect(mean).toBeLessThan(7);
+  });
+
+  it('reset puts the partition back', () => {
+    const r = run(true, 60);
+    r.reset();
+    expect(r.state.open).toBe(false);
+    expect(r.state.n).toBe(10);
   });
 });

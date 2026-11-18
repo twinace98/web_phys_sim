@@ -13,7 +13,6 @@ type P = { kind: string; f: number; p: number; h: number };
 type Element = 'lens' | 'mirror';
 
 /** Half-width of the drawn axis for short focal lengths [cm]. */
-const XW0 = 60;
 const OBJ = ROLE_COLOR.position;
 const IMG = ROLE_COLOR.velocity;
 const RAY_COLORS = ['#009E73', '#CC79A7', '#E69F00'];
@@ -27,14 +26,16 @@ export function focal(kind: string, f: number): number {
 
 const fOf = (p: P) => focal(p.kind, p.f);
 
+/** Half-width of the drawn axis [cm], the same for every element. */
+const XW = 70;
+
 /**
- * Half-width of the drawn axis: 60 cm, or 3.2 f for a long converging focal length, so the real
- * image of the farthest object and a virtual image up to m ≈ 4 stay on the stage. It depends on
- * f only, never on p: dragging the object must not rescale the stage under the pointer.
+ * Half-width of the drawn axis: fixed, never depending on f or p, so changing the focal length
+ * (or dragging the object) shows the image move, grow and flip on an unchanged stage. 70 cm keeps
+ * the real image of the farthest object at the longest focal length (p = 55, f = 30: i = 66) on it.
  */
-export function halfWidth(kind: string, f: number): number {
-  const ff = focal(kind, f);
-  return Number.isFinite(ff) && ff > 0 ? Math.max(XW0, 3.2 * ff) : XW0;
+export function halfWidth(_kind: string, _f: number): number {
+  return XW;
 }
 
 const narrow = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
@@ -56,7 +57,8 @@ interface Geo {
 
 const geoOf = (p: P, k: number): Geo => {
   const xw = halfWidth(p.kind, p.f);
-  return { xw, yw: xw / 3, k, u: xw / XW0 };
+  // u = 1: drawing sizes (aperture, sag) in cm, independent of the fixed stage width.
+  return { xw, yw: xw / 3, k, u: 1 };
 };
 
 /** World box; on a narrow stage with room above the diagram for the formula panel. */
@@ -106,7 +108,9 @@ function params(el: Element): ParamSchema<P> {
       min: 2,
       max: 55,
       step: 0.5,
-      default: 25,
+      // 18 cm: the f slider (5–30) crosses p/2 = 9 and p = 18, so it shows a reduced real image,
+      // an enlarged real image and an upright virtual image in turn.
+      default: 18,
       unit: 'cm',
     },
     h: { kind: 'number', label: 'ch34.p.h', desc: 'ch34.d.h', group: 'hidden', live: true, control: 'slider', min: 2, max: 8, step: 0.5, default: 5 },
@@ -258,9 +262,12 @@ function focalMarks(g: Draw, el: Element, p: P, G: Geo, labels: boolean, obs: Ob
     else boxText(g, { x: wx, y: wy }, s, { size: 13, color: TICK, align: 'center' });
   };
   if (el === 'lens') {
-    // Rays cross F1 from upper left to lower right and leave F2 toward lower right.
-    mark(-Math.abs(f), '*F*_{1}', -7, 12, 'right');
-    mark(Math.abs(f), '*F*_{2}', 7, -12, 'left');
+    // Halliday: incident parallel rays pass through F2 (converging, far side) or seem to come from
+    // it (diverging, object side); a ray aimed at F1 leaves parallel. So F1/F2 swap sides when f < 0.
+    const near = f > 0 ? '*F*_{1}' : '*F*_{2}';
+    const far = f > 0 ? '*F*_{2}' : '*F*_{1}';
+    mark(-Math.abs(f), near, -7, 12, 'right');
+    mark(Math.abs(f), far, 7, -12, 'left');
   } else {
     // Concave: F and C in front (x < 0); convex: behind the mirror.
     mark(-f, '*F*', 0, 18, 'center');
@@ -463,13 +470,13 @@ function makeScene(el: Element): Scene<P, { t: number }> {
       el === 'lens'
         ? {
             goals: ['ch34.l.goal.rays', 'ch34.l.goal.sign'],
-            observe: ['ch34.l.obs.drag', 'ch34.l.obs.2f', 'ch34.l.obs.f', 'ch34.l.obs.inside', 'ch34.l.obs.div'],
+            observe: ['ch34.l.obs.drag', 'ch34.l.obs.f2', 'ch34.l.obs.2f', 'ch34.l.obs.f', 'ch34.l.obs.inside', 'ch34.l.obs.div'],
             equations: ['\\frac{1}{p} + \\frac{1}{i} = \\frac{1}{f}', 'm = -\\frac{i}{p}'],
             assumptions: ['ch34.assume.thin', 'ch34.l.assume.sign'],
           }
         : {
             goals: ['ch34.m.goal.rays', 'ch34.m.goal.sign'],
-            observe: ['ch34.m.obs.drag', 'ch34.m.obs.inside', 'ch34.m.obs.convex', 'ch34.m.obs.plane'],
+            observe: ['ch34.m.obs.drag', 'ch34.m.obs.f2', 'ch34.m.obs.inside', 'ch34.m.obs.convex', 'ch34.m.obs.plane'],
             equations: ['\\frac{1}{p} + \\frac{1}{i} = \\frac{1}{f}, \\quad f = \\frac{r}{2}', 'm = -\\frac{i}{p}'],
             assumptions: ['ch34.assume.thin', 'ch34.m.assume.sign'],
           },
