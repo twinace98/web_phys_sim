@@ -4,8 +4,8 @@ import { Runner } from '../src/core/runner';
 import { first, firstStep, FIRST_G } from '../src/sims/ch05/first';
 import { frames } from '../src/sims/ch05/frames';
 import { newton } from '../src/sims/ch05/newton';
-import { ballGround, ballInTrain, cartsAt, netForce, pushState, trainAt, type Train } from '../src/sims/ch05/physics';
-import { third } from '../src/sims/ch05/third';
+import { ballGround, ballInTrain, bumperAt, contactWindow, netForce, peakForce, pushState, trainAt, type Bumper, type Train } from '../src/sims/ch05/physics';
+import { bumperOf, third } from '../src/sims/ch05/third';
 
 const run = (scene: any, p: any): Runner<any, any> => {
   const r = new Runner(scene, p);
@@ -108,34 +108,81 @@ describe('ch05 first law', () => {
   });
 });
 
-describe('ch05 third law', () => {
-  const c = { mA: 1, mB: 2, F: 2, tc: 1 };
+describe('ch05 third law: spring bumper', () => {
+  const base: Bumper = { mA: 3, mB: 1, k: 50, L0: 1, mode: 'collide', v0: 2, t1: 0.6, c0: 0.5 };
+  const cases: Bumper[] = [
+    base,
+    { ...base, mA: 0.5, mB: 5, v0: 3, k: 30 },
+    { ...base, mA: 5, mB: 0.5, k: 150 },
+    { ...base, mode: 'release' },
+    { ...base, mode: 'release', mA: 0.5, mB: 5, k: 150 },
+  ];
 
-  it('forces are equal and opposite; accelerations are inversely proportional to mass', () => {
-    for (const t of [0, 0.3, 0.99]) {
-      const k = cartsAt(c, t);
-      expect(k.FA).toBe(-k.FB);
-      expect(k.FB).toBe(2);
-      expect(c.mA * k.A.a).toBeCloseTo(-c.mB * k.B.a, 12);
-      expect(Math.abs(k.A.a) / Math.abs(k.B.a)).toBeCloseTo(c.mB / c.mA, 12);
+  it('F_AB = -F_BA at every instant, from the compression alone, for any masses', () => {
+    for (const b of cases) {
+      const [t0, t2] = contactWindow(b);
+      for (let i = 0; i <= 50; i++) {
+        const t = Math.max(0, t0 - 0.1) + ((t2 + 0.1 - Math.max(0, t0 - 0.1)) * i) / 50;
+        const k = bumperAt(b, t);
+        expect(k.FA + k.FB).toBe(0);
+        expect(k.FB).toBeCloseTo(b.k * Math.max(0, b.L0 - (k.B.x - k.A.x)), 9);
+        expect(b.mA * k.A.a).toBeCloseTo(-b.mB * k.B.a, 9);
+      }
     }
   });
 
-  it('after contact both move uniformly; total momentum stays zero', () => {
-    for (const t of [0.4, 1.5, 2.9]) {
-      const k = cartsAt(c, t);
-      expect(c.mA * k.A.v + c.mB * k.B.v).toBeCloseTo(0, 12);
+  it('the force varies in time, peaking at v0 sqrt(k mu) (collide) or k c0 (release)', () => {
+    for (const b of cases) {
+      const [t0, t2] = contactWindow(b);
+      const Fs = Array.from({ length: 401 }, (_, i) => bumperAt(b, t0 + ((t2 - t0) * i) / 400).FB);
+      expect(Math.max(...Fs)).toBeCloseTo(peakForce(b), 6);
+      expect(Math.min(...Fs)).toBeLessThan(0.01 * peakForce(b));
+      // Never bottoms out: the compression stays below the bumper length.
+      for (const t of [0.25, 0.5, 0.75].map((f) => t0 + f * (t2 - t0))) expect(bumperAt(b, t).c).toBeLessThan(b.L0);
     }
-    const k = cartsAt(c, 2);
-    expect(k.FA).toBe(0);
-    expect(k.A.a).toBe(0);
-    expect(k.B.v).toBeCloseTo(1, 12);
   });
 
-  it('the scene records the force on A and stops at 3 s', () => {
-    const r = run(third, defaults(third.params));
-    expect(r.state.t).toBeCloseTo(3, 12);
-    expect(Math.min(...r.hist.col('FA'))).toBe(-2);
+  it('momentum is conserved and the collision is elastic (1-D elastic result)', () => {
+    for (const b of cases) {
+      const p0 = bumperAt(b, 0);
+      const [, t2] = contactWindow(b);
+      const p1 = bumperAt(b, t2 + 0.5);
+      const P = (k: ReturnType<typeof bumperAt>) => b.mA * k.A.v + b.mB * k.B.v;
+      expect(P(p1)).toBeCloseTo(P(p0), 9);
+      expect(p1.FA).toBe(0);
+      if (b.mode === 'collide') {
+        const M = b.mA + b.mB;
+        expect(p1.A.v).toBeCloseTo(((b.mA - b.mB) / M) * b.v0, 9);
+        expect(p1.B.v).toBeCloseTo(((2 * b.mA) / M) * b.v0, 9);
+        // Velocities before contact: A at v0, B at rest; positions continuous at the contact.
+        expect(p0.A.v).toBe(b.v0);
+        expect(p0.B.v).toBe(0);
+        expect(bumperAt(b, b.t1).B.x - bumperAt(b, b.t1).A.x).toBeCloseTo(b.L0, 9);
+      } else {
+        expect(P(p1)).toBeCloseTo(0, 9);
+        // Spring energy becomes kinetic energy.
+        const K = 0.5 * b.mA * p1.A.v ** 2 + 0.5 * b.mB * p1.B.v ** 2;
+        expect(K).toBeCloseTo(0.5 * b.k * b.c0 ** 2, 9);
+      }
+    }
+  });
+
+  it('stiffer bumper: shorter contact and larger peak force, same final velocities', () => {
+    const soft = { ...base, k: 30 };
+    const hard = { ...base, k: 150 };
+    const dur = (b: Bumper) => contactWindow(b)[1] - contactWindow(b)[0];
+    expect(dur(hard)).toBeLessThan(dur(soft));
+    expect(peakForce(hard)).toBeGreaterThan(peakForce(soft));
+    expect(bumperAt(hard, 3).B.v).toBeCloseTo(bumperAt(soft, 3).B.v, 9);
+  });
+
+  it('the scene runs to the end of the contact + 1.5 s and records F_A = -k c', () => {
+    const p = defaults(third.params) as any;
+    const r = run(third, p);
+    const b = bumperOf(p);
+    expect(r.state.t).toBeCloseTo(contactWindow(b)[1] + 1.5, 9);
+    expect(Math.min(...r.hist.col('FA'))).toBeCloseTo(-peakForce(b), 2);
+    expect(r.state.FA).toBe(0);
   });
 });
 
@@ -181,10 +228,10 @@ describe('ch05 inertial frames', () => {
 
 describe('ch05 slider ranges', () => {
   it('every scene runs to its end at the slider extremes with finite worlds and states', () => {
-    const cases: [any, Record<string, number | boolean>[]][] = [
+    const cases: [any, Record<string, number | boolean | string>[]][] = [
       [newton, [{ m: 1, F: 5 }, { m: 5, F: 0.5 }]],
       [first, [{ v0: 1, mu: 0.3 }, { v0: 5, mu: 0 }, { v0: 5, mu: 0.3, push: true }]],
-      [third, [{ mA: 0.5, mB: 5, F: 5 }, { mA: 5, mB: 0.5, F: 0.5 }]],
+      [third, [{ mA: 0.5, mB: 5, v0: 3, k: 30 }, { mA: 5, mB: 0.5, k: 150 }, { mode: 'release', mA: 0.5, mB: 5, k: 150, fbd: true }]],
       [frames, [{ A: 0.5 }, { A: 2 }]],
     ];
     for (const [scene, list] of cases) {
