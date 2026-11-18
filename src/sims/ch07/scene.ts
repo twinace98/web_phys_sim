@@ -2,12 +2,14 @@
 // graph share one x axis. The signed area under F(x) from the start to the block (the work, as in
 // the Ch 2 area overlay) always equals the change ΔK on the K(x) graph and in the bars.
 import { fmt, fmtTick, niceTicks } from '../../core/format';
+import { num, tn, u } from '../../core/tex';
 import { t as tr } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { measureRich } from '../../draw/text';
 import { color, theme, withAlpha } from '../../draw/theme';
 import { LabelLayout } from '../ch03/labels';
+import { sigFit } from './sigfit';
 import { F_MAX, SEG, TRACK, force, kinetic, makeSetup, trajectory, work, type Preset, type Setup, type Trajectory } from './physics';
 
 type P = { preset: string; bars: boolean; custom: number[] };
@@ -179,6 +181,55 @@ function bandAxis(g: Draw, lo: number, hi: number, y: (v: number) => number, lab
   }
   if (lo < 0 && hi > 0) g.line({ x: 0, y: y(0) }, { x: TRACK, y: y(0) }, { color: GUIDE, width: 1 });
   g.text({ x: 0, y: top }, label, { size: 13, color: '#1a1a1a', dx: 6, dy: -4 });
+}
+
+/**
+ * Σ panel: F at the block, the work as the area under F(x) (segment by segment, or the spring's
+ * closed form), K and ΔK, so that W_net = ΔK can be read off the two results.
+ */
+export function formulaLines(s: S, p: P): string[] {
+  const { su } = model(p);
+  const m = su.m;
+  const K = kinetic(m, s.v);
+  const dK = K - kinetic(m, su.v0);
+  const W = work(su.prof, su.x0, s.x);
+  const F = force(su.prof, s.x);
+  const lines: string[] = [];
+  if (su.prof.kind === 'spring') {
+    const k = su.prof.k;
+    lines.push(`F = -kx = -(${num(k)})(${tn(s.x)}) = ${tn(F)}${u('N')}`);
+    // Two squares subtracted: x with enough digits that the shown arithmetic gives W.
+    const sg = sigFit([s.x], (x) => -0.5 * k * (x * x - su.x0 * su.x0), W);
+    lines.push(`W = \\int_{x_0}^{x} F\\,dx = -\\tfrac12 k(x^2 - x_0^2)`, `= -\\tfrac12(${num(k)})[(${tn(s.x, sg)})^2 - (${num(su.x0)})^2] = ${tn(W)}${u('J')}`);
+  } else {
+    const prof = su.prof;
+    lines.push(`F(${tn(s.x)}${u('m')}) = ${tn(F)}${u('N')}`);
+    // Signed area: F_i Δx_i over the segments between x_0 and x (x ≥ x_0 on these tracks).
+    const lo = Math.min(su.x0, s.x);
+    const hi = Math.max(su.x0, s.x);
+    const n = prof.Fs.length;
+    const terms: { F: number; dx: number }[] = [];
+    for (let i = 0; i < n; i++) {
+      const a = i === 0 ? -Infinity : prof.xs[i];
+      const b = i === n - 1 ? Infinity : prof.xs[i + 1];
+      const l = Math.max(lo, a);
+      const r = Math.min(hi, b);
+      if (r - l > 1e-9) terms.push({ F: prof.Fs[i], dx: r - l });
+    }
+    if (!terms.length) lines.push(`W = \\int_{x_0}^{x} F\\,dx = ${tn(0)}${u('J')}`);
+    else {
+      const sg = sigFit(
+        terms.map((q) => q.dx),
+        (...d) => d.reduce((acc, dx, i) => acc + terms[i].F * dx, 0),
+        W,
+      );
+      const sum = terms.map((q) => `(${num(q.F)})(${Number.isInteger(q.dx) ? num(q.dx) : tn(q.dx, sg)})`).join(' + ');
+      lines.push(`W = \\int_{x_0}^{x} F\\,dx = \\sum_i F_i\\,\\Delta x_i`, `= ${sum} = ${tn(W)}${u('J')}`);
+    }
+  }
+  lines.push(`K = \\tfrac12 mv^2 = \\tfrac12(${num(m)})(${tn(s.v)})^2 = ${tn(K)}${u('J')}`);
+  lines.push(`\\Delta K = \\tfrac12 m(v^2 - v_0^2)`, `= \\tfrac12(${num(m)})[(${tn(s.v, sigFit([s.v], (v) => 0.5 * m * (v * v - su.v0 * su.v0), dK))})^2 - ${num(su.v0)}^2] = ${tn(dK)}${u('J')}`);
+  return lines;
 }
 
 export const workEnergy: Scene<P, S> = {
@@ -374,6 +425,8 @@ export const workEnergy: Scene<P, S> = {
     { label: 'v', unit: 'm/s', value: (s) => s.v },
     { label: 'K', unit: 'J', value: (s, p) => kinetic(model(p).su.m, s.v) },
   ],
+
+  formula: (s, p) => formulaLines(s, p),
 
   info: {
     goals: ['ch07.goal.area', 'ch07.goal.theorem'],
