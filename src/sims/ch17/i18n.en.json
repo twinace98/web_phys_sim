@@ -29,11 +29,13 @@
   "ch17.d.goal.source": "When the source or the observer moves, the heard frequency changes: higher when approaching, lower when receding",
   "ch17.d.goal.mach": "A source faster than sound piles its wavefronts into a cone: a shock wave (Mach cone)",
   "ch17.d.obs.spacing": "Moving source: fronts are crowded ahead (towards A) and spread out behind (towards B)",
-  "ch17.d.obs.count": "An observer's ring flashes black when a front arrives; flashes per second = heard frequency",
+  "ch17.d.obs.count": "An observer's ring flashes black when a front arrives. For a source slower than sound, flashes per second = heard frequency; before the first front arrives the readout is empty (–)",
   "ch17.d.obs.v": "Source speed 340 m/s (equal to the speed of sound): the fronts ahead all pile up on the source; no sound reaches A ahead of it",
   "ch17.d.obs.cone": "Source speed 510 m/s: Mach cone with half-angle $\\sin\\theta = v/v_S = 0.67$",
+  "ch17.d.obs.boom": "Source speed 510 m/s: once the cone has passed B, two sounds arrive together: the sound sent back after the pass, $f'_B = fv/(v + v_S) = 40$ Hz, and the sound sent towards B on approach, $f'_{B2} = fv/(v_S - v) = 200$ Hz (later fronts arrive first, in reverse order). B flashes at the sum of both (about 240 per second)",
   "ch17.d.obs.observer": "Moving observers: the fronts stay concentric; A, moving towards the source, meets them more often, B less often",
   "ch17.d.assume.medium": "Still air, speed of sound $v = 340\\ \\text{m/s}$, source frequency $f = 100\\ \\text{Hz}$ (wavelength 3.4 m). One front is drawn per period",
-  "ch17.d.assume.slow": "Shown at 1/40 of real speed",
+  "ch17.d.assume.start": "The source has been sounding since before the run: below the speed of sound, long enough for its sound to reach A from the start (at most 6 s). Each flash is short (at most 0.4 of the heard period), so flashes stay apart even at high frequencies",
+  "ch17.d.assume.slow": "Shown at 1/40 of real speed; above a heard frequency of 600 Hz, slower in proportion (330 m/s: about 1/230), with the run cut to at most 12 s at 1×",
   "ch17.b.phasor": "Phasors"
 }

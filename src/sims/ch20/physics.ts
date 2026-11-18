@@ -84,6 +84,17 @@ export const lnOmega = (N: number, q: number) => (q === 0 ? 0 : lnBinom(q + N - 
 /** kT/ε from 1/T = ∂S/∂E (large-N form): kT/ε = 1 / ln(1 + N/q); zero for q = 0. */
 export const kTeps = (N: number, q: number) => (q <= 0 ? 0 : 1 / Math.log(1 + N / q));
 
+/**
+ * Exact slope d(ln Ω)/dq of ln Ω(N, q) = ln Γ(q + N) − ln Γ(q + 1) − ln Γ(N) at an integer q:
+ * ψ(q + N) − ψ(q + 1) = 1/(q + 1) + 1/(q + 2) + … + 1/(q + N − 1). For large N and q it tends to
+ * ln(1 + N/q), the slope behind kTeps.
+ */
+export function dlnOmega(N: number, q: number): number {
+  let s = 0;
+  for (let k = q + 1; k <= q + N - 1; k++) s += 1 / k;
+  return s;
+}
+
 /** Most probable q_A when q quanta are shared by solids of NA and NB oscillators. */
 export function mostProbable(NA: number, NB: number, q: number): number {
   let best = 0;
