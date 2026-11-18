@@ -25,6 +25,7 @@ import {
   type Motion,
 } from '../src/sims/review/buoyancy/physics';
 import { FLUIDS, buoyancyScene, fluidName, fluidOf, formulaLines, forcesOf } from '../src/sims/review/buoyancy/scene';
+import { NUM, agrees, grab, val } from './sigma-digits';
 
 const water: Fluid = { rho: 1000 };
 
@@ -247,5 +248,88 @@ describe('buoyancy scene', () => {
     r.state.held = false;
     for (let i = 0; i < 10; i++) r.advance(0.02);
     expect(r.state.y).toBeLessThan(0.6);
+  });
+});
+
+describe('buoyancy Σ: units, the hand while held, printed inputs reproduce the results', () => {
+  const R = (s: string) => new RegExp(s.replace(/N#/g, `(${NUM})`));
+  const p0 = defaults(buoyancyScene.params);
+  /** Value of "78.5 - 47.1 + (-31.4)" as printed. */
+  const sum = (expr: string) =>
+    expr
+      .replace(/[()]/g, '')
+      .replace(/\\times 10\^\{(-?\d+)\}/g, 'e$1')
+      .split(' ')
+      .reduce<[number, number]>(([acc, sg], tok) => (tok === '-' ? [acc, -1] : tok === '+' ? [acc, 1] : [acc + sg * val(tok), 1]), [0, 1])[0];
+
+  function check(s: { y: number; v: number; held: boolean }, p: typeof p0, tag: string): string[] {
+    const bad: string[] = [];
+    const f = formulaLines(s, p);
+    for (const i of [0, 1]) {
+      const [rho, V, g, F] = grab(f[i], R(String.raw`= \(N#\)\(N#\)\(N#\) = N#\\ \\mathrm\{N\}$`));
+      if (!agrees(val(rho) * val(V) * val(g), F)) bad.push(`${tag} ${f[i]}`);
+    }
+    const [pb, pt, A, F] = grab(f[2], R(String.raw`= \(N# - N#\)\\ \\mathrm\{Pa\} \\times N#\\ \\mathrm\{m\^2\} = N#\\ \\mathrm\{N\}$`));
+    if (!agrees((val(pb) - val(pt)) * val(A), F)) bad.push(`${tag} ${f[2]}`);
+    const [ro, rf, r] = grab(f[3], R(String.raw`= \\frac\{N#\}\{N#\} = N#`));
+    if (!agrees(val(ro) / val(rf), r)) bad.push(`${tag} ${f[3]}`);
+    const [expr, net] = grab(f[4], R(String.raw`= ([-+() \d.\\a-z^{}]+) = N#\\ \\mathrm\{N\}$`));
+    if (!agrees(sum(expr), net)) bad.push(`${tag} ${f[4]}`);
+    if (s.held && net !== '0') bad.push(`${tag} held but F_net ≠ 0: ${f[4]}`);
+    return bad;
+  }
+
+  it('review case: the default block held under water shows F_net = 0 with the hand force (was 31.4 N)', () => {
+    const s = { y: 0.1, v: 0, held: true };
+    const f = formulaLines(s, p0);
+    expect(f[4]).toMatch(/\+ F_\\text\{[^}]+\}/);
+    expect(f[4]).toContain('+ (-31.4)');
+    expect(f[4]).toMatch(/= 0\\ \\mathrm\{N\}$/);
+    expect(check(s, p0, 'held')).toEqual([]);
+    // Released at the same place: the net force is the unbalanced 31.4 N, no hand term.
+    const free = formulaLines({ ...s, held: false }, p0)[4];
+    expect(free).not.toMatch(/\+ F_\\text\{/);
+    expect(free).toMatch(/= 31\.4\\ \\mathrm\{N\}$/);
+  });
+
+  it('pressures in Pa, so Pa × m² = N (no kPa × m² written as N)', () => {
+    const f = formulaLines({ y: 0.1, v: 0, held: false }, p0);
+    expect(f[2]).not.toContain('kPa');
+    expect(f[2]).toContain('\\ \\mathrm{Pa} \\times');
+    // Was (3.07 - 1.10) kPa × 0.0400 m² = 78.5 N.
+    expect(f[2]).toMatch(/= \(3066 - 1104\)\\ \\mathrm\{Pa\} \\times 0\.0400\\ \\mathrm\{m\^2\} = 78\.5\\ \\mathrm\{N\}$/);
+  });
+
+  it('every line over densities, sizes, positions, speeds, held or free', () => {
+    const bad: string[] = [];
+    for (const rhoO of [50, 600, 917, 2700, 20000])
+      for (const rhoF of [500, 1000, 1025, 13600, 15000])
+        for (const a of [0.1, 0.2, 0.37, 0.4])
+          for (const y of [0, 0.05, 0.17, 0.3, 0.38, 0.41, 0.6].filter((yy) => yy <= 0.84 - a))
+            for (const [v, held] of [
+              [0, false],
+              [0, true],
+              [0.8, false],
+              [-1.3, false],
+            ] as const) {
+              const p = { ...p0, rhoO, rhoF, a };
+              bad.push(...check({ y, v, held }, p, JSON.stringify({ rhoO, rhoF, a, y, v, held })));
+            }
+    // And along free runs.
+    for (const [rhoO, y] of [
+      [600, 0.1],
+      [50, 0],
+      [7870, 0.5],
+    ]) {
+      const p = { ...p0, rhoO };
+      const r = new Runner(buoyancyScene, p, 1);
+      r.state.y = y;
+      r.play();
+      for (let i = 0; i < 300; i++) {
+        r.advance(0.02);
+        bad.push(...check(r.state, p, `run ${rhoO} t=${r.state.t.toFixed(2)}`));
+      }
+    }
+    expect(bad.length, bad.slice(0, 5).join('\n')).toBe(0);
   });
 });

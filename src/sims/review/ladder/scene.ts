@@ -5,10 +5,12 @@
 // speed v; at d = d_c the friction needed reaches μs N and the ladder slips (one degree of freedom θ,
 // kinetic friction μk N at the foot) until the top leaves the wall or the ladder lies flat.
 import { fmt } from '../../../core/format';
+import { tn, tp } from '../../../core/tex';
 import type { ParamSchema, Scene, Vec2, WorldSpec } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
 import { theme } from '../../../draw/theme';
 import { LabelLayout } from '../../ch03/labels';
+import { sigFit } from '../../ch07/sigfit';
 import {
   G,
   advanceRun,
@@ -459,26 +461,42 @@ export const ladderScene: Scene<P, S> = {
       const thc = criticalAngle(q);
       const dc = criticalPosition({ theta: p.theta * DEG, L, m: p.m, M: p.M, mu: p.mu });
       const ts = onsetTime(p);
+      // Inputs of each line with enough figures that their arithmetic gives the printed result.
+      const mg = p.m * G;
+      const Mg = p.M * G;
+      const sw = sigFit([mg, e.armMg, Mg, e.armPerson, e.armWall], (a, b, c, d, w) => (a * b + c * d) / w, e.Fw);
+      const sn = sigFit([e.N], (n) => p.mu * n, e.fmax);
       const lines = [
         `\\sum\\tau_\\text{foot}:\\ F_w L\\sin\\theta = mg\\tfrac{L}{2}\\cos\\theta + Mg\\,d\\cos\\theta`,
-        `F_w = \\frac{(${nf(p.m * G)})(${nf(e.armMg)}) + (${nf(p.M * G)})(${nf(e.armPerson)})}{${nf(e.armWall)}} = ${nf(e.Fw)}\\ \\text{N}`,
-        `f = F_w = ${nf(e.f)}\\ \\text{N} ${e.slips ? '>' : '\\le'} \\mu_s N = (${nf(p.mu, 2)})(${nf(e.N)}) = ${nf(e.fmax)}\\ \\text{N}`,
+        `F_w = \\frac{(${tn(mg, sw)})(${tn(e.armMg, sw)}) + (${tn(Mg, sw)})(${tn(e.armPerson, sw)})}{${tn(e.armWall, sw)}} = ${nf(e.Fw)}\\ \\text{N}`,
+        `f = F_w = ${nf(e.f)}\\ \\text{N} ${e.slips ? '>' : '\\le'} \\mu_s N = (${nf(p.mu, 2)})(${tn(e.N, sn)}) = ${nf(e.fmax)}\\ \\text{N}`,
       ];
-      const thcLine = `\\tan\\theta_c = \\frac{m/2 + Md/L}{\\mu_s(m+M)} = \\frac{${nf(p.m / 2 + (p.M * s.d) / L)}}{${nf(p.mu * (p.m + p.M))}},\\ \\theta_c = ${nf(thc / DEG)}^\\circ`;
+      // μs = 0: no friction holds any lean, so the fraction would have a zero denominator.
+      const num = p.m / 2 + (p.M * s.d) / L;
+      const den = p.mu * (p.m + p.M);
+      const sc = sigFit([num, den], (a, b) => Math.atan2(a, b) / DEG, thc / DEG);
+      const thcLine =
+        p.mu > 0
+          ? `\\tan\\theta_c = \\frac{m/2 + Md/L}{\\mu_s(m+M)} = \\frac{${tn(num, sc)}}{${tn(den, sc)}},\\ \\theta_c = ${nf(thc / DEG)}^\\circ`
+          : `\\mu_s = 0:\\ \\mu_s N = 0 < F_w\\ (\\theta < 90^\\circ),\\ \\theta_c = 90^\\circ`;
       if (p.M > 0 && Number.isFinite(dc)) {
-        lines.push(`d_c = \\frac{L}{M}\\left[\\mu_s(m+M)\\tan\\theta - \\frac{m}{2}\\right] = ${nf(dc)}\\ \\text{m}${dc > L ? ' > L' : ''}`);
-        lines.push(ts !== null && ts > 0 ? `t_s = \\frac{d_c - d_0}{v} = \\frac{${nf(dc)} - ${nf(p.d)}}{${nf(p.v, 2)}} = ${nf(ts)}\\ \\text{s}` : thcLine);
+        const st = ts !== null && ts > 0 ? sigFit([dc, p.d], (a, b) => (a - b) / p.v, ts) : 3;
+        lines.push(`d_c = \\frac{L}{M}\\left[\\mu_s(m+M)\\tan\\theta - \\frac{m}{2}\\right] = ${tn(dc, st)}\\ \\text{m}${dc > L ? ' > L' : ''}`);
+        lines.push(ts !== null && ts > 0 ? `t_s = \\frac{d_c - d_0}{v} = \\frac{${tn(dc, st)} - ${tn(p.d, st)}}{${nf(p.v, 2)}} = ${nf(ts)}\\ \\text{s}` : thcLine);
       } else lines.push(thcLine);
       return lines;
     }
     const b = { L, m: p.m, M: p.M, d: s.d };
     const E = mechEnergy(b, s.th, s.om);
-    const muk = p.kr * p.mu;
+    // μk = (μk/μs) μs exactly as computed (0.32, 0.3145), N with the figures the product needs.
+    const muk = Number((p.kr * p.mu).toFixed(4));
+    const sk = sigFit([F.N], (n) => muk * n, F.f);
+    const se = sigFit([s.E0, E], (a, c) => a - c, s.E0 - E, 3, 4);
     return [
-      `f = \\mu_k N = (${nf(muk, 2)})(${nf(F.N)}\\ \\text{N}) = ${nf(F.f)}\\ \\text{N}`,
+      `f = \\mu_k N = (${muk})(${tn(F.N, sk)}\\ \\text{N}) = ${nf(F.f)}\\ \\text{N}`,
       `F_w = ${nf(F.Fw)}\\ \\text{N},\\ \\ddot\\theta = ${nf(F.alpha)}\\ \\text{rad/s}^2`,
       `\\theta = ${nf(s.th / DEG)}^\\circ,\\ \\dot\\theta = ${nf(s.om)}\\ \\text{rad/s},\\ t - t_s = ${nf((s.tStop ?? s.t) - s.tSlip, 3)}\\ \\text{s}`,
-      `E_0 - E = ${nf(s.E0, 4)} - ${nf(E, 4)} = ${nf(s.E0 - E)}\\ \\text{J} = W_f = ${nf(s.W)}\\ \\text{J}`,
+      `E_0 - E = ${tn(s.E0, se)} - ${tp(E, se)} = ${nf(s.E0 - E)}\\ \\text{J} = W_f = ${nf(s.W)}\\ \\text{J}`,
     ];
   },
 
