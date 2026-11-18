@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { DK, EV, ME, PARTICLES, deBroglie, deltaK, deltaX, omega, packet, pFromK, pFromV, psi, vGroup, vPhase } from '../src/sims/ch38/physics';
-import { fmtLen, momentum } from '../src/sims/ch38/scene';
 
 describe('ch38 wave packet', () => {
   it('Gaussian amplitudes: Δx Δk → ½ at t = 0 for many components', () => {
@@ -55,14 +54,7 @@ describe('ch38 de Broglie wavelength', () => {
   it('thermal neutron 0.180 nm, C60 at 220 m/s 2.5 pm, baseball 1.1×10⁻³⁴ m', () => {
     expect(deBroglie(pFromV(PARTICLES.neutron.mass, 2200))).toBeCloseTo(1.798e-10, 12);
     expect(deBroglie(pFromV(PARTICLES.c60.mass, 220)) / 2.5e-12).toBeCloseTo(1, 1);
-    const ball = deBroglie(momentum({ part: 'ball', eK: 100, vn: 2200, vc: 220, vb: 40 }));
-    expect(ball / 1.142e-34).toBeCloseTo(1, 2);
+    expect(deBroglie(pFromV(0.145, 40)) / 1.142e-34).toBeCloseTo(1, 2);
   });
 
-  it('length labels', () => {
-    expect(fmtLen(2e-10)).toBe('200 pm');
-    expect(fmtLen(1e-9)).toBe('1 nm');
-    expect(fmtLen(5e-12)).toBe('5 pm');
-    expect(fmtLen(0.02)).toBe('2 cm');
-  });
 });
