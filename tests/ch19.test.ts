@@ -19,7 +19,10 @@ import {
   pCum,
   pWin,
   pressureTop,
+  pressureExcess,
 } from '../src/sims/ch19/physics';
+import ko from '../src/sims/ch19/i18n.ko.json';
+import en from '../src/sims/ch19/i18n.en.json';
 import { gasScene } from '../src/sims/ch19/gas';
 
 describe('ch19 hard-disk gas', () => {
@@ -162,4 +165,62 @@ describe('ch19 hard-disk gas', () => {
       }
     }
   }, 60_000);
+});
+
+describe('ch19 excess over NkT/A: what the info panel claims', () => {
+  /** The "within about x %" bound stated in the info panel. */
+  const bound = (txt: string) => Number(/(?:약|about) (\d+(?:\.\d+)?) % (?:이내|at every)/.exec(txt)?.[1] ?? NaN) / 100;
+
+  it('the stated bound covers 2φ + σ/L at every N, L on the sliders (largest about 4.7 %)', () => {
+    let worst = 0;
+    for (let N = 20; N <= 1000; N += 10) for (let L = 15; L <= 30; L++) worst = Math.max(worst, pressureExcess(N, L));
+    expect(worst).toBeGreaterThan(0.045);
+    for (const msgs of [ko, en] as Record<string, string>[]) {
+      const b = bound(msgs['ch19.assume.dense']);
+      expect(b).toBeGreaterThanOrEqual(worst);
+      expect(b).toBeLessThan(worst + 0.01);
+    }
+  });
+
+  it('N = 100, L = 15 nm: long runs measure about 2φ + σ/L = 4.4 % above NkT/A, inside the stated bound', () => {
+    const N = 100;
+    const L = 15;
+    let sum = 0;
+    for (const seed of [1, 2]) {
+      const g = initGas(N, L, 300, 'mb', new Rng(seed));
+      for (let i = 0; i < 1_000_000; i++) {
+        stepGas(g, 0.01);
+        if (g.hits.length > 1000) g.hits.length = 0;
+      }
+      sum += g.J / (L * g.t) / idealPressure(N, L, 300) - 1;
+    }
+    const excess = sum / 2;
+    expect(pressureExcess(N, L)).toBeCloseTo(0.0438, 3);
+    expect(Math.abs(excess - pressureExcess(N, L))).toBeLessThan(0.012);
+    expect(excess).toBeGreaterThan(0.03);
+    expect(excess).toBeLessThan(bound(ko['ch19.assume.dense']));
+  }, 120_000);
+
+  it('collisions per molecule in one 200 ps run match the info panel: about 36 at the defaults, about 2 at N = 20, L = 30 nm, 100 K', () => {
+    const per = (N: number, L: number, T: number) => {
+      const g = initGas(N, L, T, 'equal', new Rng(3));
+      let n = 0;
+      const sp = new Float64Array(N);
+      for (let i = 0; i < 20000; i++) {
+        for (let k = 0; k < N; k++) sp[k] = Math.hypot(g.vx[k], g.vy[k]);
+        stepGas(g, 0.01);
+        // Walls keep the speed; a disk collision changes it.
+        for (let k = 0; k < N; k++) if (Math.abs(Math.hypot(g.vx[k], g.vy[k]) - sp[k]) > 1e-9) n++;
+      }
+      return n / N;
+    };
+    expect(per(100, 20, 300)).toBeGreaterThan(30);
+    expect(per(100, 20, 300)).toBeLessThan(42);
+    expect(per(20, 30, 100)).toBeGreaterThan(1);
+    expect(per(20, 30, 100)).toBeLessThan(3);
+    for (const msgs of [ko, en] as Record<string, string>[]) {
+      expect(msgs['ch19.assume.relax']).toMatch(/36/);
+      expect(gasScene.info.assumptions).toContain('ch19.assume.relax');
+    }
+  });
 });

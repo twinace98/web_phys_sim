@@ -16,7 +16,9 @@ import {
   mostProbable,
   sumRange,
 } from '../src/sims/ch20/physics';
-import { heatScene, relDiff, temps } from '../src/sims/ch20/heat';
+import { heatScene, relDiff, tangentSlopes, temps } from '../src/sims/ch20/heat';
+import { BAR_TITLE, barItems, carnotScene, heatsAt } from '../src/sims/ch20/carnot';
+import { dofOf } from '../src/sims/ch18/process';
 import { expansionScene } from '../src/sims/ch20/expansion';
 import { probe } from './stage-probe';
 import { cycle, entropy, heatSplit, temp } from '../src/sims/ch18/physics';
@@ -251,5 +253,67 @@ describe('ch20 free expansion: the user removes the partition', () => {
     r.reset();
     expect(r.state.open).toBe(false);
     expect(r.state.n).toBe(10);
+  });
+});
+
+describe('ch20 Carnot bars: first law at every point of the cycle', () => {
+  it('W = Q_H − Q_C − ΔE_int all along the cycle; ΔE_int = 0 only when the loop closes', () => {
+    for (const gas of ['mono', 'di']) {
+      const f = dofOf(gas);
+      for (const tc of [150, 300, 500]) {
+        const c = cycle('carnot', true, f, tc);
+        for (let i = 0; i <= 100; i++) {
+          const h = heatsAt(c.legs, i / 100, f);
+          expect(h.W).toBeCloseTo(h.qh - h.qc - h.dE, 6);
+        }
+        expect(heatsAt(c.legs, 1, f).dE).toBeCloseTo(0, 6);
+        // After the adiabatic expansion the work exceeds the heat taken in.
+        const mid = heatsAt(c.legs, 0.5, f);
+        expect(mid.W).toBeGreaterThan(mid.qh);
+        expect(mid.dE).toBeLessThan(0);
+      }
+    }
+  });
+
+  it('the bars and their title satisfy the first law at C (end of the adiabatic expansion), defaults: W 2886, Q_H 1386, ΔE_int −1500', () => {
+    const p = defaults(carnotScene.params);
+    expect(BAR_TITLE).toContain('Δ*E*_{int}');
+    const items = barItems(p, 0.5);
+    expect(items.map((b) => b[2])).toEqual(['*W*', '*Q*_{H}', '*Q*_{C}', 'Δ*E*_{int}']);
+    const [W, qh, qc, dE] = items.map((b) => b[0]);
+    expect(Math.round(W)).toBe(2886);
+    expect(Math.round(qh)).toBe(1386);
+    expect(Math.round(dE)).toBe(-1500);
+    expect(W).toBeCloseTo(qh - qc - dE, 6);
+    // The scene draws without error at every stage of the cycle.
+    for (const t of [0, 2, 4, 6, 8]) probe(carnotScene, { t }, p, 1280, 700);
+  });
+});
+
+describe('ch20 heat flow: tangents', () => {
+  it('tangent slopes are the slopes of the drawn S curves (central difference within 5 %) at every q_A', () => {
+    for (const [na, q] of [
+      [10, 20],
+      [30, 100],
+      [90, 20],
+      [10, 200],
+    ]) {
+      const p = { na, q, start: 'A' };
+      const S = (N: number, k: number) => lnOmega(N, k);
+      for (let qA = 1; qA < q; qA++) {
+        const [kA, kB] = tangentSlopes(p, qA);
+        const cA = (S(na, qA + 1) - S(na, qA - 1)) / 2;
+        const cB = (S(100 - na, q - qA - 1) - S(100 - na, q - qA + 1)) / 2;
+        expect(Math.abs(kA / cA - 1), `N_A ${na}, q ${q}, q_A ${qA}`).toBeLessThan(0.05);
+        expect(Math.abs(kB / cB - 1), `N_A ${na}, q ${q}, q_A ${qA}`).toBeLessThan(0.05);
+      }
+    }
+  });
+
+  it('N_A = 10, q = 20: at the top (q_A = 1) the two tangents differ by about 12 %, as the info panel says', () => {
+    const p = { na: 10, q: 20, start: 'A' };
+    expect(mostProbable(10, 90, 20)).toBe(1);
+    const [kA, kB] = tangentSlopes(p, 1);
+    expect(Math.abs(kA / -kB - 1)).toBeCloseTo(0.124, 2);
   });
 });

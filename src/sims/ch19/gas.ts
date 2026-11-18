@@ -239,6 +239,6 @@ export const gasScene: Scene<P, S> = {
     goals: ['ch19.goal.sum', 'ch19.goal.ideal'],
     observe: ['ch19.obs.J', 'ch19.obs.fluct', 'ch19.obs.N', 'ch19.obs.T', 'ch19.obs.hist'],
     equations: ['\\Delta p_x = 2mv_x', 'p = \\frac{F}{L} = \\frac{1}{L\\,t}\\sum 2mv_x', 'pA = NkT \\quad (\\text{2D})', 'f(v) = \\frac{mv}{kT}\\,e^{-mv^2/2kT}'],
-    assumptions: ['ch19.assume.2d', 'ch19.assume.disk', 'ch19.assume.dense', 'ch19.assume.win'],
+    assumptions: ['ch19.assume.2d', 'ch19.assume.disk', 'ch19.assume.dense', 'ch19.assume.relax', 'ch19.assume.win'],
   },
 };

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
 import { beats } from '../src/sims/ch17/beats';
-import { doppler } from '../src/sims/ch17/doppler';
-import { arrival, beatEnvelope, beatFrequency, fronts, heard, machAngle, wave, wavelengths, type Doppler } from '../src/sims/ch17/physics';
+import { doppler, setup } from '../src/sims/ch17/doppler';
+import { arrival, arrivalAt, flashing, heardAt, beatEnvelope, beatFrequency, fronts, heard, machAngle, wave, wavelengths, type Doppler } from '../src/sims/ch17/physics';
 
 describe('ch17 beats', () => {
   it('y1 + y2 = 2A cos(πΔf t) cos(2π f̄ t); envelope bounds the sum and touches it', () => {
@@ -121,6 +121,73 @@ describe('ch17 Doppler scene over the slider ranges', () => {
       r.setParams({ ...base, who: 'observer', vo });
       expect(r.tEnd!).toBeGreaterThan(0);
       expect(r.tEnd!).toBeLessThanOrEqual(0.3 + 1e-12);
+    }
+  });
+});
+
+describe('ch17 Doppler: readouts and flashes agree with the arriving fronts', () => {
+  const P = (vs: number) => ({ ...defaults(doppler.params), who: 'source', vs }) as { who: string; vs: number; vo: number };
+  const ro = (p: ReturnType<typeof P>, t: number) => doppler.readouts!.map((r) => r.value({ t }, p));
+  /** Arrivals at observer w in [t0, t1]. */
+  const arrivals = (p: ReturnType<typeof P>, w: 'A' | 'B', t0: number, t1: number) => {
+    const d = setup(p).d;
+    return fronts(d, t1).map((f) => arrivalAt(d, f.te, w)).filter((x) => x >= t0 && x <= t1).length;
+  };
+
+  it('510 m/s: B hears 40 Hz and 200 Hz at once; the flash rate is their sum, not 40 Hz alone', () => {
+    const p = P(510);
+    const { run } = setup(p);
+    const [fA, fB, fB2] = ro(p, run / 2);
+    expect(Number.isNaN(fA)).toBe(true);
+    expect(fB).toBeCloseTo(40, 9);
+    expect(fB2).toBeCloseTo(200, 9);
+    // Fronts arriving at B per second over the second half of the run.
+    const rate = arrivals(p, 'B', run / 2, run) / (run / 2);
+    expect(Math.abs(rate - (fB + fB2)) / (fB + fB2)).toBeLessThan(0.15);
+  });
+
+  it('below the speed of sound A hears the source from the start of the run (readout and flashes)', () => {
+    for (let vs = 0; vs <= 330; vs += 10) {
+      const p = P(vs);
+      const { d, run } = setup(p);
+      const fA = ro(p, 0)[0];
+      expect(fA, `vs = ${vs}`).toBeCloseTo(heard(d).A, 9);
+      // Fronts reach A all through the run, at the heard frequency.
+      const n = arrivals(p, 'A', 0, run);
+      expect(Math.abs(n - fA * run), `vs = ${vs}`).toBeLessThanOrEqual(1.5);
+    }
+  });
+
+  it('a readout is empty until the first front of its branch has arrived', () => {
+    // Before the run's sound reaches A (emission started at −tPre): no value.
+    const p = P(170);
+    const d = { ...setup(p).d, tPre: 0.01 };
+    expect(Number.isNaN(heardAt(d, 0).A)).toBe(true);
+    expect(heardAt(d, 0.2).A).toBeCloseTo(200, 9);
+    // Subsonic: no second sound at B.
+    expect(Number.isNaN(ro(p, 0.1)[2])).toBe(true);
+  });
+
+  it('flashes stay apart at 1× and 60 frames per second: one flash per arriving front, at every source speed', () => {
+    for (let vs = 0; vs <= 510; vs += 10) {
+      const p = P(vs);
+      const { d, run, scale } = setup(p);
+      const dt = scale / 60;
+      for (const w of ['A', 'B'] as const) {
+        let on = 0;
+        let prev = false;
+        for (let t = 0; t <= run; t += dt) {
+          const f = flashing(d, w, t);
+          if (f && !prev) on++;
+          prev = f;
+        }
+        const n = arrivals(p, w, 0, run);
+        // Two branches at B can coincide now and then (above the speed of sound).
+        const tol = w === 'B' && vs > 340 ? Math.max(2, 0.2 * n) : 1;
+        expect(Math.abs(on - n), `vs = ${vs}, ${w}: ${on} flashes, ${n} fronts`).toBeLessThanOrEqual(tol);
+      }
+      // One run lasts at most 12 s at 1×.
+      expect(run / scale).toBeLessThanOrEqual(12 + 1e-9);
     }
   });
 });

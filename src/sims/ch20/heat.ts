@@ -7,7 +7,7 @@ import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
 import { chart, inPanel, split, stageRect, type Chart, type Rect } from '../ch18/panels';
 import { QC } from '../ch18/view';
-import { exchange, fillUniform, kTeps, lnOmega, sumRange } from './physics';
+import { dlnOmega, exchange, fillUniform, kTeps, lnOmega, sumRange } from './physics';
 
 type P = { na: number; q: number; start: string };
 interface S {
@@ -181,6 +181,12 @@ function drawSolids(g: Draw, r: Rect, s: S, p: P): void {
   });
 }
 
+/** Slopes d(S_A/k)/dq_A and d(S_B/k)/dq_A of the drawn curves at q_A (exact, from ln Ω). */
+export function tangentSlopes(p: P, qA: number): [number, number] {
+  const [NA, NB] = sizes(p);
+  return [dlnOmega(NA, qA), -dlnOmega(NB, p.q - qA)];
+}
+
 /** Tangent of slope k at (x, y), fixed screen half-length. */
 function tangent(c: Chart, x: number, y: number, k: number, col: string): void {
   const p0 = c.P(x, y);
@@ -195,7 +201,6 @@ function tangent(c: Chart, x: number, y: number, k: number, col: string): void {
 
 /** S_A, S_B and S_tot against q_A, with the current state and the tangents of S_A and S_B. */
 function drawCurves(g: Draw, r: Rect, s: S, p: P): void {
-  const [NA, NB] = sizes(p);
   const yTop = 1.15 * sTotMax(p);
   chart(g, r, [0, p.q], [0, yTop], { l: 44, r: 16, t: 22, b: 36 }, (c) => {
     c.axes({ xLabel: '*q*_{A}', yLabel: '*S*/*k*' });
@@ -217,8 +222,11 @@ function drawCurves(g: Draw, r: Rect, s: S, p: P): void {
       c.d.polyline(pt, { color: '#1a1a1a', width: 2.25 });
       const e = ent(p, s.qA);
       const qB = p.q - s.qA;
-      if (s.qA > 0) tangent(c, s.qA, e.a, Math.log(1 + NA / s.qA), A_COL);
-      if (qB > 0) tangent(c, s.qA, e.b, -Math.log(1 + NB / qB), B_COL);
+      // Exact slopes of the drawn curves (not the large-N form): at the top they agree as closely as
+      // the discrete q_A allows. None at q = 0, where T = 0 and the curve starts.
+      const [kA, kB] = tangentSlopes(p, s.qA);
+      if (s.qA > 0) tangent(c, s.qA, e.a, kA, A_COL);
+      if (qB > 0) tangent(c, s.qA, e.b, kB, B_COL);
       c.d.circle(c.P(s.qA, e.a), 4, { fill: A_COL });
       c.d.circle(c.P(s.qA, e.b), 4, { fill: B_COL });
       c.d.circle(c.P(s.qA, e.tot), 4.5, { fill: '#1a1a1a' });
@@ -365,6 +373,6 @@ export const heatScene: Scene<P, S> = {
       '\\Omega_\\text{tot} = \\Omega_\\text{A}\\,\\Omega_\\text{B}, \\quad S_\\text{tot} = S_\\text{A} + S_\\text{B}',
       '\\frac{1}{T} = \\frac{\\partial S}{\\partial E}, \\quad E = q\\,\\varepsilon',
     ],
-    assumptions: ['ch20.h.assume.model', 'ch20.h.assume.T', 'ch20.h.assume.arrow'],
+    assumptions: ['ch20.h.assume.model', 'ch20.h.assume.omega', 'ch20.h.assume.slope', 'ch20.h.assume.T', 'ch20.h.assume.arrow'],
   },
 };

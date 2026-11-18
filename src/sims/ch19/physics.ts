@@ -8,7 +8,10 @@ export const KB = 1.380649e-23;
 export const MASS = 6.646e-27;
 /** Disk diameter [nm] (helium kinetic diameter). */
 export const SIGMA = 0.26;
-/** Largest area fraction the disks may cover: about +3 % over the ideal-gas pressure (2D: p/nkT ≈ 1 + 2φ). */
+/**
+ * Largest area fraction the disks may cover: about +3 % over the ideal-gas pressure (2D: p/nkT ≈ 1 + 2φ),
+ * plus the wall layer σ/L (disk centres move in a width L − σ), at most about +5 % in all.
+ */
 export const PHI_MAX = 0.015;
 
 /**
@@ -16,6 +19,15 @@ export const PHI_MAX = 0.015;
  * size would cover more than PHI_MAX of the box, so the gas stays ideal at every N.
  */
 export const diskSize = (N: number, L: number) => Math.min(SIGMA, Math.sqrt((4 * PHI_MAX * L * L) / (Math.PI * N)));
+/**
+ * Expected relative excess of the wall pressure over NkT/A for hard disks: 2φ from the area the
+ * disks block for each other (2D second virial coefficient) plus σ/L from the wall layer (centres
+ * move in a width L − σ). Lowest order in both.
+ */
+export function pressureExcess(N: number, L: number): number {
+  const s = diskSize(N, L);
+  return (2 * N * Math.PI * s * s) / (4 * L * L) + s / L;
+}
 /** Impulse of one wall bounce per unit |v_x| [pN·ps per nm/ps]: 2 m v_x. */
 export const J_PER_V = (2 * MASS * 1e3) / 1e-24;
 
