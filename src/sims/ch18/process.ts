@@ -1,6 +1,8 @@
 // Ch 18 scene: one quasi-static process of an ideal gas. Piston, p–V path with the work area,
 // and Q, W, ΔE_int bars that always satisfy ΔE_int = Q − W.
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
+import { dELine, qLine, tempLine } from './formula';
 import { split, stageRect } from './panels';
 import { A0, eint, legAt, legWork, pathAt, processLeg, temp, type Leg, type Process } from './physics';
 import { barRange, drawBars, drawCylinder, drawPV, gasHeight, initMolecules, isWide, stepMolecules } from './view';
@@ -161,6 +163,8 @@ export const processScene: Scene<P, S> = {
     { label: 'T', unit: 'K', value: (s, p) => temp(pathAt([legOf(p)], sOf(s.t), dofOf(p.gas)).st) },
   ],
 
+  formula: (s, p) => formulaLines(s.t, p),
+
   info: {
     goals: ['ch18.goal.first', 'ch18.goal.area'],
     observe: ['ch18.obs.isobaric', 'ch18.obs.isochoric', 'ch18.obs.isothermal', 'ch18.obs.adiabatic', 'ch18.obs.gas'],
@@ -173,3 +177,40 @@ export const processScene: Scene<P, S> = {
     assumptions: ['ch18.assume.ideal', 'ch18.assume.quasi'],
   },
 };
+
+/**
+ * Σ panel at the current point of the process: T = pV/nR, p on the isotherm or adiabat, the work
+ * of this kind of process so far, ΔE_int = (f/2)(pV − p_A V_A) and the first law Q = ΔE_int + W.
+ */
+export function formulaLines(time: number, p: P): string[] {
+  const f = dofOf(p.gas);
+  const l = legOf(p);
+  const pt = pathAt([l], sOf(time), f);
+  const { st } = pt;
+  const V = tn(st.V, 4);
+  const a = l.a;
+  const pVa = tn(a.p * a.V, 4);
+  const J = u('J');
+  const lines = [tempLine(st)];
+  switch (l.kind) {
+    case 'isobaric':
+      lines.push(`W = p(V - V_\\text{A}) = ${num(a.p)} \\times (${V} - ${num(a.V)}) = ${tn(pt.W)}${J}`);
+      break;
+    case 'isochoric':
+      lines.push(`W = 0 \\quad (V = V_\\text{A})`);
+      break;
+    case 'isothermal':
+      lines.push(`p = \\frac{p_\\text{A}V_\\text{A}}{V} = \\frac{${pVa}}{${V}} = ${tn(st.p)}${u('kPa')}`);
+      lines.push(`W = nRT\\ln\\frac{V}{V_\\text{A}} = ${pVa}\\ln\\frac{${V}}{${num(a.V)}} = ${tn(pt.W)}${J}`);
+      break;
+    case 'adiabatic': {
+      const g = f === 5 ? '7/5' : '5/3';
+      lines.push(`p = p_\\text{A}\\Big(\\frac{V_\\text{A}}{V}\\Big)^{\\gamma} = ${num(a.p)}\\Big(\\frac{${num(a.V)}}{${V}}\\Big)^{${g}} = ${tn(st.p)}${u('kPa')}`);
+      lines.push(`W = \\frac{p_\\text{A}V_\\text{A} - pV}{\\gamma - 1} = \\frac{${pVa} - ${tn(st.p * st.V, 4)}}{2/${f}} = ${tn(pt.W)}${J}`);
+      break;
+    }
+  }
+  lines.push(dELine(st, pt.dE, f));
+  lines.push(qLine(pt.dE, pt.W, pt.Q));
+  return lines;
+}

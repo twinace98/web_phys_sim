@@ -3,6 +3,7 @@
 // below the string marks the current frequency and the amplitude reached so far.
 import { fmtTick } from '../../core/format';
 import { t } from '../../core/i18n';
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { drawEnd } from './reflect';
 import { harmonic, resonance, steadyAmp, stringAdvance, stringInit, stringStep, type Driven, type StringState } from './physics';
@@ -127,6 +128,8 @@ export const resonanceScene: Scene<P, StringState> = {
     { label: '2L/\\lambda', unit: '', value: (_s, p) => (2 * STR.L * p.f) / STR.v },
   ],
 
+  formula: (_s, p) => formulaLines(p),
+
   info: {
     goals: ['ch16.r.goal.res', 'ch16.r.goal.modes'],
     observe: ['ch16.r.obs.default', 'ch16.r.obs.off', 'ch16.r.obs.sweep', 'ch16.r.obs.nodes', 'ch16.r.obs.build'],
@@ -134,3 +137,17 @@ export const resonanceScene: Scene<P, StringState> = {
     assumptions: ['ch16.r.assume.string', 'ch16.r.assume.damp'],
   },
 };
+
+/** Nearest harmonic n to the driving frequency (n ≥ 1). */
+export const nearestN = (f: number) => Math.max(1, Math.round((2 * STR.L * f) / STR.v));
+
+/** Σ panel: λ = v/f, 2L/λ (an integer n at resonance) and the nearest natural frequency f_n = nv/2L. */
+export function formulaLines(p: P): string[] {
+  const { L, v } = STR;
+  const n = nearestN(p.f);
+  return [
+    `\\lambda = v/f = ${v}/${num(p.f)} = ${tn(v / p.f)}${u('m')}`,
+    `2L/\\lambda = 2Lf/v = 2 \\times ${L} \\times ${num(p.f)}/${v} = ${tn((2 * L * p.f) / v)}`,
+    `f_{${n}} = nv/2L = ${n} \\times ${v}/(2 \\times ${L}) = ${tn(harmonic(STR, n))}${u('Hz')}`,
+  ];
+}
