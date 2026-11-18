@@ -72,6 +72,7 @@
   "ch41.d.obs.freeze": "Below about 100 K electrons fall back onto the donors and $n$ drops",
   "ch41.d.obs.intr": "Above about 700 K thermal generation across the gap takes over and $n$ follows $n_i$ (grey dotted: the carrier density of pure silicon, about $10^{10}\\ \\text{cm}^{-3}$ at room temperature)",
   "ch41.d.obs.law": "$np = n_i^2$: more majority carriers means fewer minority carriers",
+  "ch41.d.obs.below": "Below 1 cm⁻³ (less than one carrier per cm³) the readout shows \"< 1\"; Σ keeps the exact value from $np = n_i^2$",
   "ch41.d.assume.si": "Silicon: $E_\\text{g}$ = 1.12 eV (fixed, independent of temperature); donor and acceptor ionisation energies 0.045 eV",
   "ch41.d.assume.dots": "The 8 sites stand for the dopant concentration (undoped: $10^{16}\\ \\text{cm}^{-3}$). Carrier dots are drawn on the same scale and capped at 16",
   "ch41.d.assume.stat": "Boltzmann (non-degenerate) statistics; $E_\\text{F}$ from charge neutrality"

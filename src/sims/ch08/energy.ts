@@ -214,7 +214,8 @@ export const energyScene: Scene<P, S> = {
         size: 11,
         color: TICK,
         align: 'center',
-        dy: below ? 17 : -11,
+        // A stable label drops below the E line when that line passes just under the point.
+        dy: below ? (q.stable && E < y && (y - E) / g.px(1) < 30 ? (y - E) / g.px(1) + 13 : 17) : -11,
       });
     }
 

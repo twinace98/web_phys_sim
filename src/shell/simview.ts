@@ -518,6 +518,9 @@ export class SimView {
     this.formulaBox.innerHTML = lines.map((l) => tex(l, true)).join('');
     // Substituted lines are long: let them shrink further than the ⓘ equations before scrolling.
     fitEquations(this.formulaBox, 0.6);
+    // On a cold load KaTeX's fonts may still be arriving: measure again once they are in.
+    const box = this.formulaBox;
+    void document.fonts?.ready.then(() => fitEquations(box, 0.6));
   }
 
   /**
@@ -823,7 +826,7 @@ export class SimView {
     (scene.readouts ?? []).forEach((spec, i) => {
       // An undefined value reads "–" alone: no unit after it.
       const v = spec.value(s, p);
-      this.readoutVals[i].textContent = fmt(v, spec.sig ?? 3, spec.zeroTol);
+      this.readoutVals[i].textContent = spec.format?.(v) ?? fmt(v, spec.sig ?? 3, spec.zeroTol);
       this.readoutUnits[i].hidden = !Number.isFinite(v);
     });
     if (this.playBtn && this.shownPlaying !== r.playing) {

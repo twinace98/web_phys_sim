@@ -24,7 +24,7 @@
   "ch04.obs.x": "Shadow on the $x$ axis: equal distances in equal times (evenly spaced strobe marks), constant $v_x$",
   "ch04.obs.y": "Shadow on the $y$ axis: moves like a ball thrown straight up; $v_y = 0$ at the top",
   "ch04.obs.cliff": "Angle 0° from a height $h > 0$ (horizontal throw): the $y$ shadow is a ball dropped from the same height, so both land together, whatever the launch speed",
-  "ch04.obs.range": "From height 0 the range is largest at 45°, and 30° and 60° give the same range. From a height above 0 the best angle is below 45°",
+  "ch04.obs.range": "From height 0 the range is largest at 45°, and 30° and 60° give the same range. From a height above 0 the best angle is below 45°. At 0° from height 0 the ball lands at once: flight time 0",
   "ch04.obs.g": "Moon and Mars: same launch speed, smaller $g$, so longer flights and longer ranges",
   "ch04.assume": "No air resistance, uniform gravity",
   "ch04.c.scene": "Uniform circular motion",
