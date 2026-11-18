@@ -84,6 +84,17 @@ export function deltaX(pk: Packet, t: number, xc: number, n = 1200): number {
   return Math.sqrt(Math.max(0, m2 / w - (m / w) ** 2));
 }
 
+/**
+ * Δx as a packet width: the rms width when the packet is localised within one repeat L, NaN
+ * otherwise. Criterion Δx < L/6: a Gaussian of that width falls to 1 % of its peak at ±L/2. With
+ * M ≤ 3 components |ψ|² fills the repeat (Δx = 7.6 and 8.4 nm, near the uniform L/√12 = 12.1 nm)
+ * while Δk stays small, so the product is no uncertainty statement (M = 3: 0.417 < 1/2).
+ */
+export function packetWidth(pk: Packet, t: number, xc: number, n = 1200): number {
+  const dx = deltaX(pk, t, xc, n);
+  return dx < (2 * Math.PI) / DK / 6 ? dx : NaN;
+}
+
 // ------------------------------------------------------------------ de Broglie
 
 export const H = 6.62607015e-34;

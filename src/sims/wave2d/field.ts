@@ -229,11 +229,22 @@ export class WaveField {
     return out;
   }
 
-  /** Time the front reaches the screen point nearest to the apertures. */
-  screenArrival(): number {
-    let r = Infinity;
-    for (const g of this.screen) for (const v of g.R) r = Math.min(r, v);
-    return this.tb + r / C_LIGHT;
+  private full: Float64Array | null = null;
+  /**
+   * Time from which every aperture's wave has fully reached each screen sample (front from the
+   * farthest aperture plus its λ/2 ramp): from then on ψ there is the steady C cos ωt + S sin ωt.
+   */
+  screenFull(): Float64Array {
+    if (this.full) return this.full;
+    const N = this.screenY.length;
+    const out = new Float64Array(N);
+    for (let i = 0; i < N; i++) {
+      let r = 0;
+      for (const g of this.screen) r = Math.max(r, g.R[i]);
+      out[i] = this.tb + (r + 0.5 * this.s.lambda) / C_LIGHT;
+    }
+    this.full = out;
+    return out;
   }
 
   /**

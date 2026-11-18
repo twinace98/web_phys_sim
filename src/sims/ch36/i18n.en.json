@@ -25,7 +25,7 @@
   "ch36.s.obs.two": "Two slits (default $a$ = 2 μm, $d$ = 4 μm, $d/a = 2$): three bright fringes inside the central envelope (grey dashed line); the $m = \\pm2$ fringes fall on the first envelope minimum $y_1$ and are missing. At the default point $\\Delta L \\approx 2\\lambda$ (constructive), yet it is dark",
   "ch36.s.obs.ratio": "Slit width 1.5 μm, separation 4.5 μm in settings ($d/a = 3$): five bright fringes inside the central envelope ($2d/a - 1$), $m = \\pm3$ missing",
   "ch36.s.assume.model": "2D model: the slit is a row of Huygens point sources, amplitude $\\propto r^{-1/2}$, no reflection from the barrier",
-  "ch36.s.assume.scale": "The screen distance is scaled down to μm to fit the stage. For wide slits the Fraunhofer condition ($D \\gg a^2/\\lambda$) fails and the minima move slightly away from $a\\sin\\theta = \\lambda$",
+  "ch36.s.assume.scale": "The screen distance is scaled down to μm to fit the stage. Fraunhofer condition $a^2/(\\lambda D) \\ll 1$: up to 1 the first minimum lies at $y_1$ and drops below 3 % of the maximum. From 1 to 3 the minimum stays at $y_1$ but fills in (3–28 % of the maximum), so the $y_1$ mark is drawn faint. Above 3 (e.g. $a$ = 6 μm, $\\lambda$ = 400 nm, $D$ = 15 μm, value 6) the minimum moves away from $y_1$ or disappears, and the brightest point can lie near $y_1$ (Fresnel diffraction), so the $y_1$ mark is hidden",
   "ch36.s.assume.sources": "The 10 dots in the slit (two slits: 5 each) are for illustration; the wave is computed with sources spaced at most $\\lambda/2$ apart",
   "ch36.s.assume.two": "Two slits: for $d < a$ the slits touch and $d = a$ is used. Grey dashed line: $(\\lvert E_1\\rvert + \\lvert E_2\\rvert)^2$, the sum of the amplitudes each slit gives alone. The screen is close ($D \\gg ad/\\lambda$ does not hold), so a missing fringe is weak but not exactly zero",
   "ch36.ph.scene": "Phasor chain",
@@ -41,5 +41,5 @@
   "ch36.ph.obs.a": "Narrower slit: smaller phase difference at the same angle, the chain curls less, so the central maximum is wider",
   "ch36.ph.obs.N": "Changing the number of sources (settings) leaves the minima in place: they are set by the edge-to-edge phase difference $\\phi$",
   "ch36.ph.assume.far": "Screen very far away (Fraunhofer diffraction): rays from all sources are parallel",
-  "ch36.ph.assume.draw": "The slit on the left is an enlarged sketch; the graph is the sum of $N$ sources ($N \\ge 8$: the same minima as $(\\sin\\alpha/\\alpha)^2$ of a continuous slit, outer maxima slightly higher for small $N$)"
+  "ch36.ph.assume.draw": "The slit on the left is an enlarged sketch; the graph and $I/I_m$ are the sum of $N$ sources. The minima are those of $(\\sin\\alpha/\\alpha)^2$ for a continuous slit ($N \\ge 8$). The outer maxima are higher than for a continuous slit by $[(\\phi/2N)/\\sin(\\phi/2N)]^2$: 1.1–1.2 times at the defaults ($a$ = 2 μm, $N$ = 10), 6.8 times at the 34° maximum for $a$ = 4 μm, $\\lambda$ = 400 nm, $N$ = 8 (0.023 against 0.0034). All of them stay below 0.06; more sources bring the sum closer to the continuous slit"
 }

@@ -11,8 +11,8 @@ import {
   PARTICLES,
   deBroglie,
   deltaK,
-  deltaX,
   packet,
+  packetWidth,
   pFromK,
   pFromV,
   psi,
@@ -145,9 +145,10 @@ export const wavePacket: Scene<PP, { t: number; n: number }> = {
   },
 
   readouts: [
-    { label: '\\Delta x', unit: 'nm', value: (s, p) => deltaX(pkOf(p), s.t, vGroup(p.k0) * s.t, 600) },
+    // Δx and the product read "–" while the packet is not localised within one repeat (M ≤ 3).
+    { label: '\\Delta x', unit: 'nm', value: (s, p) => packetWidth(pkOf(p), s.t, vGroup(p.k0) * s.t, 600) },
     { label: '\\Delta k', unit: 'nm⁻¹', value: (_s, p) => deltaK(pkOf(p)) },
-    { label: '\\Delta x\\,\\Delta k', unit: '', value: (s, p) => deltaX(pkOf(p), s.t, vGroup(p.k0) * s.t, 600) * deltaK(pkOf(p)) },
+    { label: '\\Delta x\\,\\Delta k', unit: '', value: (s, p) => packetWidth(pkOf(p), s.t, vGroup(p.k0) * s.t, 600) * deltaK(pkOf(p)) },
   ],
 
   info: {
@@ -156,9 +157,9 @@ export const wavePacket: Scene<PP, { t: number; n: number }> = {
     equations: [
       '\\psi(x,t) = \\sum_j a_j\\, e^{i(k_j x - \\omega_j t)}, \\quad \\omega = \\frac{\\hbar k^2}{2m}',
       'v_\\text{g} = \\frac{d\\omega}{dk} = \\frac{\\hbar k_0}{m} = \\frac{p}{m}',
-      '\\Delta x\\,\\Delta k \\ge \\tfrac12',
+      '\\Delta x\\,\\Delta k \\ge \\tfrac12, \\quad \\Delta p = \\hbar\\,\\Delta k \\;\\Rightarrow\\; \\Delta x\\,\\Delta p \\ge \\tfrac{\\hbar}{2}',
     ],
-    assumptions: ['ch38.k.assume.electron', 'ch38.k.assume.period'],
+    assumptions: ['ch38.k.assume.define', 'ch38.k.assume.electron', 'ch38.k.assume.period'],
   },
 };
 

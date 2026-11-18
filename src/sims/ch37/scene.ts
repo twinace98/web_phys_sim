@@ -519,7 +519,7 @@ export const spacetime: Scene<PD, { t: number }> = {
       '\\Delta t = \\gamma\\,\\Delta t_0, \\quad L = \\frac{L_0}{\\gamma}',
       "\\Delta t' = \\gamma\\left(\\Delta t - \\frac{v\\,\\Delta x}{c^2}\\right)",
     ],
-    assumptions: ['ch37.assume.units', 'ch37.d.assume.origin', 'ch37.d.assume.objects'],
+    assumptions: ['ch37.d.assume.terms', 'ch37.assume.units', 'ch37.d.assume.origin', 'ch37.d.assume.objects'],
   },
 };
 

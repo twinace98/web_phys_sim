@@ -1,5 +1,5 @@
 // Ch 41 scene: conduction in E(k). An electric field shifts the occupied states in k; scattering
-// stops the shift at −eEτ/ħ. A partly filled band then carries a net current, a full band none.
+// stops the shift at −eℰτ/ħ (field ℰ, so E stays the band energy). A partly filled band then carries a net current, a full band none.
 import { t } from '../../core/i18n';
 import type { ParamSchema, Scene } from '../../core/types';
 import { Frame, PX_WORLD, TICK, canvasBox, textPx } from '../modern/frame';
@@ -15,7 +15,7 @@ interface S {
 }
 
 const H = 0.05; // fs
-/** Drive F = eEa/ħ [1/fs] at field strength 1; the steady shift is −Fτ. */
+/** Drive F = eℰa/ħ [1/fs] at field strength 1; the steady shift is −Fτ. */
 export const DRIVE = 0.04;
 const EMPTY = '#b5b5b5';
 
@@ -138,8 +138,13 @@ export const conduction: Scene<P, S> = {
   info: {
     goals: ['ch41.c.goal.shift', 'ch41.c.goal.full'],
     observe: ['ch41.c.obs.half', 'ch41.c.obs.full', 'ch41.c.obs.nearly', 'ch41.c.obs.off', 'ch41.c.obs.v'],
-    equations: ['\\hbar\\frac{dk}{dt} = -eE - \\frac{\\hbar\\,\\Delta k}{\\tau}', 'v = \\frac{1}{\\hbar}\\frac{dE}{dk}, \\quad J = -e\\sum_{k} f_k\\, v_k'],
-    assumptions: ['ch41.c.assume.band', 'ch41.c.assume.shift', 'ch41.c.assume.spin'],
+    // Field ℰ (not E, which is the band energy), hopping energy γ (not t, which is time).
+    equations: [
+      'E(k) = -2\\gamma\\cos ka',
+      '\\hbar\\frac{dk}{dt} = -e\\mathcal{E} - \\frac{\\hbar\\,\\Delta k}{\\tau}',
+      'v = \\frac{1}{\\hbar}\\frac{dE}{dk}, \\quad J = -e\\sum_{k} f_k\\, v_k',
+    ],
+    assumptions: ['ch41.c.assume.sym', 'ch41.c.assume.band', 'ch41.c.assume.shift', 'ch41.c.assume.spin'],
   },
 };
 
