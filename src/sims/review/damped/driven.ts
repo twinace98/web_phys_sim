@@ -242,11 +242,20 @@ export const drivenScene: Scene<P, S> = {
     const lag = (drivenLag(o, { d: D, wd }) * 180) / Math.PI;
     const wr = peakOmega(o);
     const den = Math.hypot(p.k - p.m * wd * wd, p.b * wd);
+    // Inputs of x_m and tan φ with the figures their arithmetic needs; at ω_d = ω_0 the denominator
+    // k − mω_d² is 0 (rounding noise only), so φ = 90° is stated instead of a fraction.
+    const sx = sigFit([Fm, den], (a, c) => a / c, xm);
+    const bw = p.b * wd;
+    const kw = p.k - p.m * wd * wd;
+    const resonant = Math.abs(kw) < 1e-9 * p.k;
+    const sp = sigFit([bw, kw], (a, c) => (Math.atan2(a, c) * 180) / Math.PI, lag);
     const lines = [
       `\\omega_d = ${p.ratio.toFixed(2)}\\,\\omega_0 = ${p.ratio.toFixed(2)}\\sqrt{${p.k}/${p.m.toFixed(1)}} = ${tn(wd)}${u('rad/s')}`,
       `F_m = kd = ${p.k} \\times ${D.toFixed(3)} = ${tn(Fm)}${u('N')}`,
-      `x_m = \\frac{F_m}{\\sqrt{(k - m\\omega_d^2)^2 + (b\\omega_d)^2}} = \\frac{${tn(Fm)}}{${tn(den)}} = ${tn(xm)}${u('m')}`,
-      `\\tan\\phi = \\frac{b\\omega_d}{k - m\\omega_d^2} = \\frac{${tn(p.b * wd)}}{${tn(p.k - p.m * wd * wd)}},\\quad \\phi = ${tn(lag, 3)}^\\circ`,
+      `x_m = \\frac{F_m}{\\sqrt{(k - m\\omega_d^2)^2 + (b\\omega_d)^2}} = \\frac{${tn(Fm, sx)}}{${tn(den, sx)}} = ${tn(xm)}${u('m')}`,
+      resonant
+        ? `\\omega_d = \\omega_0:\\ k - m\\omega_d^2 = 0,\\quad \\phi = 90^\\circ`
+        : `\\tan\\phi = \\frac{b\\omega_d}{k - m\\omega_d^2} = \\frac{${tn(bw, sp)}}{${tn(kw, sp)}},\\quad \\phi = ${tn(lag, 3)}^\\circ`,
       Number.isFinite(wr)
         ? `\\omega_\\text{peak} = \\sqrt{\\omega_0^2 - 2\\gamma^2} = ${tn(wr)}${u('rad/s')} = ${tn(wr / w0)}\\,\\omega_0`
         : `\\gamma = ${tn(gamma(o))}${u('s^{-1}')} \\ge \\omega_0/\\sqrt{2}:\\ \\text{${tr('damped.nopeak')}}`,

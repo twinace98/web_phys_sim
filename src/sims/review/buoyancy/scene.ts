@@ -5,6 +5,9 @@ import type { ParamSchema, Scene, Vec2 } from '../../../core/types';
 import { t } from '../../../core/i18n';
 import { UI_FONT, theme } from '../../../draw/theme';
 import type { Draw } from '../../../draw/draw';
+import { paren, tn } from '../../../core/tex';
+import { sigFit } from '../../ch07/sigfit';
+import { printed } from '../../ch31/fit';
 import { texNum } from '../../field/render';
 import {
   GRAV,
@@ -136,30 +139,56 @@ export function forcesOf(s: Motion, p: P) {
   return { Fb, Fg, Fd, N, net: Fb + Fd + N - Fg };
 }
 
-export function formulaLines(s: Motion, p: P): string[] {
+export function formulaLines(s: Motion & { held?: boolean }, p: P): string[] {
   const b = blockOf(p);
   const f = fluidOf(p);
   const { s: sub } = levelAt(b, s.y);
-  const Vsub = blockArea(b) * sub;
+  const A = blockArea(b);
+  const V = blockVolume(b);
+  const Vsub = A * sub;
   const { Fb, Fg, Fd, N, net } = forcesOf(s, p);
   const fc = faces(b, f, s.y);
   const n = (v: number, sig = 3) => texNum(v, sig);
-  // Gauge pressures (p − p0 = ρ_f g d; p0 cancels) on the bottom and top faces.
-  const kPa = (v: number) => (v < 0.5 ? '0' : n(v / 1000));
+  // Each line's inputs with the figures its arithmetic needs to give the printed result.
+  const s1 = sigFit([f.rho, Vsub], (r, v) => r * v * GRAV, Fb);
+  const s2 = sigFit([b.rho, V], (r, v) => r * v * GRAV, Fg);
+  // Gauge pressures (p − p0 = ρ_f g d; p0 cancels) on the bottom and top faces, in Pa: Pa·m² = N.
+  const s3 = sigFit([fc.pBot, fc.pTop, A], (pb, pt, a) => (pb - pt) * a, fc.F);
+  const pa = (v: number) => (v === 0 ? '0' : n(v, s3));
   const out = [
-    `F_b = \\rho_f V_\\text{sub}\\, g = (${n(f.rho)})(${n(Vsub)})(${GRAV}) = ${n(Fb)}\\ \\mathrm{N}`,
-    `F_g = \\rho_\\text{obj} V g = (${n(b.rho)})(${n(blockVolume(b))})(${GRAV}) = ${n(Fg)}\\ \\mathrm{N}`,
-    `F_b = (p_\\text{bot} - p_\\text{top})A = (${kPa(fc.pBot)} - ${kPa(fc.pTop)})\\ \\mathrm{kPa} \\times ${n(blockArea(b))}\\ \\mathrm{m^2} = ${n(fc.F)}\\ \\mathrm{N}`,
+    `F_b = \\rho_f V_\\text{sub}\\, g = (${n(f.rho, s1)})(${n(Vsub, s1)})(${GRAV}) = ${n(Fb)}\\ \\mathrm{N}`,
+    `F_g = \\rho_\\text{obj} V g = (${n(b.rho, s2)})(${n(V, s2)})(${GRAV}) = ${n(Fg)}\\ \\mathrm{N}`,
+    `F_b = (p_\\text{bot} - p_\\text{top})A = (${pa(fc.pBot)} - ${pa(fc.pTop)})\\ \\mathrm{Pa} \\times ${n(A, s3)}\\ \\mathrm{m^2} = ${n(fc.F)}\\ \\mathrm{N}`,
   ];
   const ratio = b.rho / f.rho;
+  const sr = sigFit([b.rho, f.rho], (o, fl) => o / fl, ratio);
   out.push(
     ratio < 1
-      ? `\\frac{V_\\text{sub}}{V}\\Big|_\\text{eq} = \\frac{\\rho_\\text{obj}}{\\rho_f} = \\frac{${n(b.rho)}}{${n(f.rho)}} = ${n(ratio)}`
-      : `\\frac{\\rho_\\text{obj}}{\\rho_f} = \\frac{${n(b.rho)}}{${n(f.rho)}} = ${n(ratio)} ${ratio > 1 ? '> 1' : '= 1'}`,
+      ? `\\frac{V_\\text{sub}}{V}\\Big|_\\text{eq} = \\frac{\\rho_\\text{obj}}{\\rho_f} = \\frac{${n(b.rho, sr)}}{${n(f.rho, sr)}} = ${n(ratio)}`
+      : `\\frac{\\rho_\\text{obj}}{\\rho_f} = \\frac{${n(b.rho, sr)}}{${n(f.rho, sr)}} = ${n(ratio)} ${ratio > 1 ? '> 1' : '= 1'}`,
   );
-  const terms = [`F_b - F_g`, Math.abs(Fd) > 1e-9 ? '+ F_d' : '', N > 0 ? '+ N' : ''].join(' ');
-  const vals = [`${n(Fb)} - ${n(Fg)}`, Math.abs(Fd) > 1e-9 ? `${Fd < 0 ? '-' : '+'} ${n(Math.abs(Fd))}` : '', N > 0 ? `+ ${n(N)}` : ''].join(' ');
-  out.push(`F_\\text{net} = ${terms} = ${vals} = ${n(Math.abs(net) < 1e-6 * Fg ? 0 : net)}\\ \\mathrm{N}`);
+  // Held by the pointer: the hand supplies whatever balances the other forces, so F_net = 0.
+  const withHand = !!s.held && Math.abs(net) > 1e-6 * Fg;
+  const hand = withHand ? -net : 0;
+  // Below 5 mN the net force prints as 0 (the terms then sum to under 0.005 N).
+  const total = withHand || Math.abs(net) < 0.005 ? 0 : net;
+  const hasD = Math.abs(Fd) > 1e-9;
+  const hasN = N > 0;
+  const xs = [Fb, Fg, Fd, N, hand];
+  const sumOf = (...v: number[]) => v[0] - v[1] + v[2] + v[3] + v[4];
+  // A result on a decimal tie (147.15 − 196.20 = −49.05) gets a fourth figure.
+  let rs = 3;
+  let sn = sigFit(xs, sumOf, total, rs);
+  const shows = (k: number) => tn(sumOf(...xs.map((x) => printed(x, k))), rs) === tn(total, rs);
+  while (total !== 0 && rs < 5 && !shows(sn)) sn = sigFit(xs, sumOf, total, ++rs);
+  const terms = [`F_b - F_g`, hasD ? '+ F_d' : '', hasN ? '+ N' : '', withHand ? `+ F_\\text{${t('buoyancy.hand')}}` : ''].join(' ');
+  const vals = [
+    `${n(Fb, sn)} - ${n(Fg, sn)}`,
+    hasD ? `${Fd < 0 ? '-' : '+'} ${n(Math.abs(Fd), sn)}` : '',
+    hasN ? `+ ${n(N, sn)}` : '',
+    withHand ? `+ ${paren(n(hand, sn))}` : '',
+  ].join(' ');
+  out.push(`F_\\text{net} = ${terms.replace(/ +/g, ' ').trim()} = ${vals.replace(/ +/g, ' ').trim()} = ${n(total, rs)}\\ \\mathrm{N}`);
   return out;
 }
 

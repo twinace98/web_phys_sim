@@ -37,7 +37,7 @@
   "hyd.assume.axis": "Energy diagram: linear in $E$; the right panel magnifies the dashed band near 0 eV. Levels up to $n = 200$ are drawn; labels where there is room, the selected levels always",
   "hyd.assume.pick": "Drag the knobs (circles marked ▲▼) at the ends of the arrow up or down: they snap to the nearest level ($n \\le 10$). Double tap either knob to reverse the transition",
   "hyd.assume.vacuum": "Wavelengths are vacuum values. In air they are about 0.03 % shorter: $\\text{H}_\\alpha$ 656.5 nm in vacuum, 656.3 nm in air (the value tables usually quote)",
-  "hyd.assume.reduced": "Computed with the hydrogen Rydberg constant $R_\\text{H} = R_\\infty/(1 + m_e/m_p) = 1.0968 \\times 10^{7}\\ \\text{m}^{-1}$ (reduced mass): $E_1 = -13.598$ eV, rounded to $-13.60$ eV in the formulas",
+  "hyd.assume.reduced": "Computed with the hydrogen Rydberg constant $R_\\text{H} = R_\\infty/(1 + m_e/m_p) = 1.0968 \\times 10^{7}\\ \\text{m}^{-1}$ (reduced mass): $E_1 = -13.598$ eV. The formulas use $13.5983$ eV and $hc = 1239.84$ eV·nm (one more digit where the last digit needs it)",
   "hyd.assume.log": "Spectrum strip: logarithmic wavelength axis, 80 nm to 5 µm. Lines outside the range are triangles at the ends. Ultraviolet and infrared lines are grey dashed. Clear button: removes the collected lines, keeping the current one",
   "hyd.assume.vis": "Visible band taken as 380 to 750 nm; photon colours are approximate",
   "hyd.assume.bohr": "The Bohr orbits are a semiclassical picture; quantum mechanics replaces them with probability clouds whose size also grows as $n^2$",

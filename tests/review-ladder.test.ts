@@ -24,6 +24,8 @@ import {
 } from '../src/sims/review/ladder/physics';
 import { H, L, endTime, forcesAt, input, ladderScene, onsetTime, runInput } from '../src/sims/review/ladder/scene';
 
+import { NUM, agrees, val } from './sigma-digits';
+
 const DEG = Math.PI / 180;
 
 function randomInputs(n: number, seed = 5): LadderInput[] {
@@ -387,6 +389,66 @@ describe('ladder: scene', () => {
     const q = input(P0() as never);
     expect(q.theta).toBeCloseTo(60 * DEG, 12);
     expect(G).toBe(9.8);
+  });
+
+  it('Σ: the printed inputs reproduce the printed results on every line (static view and slip)', () => {
+    const R = (s: string) => new RegExp(s.replace(/N#/g, `(${NUM})`));
+    const bad: string[] = [];
+    // Each substituted line: its pattern and the arithmetic a reader does on the printed numbers.
+    const kinds: [string, RegExp, (v: number[]) => number][] = [
+      ['F_w', R(String.raw`\\frac\{\(N#\)\(N#\) \+ \(N#\)\(N#\)\}\{N#\} = N#\\ \\text\{N\}$`), ([a, b, c, d, e]) => (a * b + c * d) / e],
+      ['μs N', R(String.raw`\\mu_s N = \(N#\)\(N#\) = N#\\ \\text\{N\}$`), ([a, b]) => a * b],
+      ['θc', R(String.raw`= \\frac\{N#\}\{N#\},\\ \\theta_c = N#\^\\circ$`), ([a, b]) => Math.atan2(a, b) / DEG],
+      ['t_s', R(String.raw`t_s = \\frac\{d_c - d_0\}\{v\} = \\frac\{N# - N#\}\{N#\} = N#\\ \\text\{s\}$`), ([a, b, c]) => (a - b) / c],
+      ['μk N', R(String.raw`\\mu_k N = \(N#\)\(N#\\ \\text\{N\}\) = N#\\ \\text\{N\}$`), ([a, b]) => a * b],
+      ['E0 - E', R(String.raw`E_0 - E = N# - \(?N#\)? = N#\\ \\text\{J\}`), ([a, b]) => a - b],
+    ];
+    const hits: Record<string, number> = {};
+    const checkLines = (lines: string[], tag: string) => {
+      for (const l of lines) {
+        for (const [name, re, f] of kinds) {
+          const m = l.match(re);
+          if (!m) continue;
+          hits[name] = (hits[name] ?? 0) + 1;
+          const t = m.slice(1);
+          if (!agrees(f(t.slice(0, -1).map(val)), t[t.length - 1])) bad.push(`${tag} ${name}: ${l}`);
+        }
+        if (/\{-?0(\.0+)?\}/.test(l)) bad.push(`${tag} zero denominator ${l}`);
+      }
+    };
+    // Static view: every angle, d every 0.25 m, the ends and the defaults of m, M, μs and v.
+    const p0 = P0();
+    for (let th = 20; th <= 85; th++)
+      for (let i = 0; i <= 20; i++)
+        for (const m of [1, 10, 23, 40])
+          for (const M of [0, 1, 70, 150])
+            for (const mu of [0, 0.01, 0.37, 0.4, 1]) {
+              const p = { ...p0, theta: th, d: i * 0.25, m, M, mu, v: [0.1, 0.5, 0.85, 1][(th + i) % 4] };
+              checkLines(formula(ladderScene.init(p as never, new Rng(1)), p), JSON.stringify(p));
+            }
+    // Slip: a few runs sampled every 0.25 s, μk/μs from 0 to 0.95.
+    const runs: Params[] = [{}, { d: 4 }, { kr: 0.85, mu: 0.37 }, { kr: 0.95, mu: 1, theta: 40, d: 5 }, { kr: 0, mu: 0.2 }, { mu: 0 }];
+    for (const over of runs) {
+      const q = { ...p0, ...over };
+      const r = new Runner(ladderScene as unknown as Scene<Params, RunState>, q);
+      r.play();
+      for (let i = 0; i < 400 && r.playing; i++) {
+        r.advance(0.25);
+        checkLines(formula(r.state, q), `${JSON.stringify(over)} t=${r.state.t.toFixed(2)}`);
+      }
+    }
+    expect(bad.length, bad.slice(0, 6).join('\n')).toBe(0);
+    for (const [name] of kinds) expect(hits[name], name).toBeGreaterThan(5);
+  });
+
+  it('Σ with μs = 0: no fraction with a zero denominator, θc = 90° stated directly', () => {
+    const p = { ...P0(), mu: 0 };
+    const lines = formula(ladderScene.init(p as never, new Rng(1)), p);
+    const last = lines[lines.length - 1];
+    expect(last).not.toContain('\\frac');
+    expect(last).toContain('\\mu_s = 0');
+    expect(last).toMatch(/\\theta_c = 90\^\\circ$/);
+    for (const M of [0, 150]) for (const th of [20, 85]) expect(formula(ladderScene.init({ ...p, M, theta: th } as never, new Rng(1)), { ...p, M, theta: th }).join(' ')).not.toMatch(/\{0\.0+\}/);
   });
 
   it('every i18n key exists in ko and en; no em-dash; no $ glued to a letter or digit', () => {
