@@ -2,7 +2,7 @@
 // compared with the small-angle (SHM) model T₀ = 2π√(L/g). The model appears only as a faint curve
 // in the θ(t) graph and as numbers in the readouts and the formula panel.
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
-import { tn, u } from '../review/damped/tex';
+import { num, paren, tn, u } from '../../core/tex';
 import { ellipticK, exactPeriod, pendulumAccel, pendulumMax, pendulumStep, periodError, smallAnglePeriod, type Pendulum } from './physics';
 
 type P = { theta0: number; L: number; vectors: boolean };
@@ -95,10 +95,6 @@ export function worldTop(p: P): number {
 
 /** Significant figures for T and T₀ in the formula panel, so that their difference keeps 3 digits. */
 export const sigFor = (err: number) => Math.min(8, Math.max(4, 3 + Math.ceil(-Math.log10(Math.max(err, 1e-8)))));
-/** TeX number in parentheses when negative. */
-const paren = (t: string) => (t.startsWith('-') ? `(${t})` : t);
-/** Plain decimal for a parameter value (no trailing zeros beyond one decimal). */
-const num = (v: number) => (Number.isInteger(v) ? v.toFixed(0) : String(Number(v.toFixed(2))));
 
 export const pendulum: Scene<P, S> = {
   id: 'pendulum',
