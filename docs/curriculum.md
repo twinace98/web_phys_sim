@@ -793,6 +793,7 @@
   - LC: 전기 에너지 ↔ 자기 에너지 교환, Ch 15 용수철 대응표 병기 (회로 왼쪽 표: $q \leftrightarrow x$, $i \leftrightarrow v$, $L \leftrightarrow m$, $1/C \leftrightarrow k$, $R \leftrightarrow b$, 에너지 두 줄, 좁은 화면에서는 행 간격에 맞춰 글자 축소)
   - 화면: 회로도 ($C$, $L$, $R > 0$이면 $R$, $L$ 라벨은 코일 안쪽), 판 전하 기호, 관례적 전류 점 (이동량 $\propto q$), 에너지 막대 $U_E$, $U_B$, $U$, 아래쪽 용수철-물체 ($x \propto q$, $\vec v \propto i$, 설정 토글)
   - $R$ 추가 → 감쇠 (5, 20 Ω 감쇠 진동, $R \ge 2\sqrt{L/C}$ 임계·과감쇠, 기본 $L$·$C$에서 63.2 Ω). 해석해 사용 (보존·감쇠 정확)
+  - ⓘ 100 Ω 문구는 조건 $R \ge 2\sqrt{L/C}$ 에 묶음: $2\sqrt{L/C}$ = 31.6–126.5 Ω, 256 조합 중 16개는 100 Ω 에서도 진동 (20 mH, 5 μF: $T'$ = 3.24 ms)
   - 그래프: $q(t)$, $i(t)$, $U_E$·$U_B$·$U$ (10 ms 창). 수치 줄 $T' = 2\pi/\omega'$ ($\omega' = \sqrt{1/LC - (R/2L)^2}$, 임계·과감쇠에서 –), $U$
   - 파라미터: $R$ 0–100 Ω (주), $L$ 5–20 mH, $C$ 5–20 μF (모두 1 단위 간격 슬라이더), 용수철 비교 (설정). 기본값 $R$ = 0, 10 mH, 10 μF → $T'$ = 1.99 ms (20 Ω: 2.09 ms), 시간 ms 단위 (1 ms = 1 s 재생)
   - Σ: $\omega_0 = 1/\sqrt{LC}$, $R/2L$, $\omega' = \sqrt{\omega_0^2 - (R/2L)^2}$, $T' = 2\pi/\omega'$ ($R = 0$: $T' = 2\pi/\omega_0$, 임계·과감쇠: 조건 $R/2L \ge \omega_0$만, $T'$ 없음), $U_0 = \tfrac12 CV_0^2$, 실시간 $U = U_E + U_B$
