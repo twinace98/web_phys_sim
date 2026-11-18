@@ -1,12 +1,14 @@
 // Damped oscillation (Halliday 15-8): block on a spring with a vane in a liquid, released from rest.
 // RK4 integration; the closed form gives the envelope, the undamped reference and the tests.
 // Stage: oscillator (left) and a b axis with b_c and the regime (right). Plots: x(t), K, U, E.
+// Free-body diagram of the block: spring force F_s = mg − kx (x from equilibrium), mg and F_d = −bv.
 import { t as tr } from '../../../core/i18n';
 import type { ParamSchema, Scene } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
 import { ROLE_COLOR } from '../../../draw/theme';
 import { W, linePx, textPx } from '../../modern/frame';
-import { drawMech, mechLayout } from './mech';
+import { fbdParam, type FbdForce } from '../../../draw/fbd';
+import { DAMPED_G, drawColumns, drawMech, mechLayout } from './mech';
 import {
   amplitudeConst,
   bCrit,
@@ -14,6 +16,7 @@ import {
   energy,
   energyApprox,
   envelope,
+  freeAt,
   gamma,
   omega0,
   omegaPrime,
@@ -21,9 +24,10 @@ import {
   rk4,
   type Osc,
 } from './physics';
-import { tn, u } from './tex';
+import { sigFit } from '../../ch07/sigfit';
+import { tn, tp, u } from './tex';
 
-type P = { b: number; m: number; k: number; vectors: boolean };
+type P = { b: number; m: number; k: number; vectors: boolean; fbd: boolean };
 type S = { t: number; x: number; v: number };
 
 /** Initial displacement [m]; released from rest. */
@@ -78,8 +82,38 @@ const params: ParamSchema<P> = {
     default: 16,
     unit: 'N/m',
   },
+  fbd: fbdParam(),
   vectors: { kind: 'toggle', label: 'damped.p.vectors', desc: 'damped.d.vectors', group: 'advanced', live: true, default: true },
 };
+
+/**
+ * Forces on the block [N] (y up): the spring holds mg at equilibrium, so it pulls with mg − kx;
+ * weight; damping −bv. Their sum is −kx − bv = ma.
+ */
+export function fbdForces(s: { x: number; v: number }, p: P): FbdForce[] {
+  const W = p.m * DAMPED_G;
+  return [
+    { F: { x: 0, y: W - p.k * s.x }, label: '*F*_{s}' },
+    { F: { x: 0, y: -W }, label: '*m**g*', field: true },
+    { F: { x: 0, y: -p.b * s.v }, label: '*F*_{d}' },
+  ];
+}
+
+const maxCache = new Map<string, number>();
+/** Largest force of the run [N], for one arrow scale: mg + kx₀ (spring at the lowest point) or b|v|. */
+export function fbdMaxForce(p: P): number {
+  const key = `${p.b}|${p.m}|${p.k}`;
+  let k = maxCache.get(key);
+  if (k === undefined) {
+    const o = oscOf(p);
+    let fd = 0;
+    for (let i = 0; i <= 2000; i++) fd = Math.max(fd, p.b * Math.abs(freeAt(o, X0, (T_END * i) / 2000).v));
+    k = Math.max(p.m * DAMPED_G + p.k * X0, fd);
+    if (maxCache.size > 200) maxCache.clear();
+    maxCache.set(key, k);
+  }
+  return k;
+}
 
 const E0 = (p: P) => 0.5 * p.k * X0 * X0;
 /** Light damping (b ≤ b_c/2): where E ≈ ½kx_m²e^{−bt/m} is shown. */
@@ -137,7 +171,9 @@ export const freeScene: Scene<P, S> = {
     const M = mechLayout(cx, pad, h - pad, X0 * 1.02);
     // Equilibrium line.
     linePx(g, cx - M.block, M.yEq, cx + M.block * 1.4, M.yEq, { color: '#c8c8c8', width: 1, dash: [4, 4] });
-    const blk = drawMech(g, M, s.x);
+    const blk = drawMech(g, M, s.x, undefined, p.fbd);
+    // Free-body diagram: F_s, mg, F_d side by side; v moves right of it, the F_d arrow gives way.
+    const fbdRight = p.fbd ? drawColumns(g, M, blk.y, fbdForces(s, p), fbdMaxForce(p)) : 0;
     if (p.vectors) {
       // v and the damping force F_d = −bv: px per (m/s) so that v = x0 ω0 is 0.9 travel; F per kx0.
       const kv = (0.9 * M.travel) / (X0 * omega0(o));
@@ -145,9 +181,9 @@ export const freeScene: Scene<P, S> = {
       const lbl = (len: number, txt: string) => (Math.abs(len) > 18 ? txt : undefined);
       const vy = s.v * kv;
       const fy = -p.b * s.v * kf;
-      const xv = blk.right + 12;
+      const xv = Math.max(blk.right + 12, fbdRight + 12);
       if (Math.abs(vy) > 3) g.arrow(W(g, xv, blk.y), { x: 0, y: g.px(vy) }, { role: 'velocity', width: 2.25, label: lbl(vy, '*v*') });
-      if (Math.abs(fy) > 3) g.arrow(W(g, xv + 22, blk.y), { x: 0, y: g.px(fy) }, { role: 'force', width: 2.25, label: lbl(fy, '*F*_{d}') });
+      if (!p.fbd && Math.abs(fy) > 3) g.arrow(W(g, xv + 22, blk.y), { x: 0, y: g.px(fy) }, { role: 'force', width: 2.25, label: lbl(fy, '*F*_{d}') });
     }
     const gl = Math.max(cx + M.block + 70, w * 0.52);
     gauge(g, p, gl, w - 26, h * 0.5);
@@ -227,6 +263,14 @@ export const freeScene: Scene<P, S> = {
         `x = x_0 e^{-\\gamma t}\\left(\\cosh\\beta t + \\tfrac{\\gamma}{\\beta}\\sinh\\beta t\\right) = ${tn(s.x)}${u('m')}`,
         `E = K + U = ${tn(E)}${u('J')}`,
       );
+    }
+    if (p.fbd) {
+      // Net force from the drawn forces (y up): F_s − mg + F_d = −kx − bv = ma.
+      const [Fs, , Fd] = fbdForces(s, p).map((f) => f.F.y);
+      const mg = p.m * DAMPED_G;
+      const net = Fs - mg + Fd;
+      const sf = sigFit([Fs, mg, Fd], (a, b, c) => a - b + c, net);
+      lines.push(`\\Sigma F = F_s - mg + F_d = ${tn(Fs, sf)} - ${tn(mg, sf)} + ${tp(Fd, sf)} = ${tn(net)}${u('N')} = ma`);
     }
     return lines;
   },

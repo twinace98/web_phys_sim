@@ -1,11 +1,15 @@
 // Ch 15 scene: the real (nonlinear) simple pendulum with live v, a_t and a_r arrows, and its period
 // compared with the small-angle (SHM) model T₀ = 2π√(L/g). The model appears only as a faint curve
-// in the θ(t) graph and as numbers in the readouts and the formula panel.
+// in the θ(t) graph and as numbers in the readouts and the formula panel. Free-body diagram: string
+// tension F_T (along the string) and weight mg on a 1 kg bob; the motion does not depend on the mass.
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { num, paren, tn, u } from '../../core/tex';
+import { sigFit } from '../ch07/sigfit';
+import type { Draw } from '../../draw/draw';
+import { FBD_MIN_PX, FBD_ZERO, drawFbd, fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
 import { ellipticK, exactPeriod, pendulumAccel, pendulumMax, pendulumStep, periodError, smallAnglePeriod, type Pendulum } from './physics';
 
-type P = { theta0: number; L: number; vectors: boolean };
+type P = { theta0: number; L: number; vectors: boolean; fbd: boolean };
 type S = { t: number; th: number; w: number };
 
 const DEG = Math.PI / 180;
@@ -18,6 +22,12 @@ const BOB = 11;
 export const ARROW_MAX = 0.45;
 /** The a_t arrow runs beside v (same line), this many px further from the pivot. */
 const AT_OFFSET = 20;
+/** Bob mass for the free-body diagram [kg]; the motion does not depend on it. */
+export const BOB_M = 1;
+/** Longest force arrow [px]: F_T at the bottom; long enough that mg (down to F_T/5 at 170°) clears the bob. */
+const FBD_PX = 100;
+/** With the diagram on, v gives way where it runs within this angle of mg. */
+const V_CLEAR = 30 * DEG;
 
 const pend = (p: P): Pendulum => ({ L: p.L, g: G });
 /** Small-angle model θ₀ cos ω₀t [rad]. */
@@ -50,8 +60,65 @@ const params: ParamSchema<P> = {
     default: 1,
     unit: 'm',
   },
+  fbd: fbdParam(),
   vectors: { kind: 'toggle', label: 'ch15.n.p.vectors', desc: 'ch15.n.d.vectors', group: 'advanced', live: true, default: true },
 };
+
+/** String tension [N]: radial Newton's law F_T − mg cos θ = m v²/L (negative: a rod pushing, beyond 90°). */
+export const tension = (s: { th: number; w: number }, p: P) => BOB_M * (G * Math.cos(s.th) + p.L * s.w * s.w);
+
+/** Forces on the bob [N] (x right, y up): F_T towards the pivot and the weight. Sum = m(a_t + a_r). */
+export function fbdForces(s: { th: number; w: number }, p: P): FbdForce[] {
+  const T = tension(s, p);
+  return [
+    { F: { x: -T * Math.sin(s.th), y: T * Math.cos(s.th) }, label: '*F*_{T}' },
+    { F: { x: 0, y: -BOB_M * G }, label: '*m**g*', field: true },
+  ];
+}
+
+/**
+ * Px per newton for the run: F_T is largest at the bottom, mg(3 − 2 cos θ₀), and gets up to FBD_PX;
+ * shorter where the stage has no room for mg and its label below the lowest point.
+ */
+export const fbdPerN = (g: Draw, p: P) => {
+  const max = BOB_M * G * (3 - 2 * Math.cos(p.theta0 * DEG));
+  // Room below the bob at the bottom: 0.2 L to the world bottom plus the 18 px padding, less the label.
+  const room = 0.2 / g.px(1) + 18 - 20;
+  return fbdScale(max, Math.min(FBD_PX, Math.max(24, (room * max) / (BOB_M * G))));
+};
+
+/**
+ * Free-body diagram from the bob. F_T runs along the string, so its label sits beside its tip (13 px
+ * across the string, on the side away from mg's lean) rather than on the string. mg keeps its label
+ * beyond the tip, except where it too runs along the string (bob high above the pivot): then it
+ * goes beside the tip on the other side.
+ */
+function drawForces(g: Draw, B: Vec2, s: { th: number; w: number }, p: P): void {
+  const [T, W] = fbdForces(s, p);
+  const perN = fbdPerN(g, p);
+  const et = { x: Math.cos(s.th), y: Math.sin(s.th) };
+  // mg (straight down) runs along the string towards the pivot when the bob is within 25° of the top.
+  const mgOnString = -Math.cos(s.th) > Math.cos(25 * DEG);
+  drawFbd(g, B, [{ ...T, label: '' }, mgOnString ? { ...W, label: '' } : W], perN);
+  // mg leans to −sin θ along e_t: F_T's label goes the other way.
+  const side = Math.sin(s.th) >= 0 ? 1 : -1;
+  const beside = (f: FbdForce, k: number) => {
+    const mag = Math.hypot(f.F.x, f.F.y);
+    if (!(mag > FBD_ZERO)) return;
+    const len = g.px(Math.max(mag * perN, FBD_MIN_PX));
+    const off = g.px(13) * k;
+    g.text({ x: B.x + (f.F.x / mag) * len + off * et.x, y: B.y + (f.F.y / mag) * len + off * et.y }, f.label, { size: 13, role: f.role ?? 'force', align: 'center', baseline: 'middle' });
+  };
+  beside(T, side);
+  if (mgOnString) beside(W, -side);
+}
+
+/** v is clear of mg unless it heads the same way as mg's tangential part, within V_CLEAR of mg. */
+export function velocityClear(s: { th: number; w: number }): boolean {
+  // v = L ω e_t, mg ∝ (−sin θ) e_t − cos θ e_r: cos of the angle between them is −sign(ω) sin θ.
+  if (s.w === 0) return true;
+  return -Math.sign(s.w) * Math.sin(s.th) < Math.cos(V_CLEAR);
+}
 
 /**
  * Arrows on the bob, in drawing units of L: velocity (tangent), tangential acceleration −g sin θ
@@ -129,13 +196,16 @@ export const pendulum: Scene<P, S> = {
     g.line(O, B, { color: '#1a1a1a', width: 1.5 });
 
     if (p.vectors) {
+      // With the free-body diagram on, F_T covers a_r (both along the string) and mg crosses a_t:
+      // the acceleration parts give way (ΣF = ma in the Σ panel), v stays unless it runs along mg.
+      const fbd = p.fbd;
       // Arrows shorter than the bob are hidden under it; labels only where they clear the bob.
       const { v, at, ar } = bobArrows(s, p);
       const show = (a: Vec2) => Math.hypot(a.x, a.y) > g.px(BOB + 3);
       const lbl = (a: Vec2, txt: string) => (Math.hypot(a.x, a.y) > g.px(BOB + 12) ? txt : undefined);
       const off = g.px(AT_OFFSET);
       const atFrom: Vec2 = { x: B.x + Math.sin(s.th) * off, y: B.y - Math.cos(s.th) * off };
-      if (show(ar)) {
+      if (!fbd && show(ar)) {
         // a_r runs along the string: its label sits beside the tip, on the side v is not heading to.
         g.arrow(B, ar, { role: 'acceleration', width: 2.25 });
         if (lbl(ar, 'x')) {
@@ -144,13 +214,15 @@ export const pendulum: Scene<P, S> = {
           g.text(tip, '*a*_{r}', { role: 'acceleration', size: 13, align: 'center', baseline: 'middle' });
         }
       }
-      if (show(at)) {
+      if (!fbd && show(at)) {
         g.line(B, atFrom, { role: 'acceleration', width: 1, alpha: 0.5, dash: [2, 3] });
         g.arrow(atFrom, at, { role: 'acceleration', width: 2.25, label: lbl(at, '*a*_{t}') });
       }
-      if (show(v)) g.arrow(B, v, { role: 'velocity', width: 2.25, label: lbl(v, '*v*') });
+      if (show(v) && (!fbd || velocityClear(s))) g.arrow(B, v, { role: 'velocity', width: 2.25, label: lbl(v, '*v*') });
     }
-    g.circle(B, BOB, { fill: 'position' });
+    // Faded under the free-body diagram, so the arrows from its centre read.
+    g.circle(B, BOB, { fill: 'position', alpha: p.fbd ? 0.25 : 1 });
+    if (p.fbd) drawForces(g, B, s, p);
     g.circle(O, 3, { fill: '#5c5c5c' });
   },
 
@@ -195,7 +267,7 @@ export const pendulum: Scene<P, S> = {
     const v = p.L * s.w;
     const deg = s.th / DEG;
     const K = ellipticK(Math.sin(th0 / 2));
-    return [
+    const lines = [
       `T_0 = 2\\pi\\sqrt{L/g} = 2\\pi\\sqrt{${L}/9.8} = ${tn(T0, sig)}${u('s')}`,
       `K\\!\\left(\\sin\\tfrac{\\theta_0}{2}\\right) = K(\\sin ${num(p.theta0 / 2)}^\\circ) = ${tn(K, 4)}`,
       `T = 4\\sqrt{L/g}\\,K = 4\\sqrt{${L}/9.8} \\times ${tn(K, 4)} = ${tn(T, sig)}${u('s')}`,
@@ -204,6 +276,14 @@ export const pendulum: Scene<P, S> = {
       `a_{\\mathrm{t},0} = -g\\theta = -9.8 \\times ${paren(tn(s.th))} = ${tn(-G * s.th)}${u('m/s^2')}`,
       `a_\\mathrm{r} = v^2/L = (${tn(v)})^2/${L} = ${tn(ar)}${u('m/s^2')}`,
     ];
+    if (p.fbd) {
+      // Radial part of ΣF = ma from the drawn forces; the tangential part, −mg sin θ = m a_t, is above.
+      const T = tension(s, p);
+      const Wr = BOB_M * G * Math.cos(s.th);
+      const sf = sigFit([T, Wr], (a, b) => a - b, BOB_M * ar);
+      lines.push(`\\Sigma F_\\mathrm{r} = F_T - mg\\cos\\theta = ${tn(T, sf)} - ${paren(tn(Wr, sf))} = ${tn(BOB_M * ar)}${u('N')} = ma_\\mathrm{r}`);
+    }
+    return lines;
   },
 
   info: {
