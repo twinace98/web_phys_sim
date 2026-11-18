@@ -261,7 +261,8 @@ export const pathScene: Scene<P, S> = {
       spring(g, P2(ANCHOR), pos);
     }
     const label = f === 'gravity' ? '*m**g*' : f === 'spring' ? '*F*' : '*f*_{k}';
-    g.arrow(pos, { x: F[0] * KF, y: F[1] * KF }, { role: 'force', width: 2.5, label });
+    // Gravity dashed (a field force), as in the free-body diagrams elsewhere; spring and friction solid.
+    g.arrow(pos, { x: F[0] * KF, y: F[1] * KF }, { role: 'force', width: 2.5, dash: f === 'gravity' ? [5, 3] : undefined, label });
     g.circle(pos, 8, { fill: 'position' });
 
     drawGraph(g, p, s);
