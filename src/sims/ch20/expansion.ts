@@ -193,7 +193,7 @@ export const expansionScene: Scene<P, S> = {
 
   plots: [
     { id: 'n', label: 'n', traces: [{ channel: 'n', role: 'position' }], yRange: (p) => [0, p.N * 1.05] },
-    { id: 'S', label: 'S/k = \\ln W', traces: [{ channel: 'S', role: 'fg' }], yRange: (p) => [0, Math.max(1, Smax(p.N) * 1.15)] },
+    { id: 'S', label: '\\Delta S/k = \\ln W', traces: [{ channel: 'S', role: 'fg' }], yRange: (p) => [0, Math.max(1, Smax(p.N) * 1.15)] },
   ],
 
   drawPlot: (id, pd, p) => {
@@ -202,20 +202,26 @@ export const expansionScene: Scene<P, S> = {
     const st = { color: '#1a1a1a', width: 1, dash: [5, 4], alpha: 0.6 };
     pd.polyline([[-1e6, y], [1e6, y]], st);
     const [, py] = pd.toPx(0, y);
-    const lbl = id === 'n' ? '*N*/2' : '*S*_{max}';
+    const lbl = id === 'n' ? '*N*/2' : 'Δ*S*_{max}';
     drawRich(pd.ctx, lbl, x0 + 6 * theme.scale, py - 5 * theme.scale, { size: 11, color: TICK });
   },
 
   readouts: [
     { label: 'n', unit: '', value: (s) => s.n, sig: 1 },
     { label: 'W', unit: '', value: (s, p) => Math.exp(lnBinom(p.N, s.n)) },
-    { label: 'S/k', unit: '', value: (s, p) => entropyLR(p.N, s.n) },
+    // Relative to the all-left state (W = 1): only the change is physical.
+    { label: '\\Delta S/k', unit: '', value: (s, p) => entropyLR(p.N, s.n) },
   ],
 
   info: {
     goals: ['ch20.e.goal.S', 'ch20.e.goal.irr'],
     observe: ['ch20.e.obs.remove', 'ch20.e.obs.peak', 'ch20.e.obs.small', 'ch20.e.obs.large', 'ch20.e.obs.S'],
-    equations: ['W(n) = \\binom{N}{n} = \\frac{N!}{n!\\,(N-n)!}', 'S = k \\ln W', 'P(n = N) = \\frac{1}{2^N}'],
-    assumptions: ['ch20.e.assume'],
+    equations: [
+      'W(n) = \\binom{N}{n} = \\frac{N!}{n!\\,(N-n)!}',
+      '\\Delta S = k \\ln W(n) - k \\ln W(N) = k \\ln W(n)',
+      '\\Delta S_\\text{max} \\approx Nk \\ln 2 - \\tfrac{k}{2}\\ln\\frac{\\pi N}{2}',
+      'P(n = N) = \\frac{1}{2^N}',
+    ],
+    assumptions: ['ch20.e.assume', 'ch20.e.assume.ref'],
   },
 };
