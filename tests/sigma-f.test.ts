@@ -156,7 +156,9 @@ describe('Σ group F: Ch 39', () => {
       expect(result(lines[0])).toBe(inf);
       expect(line(lines, 'E_1 =')).toBe(`E_1 = ${tn(E1)}\\ \\mathrm{eV} < ${inf}\\ \\mathrm{eV}`);
       expect(E1).toBeLessThan(Number(inf));
-      expect(result(lines[lines.length - 1])).toBe(tn(Math.sqrt(0.0380998212 / (U0 - E1))));
+      expect(result(lines[lines.length - 3])).toBe(tn(Math.sqrt(0.0380998212 / (U0 - E1))));
+      // Bound-state count: the formula's N equals the number of levels drawn.
+      expect(result(lines[lines.length - 1])).toBe(String(model(p as never).st.E.length));
     }
   });
 
