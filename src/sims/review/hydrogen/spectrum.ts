@@ -6,6 +6,7 @@ import { measureRich } from '../../../draw/text';
 import { theme } from '../../../draw/theme';
 import { Frame, TICK, W, linePx, textPx } from '../../modern/frame';
 import { wavelengthRGB } from '../../wave2d/field';
+import { BTN_H, buttonWidth, stageButton, type StageBtn } from './stage';
 
 export type Region = 'xray' | 'uv' | 'vis' | 'ir';
 
@@ -56,6 +57,8 @@ export interface SpectrumOpts {
   limit?: number;
   /** Bracket under the strip from `from` to `to` [nm] with a name (the highlighted series). */
   bracket?: { from: number; to: number; text: string };
+  /** Clear button at the strip's top-right corner: its label, and whether it is shown (its room is kept either way, so the region names do not move). */
+  clear?: { label: string; show: boolean };
 }
 
 const STRIP = (narrow: boolean) => (narrow ? 26 : 34);
@@ -77,9 +80,9 @@ function tickValues(r: [number, number]): number[] {
 
 /**
  * Spectrum strip with a logarithmic λ axis, box spanning l…r with its top at t. Lines outside
- * the range are drawn as a small triangle at the strip end.
+ * the range are drawn as a small triangle at the strip end. Returns the clear button, if drawn.
  */
-export function drawSpectrum(g: Draw, box: { l: number; r: number; t: number }, o: SpectrumOpts): void {
+export function drawSpectrum(g: Draw, box: { l: number; r: number; t: number }, o: SpectrumOpts): StageBtn | null {
   const narrow = g.vp.w < 640;
   const sh = STRIP(narrow);
   const y0 = box.t + ROW;
@@ -96,10 +99,12 @@ export function drawSpectrum(g: Draw, box: { l: number; r: number; t: number }, 
     ctx.fillRect(px, box.t + 6, 1, 5);
   }
   ctx.restore();
+  // The clear button sits on the region row at the right end, just above the strip.
+  const btnL = o.clear ? box.r - buttonWidth(g, o.clear.label) - 6 : Infinity;
   const name = (s: string | undefined, a: number, b: number) => {
     if (!s) return;
     const xa = X(Math.max(a, o.range[0]));
-    const xb = X(Math.min(b, o.range[1]));
+    const xb = Math.min(X(Math.min(b, o.range[1])), btnL);
     if (xb - xa < measureRich(ctx, s, { size: 11 }) + 6) return;
     textPx(g, (xa + xb) / 2, box.t + 8.5, s, { size: 11, color: TICK, align: 'center', baseline: 'middle' });
   };
@@ -181,6 +186,8 @@ export function drawSpectrum(g: Draw, box: { l: number; r: number; t: number }, 
     const cx = Math.min(Math.max((a + b) / 2, box.l + tw / 2), box.r - tw / 2);
     textPx(g, cx, by + 13, o.bracket.text, { size: 12, color: '#1a1a1a', align: 'center' });
   }
+
+  return o.clear?.show ? stageButton(g, box.r, y0 - 2 - BTN_H, o.clear.label) : null;
 }
 
 /**

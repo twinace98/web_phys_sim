@@ -2,6 +2,8 @@
 // where F_b = F_g (lightly damped), or sinks to the floor. Forces at their points of application,
 // the displaced volume hatched, the level rising, and the face pressures that make F_b.
 import type { ParamSchema, Scene, Vec2 } from '../../../core/types';
+import { t } from '../../../core/i18n';
+import { UI_FONT, theme } from '../../../draw/theme';
 import type { Draw } from '../../../draw/draw';
 import { texNum } from '../../field/render';
 import {
@@ -15,6 +17,7 @@ import {
   levelAt,
   normal,
   step,
+  viewTop,
   weight,
   yMax,
   type Block,
@@ -22,10 +25,19 @@ import {
   type Motion,
 } from './physics';
 
-type P = { rhoO: number; rhoF: number; fluid: string; a: number; press: boolean };
+type P = { rhoO: number; rhoF: number; a: number; press: boolean };
 type S = Motion & { t: number; held: boolean };
 
+/** Named fluids [kg/m³]; water is the default and the reference. */
 export const FLUIDS: Record<string, number> = { water: 1000, sea: 1025, oil: 920, glycerin: 1260, mercury: 13600 };
+/** A fluid is named on the stage when ρ_f is within this fraction of its density. */
+export const NAME_TOL = 0.01;
+
+/** The listed fluid whose density ρ_f matches (within 1 %), or null. */
+export function fluidName(rho: number): string | null {
+  for (const [k, v] of Object.entries(FLUIDS)) if (Math.abs(rho - v) <= NAME_TOL * v) return k;
+  return null;
+}
 const FLUID_FILL: Record<string, string> = { oil: '#f4ecc8', mercury: '#d9dcdf', glycerin: '#e6eef4' };
 const WATER = '#dcebf6';
 const FORCE = '#CC79A7';
@@ -33,6 +45,7 @@ const WALL = '#5c5c5c';
 const INK = '#1a1a1a';
 const HATCH = '#0072B2';
 const PRESS = '#6b6b6b';
+const LABEL = '#5c5c5c';
 /** World bottom [m]: room below the floor for long weight arrows of a block resting there. */
 const Y0 = -0.1;
 
@@ -62,25 +75,16 @@ const params: ParamSchema<P> = {
     sig: 3,
     min: 500,
     max: 15000,
-    default: 1000,
+    // Water.
+    default: FLUIDS.water,
     unit: 'kg/m³',
-    visibleIf: (p) => p.fluid === 'custom',
-  },
-  fluid: {
-    kind: 'select',
-    label: 'buoyancy.p.fluid',
-    desc: 'buoyancy.d.fluid',
-    group: 'advanced',
-    live: true,
-    default: 'custom',
-    options: ['custom', 'water', 'sea', 'oil', 'glycerin', 'mercury'].map((v) => ({ value: v, label: `buoyancy.fluid.${v}` })),
   },
   a: { kind: 'number', label: 'buoyancy.p.a', desc: 'buoyancy.d.a', group: 'advanced', live: false, control: 'slider', min: 0.1, max: 0.4, step: 0.01, default: 0.2, unit: 'm' },
   press: { kind: 'toggle', label: 'buoyancy.p.press', desc: 'buoyancy.d.press', group: 'advanced', live: true, default: true },
 };
 
 export const blockOf = (p: P): Block => ({ a: p.a, rho: p.rhoO });
-export const fluidOf = (p: P): Fluid => ({ rho: p.fluid === 'custom' ? p.rhoF : (FLUIDS[p.fluid] ?? p.rhoF) });
+export const fluidOf = (p: P): Fluid => ({ rho: p.rhoF });
 
 /** Grey of the block: darker for denser material (log scale 50 → 20000 kg/m³). */
 function blockFill(rho: number): string {
@@ -163,7 +167,7 @@ export const buoyancyScene: Scene<P, S> = {
   id: 'buoyancy',
   title: 'buoyancy.scene',
   params,
-  world: () => ({ x: [-0.47, 0.53], y: [Y0, 0.86], aspect: 'contain', padPx: 8 }),
+  world: (p) => ({ x: [-0.47, 0.53], y: [Y0, viewTop(p.a)], aspect: 'contain', padPx: 8 }),
   time: { h: 0.0005, recordEvery: 20, frameStep: 0.02, window: 10 },
   init: () => ({ t: 0, y: TANK.h0, v: 0, held: false }),
 
@@ -207,7 +211,20 @@ export const buoyancyScene: Scene<P, S> = {
     const half = b.a / 2;
 
     // Fluid, the level without the block (dashed), the tank.
-    g.polygon(rect(-hw, 0, hw, L), { fill: FLUID_FILL[p.fluid] ?? WATER });
+    const name = fluidName(f.rho);
+    g.polygon(rect(-hw, 0, hw, L), { fill: (name && FLUID_FILL[name]) || (f.rho >= 5000 ? FLUID_FILL.mercury : WATER) });
+    // Name of the fluid (water by default) in the lower left corner of the tank; under the floor
+    // instead where a large block low in the tank would cover it (narrow screens).
+    if (name) {
+      const txt = t(`buoyancy.fluid.${name}`);
+      g.ctx.save();
+      g.ctx.font = `${13 * theme.scale}px ${UI_FONT}`;
+      const wPx = g.ctx.measureText(txt).width / theme.scale;
+      g.ctx.restore();
+      const clash = -hw + g.px(8 + wPx + 4) > -half && s.y < g.px(26);
+      const at = clash ? { x: -hw, y: -g.px(6) } : { x: -hw + g.px(8), y: g.px(8) };
+      g.text(at, txt, { size: 13, color: LABEL, align: 'left', baseline: clash ? 'top' : 'bottom' });
+    }
     g.line({ x: -hw, y: L }, { x: hw, y: L }, { color: HATCH, width: 1.5 });
     g.line({ x: hw, y: TANK.h0 }, { x: hw + 0.05, y: TANK.h0 }, { color: WALL, width: 1.25, dash: [4, 3] });
     g.text({ x: hw + 0.055, y: TANK.h0 }, '*h*_{0}', { size: 13, color: INK, align: 'left', baseline: 'middle' });
@@ -256,7 +273,10 @@ export const buoyancyScene: Scene<P, S> = {
     const label = (x: number, y: number, s: string, side: 1 | -1) =>
       g.text({ x: x + side * g.px(5), y }, s, { size: 13, color: FORCE, align: side > 0 ? 'left' : 'right', baseline: 'middle' });
     g.arrow({ x: com.x - dx, y: com.y }, { x: 0, y: -Fg * k }, { color: FORCE, width: 2.5 });
-    label(com.x - dx, com.y - Fg * k + g.px(4), '*F*_{g}', 1);
+    // Where the two tips meet (a light block floating high), F_g goes to the left of its arrow.
+    const yG = com.y - Fg * k + g.px(4);
+    const yB = cob.y + Fb * k - g.px(4);
+    label(com.x - dx, yG, '*F*_{g}', Fb * k > g.px(2) && Math.abs(yG - yB) < g.px(16) ? -1 : 1);
     if (Fb * k > g.px(2)) {
       g.arrow({ x: cob.x + dx, y: cob.y }, { x: 0, y: Fb * k }, { color: FORCE, width: 2.5 });
       label(cob.x + dx, cob.y + Fb * k - g.px(4), '*F*_{b}', 1);
@@ -292,13 +312,13 @@ export const buoyancyScene: Scene<P, S> = {
 
   info: {
     goals: ['buoyancy.goal.arch', 'buoyancy.goal.float'],
-    observe: ['buoyancy.obs.drag', 'buoyancy.obs.frac', 'buoyancy.obs.sink', 'buoyancy.obs.press', 'buoyancy.obs.level', 'buoyancy.obs.fluid', 'buoyancy.obs.period'],
+    observe: ['buoyancy.obs.drag', 'buoyancy.obs.frac', 'buoyancy.obs.sink', 'buoyancy.obs.jump', 'buoyancy.obs.press', 'buoyancy.obs.level', 'buoyancy.obs.fluid', 'buoyancy.obs.period'],
     equations: [
       'F_b = \\rho_f V_\\text{sub}\\, g, \\quad F_g = \\rho_\\text{obj} V g',
       'p = p_0 + \\rho_f g d, \\quad F_b = (p_\\text{bot} - p_\\text{top})A',
       '\\frac{V_\\text{sub}}{V} = \\frac{\\rho_\\text{obj}}{\\rho_f}\\ \\ (\\rho_\\text{obj} < \\rho_f)',
       'T = 2\\pi\\sqrt{\\frac{m}{k}}, \\quad k = \\rho_f g A \\frac{A_t}{A_t - A}',
     ],
-    assumptions: ['buoyancy.as.tank', 'buoyancy.as.damp', 'buoyancy.as.fluid', 'buoyancy.as.floor', 'buoyancy.as.arrows'],
+    assumptions: ['buoyancy.as.fluidname', 'buoyancy.as.tank', 'buoyancy.as.damp', 'buoyancy.as.fluid', 'buoyancy.as.floor', 'buoyancy.as.arrows'],
   },
 };

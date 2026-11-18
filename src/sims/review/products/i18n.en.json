@@ -18,15 +18,17 @@
   "products.dot.obs.drag": "Drag the tips of $\\vec a$ and $\\vec b$; drag the point on the graph to turn $\\vec b$ at fixed length",
   "products.dot.obs.sign": "Sign: $0^\\circ \\le \\varphi < 90^\\circ$ → positive, $\\varphi = 90^\\circ$ → zero, $90^\\circ < \\varphi \\le 180^\\circ$ → negative (the projection points backwards)",
   "products.dot.obs.perp": "Perpendicular vectors: projection of length 0 → $\\vec a\\cdot\\vec b = 0$",
-  "products.dot.obs.plot": "Graph: $\\vec a\\cdot\\vec b = ab\\cos\\varphi$ as $\\varphi$ varies at fixed magnitudes; the point is the current value",
+  "products.dot.obs.plot": "Graph: $\\vec a\\cdot\\vec b = ab\\cos\\varphi$ (black) and the projection $b\\cos\\varphi$ (orange band) as $\\varphi$ varies at fixed magnitudes, on one numeric scale; the bars are the current values, the black bar is $a$ times the orange one",
+  "products.dot.obs.box": "Rectangle beside the graph: width $a$ (blue), height $b\\cos\\varphi$ (orange band) → area $a\\,(b\\cos\\varphi) = \\vec a\\cdot\\vec b$; below the line and hatched when the projection is negative. With \"a onto b\": width $b$, height $a\\cos\\varphi$",
   "products.dot.obs.panel": "Σ panel: both forms with the current values, same result",
-  "products.dot.asm.plane": "Both vectors lie in the $xy$ plane; one grid square = 1 (dimensionless components)",
-  "products.cross.goal.area": "Magnitude of the cross (vector) product = area of the parallelogram the two vectors span: $\\lvert\\vec a\\times\\vec b\\rvert = a\\,(b\\sin\\varphi)$",
+  "products.dot.asm.plane": "Both vectors lie in the $xy$ plane; one grid square = 1 length unit (arbitrary), so $a$, $b$ and the projection are lengths and $\\vec a\\cdot\\vec b$ is in (length unit)²",
+  "products.cross.goal.area": "Magnitude of the cross (vector) product = area of the parallelogram the two vectors span: $\\lvert\\vec a\\times\\vec b\\rvert = a\\,\\lvert b\\sin\\varphi\\rvert$",
   "products.cross.goal.dir": "Direction perpendicular to both, by the right-hand rule: curl the fingers from $\\vec a$ to $\\vec b$, the thumb points along $\\vec a\\times\\vec b$",
   "products.cross.obs.drag": "Drag the tips of $\\vec a$ and $\\vec b$; drag the point on the graph to turn $\\vec b$ at fixed length",
+  "products.cross.obs.rect": "Height of the parallelogram: the perpendicular from the tip of $\\vec b$ to the line of $\\vec a$ (orange band), signed $b\\sin\\varphi$. Cutting off the triangle at the origin and moving it along $\\vec a$ gives the dotted rectangle: base $a$, the same height, the same area $\\lvert\\vec a\\times\\vec b\\rvert = a\\,\\lvert b\\sin\\varphi\\rvert$",
   "products.cross.obs.rhr": "$\\vec b$ counterclockwise from $\\vec a$ → $\\odot$ (out of the page); clockwise → $\\otimes$ (into the page)",
   "products.cross.obs.par": "Parallel or antiparallel ($\\varphi = 0^\\circ$, $\\pm 180^\\circ$): zero area → $\\vec a\\times\\vec b = \\vec 0$",
   "products.cross.obs.anti": "Swapping the order flips the sign: $\\vec b\\times\\vec a = -\\,\\vec a\\times\\vec b$",
-  "products.cross.obs.plot": "Graph: $(\\vec a\\times\\vec b)_z = ab\\sin\\varphi$, largest area at $\\varphi = \\pm 90^\\circ$",
-  "products.cross.asm.sign": "Both vectors lie in the $xy$ plane, so $\\vec a\\times\\vec b$ has only a $z$ component. $\\varphi$ is measured from $\\vec a$ to $\\vec b$, counterclockwise positive ($-180^\\circ$ to $180^\\circ$)"
+  "products.cross.obs.plot": "Graph: $(\\vec a\\times\\vec b)_z = ab\\sin\\varphi$ (black) and the height $b\\sin\\varphi$ (orange band) on one numeric scale; bars = current values, the black bar is $a$ times the orange one; largest area at $\\varphi = \\pm 90^\\circ$",
+  "products.cross.asm.sign": "Both vectors lie in the $xy$ plane, so $\\vec a\\times\\vec b$ has only a $z$ component. $\\varphi$ is measured from $\\vec a$ to $\\vec b$, counterclockwise positive ($-180^\\circ$ to $180^\\circ$), so $b\\sin\\varphi$ is negative for $\\otimes$. One grid square = 1 length unit (arbitrary), area in (length unit)²"
 }

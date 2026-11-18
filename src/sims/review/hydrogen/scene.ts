@@ -12,6 +12,7 @@ import { texNum } from '../../field/render';
 import { Frame, PX_WORLD, TICK, W, linePx, textPx, type Box } from '../../modern/frame';
 import { HC_EVNM, R_H, SERIES, bohrRadius, energy, isEmission, lambdaVac, photonEnergy, seriesLimit, type SeriesId } from './physics';
 import { MARK_ROOM, drawPhoton, drawSpectrum, photonRow, region, spectrumHeight, type SpecLine } from './spectrum';
+import { KNOB_HIT, OFF, clearLines, drawKnob, hasEarlierLines, knobArrow, knobDx, type StageBtn } from './stage';
 
 /** Highest level the transition controls reach. */
 export const N_PICK = 10;
@@ -163,13 +164,23 @@ function drawDiagram(g: Draw, lay: Lay, selected: number[], strongLow: number[] 
     linePx(g, x0, y0, x1, y1, dash);
 }
 
-/** Vertical transition arrow at panel fraction fx, clipped to the panel; returns its visible span [px]. */
-function transitionArrow(f: Frame, fx: number, ni: number, nf: number, st: { color?: string; width?: number; alpha?: number; grow?: number } = {}): { x: number; ya: number; yb: number } {
+/**
+ * Vertical transition arrow at panel fraction fx, clipped to the panel; returns its visible span [px].
+ * With knobs, the arrow runs between the draggable knobs at its ends (drawn by the caller).
+ */
+function transitionArrow(
+  f: Frame,
+  fx: number,
+  ni: number,
+  nf: number,
+  st: { color?: string; width?: number; alpha?: number; grow?: number; knobs?: boolean } = {},
+): { x: number; ya: number; yb: number } {
   const x = f.box.l + fx * (f.box.r - f.box.l);
   const yi = f.Y(energy(ni));
   const yf0 = f.Y(energy(nf));
   const yf = yi + (yf0 - yi) * (st.grow ?? 1);
-  if (Math.abs(yf - yi) >= 3)
+  if (st.knobs) f.clip(() => knobArrow(f.g, x, yi, yf, { color: st.color ?? LEVEL, width: st.width ?? 2 }), 1);
+  else if (Math.abs(yf - yi) >= 3)
     f.clip(() => arrowPx(f.g.ctx, x, yi, x, yf, { color: st.color ?? LEVEL, width: st.width ?? 2, alpha: st.alpha ?? 1 }), 1);
   const lo = Math.max(Math.min(yi, yf), f.box.t);
   const hi = Math.min(Math.max(yi, yf), f.box.b);
@@ -196,6 +207,8 @@ interface ST {
   /** Lines produced so far: "lo-hi" → [lo, hi]. */
   seen: Map<string, [number, number]>;
   lay?: Lay;
+  /** Clear button of the spectrum strip in the last frame (null: not shown). */
+  btn?: StageBtn | null;
 }
 
 const nParam = (key: 'ni' | 'nf', def: number) => ({
@@ -238,9 +251,10 @@ function levelHandle(which: 'ni' | 'nf', panel: 'main' | 'zoom'): Handle<ST, PT>
     pos: (s, p) => {
       const f = s.lay?.[panel];
       if (!f) return { x: NaN, y: NaN };
-      return W(f.g, f.box.l + FX * (f.box.r - f.box.l), f.Y(energy(p[which])));
+      const dx = knobDx(f.Y(energy(p.ni)), f.Y(energy(p.nf)));
+      return W(f.g, f.box.l + FX * (f.box.r - f.box.l) + dx, f.Y(energy(p[which])));
     },
-    radiusPx: 14,
+    radiusPx: KNOB_HIT,
     when: panel === 'zoom' ? (p) => p[which] > MAIN_LABELLED : undefined,
     onDrag: (ctx, s, w) => {
       const f = s.lay?.[panel];
@@ -297,6 +311,19 @@ function drawBohr(g: Draw, box: Box, ni: number, nf: number, lambda: number): vo
   if (ni !== nf && Math.abs(ri - rf) > 18) lab(Math.min(ni, nf));
 }
 
+/** Which level each handle of the transitions tab moves (index = handle index). */
+const TRANS_HANDLES = ['ni', 'nf', 'ni', 'nf'] as const;
+
+/** Clear button of the spectrum strip: a single tap or click (Handle.onTap); dragging does nothing. */
+function clearHandle(): Handle<ST, PT> {
+  return {
+    pos: (s) => s.btn?.c ?? OFF,
+    radiusPx: 20,
+    onDrag: () => {},
+    onTap: (ctx, s) => clearLines(s, ctx.params),
+  };
+}
+
 const seriesLines = (id: string, count: number): number[] => {
   const nl = SERIES[id as SeriesId];
   return Array.from({ length: count }, (_, k) => lambdaVac(nl + 1 + k, nl));
@@ -309,7 +336,7 @@ export const transitions: Scene<PT, ST> = {
   world: PX_WORLD,
   init: () => ({ t: 0, seen: new Map() }),
 
-  draw: (g, s, p) => {
+  draw: (g, s, p, ui) => {
     const series = p.series !== 'none' ? (p.series as SeriesId) : null;
     const lay = layout(g, { bohr: p.bohr, bracket: !!series });
     s.lay = lay;
@@ -323,17 +350,15 @@ export const transitions: Scene<PT, ST> = {
     }
     drawDiagram(g, lay, [ni, nf], series ? [SERIES[series]] : []);
 
-    // Transition arrow in both panels; the photon where the arrow is longer.
-    const spans = [lay.main, lay.zoom].map((f) => ({ f, sp: same ? null : transitionArrow(f, FX, ni, nf) }));
+    // Transition arrow in both panels between the draggable knobs; the photon where the arrow is longer.
+    const spans = [lay.main, lay.zoom].map((f) => ({ f, sp: same ? null : transitionArrow(f, FX, ni, nf, { knobs: true }) }));
+    const dragged = ui?.drag ? TRANS_HANDLES[ui.drag.i] : undefined;
     for (const { f } of spans) {
-      const y = f.Y(energy(ni));
-      if (y >= f.box.t && y <= f.box.b) {
-        const x = f.box.l + FX * (f.box.r - f.box.l);
-        g.circle(W(g, x, y), 11, { fill: ELECTRON, alpha: 0.1 });
-        g.circle(W(g, x, y), 4.5, { fill: '#ffffff', color: ELECTRON, width: 1.75 });
+      const x = f.box.l + FX * (f.box.r - f.box.l) + knobDx(f.Y(energy(ni)), f.Y(energy(nf)));
+      for (const which of same ? (['ni'] as const) : (['nf', 'ni'] as const)) {
+        const y = f.Y(energy(p[which]));
+        if (y >= f.box.t && y <= f.box.b) drawKnob(g, x, y, dragged === which);
       }
-      const yf = f.Y(energy(nf));
-      if (!same && yf >= f.box.t && yf <= f.box.b) g.circle(W(g, f.box.l + FX * (f.box.r - f.box.l), yf), 11, { fill: ELECTRON, alpha: 0.1 });
     }
     if (!same) {
       const best = spans.reduce((a, b) => ((b.sp!.yb - b.sp!.ya) > (a.sp!.yb - a.sp!.ya) ? b : a));
@@ -358,7 +383,7 @@ export const transitions: Scene<PT, ST> = {
       limit = seriesLimit(nl);
       bracket = { from: limit, to: lambdaVac(nl + 1, nl), text: t(`hyd.series.${series}`) };
     }
-    drawSpectrum(g, lay.spec, {
+    s.btn = drawSpectrum(g, lay.spec, {
       range: SPEC_RANGE,
       mode: !same && !isEmission(ni, nf) ? 'absorption' : 'emission',
       lines,
@@ -366,10 +391,11 @@ export const transitions: Scene<PT, ST> = {
       xLabel: '*λ* (nm)',
       limit,
       bracket,
+      clear: { label: t('hyd.clear'), show: hasEarlierLines(s, p) },
     });
   },
 
-  handles: [levelHandle('ni', 'main'), levelHandle('nf', 'main'), levelHandle('ni', 'zoom'), levelHandle('nf', 'zoom')],
+  handles: [levelHandle('ni', 'main'), levelHandle('nf', 'main'), levelHandle('ni', 'zoom'), levelHandle('nf', 'zoom'), clearHandle()],
 
   readouts: [
     { label: '\\lambda', unit: 'nm', sig: 4, value: (_s, p) => (p.ni === p.nf ? NaN : lambdaVac(p.ni, p.nf)) },
@@ -380,14 +406,14 @@ export const transitions: Scene<PT, ST> = {
     const { ni, nf } = p;
     const lo = Math.min(ni, nf);
     const hi = Math.max(ni, nf);
-    const lines = [`E_n = -\\frac{13.60\\ \\text{eV}}{n^2}:\\quad E_{${ni}} = ${texNum(energy(ni), 4)}\\ \\text{eV},\\quad E_{${nf}} = ${texNum(energy(nf), 4)}\\ \\text{eV}`];
+    const lines = [`E_n = -\\frac{13.5983\\ \\text{eV}}{n^2}:\\quad E_{${ni}} = ${texNum(energy(ni), 4)}\\ \\text{eV},\\quad E_{${nf}} = ${texNum(energy(nf), 4)}\\ \\text{eV}`];
     if (ni === nf) return [...lines, 'n_i = n_f:\\ \\Delta E = 0'];
     const dE = photonEnergy(ni, nf);
     const k = 1 / (lo * lo) - 1 / (hi * hi);
     return [
       ...lines,
-      `\\Delta E = E_{${hi}} - E_{${lo}} = 13.60\\left(\\frac{1}{${lo}^2} - \\frac{1}{${hi}^2}\\right)\\ \\text{eV} = ${texNum(dE, 5)}\\ \\text{eV}`,
-      `\\lambda = \\frac{hc}{\\Delta E} = \\frac{1239.8\\ \\text{eV}\\cdot\\text{nm}}{${texNum(dE, 5)}\\ \\text{eV}} = ${fmtLambda(HC_EVNM / dE)}`,
+      `\\Delta E = E_{${hi}} - E_{${lo}} = 13.5983\\left(\\frac{1}{${lo}^2} - \\frac{1}{${hi}^2}\\right)\\ \\text{eV} = ${texNum(dE, 5)}\\ \\text{eV}`,
+      `\\lambda = \\frac{hc}{\\Delta E} = \\frac{1239.84\\ \\text{eV}\\cdot\\text{nm}}{${texNum(dE, 5)}\\ \\text{eV}} = ${fmtLambda(HC_EVNM / dE)}`,
       `\\frac{1}{\\lambda} = R_\\text{H}\\left(\\frac{1}{${lo}^2} - \\frac{1}{${hi}^2}\\right) = ${texNum(R_H * k, 5)}\\ \\text{m}^{-1}`,
     ];
   },

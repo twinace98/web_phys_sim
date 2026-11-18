@@ -68,3 +68,46 @@ export function rotateTo(a: V2, b: V2, phi: number): V2 {
   const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
   return [r3(m * Math.cos(th + phi)), r3(m * Math.sin(th + phi))];
 }
+
+/** Signed length of v along u: v cos φ (negative when v points backwards); 0 when u = 0. */
+export function along(v: V2, u: V2): number {
+  const m = mag(u);
+  return m === 0 ? 0 : dot(u, v) / m;
+}
+
+/**
+ * Signed height of v off the line of u: v sin φ with φ measured from u to v, positive on u's
+ * counter-clockwise side; 0 when u = 0. Then u × v = u (v sin φ) k̂.
+ */
+export function across(v: V2, u: V2): number {
+  const m = mag(u);
+  return m === 0 ? 0 : crossZ(u, v) / m;
+}
+
+/** Part of v perpendicular to u, v − (projection on u): a vector of length |v sin φ|. */
+export function reject(v: V2, u: V2): V2 {
+  const p = project(v, u);
+  return [v[0] - p[0], v[1] - p[1]];
+}
+
+/**
+ * The parallelogram (u, v) sheared into a rectangle: the triangle O, F, v (F = foot of the
+ * perpendicular from v's tip on the line of u) is cut off and moved along u to u, F + u, u + v.
+ * Corners F, F + u, u + v, v: base |u| on the line of u, height |v sin φ| (F → v), the top edge shared
+ * with the parallelogram, so the same (signed) area u × v.
+ */
+export function shearRect(u: V2, v: V2): [V2, V2, V2, V2] {
+  const f = project(v, u);
+  return [f, [f[0] + u[0], f[1] + u[1]], [u[0] + v[0], u[1] + v[1]], v];
+}
+
+/** Signed area of a polygon (shoelace), positive counter-clockwise. */
+export function signedArea(pts: V2[]): number {
+  let s = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [x0, y0] = pts[i];
+    const [x1, y1] = pts[(i + 1) % pts.length];
+    s += x0 * y1 - x1 * y0;
+  }
+  return s / 2;
+}

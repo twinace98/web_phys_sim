@@ -25,6 +25,39 @@ export const displacementShape = (type: PipeType, L: number, n: number, x: numbe
 /** Pressure amplitude profile Δp(x)/Δp_m = sin kx, from Δp = −B ∂s/∂x. */
 export const pressureShape = (type: PipeType, L: number, n: number, x: number) => Math.sin(waveNumber(type, L, n) * x);
 
+/**
+ * Density amplitude profile (Δρ/ρ)/(k s_m) = sin kx. A slab of air between x and x + dx moves to
+ * x + s(x) … x + dx + s(x + dx), so its density changes by Δρ/ρ = −∂s/∂x = k s_m sin kx cos ωt:
+ * the same shape as Δp (Δp = B Δρ/ρ). Largest at the displacement nodes, zero at the antinodes.
+ */
+export const densityShape = pressureShape;
+
+/** Position of the air that rests at x0, at phase ωt, for displacement amplitude sm [same unit as x]. */
+export const particleX = (type: PipeType, L: number, n: number, x0: number, sm: number, phase: number) =>
+  x0 + sm * displacementShape(type, L, n, x0) * Math.cos(phase);
+
+/**
+ * Columns of air particles at rest positions x_i = i L/N (i = 0 … N), about `approx` of them, with
+ * N a multiple of the number of quarter wavelengths in the pipe (2n open, n closed). So a column
+ * sits exactly on every displacement node and antinode; those are the tracer columns.
+ */
+export function columns(type: PipeType, L: number, n: number, approx: number): { x: number[]; tracer: boolean[]; node: boolean[] } {
+  const quarters = type === 'open' ? 2 * n : n;
+  const per = Math.max(2, Math.round(approx / quarters));
+  const N = quarters * per;
+  const x: number[] = [];
+  const tracer: boolean[] = [];
+  const node: boolean[] = [];
+  for (let i = 0; i <= N; i++) {
+    x.push((L * i) / N);
+    const q = i / per;
+    tracer.push(i % per === 0);
+    // Quarter q from the open left end (an antinode): odd quarters are nodes.
+    node.push(i % per === 0 && q % 2 === 1);
+  }
+  return { x, tracer, node };
+}
+
 /** Points in [0, L] where kx = (j + offset)π. */
 function marks(type: PipeType, L: number, n: number, offset: number): number[] {
   const k = waveNumber(type, L, n);
