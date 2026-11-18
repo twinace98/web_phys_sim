@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { afterFirst, knobDir, polar, segments } from '../src/sims/ch33/polar';
 import { MEDIA, acceptance, coreAngle, criticalAngle, malus, polarizerChain, reflectance, snell, wallIncidence } from '../src/sims/ch33/physics';
-import { dragAngle, fibre, indexLabels, refraction, traceFibre, traceRays } from '../src/sims/ch33/refraction';
-import { probe } from './stage-probe';
+import { JACKET_PX, arrivedFraction, dragAngle, fibre, indexLabels, refraction, traceFibre, traceRays } from '../src/sims/ch33/refraction';
+import { ProbeDraw, probe } from './stage-probe';
 
 describe('ch33 fibre index labels (round 2)', () => {
   it('phone: stacked above the fibre with leaders; desktop: beside the layers', () => {
@@ -106,63 +106,99 @@ describe('ch33 optical fibre', () => {
     expect(traceFibre({ alpha: 60, clad: '1' }).escaped.length).toBe(0);
   });
 
-  it('alpha 80°, glass cladding: totally reflected at the cladding-air boundary (50.8° > 43.2°)', () => {
-    const D = Math.PI / 180;
+  it('alpha 80°, glass cladding: light reaching the outer cladding edge is absorbed by the jacket', () => {
     const r = traceFibre({ alpha: 80, clad: '1.46' });
-    const outer = r.hits.filter((h) => h.to === 'out');
-    expect(outer.length).toBeGreaterThan(0);
-    // n cos(angle to the axis) is conserved: sin(inc) in the cladding = 1.5 cos β / 1.46.
-    const beta = Math.asin(Math.sin(80 * D) / 1.5);
-    const inc = Math.asin((1.5 * Math.cos(beta)) / 1.46);
-    expect(inc / D).toBeCloseTo(50.8, 1);
-    for (const h of outer) {
-      expect(h.inc).toBeCloseTo(inc, 9);
-      expect(h.inc).toBeGreaterThan(criticalAngle(1.46, 1));
-      expect(Number.isNaN(h.out)).toBe(true);
-      // The reflected branch leaves the hit point back into the cladding.
-      expect(r.escaped.some((s) => s.layer === 'clad' && Math.hypot(s.a.x - h.at.x, s.a.y - h.at.y) < 1e-9)).toBe(true);
+    const t = traceRays({ n1: 1.5, n2: 1.46, n0: 1 }, (80 * Math.PI) / 180);
+    expect(t.absorbed.length).toBeGreaterThan(0);
+    // Before the fix the cladding-air boundary reflected it totally (50.8° > 43.2°) and the
+    // cladding mode reached the far end. Now every cladding segment ends on the jacket or the core wall.
+    for (const s of r.escaped) {
+      expect(s.layer).toBe('clad');
+      expect(Math.abs(s.b.x - 31) > 1e-9).toBe(true);
     }
-    expect(r.escaped.filter((s) => s.layer === 'out').length).toBe(0);
-    // The cladding mode reaches the far end (x = 31, beyond the stage edge at 30).
-    expect(Math.max(...r.escaped.map((s) => s.b.x))).toBeCloseTo(31, 9);
+    for (const h of r.hits) expect(Math.abs(h.at.y)).toBeCloseTo(1.3, 9);
+    for (const q of t.absorbed) expect(Math.abs(q.at.y)).toBeCloseTo(3.2, 9);
   });
 
-  it('every α and cladding: Snell at every boundary, nothing leaves through the side into air', () => {
+  it('every α and cladding: Snell at the core wall, rays stay inside the jacket, energy balance', () => {
     for (const clad of ['1.46', '1.33', '1'])
-      for (let alpha = 0; alpha <= 80; alpha++) {
+      for (let alpha = 0; alpha <= 80; alpha += 0.5) {
         const r = traceFibre({ alpha, clad });
         for (const h of r.hits) {
           if (Number.isNaN(h.out)) expect(h.nFrom * Math.sin(h.inc)).toBeGreaterThan(h.nTo);
           else expect(h.nFrom * Math.sin(h.inc)).toBeCloseTo(h.nTo * Math.sin(h.out), 9);
-          if (h.to === 'out') expect(Number.isNaN(h.out)).toBe(true);
         }
-        for (const s of [...r.guided, ...r.escaped]) {
-          expect(s.layer).not.toBe('out');
+        for (const s of [...r.guided, ...r.escaped])
           for (const q of [s.a, s.b]) {
             expect(Math.abs(q.y)).toBeLessThanOrEqual(3.2 + 1e-9);
             expect(q.x).toBeGreaterThanOrEqual(6 - 1e-9);
             expect(q.x).toBeLessThanOrEqual(31 + 1e-9);
           }
+        // Arrived + absorbed + dropped weak branches = light entering the core.
+        const t = traceRays({ n1: 1.5, n2: Number(clad), n0: 1 }, (alpha * Math.PI) / 180);
+        const inCore = 1 - reflectance(1, 1.5, (alpha * Math.PI) / 180);
+        const absorbed = t.absorbed.reduce((a, q) => a + q.I, 0);
+        expect(t.arrived + absorbed).toBeLessThanOrEqual(inCore + 1e-9);
+        expect(t.arrived + absorbed).toBeGreaterThan(inCore - 0.05);
+        const am = (acceptance({ n1: 1.5, n2: Number(clad), n0: 1 }) * 180) / Math.PI;
+        if (alpha <= am) {
+          expect(t.absorbed.length).toBe(0);
+          expect(arrivedFraction({ alpha, clad })).toBeCloseTo(inCore, 12);
         }
       }
   });
 
-  it('a weak index step lets the ray refract out of the cladding with the Snell angle, to the stage edge', () => {
+  it('review case: beyond the acceptance angle the arriving fraction falls (leak = loss)', () => {
     const D = Math.PI / 180;
-    const { segs, hits } = traceRays({ n1: 1.2, n2: 1.1, n0: 1 }, 80 * D);
-    const leave = hits.filter((h) => h.to === 'out' && !Number.isNaN(h.out));
-    expect(leave.length).toBeGreaterThan(0);
-    for (const h of leave) expect(1.1 * Math.sin(h.inc)).toBeCloseTo(Math.sin(h.out), 9);
-    const out = segs.filter((s) => s.layer === 'out');
-    expect(out.length).toBeGreaterThan(0);
-    for (const s of out) {
-      const onEdge = Math.abs(Math.abs(s.b.y) - 6.2) < 1e-9 || Math.abs(s.b.x - 30) < 1e-9;
-      expect(onEdge).toBe(true);
-      // Direction matches the refraction angle at its start.
-      const h = leave.find((k) => Math.hypot(k.at.x - s.a.x, k.at.y - s.a.y) < 1e-9)!;
-      const ang = Math.atan2(s.b.x - s.a.x, Math.abs(s.b.y - s.a.y));
-      expect(ang).toBeCloseTo(h.out, 9);
+    const f = { n1: 1.5, n2: 1.46, n0: 1 };
+    const am = acceptance(f) / D; // 20.1°
+    // Wall incidence 0.94 θc (72.1°): before the fix the light leaking at every wall reached
+    // the far end through the cladding, so the total arriving there stayed at about 0.95.
+    const th = 0.94 * criticalAngle(1.5, 1.46);
+    const alpha = Math.asin(1.5 * Math.cos(th)) / D;
+    expect(alpha).toBeGreaterThan(am);
+    const inCore = 1 - reflectance(1, 1.5, alpha * D);
+    const got = arrivedFraction({ alpha, clad: '1.46' });
+    expect(got).toBeLessThan(0.5 * inCore);
+    // Guided below the acceptance angle: all of the core light arrives.
+    expect(arrivedFraction({ alpha: 15, clad: '1.46' })).toBeCloseTo(1 - reflectance(1, 1.5, 15 * D), 12);
+    // Monotone loss past the acceptance angle, for glass and water claddings.
+    for (const clad of ['1.46', '1.33']) {
+      const a0 = acceptance({ n1: 1.5, n2: Number(clad), n0: 1 }) / D;
+      let prev = Infinity;
+      for (let a = Math.ceil(a0 + 1); a <= 80; a += 5) {
+        const v = arrivedFraction({ alpha: a, clad }) / (1 - reflectance(1, 1.5, a * D));
+        expect(v).toBeLessThan(prev + 1e-9);
+        prev = v;
+      }
+      expect(prev).toBeLessThan(0.05);
     }
+  });
+
+  it('the jacket is drawn on both outer cladding edges, at every cladding option', () => {
+    for (const clad of ['1.46', '1.33', '1'])
+      for (const [w, h] of [
+        [1280, 800],
+        [390, 844],
+      ]) {
+        const polys: { pts: { x: number; y: number }[]; fill?: string }[] = [];
+        const g = new (class extends ProbeDraw {
+          polygon(pts: { x: number; y: number }[], st?: { fill?: string }): void {
+            polys.push({ pts, fill: st?.fill });
+          }
+        })(w, h);
+        const p = { ...defaults(fibre.params), clad };
+        g.vp.fit(fibre.world(p), w, h);
+        fibre.draw(g, { t: 0 }, p, { t: 0, cursorT: 0, scrubbing: false, lecture: false });
+        const jackets = polys.filter((pl) => pl.fill === '#3a3a3a');
+        expect(jackets.length).toBe(2);
+        for (const j of jackets) {
+          const ys = j.pts.map((q) => Math.abs(q.y));
+          // From the outer cladding edge outward, JACKET_PX wide on screen.
+          expect(Math.min(...ys)).toBeCloseTo(3.2, 9);
+          expect((Math.max(...ys) - 3.2) / g.px(1)).toBeCloseTo(JACKET_PX, 9);
+        }
+      }
   });
 });
 

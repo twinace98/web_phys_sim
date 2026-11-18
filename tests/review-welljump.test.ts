@@ -9,6 +9,7 @@ import { region } from '../src/sims/review/hydrogen/spectrum';
 import { KNOB_HIT } from '../src/sims/review/hydrogen/stage';
 import { E1_COEF, dipoleAllowed, lambda, level, photonEnergy, psi } from '../src/sims/review/welljump/physics';
 import { N_LEVELS, nearestLevel, welljump } from '../src/sims/review/welljump/scene';
+import { NUM, agrees, grab, val } from './sigma-digits';
 import { offStage, probe } from './stage-probe';
 
 const near = (a: number, b: number, tol: number) => expect(Math.abs(a - b)).toBeLessThan(tol);
@@ -148,5 +149,41 @@ describe('welljump stage controls (knobs, strip reset)', () => {
     expect([...s.seen.keys()]).toEqual(['1-3']);
     probe(welljump, s, r.params, 1280, 704);
     expect(s.btn).toBeNull();
+  });
+});
+
+describe('welljump Σ: the printed inputs reproduce the printed results', () => {
+  const p0 = defaults(welljump.params);
+  const R = (s: string) => new RegExp(s.replace(/N#/g, `(${NUM})`));
+  // Every slider stop (two figures, 0.20 … 2.0 nm) and every pair of levels.
+  const Ls = [...Array.from({ length: 80 }, (_, i) => (20 + i) / 100), ...Array.from({ length: 11 }, (_, i) => 1 + i / 10)];
+
+  function check(L: number, ni: number, nf: number): string[] {
+    const bad: string[] = [];
+    const f = welljump.formula!(welljump.init(p0, null as never), { ...p0, L, ni, nf });
+    const tag = `L=${L} ${ni}→${nf}`;
+    const [hc, mc, Lp, E1] = grab(f[0], R(String.raw`\\frac\{\(N#\\ \\text\{eV\}\\cdot\\text\{nm\}\)\^2\}\{8\\,\(N#\\ \\text\{keV\}\)\\,\(N#\\ \\text\{nm\}\)\^2\} = N#\\ \\text\{eV\}`));
+    if (!agrees(val(hc) ** 2 / (8 * val(mc) * 1000 * val(Lp) ** 2), E1)) bad.push(`${tag} E1 ${f[0]}`);
+    const [Ei, Ef] = grab(f[1], R(String.raw`E_\{\d\} = N#\\ \\text\{eV\},\\quad E_\{\d\} = N#`));
+    if (!agrees(ni * ni * val(E1), Ei) || !agrees(nf * nf * val(E1), Ef)) bad.push(`${tag} E_n ${f[1]}`);
+    if (ni === nf) return bad;
+    const [hi, lo, E1b, dE] = grab(f[2], R(String.raw`\((\d)\^2 - (\d)\^2\)\(N#\\ \\text\{eV\}\) = N#`));
+    if (E1b !== E1) bad.push(`${tag} E1 differs between lines: ${E1} / ${E1b}`);
+    if (!agrees((Number(hi) ** 2 - Number(lo) ** 2) * val(E1b), dE)) bad.push(`${tag} ΔE ${f[2]}`);
+    const [hc2, dE2, lam] = grab(f[3], R(String.raw`\\frac\{N#\\ \\text\{eV\}\\cdot\\text\{nm\}\}\{N#\\ \\text\{eV\}\} = N#`));
+    if (dE2 !== dE) bad.push(`${tag} ΔE differs between lines: ${dE} / ${dE2}`);
+    if (hc2 !== hc) bad.push(`${tag} hc differs between lines: ${hc} / ${hc2}`);
+    if (!agrees(val(hc2) / val(dE2), lam)) bad.push(`${tag} λ ${f[3]}`);
+    return bad;
+  }
+
+  it('review case L = 1 nm, 3 → 2: the λ line gives 659.4 nm from the printed ΔE', () => {
+    expect(check(1, 3, 2)).toEqual([]);
+    expect(welljump.formula!(welljump.init(p0, null as never), p0)[3]).toMatch(/= 659\.4\\ \\text\{nm\}$/);
+  });
+
+  it('every slider stop of L and every pair of levels', () => {
+    const bad = Ls.flatMap((L) => [1, 2, 3, 4, 5].flatMap((ni) => [1, 2, 3, 4, 5].flatMap((nf) => check(L, ni, nf))));
+    expect(bad.length, bad.slice(0, 5).join('\n')).toBe(0);
   });
 });

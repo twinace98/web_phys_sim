@@ -14,7 +14,7 @@
   "ch31.f.obs.phase": "$i(t)$는 $q(t)$보다 1/4 주기 앞섬: $i = dq/dt$",
   "ch31.f.obs.spring": "용수철 대응: $q \\leftrightarrow x$, $i \\leftrightarrow v$, $L \\leftrightarrow m$, $1/C \\leftrightarrow k$ → 같은 미분방정식, 같은 운동",
   "ch31.f.obs.damp": "저항 5 Ω, 20 Ω: 진동하며 진폭이 $e^{-Rt/2L}$로 감소, 전체 에너지 $U$ 감소, 주기 $T' = 2\\pi/\\omega'$는 $R = 0$일 때보다 김",
-  "ch31.f.obs.over": "저항 100 Ω ($R \\ge 2\\sqrt{L/C}$): 진동 없이 0으로 접근 (임계·과감쇠), 주기 없음 ($T'$ –)",
+  "ch31.f.obs.over": "$R \\ge 2\\sqrt{L/C}$: 진동 없이 0으로 접근 (임계·과감쇠), 주기 없음 ($T'$ –). 기본값 ($L$ = 10 mH, $C$ = 10 μF): $2\\sqrt{L/C}$ = 63.2 Ω → 100 Ω에서 진동 없음. $L$ 크고 $C$ 작으면 100 Ω에서도 진동 (20 mH, 5 μF: $2\\sqrt{L/C}$ = 126.5 Ω, $T'$ = 3.24 ms)",
   "ch31.f.assume": "처음 축전기 전압 10 V, 처음 전류 0. 이상적인 소자 (유도기 저항 0, 복사 무시). 시간은 ms 단위로 느리게 재생",
   "ch31.a.scene": "교류 회로",
   "ch31.a.p.ratio": "구동 진동수 $\\omega_d/\\omega_0$",

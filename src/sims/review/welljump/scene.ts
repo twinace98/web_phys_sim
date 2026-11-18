@@ -7,6 +7,8 @@ import { t } from '../../../core/i18n';
 import type { Handle, ParamSchema, Scene } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
 import { ROLE_COLOR } from '../../../draw/theme';
+import { tn } from '../../../core/tex';
+import { fitSig, printed } from '../../ch31/fit';
 import { texNum } from '../../field/render';
 import { Frame, PX_WORLD, TICK, W, linePx, textPx } from '../../modern/frame';
 import { HC_EVNM } from '../hydrogen/physics';
@@ -214,7 +216,14 @@ const params: ParamSchema<P> = {
   nf: nParam('nf', 2),
 };
 
-const fmtLambda = (nm: number) => (nm >= 1e4 ? `${texNum(nm / 1000, 4)}\\ \\mu\\text{m}` : `${texNum(nm, 4)}\\ \\text{nm}`);
+/** Printed hc [eV·nm] and mₑc² [keV]: the short pair first, more digits where E_1 needs them. */
+const CONSTS: [string, string][] = [
+  ['1239.84', '511.0'],
+  ['1239.842', '510.999'],
+  ['1239.84198', '510.99895'],
+];
+
+const fmtLambda = (nm: number, sig = 4) => (nm >= 1e4 ? `${texNum(nm / 1000, sig)}\\ \\mu\\text{m}` : `${texNum(nm, sig)}\\ \\text{nm}`);
 
 export const welljump: Scene<P, S> = {
   id: 'welljump',
@@ -258,18 +267,41 @@ export const welljump: Scene<P, S> = {
   formula: (_s, p) => {
     const { ni, nf, L } = p;
     const E1 = level(1, L);
-    const lines = [
-      `E_1 = \\frac{h^2}{8mL^2} = \\frac{(hc)^2}{8\\,mc^2L^2} = \\frac{(1239.84\\ \\text{eV}\\cdot\\text{nm})^2}{8\\,(511.0\\ \\text{keV})\\,(${texNum(L, 3)}\\ \\text{nm})^2} = ${texNum(E1, 4)}\\ \\text{eV}`,
-      `E_n = n^2E_1:\\quad E_{${ni}} = ${texNum(level(ni, L), 4)}\\ \\text{eV},\\quad E_{${nf}} = ${texNum(level(nf, L), 4)}\\ \\text{eV}`,
-    ];
-    if (ni === nf) return [...lines, 'n_i = n_f:\\ \\Delta E = 0'];
+    const same = ni === nf;
     const hi = Math.max(ni, nf);
     const lo = Math.min(ni, nf);
     const dE = photonEnergy(ni, nf, L);
+    const lam = HC_EVNM / dE;
+    // Figures so that each line's arithmetic reproduces its printed result: ΔE for λ, then E_1 for
+    // ΔE and E_n, then the constants for E_1. The short constants and λ at 4 figures first; a λ
+    // close to a rounding tie (175.85005 nm) gets a fifth figure rather than a 9-figure E_1.
+    let plan = { hcS: CONSTS[0][0], mcS: CONSTS[0][1], sL: 4, sD: 4, sE: 4 };
+    search: for (const sL of [4, 5]) {
+      for (const [hcS, mcS] of CONSTS) {
+        const hc = Number(hcS);
+        const mc2 = Number(mcS) * 1000;
+        // ΔE: from the fewest figures that give λ up to 7 (a ΔE such as 1.88015 that E_1 hits
+        // exactly is easier to reproduce than 1.8802).
+        const lamS = tn(lam, sL);
+        for (let sD = same ? 7 : fitSig((r) => tn(hc / r(dE), sL), lamS, 4, 8); sD <= 7; sD++) {
+          if (!same && tn(hc / printed(dE, sD), sL) !== lamS) continue;
+          const want = [tn(level(ni, L), 4), tn(level(nf, L), 4), same ? '' : tn(dE, sD)].join();
+          const sE = fitSig((r) => [tn(ni * ni * r(E1), 4), tn(nf * nf * r(E1), 4), same ? '' : tn((hi * hi - lo * lo) * r(E1), sD)].join(), want, 4, 8);
+          plan = { hcS, mcS, sL, sD: same ? 4 : sD, sE };
+          if (sE < 7 && tn((hc * hc) / (8 * mc2 * L * L), sE) === tn(E1, sE)) break search;
+        }
+      }
+    }
+    const { hcS, mcS, sL, sD, sE } = plan;
+    const lines = [
+      `E_1 = \\frac{h^2}{8mL^2} = \\frac{(hc)^2}{8\\,mc^2L^2} = \\frac{(${hcS}\\ \\text{eV}\\cdot\\text{nm})^2}{8\\,(${mcS}\\ \\text{keV})\\,(${texNum(L, 3)}\\ \\text{nm})^2} = ${tn(E1, sE)}\\ \\text{eV}`,
+      `E_n = n^2E_1:\\quad E_{${ni}} = ${texNum(level(ni, L), 4)}\\ \\text{eV},\\quad E_{${nf}} = ${texNum(level(nf, L), 4)}\\ \\text{eV}`,
+    ];
+    if (same) return [...lines, 'n_i = n_f:\\ \\Delta E = 0'];
     return [
       ...lines,
-      `\\Delta E = E_{${hi}} - E_{${lo}} = (${hi}^2 - ${lo}^2)(${texNum(E1, 4)}\\ \\text{eV}) = ${texNum(dE, 4)}\\ \\text{eV}`,
-      `\\lambda = \\frac{hc}{\\Delta E} = \\frac{1239.84\\ \\text{eV}\\cdot\\text{nm}}{${texNum(dE, 4)}\\ \\text{eV}} = ${fmtLambda(HC_EVNM / dE)}`,
+      `\\Delta E = E_{${hi}} - E_{${lo}} = (${hi}^2 - ${lo}^2)(${tn(E1, sE)}\\ \\text{eV}) = ${tn(dE, sD)}\\ \\text{eV}`,
+      `\\lambda = \\frac{hc}{\\Delta E} = \\frac{${hcS}\\ \\text{eV}\\cdot\\text{nm}}{${tn(dE, sD)}\\ \\text{eV}} = ${fmtLambda(lam, sL)}`,
     ];
   },
 

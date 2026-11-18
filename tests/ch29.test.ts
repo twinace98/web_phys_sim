@@ -59,6 +59,34 @@ describe('ch29 Ampère circulation', () => {
     expect(f(0, 0)[0]).toBeGreaterThan(0);
     expect(bout / bin).toBeLessThan(0.2);
   });
+
+  it('review case: centre field 13.26 μT = 0.844 μ0 n I (finite length L = 4 d), and the ⓘ says so', () => {
+    const src = WIRE_POOL.sources(WIRE_POOL.fromPreset(WIRE_PRESETS.solenoid));
+    const f = fieldFn(src, 'wire');
+    const B = (x: number, y: number) => WIRE_B * Math.hypot(...f(x, y));
+    // 16 wires 8 cm apart per row: n = 12.5 /m, L = 1.28 m; rows 0.32 m apart.
+    const xs = WIRE_PRESETS.solenoid.filter((w) => w[0] === 0).map((w) => w[1]);
+    const ys = [...new Set(WIRE_PRESETS.solenoid.map((w) => w[2]))];
+    const L = xs.length * (xs[1] - xs[0]);
+    const d = Math.abs(ys[0] - ys[1]);
+    expect(L).toBeCloseTo(1.28, 9);
+    expect(d).toBeCloseTo(0.32, 9);
+    const ideal = MU0_UT * (xs.length / L) * 1;
+    expect(ideal).toBeCloseTo(15.71, 2);
+    expect(B(0, 0)).toBeCloseTo(13.26, 2);
+    expect(B(0, 0) / ideal).toBeCloseTo((2 / Math.PI) * Math.atan(L / d), 3);
+    expect(B(0, 0) / ideal).toBeCloseTo(0.844, 3);
+    // Nearly uniform along the middle: within 2 % for |x| ≤ 0.2 m, |y| ≤ 0.1 m.
+    for (const x of [-0.2, -0.1, 0, 0.1, 0.2]) for (const y of [-0.1, 0, 0.1]) expect(Math.abs(B(x, y) / B(0, 0) - 1)).toBeLessThan(0.02);
+    // The ⓘ quotes these numbers and the length-to-width ratio.
+    for (const s of [ko['ch29.a.obs.solenoid'], en['ch29.a.obs.solenoid']]) {
+      expect(s).toContain('13.3 μT');
+      expect(s).toContain('15.7 μT');
+      expect(s).toContain('84 %');
+      expect(s).toMatch(/4배|4 times/);
+    }
+    expect(ko['ch29.a.obs.solenoid']).not.toContain('거의 균일하고 강함');
+  });
 });
 
 describe('ch29 Biot-Savart reference line and convergence (QA E7)', () => {

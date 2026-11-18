@@ -2,12 +2,15 @@
 // Tab 1: pick a transition (stage handles or steppers n_i, n_f); the photon and its line, which
 // accumulates in the spectrum strip. Tab 2: play a whole series converging to its limit.
 // Energy diagram: linear in E, with a magnified inset of the top band (n ≥ 5) so every label reads.
-import { fmt, fmtTick } from '../../../core/format';
+import { fmtTick } from '../../../core/format';
+import { tn } from '../../../core/tex';
 import { t } from '../../../core/i18n';
 import type { Handle, ParamSchema, Scene } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
 import { arrowPx } from '../../../draw/draw';
 import { ROLE_COLOR, theme } from '../../../draw/theme';
+import { tnFit } from '../../ch07/sigfit';
+import { fitSig, printed } from '../../ch31/fit';
 import { texNum } from '../../field/render';
 import { Frame, PX_WORLD, TICK, W, linePx, textPx, type Box } from '../../modern/frame';
 import { HC_EVNM, R_H, SERIES, bohrRadius, energy, isEmission, lambdaVac, photonEnergy, seriesLimit, type SeriesId } from './physics';
@@ -197,7 +200,15 @@ export const regionMark = (nm: number): string | undefined => {
   return r === 'vis' ? undefined : t(`hyd.region.${r}`);
 };
 
-const fmtLambda = (nm: number) => (nm >= 1e4 ? `${fmt(nm / 1000, 3)}\\ \\mu\\text{m}` : `${texNum(nm, 4)}\\ \\text{nm}`);
+/** λ at `sig` figures in nm, one figure fewer in μm (10 μm and longer). */
+const fmtLambda = (nm: number, sig = 4) => (nm >= 1e4 ? `${tn(nm / 1000, sig - 1)}\\ \\mu\\text{m}` : `${tn(nm, sig)}\\ \\text{nm}`);
+
+/** Printed ionization energy R_H hc [eV] and hc [eV·nm]: the short pair first, more digits where needed. */
+const CONSTS = [
+  { ion: '13.5983', hc: '1239.84' },
+  { ion: '13.59829', hc: '1239.842' },
+  { ion: '13.598287', hc: '1239.84198' },
+];
 
 // ------------------------------------------------------------------ tab 1: transitions
 
@@ -406,14 +417,37 @@ export const transitions: Scene<PT, ST> = {
     const { ni, nf } = p;
     const lo = Math.min(ni, nf);
     const hi = Math.max(ni, nf);
-    const lines = [`E_n = -\\frac{13.5983\\ \\text{eV}}{n^2}:\\quad E_{${ni}} = ${texNum(energy(ni), 4)}\\ \\text{eV},\\quad E_{${nf}} = ${texNum(energy(nf), 4)}\\ \\text{eV}`];
-    if (ni === nf) return [...lines, 'n_i = n_f:\\ \\Delta E = 0'];
+    const same = ni === nf;
     const dE = photonEnergy(ni, nf);
     const k = 1 / (lo * lo) - 1 / (hi * hi);
+    const lam = HC_EVNM / dE;
+    const En = [tn(energy(ni), 4), tn(energy(nf), 4)];
+    // Figures of ΔE so that hc/ΔE gives the printed λ, and constants (13.5983 eV, hc) with as many
+    // digits as the E_n, ΔE and λ lines need; a λ close to a rounding tie gets one more figure.
+    let plan = { ...CONSTS[0], sL: 4, sD: 5 };
+    search: for (const sL of [4, 5]) {
+      for (const c of CONSTS) {
+        const hc = Number(c.hc);
+        const Ec = Number(c.ion);
+        if (tn(-Ec / (ni * ni), 4) !== En[0] || tn(-Ec / (nf * nf), 4) !== En[1]) continue;
+        if (same) {
+          plan = { ...c, sL, sD: 5 };
+          break search;
+        }
+        const lamS = fmtLambda(lam, sL);
+        for (let sD = fitSig((r) => fmtLambda(hc / r(dE), sL), lamS, 5, 8); sD < 8; sD++) {
+          plan = { ...c, sL, sD };
+          if (fmtLambda(hc / printed(dE, sD), sL) === lamS && tn(Ec * k, sD) === tn(dE, sD)) break search;
+        }
+      }
+    }
+    const { hc, ion, sL, sD } = plan;
+    const lines = [`E_n = -\\frac{${ion}\\ \\text{eV}}{n^2}:\\quad E_{${ni}} = ${En[0]}\\ \\text{eV},\\quad E_{${nf}} = ${En[1]}\\ \\text{eV}`];
+    if (same) return [...lines, 'n_i = n_f:\\ \\Delta E = 0'];
     return [
       ...lines,
-      `\\Delta E = E_{${hi}} - E_{${lo}} = 13.5983\\left(\\frac{1}{${lo}^2} - \\frac{1}{${hi}^2}\\right)\\ \\text{eV} = ${texNum(dE, 5)}\\ \\text{eV}`,
-      `\\lambda = \\frac{hc}{\\Delta E} = \\frac{1239.84\\ \\text{eV}\\cdot\\text{nm}}{${texNum(dE, 5)}\\ \\text{eV}} = ${fmtLambda(HC_EVNM / dE)}`,
+      `\\Delta E = E_{${hi}} - E_{${lo}} = ${ion}\\left(\\frac{1}{${lo}^2} - \\frac{1}{${hi}^2}\\right)\\ \\text{eV} = ${tn(dE, sD)}\\ \\text{eV}`,
+      `\\lambda = \\frac{hc}{\\Delta E} = \\frac{${hc}\\ \\text{eV}\\cdot\\text{nm}}{${tn(dE, sD)}\\ \\text{eV}} = ${fmtLambda(lam, sL)}`,
       `\\frac{1}{\\lambda} = R_\\text{H}\\left(\\frac{1}{${lo}^2} - \\frac{1}{${hi}^2}\\right) = ${texNum(R_H * k, 5)}\\ \\text{m}^{-1}`,
     ];
   },
@@ -544,9 +578,12 @@ export const series: Scene<PS, SS> = {
     const nl = SERIES[p.series as SeriesId];
     const nu = nl + 1 + seriesIndex(s.t);
     const k = 1 / (nl * nl) - 1 / (nu * nu);
+    const lam = lambdaVac(nu, nl);
+    // R_H and the bracket with enough figures that 1/(R_H × bracket) gives the printed λ.
+    const sf = fitSig((r) => fmtLambda(1e9 / (r(R_H) * r(k))), fmtLambda(lam), 5, 9);
     return [
       `\\frac{1}{\\lambda} = R_\\text{H}\\left(\\frac{1}{${nl}^2} - \\frac{1}{n^2}\\right),\\quad n = ${nl + 1}, ${nl + 2}, ${nl + 3}, \\dots`,
-      `n = ${nu}:\\quad \\frac{1}{\\lambda} = (${texNum(R_H, 5)}\\ \\text{m}^{-1})(${texNum(k, 5)}),\\quad \\lambda = ${fmtLambda(lambdaVac(nu, nl))}`,
+      `n = ${nu}:\\quad \\frac{1}{\\lambda} = (${tn(R_H, sf)}\\ \\text{m}^{-1})(${tnFit(k, sf)}),\\quad \\lambda = ${fmtLambda(lam)}`,
       `\\lambda_\\infty = \\frac{${nl}^2}{R_\\text{H}} = ${fmtLambda(seriesLimit(nl))}`,
     ];
   },

@@ -9,6 +9,7 @@
   "buoyancy.fluid.oil": "olive oil",
   "buoyancy.fluid.glycerin": "glycerin",
   "buoyancy.fluid.mercury": "mercury",
+  "buoyancy.hand": "hand",
   "buoyancy.p.a": "Side $a$",
   "buoyancy.d.a": "Side length of the cube (changing it restarts)",
   "buoyancy.p.press": "Face pressures",

@@ -22,6 +22,9 @@ import {
 import { N_PICK, SERIES_COUNT, SERIES_DT, ZOOM_YR, nearestLevel, series, seriesIndex, transitions, zoomLabels } from '../src/sims/review/hydrogen/scene';
 import { photonColor, region, NEUTRAL } from '../src/sims/review/hydrogen/spectrum';
 import { KNOB_HIT, hasEarlierLines, knobDx, knobR } from '../src/sims/review/hydrogen/stage';
+import en from '../src/sims/review/hydrogen/i18n.en.json';
+import ko from '../src/sims/review/hydrogen/i18n.ko.json';
+import { NUM, agrees, grab, val } from './sigma-digits';
 import { offStage, probe } from './stage-probe';
 
 const near = (a: number, b: number, tol: number) => expect(Math.abs(a - b)).toBeLessThan(tol);
@@ -302,5 +305,64 @@ describe('hydrogen stage controls (knobs, strip reset)', () => {
         // Not on top of a knob or of the strip.
         expect(s.btn!.box.b).toBeLessThanOrEqual(s.lay!.spec.t + 16);
       }
+  });
+});
+
+describe('hydrogen Σ: the printed inputs reproduce the printed results', () => {
+  const R = (s: string) => new RegExp(s.replace(/N#/g, `(${NUM})`));
+  /** A printed wavelength in nm (μm lines converted). */
+  const lamOf = (line: string): [string, number] => {
+    const [v, unit] = grab(line, R(String.raw`= N#\\ (\\mu\\text\{m\}|\\text\{nm\})$`));
+    return [v, unit === '\\mu\\text{m}' ? 1000 : 1];
+  };
+  const p0 = defaults(transitions.params);
+
+  function checkPair(ni: number, nf: number): string[] {
+    const bad: string[] = [];
+    const tag = `${ni}→${nf}`;
+    const f = transitions.formula!(transitions.init(p0, null as never), { ...p0, ni, nf });
+    const [Ec, Ei, Ef] = grab(f[0], R(String.raw`E_n = -\\frac\{N#\\ \\text\{eV\}\}\{n\^2\}:\\quad E_\{\d+\} = N#\\ \\text\{eV\},\\quad E_\{\d+\} = N#`));
+    if (!agrees(-val(Ec) / (ni * ni), Ei) || !agrees(-val(Ec) / (nf * nf), Ef)) bad.push(`${tag} E_n ${f[0]}`);
+    if (ni === nf) return bad;
+    const [Ec2, lo, hi, dE] = grab(f[1], R(String.raw`= N#\\left\(\\frac\{1\}\{(\d+)\^2\} - \\frac\{1\}\{(\d+)\^2\}\\right\)\\ \\text\{eV\} = N#`));
+    if (Ec2 !== Ec) bad.push(`${tag} constant differs between lines: ${Ec} / ${Ec2}`);
+    if (!agrees(val(Ec2) * (1 / Number(lo) ** 2 - 1 / Number(hi) ** 2), dE)) bad.push(`${tag} ΔE ${f[1]}`);
+    const [hc, dE2] = grab(f[2], R(String.raw`\\frac\{N#\\ \\text\{eV\}\\cdot\\text\{nm\}\}\{N#\\ \\text\{eV\}\}`));
+    if (dE2 !== dE) bad.push(`${tag} ΔE differs between lines: ${dE} / ${dE2}`);
+    const [lam, scale] = lamOf(f[2]);
+    if (!agrees(val(hc) / val(dE2) / scale, lam)) bad.push(`${tag} λ ${f[2]}`);
+    return bad;
+  }
+
+  it('ⓘ names the constants Σ prints (13.5983 eV, 1239.84 eV·nm), not the old −13.60 eV rounding', () => {
+    const f = transitions.formula!(transitions.init(p0, null as never), p0).join(' ');
+    for (const dict of [ko, en] as Record<string, string>[]) {
+      const s = dict['hyd.assume.reduced'];
+      expect(s).not.toContain('13.60');
+      expect(s).toContain('13.5983');
+      expect(s).toContain('1239.84');
+    }
+    expect(f).toContain('13.5983');
+    expect(f).toContain('1239.84');
+  });
+
+  it('review case: all 90 transitions (n = 1 … 10) and n_i = n_f', () => {
+    const bad: string[] = [];
+    for (let ni = 1; ni <= N_PICK; ni++) for (let nf = 1; nf <= N_PICK; nf++) bad.push(...checkPair(ni, nf));
+    expect(bad.length, bad.slice(0, 5).join('\n')).toBe(0);
+  });
+
+  it('series tab: (R_H)(1/n_low² − 1/n²) gives the printed λ for every line of every series', () => {
+    const bad: string[] = [];
+    for (const id of ['lyman', 'balmer', 'paschen', 'brackett'])
+      for (const mode of ['emission', 'absorption'])
+        for (let k = 0; k < SERIES_COUNT; k++) {
+          const p = { ...defaults(series.params), series: id, mode };
+          const f = series.formula!({ t: (k + 0.5) * SERIES_DT, n: 0 }, p);
+          const [Rh, kk] = grab(f[1], R(String.raw`\\frac\{1\}\{\\lambda\} = \(N#\\ \\text\{m\}\^\{-1\}\)\(N#\)`));
+          const [lam, scale] = lamOf(f[1]);
+          if (!agrees(1e9 / (val(Rh) * val(kk)) / scale, lam)) bad.push(`${id} k=${k} ${f[1]}`);
+        }
+    expect(bad.length, bad.slice(0, 5).join('\n')).toBe(0);
   });
 });

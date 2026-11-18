@@ -17,7 +17,7 @@ import {
 import { gapOf } from '../src/sims/ch41/bands';
 import { layout } from '../src/sims/ch41/filling';
 import { intrinsicMu } from '../src/sims/ch41/physics';
-import { REF_UNDOPED, carriersOf, doping, dotRef } from '../src/sims/ch41/doping';
+import { REF_UNDOPED, belowOne, carriersOf, doping, dotRef } from '../src/sims/ch41/doping';
 import { fromQuery } from '../src/core/params';
 
 describe('ch41 band formation', () => {
@@ -101,6 +101,27 @@ describe('ch41 conduction', () => {
 });
 
 describe('ch41 doping', () => {
+  it('readouts: a density under 1 cm⁻³ prints "< 1" (review case 50 K, N_D = 10¹⁶: p ≈ 10⁻⁹²)', () => {
+    expect(belowOne(3.38e-92)).toBe('< 1');
+    expect(belowOne(0.999)).toBe('< 1');
+    expect(belowOne(1)).toBeUndefined();
+    expect(belowOne(1e16)).toBeUndefined();
+    const [rn, rp] = doping.readouts!;
+    expect(rn.format).toBe(belowOne);
+    expect(rp.format).toBe(belowOne);
+    for (const type of ['i', 'n', 'p'] as const)
+      for (const T of [30, 50, 100, 300, 800])
+        for (const conc of [1e13, 1e16, 1e18]) {
+          const p = { ...fromQuery(doping.params, new URLSearchParams()), type, T, conc } as never;
+          for (const r of [rn, rp]) {
+            const v = r.value(undefined as never, p);
+            expect(Number.isFinite(v)).toBe(true);
+            expect(r.format!(v)).toBe(v < 1 ? '< 1' : undefined);
+          }
+        }
+    expect(carriersOf({ ...fromQuery(doping.params, new URLSearchParams()), type: 'n', T: 50, conc: 1e16 } as never).p).toBeLessThan(1);
+  });
+
   it('n-type 10¹⁶ at 300 K: n ≈ N_D, np = n_i²', () => {
     const c = carriers(300, 1e16, 0);
     expect(c.n / 1e16).toBeCloseTo(1, 1);

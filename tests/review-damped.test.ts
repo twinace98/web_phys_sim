@@ -4,6 +4,7 @@ import { defaults } from '../src/core/params';
 import { register } from '../src/core/i18n';
 import type { Scene } from '../src/core/types';
 import page from '../src/sims/review/damped';
+import { NUM, agrees, grab, val } from './sigma-digits';
 import { D, drivenScene, wdOf, xSpan } from '../src/sims/review/damped/driven';
 import { H, X0, freeScene } from '../src/sims/review/damped/free';
 import en from '../src/sims/review/damped/i18n.en.json';
@@ -244,6 +245,49 @@ describe('damped: forced oscillation', () => {
         }
         expect(worst).toBeLessThan(xSpan(p));
       }
+  });
+});
+
+describe('driven Σ: printed inputs reproduce the results, no zero denominator', () => {
+  const R = (s: string) => new RegExp(s.replace(/N#/g, `(${NUM})`));
+  const p0 = defaults(drivenScene.params);
+  const lines = (q: typeof p0) => drivenScene.formula!(drivenScene.init(q, undefined as never), q);
+
+  it('review case (defaults, ω_d = ω_0): φ = 90° stated directly, no 4.00/0.00', () => {
+    const f = lines(p0).join(' ');
+    expect(f).not.toMatch(/\{-?0(\.0+)?\}/);
+    expect(f).toContain('\\omega_d = \\omega_0');
+    expect(f).toMatch(/\\phi = 90\^\\circ/);
+  });
+
+  it('every ω_d/ω_0 stop (0.20 … 2.00) at the ends and middle of b, m, k', () => {
+    const bad: string[] = [];
+    const hits = { xm: 0, phi: 0, res: 0 };
+    for (let i = 20; i <= 200; i++)
+      for (const b of [0.2, 1, 2.5, 4])
+        for (const m of [0.2, 1, 2])
+          for (const k of [5, 16, 40]) {
+            const q = { ...p0, ratio: i / 100, b, m, k };
+            const f = lines(q);
+            const tag = JSON.stringify(q);
+            const all = f.join(' ');
+            if (/\{-?0(\.0+)?\}/.test(all)) bad.push(`${tag} zero denominator`);
+            const [Fm, den, xm] = grab(f[2], R(String.raw`= \\frac\{N#\}\{N#\} = N#\\ \\mathrm\{m\}$`));
+            hits.xm++;
+            if (!agrees(val(Fm) / val(den), xm)) bad.push(`${tag} x_m ${f[2]}`);
+            const ph = f[3].match(R(String.raw`= \\frac\{N#\}\{N#\},\\quad \\phi = N#\^\\circ$`));
+            if (ph) {
+              hits.phi++;
+              if (!agrees((Math.atan2(val(ph[1]), val(ph[2])) * 180) / Math.PI, ph[3])) bad.push(`${tag} φ ${f[3]}`);
+            } else {
+              hits.res++;
+              expect(i, f[3]).toBe(100);
+              expect(f[3]).toMatch(/\\phi = 90\^\\circ$/);
+            }
+          }
+    expect(bad.length, bad.slice(0, 5).join('\n')).toBe(0);
+    expect(hits.res).toBe(36);
+    expect(hits.phi).toBe(180 * 36);
   });
 });
 

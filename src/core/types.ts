@@ -189,6 +189,8 @@ export interface ReadoutSpec<S, P extends Params> {
   sig?: number;
   /** Values below this print as 0 (default 1e-9); 0 keeps tiny values such as 10⁻³⁴ m. */
   zeroTol?: number;
+  /** Custom text for a value (e.g. '< 1'); undefined falls back to the number format. */
+  format?: (v: number) => string | undefined;
 }
 
 export interface PlotHandle<P extends Params> {

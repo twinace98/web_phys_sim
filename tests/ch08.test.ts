@@ -229,6 +229,55 @@ describe('ch08 energy diagram: the unstable label keeps off the E line', () => {
   });
 });
 
+describe('ch08 energy diagram: K, U and E stay inside the plot (review 2026-11-17, §0-1)', () => {
+  const base = defaults(energyScene.params) as any;
+  const plotE = energyScene.plots!.find((pl) => pl.id === 'E')!;
+  /** Extremes of K, U, E over the run (to its end, or 30 s for a particle trapped without friction). */
+  const extremes = (p: any) => {
+    const s = energyScene.init(p, undefined as any);
+    const h = 1 / 240;
+    const tEnd = Math.min(endTime(p) ?? 30, 30);
+    const v = { K: [Infinity, -Infinity], U: [Infinity, -Infinity], E: [Infinity, -Infinity] } as Record<string, number[]>;
+    const add = () => {
+      const r = energyScene.record!(s, p) as Record<string, number>;
+      for (const k of ['K', 'U', 'E']) v[k] = [Math.min(v[k][0], r[k]), Math.max(v[k][1], r[k])];
+    };
+    add();
+    while (s.t < tEnd - 1e-9) {
+      energyScene.step!(s, h, p);
+      add();
+    }
+    return v;
+  };
+
+  it('review case: hill, x0 = −3.1 m. K_max 0.34 J inside the plot (before: top 0.14 J)', () => {
+    const p = { ...base, pot: 'hill', x0s: [-2.7, -3.1] };
+    const [, top] = plotE.yRange!(p);
+    const { K } = extremes(p);
+    expect(K[1]).toBeCloseTo(0.34, 2);
+    expect(top).toBeGreaterThan(K[1]);
+  });
+
+  it('sweep: every start point (−3.1 to 3.1 m, step 0.05), both potentials, friction off and on', () => {
+    const out: string[] = [];
+    for (const pot of ['double', 'hill']) {
+      for (const friction of [false, true]) {
+        for (let i = 0; i <= 124; i++) {
+          const x0 = Number((-3.1 + 0.05 * i).toFixed(2));
+          const x0s = pot === 'double' ? [x0, 2.9] : [-2.7, x0];
+          const p = { ...base, pot, friction, x0s };
+          const [lo, hi] = plotE.yRange!(p);
+          const v = extremes(p);
+          for (const k of ['K', 'U', 'E']) {
+            if (v[k][0] < lo || v[k][1] > hi) out.push(`${pot} f=${friction} x0=${x0}: ${k} ${v[k][0].toFixed(3)}..${v[k][1].toFixed(3)} vs ${lo.toFixed(3)}..${hi.toFixed(3)}`);
+          }
+        }
+      }
+    }
+    expect(out).toEqual([]);
+  });
+});
+
 describe('ch08 i18n', () => {
   it('every key used by the scenes exists in both languages, with the same key sets', async () => {
     const page = (await import('../src/sims/ch08')).default;

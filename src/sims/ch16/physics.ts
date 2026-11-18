@@ -78,7 +78,7 @@ export interface StringState {
   y: number[];
   yPrev: number[];
   phase: number;
-  /** Largest local amplitude √(y² + (ẏ/ω)²) along the string. */
+  /** Largest local amplitude along the string, from the sin/cos quadrature of three time levels. */
   amp: number;
 }
 
@@ -99,12 +99,11 @@ export function stringAdvance(s: Driven, st: StringState, f: number): void {
   st.phase += 2 * Math.PI * f * h;
   next[0] = s.d * Math.sin(st.phase);
   next[s.N] = 0;
-  const w = 2 * Math.PI * f;
+  // Sampled sinusoid y_n = A sin(ω n h + φ): y_{n+1} − y_{n−1} = 2A sin(ωh) cos(ω n h + φ), so
+  // A = √(y_n² + ((y_{n+1} − y_{n−1}) / 2 sin ωh)²) exactly, with no phase-dependent wobble.
+  const q = 2 * Math.sin(2 * Math.PI * f * h);
   let amp = 0;
-  for (let i = 0; i <= s.N; i++) {
-    const vel = (next[i] - y[i]) / h;
-    amp = Math.max(amp, Math.hypot(next[i], vel / w));
-  }
+  for (let i = 0; i <= s.N; i++) amp = Math.max(amp, Math.hypot(y[i], (next[i] - yPrev[i]) / q));
   st.yPrev = y;
   st.y = next;
   st.amp = amp;

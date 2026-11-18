@@ -4,6 +4,7 @@ import { Runner } from '../src/core/runner';
 import { G, flightTime, maxHeight, range, stateAt, v0x, type Launch } from '../src/sims/ch04/physics';
 import { circular } from '../src/sims/ch04/circular';
 import { projectile } from '../src/sims/ch04/scene';
+import { fmt } from '../src/core/format';
 
 const deg = Math.PI / 180;
 const ground = (thetaDeg: number, v0 = 20, g = 9.8): Launch => ({ h: 0, v0, theta: thetaDeg * deg, g });
@@ -90,6 +91,49 @@ describe('ch04 angle and height together', () => {
     r.play();
     r.advance(0.1);
     expect(r.playing).toBe(false);
+  });
+});
+
+describe('ch04 position readouts (review 2026-11-17, §0-1)', () => {
+  const val = (label: string) => projectile.readouts!.find((r) => r.label === label)!;
+  const show = (label: string, s: any, p: any) => {
+    const r = val(label);
+    return fmt(r.value(s, p), r.sig ?? 3, r.zeroTol);
+  };
+
+  it('readouts are x, y (m) then v_x, v_y, v (m/s); R stays out (a constant of the launch)', () => {
+    expect(projectile.readouts!.map((r) => [r.label, r.unit])).toEqual([
+      ['x', 'm'],
+      ['y', 'm'],
+      ['v_x', 'm/s'],
+      ['v_y', 'm/s'],
+      ['v', 'm/s'],
+    ]);
+  });
+
+  it('sweep θ, h, v0, g (ends, in-between, every planet): x and y follow x(t), y(t); at landing x = R and y prints 0', () => {
+    const sp = projectile.params as any;
+    const thetas = [sp.theta.min, 30, 45, sp.theta.max];
+    const hs = [sp.h.min, 17, sp.h.max];
+    const v0s = [sp.v0.min, 17.5, sp.v0.max];
+    for (const theta of thetas)
+      for (const h of hs)
+        for (const v0 of v0s)
+          for (const g of ['earth', 'mars', 'moon']) {
+            const p = { ...defaults(projectile.params), theta, h, v0, g } as any;
+            const r = new Runner(projectile, p);
+            const l: Launch = { h, v0, theta: theta * deg, g: G[g] };
+            const T = r.tEnd!;
+            r.play();
+            r.advance(T / 2);
+            const mid = stateAt(l, r.state.t);
+            expect(val('x').value(r.state, p)).toBeCloseTo(mid.x, 9);
+            expect(val('y').value(r.state, p)).toBeCloseTo(mid.y, 9);
+            for (let i = 0; i < 400 && r.playing; i++) r.advance(0.5);
+            const tag = `θ=${theta} h=${h} v0=${v0} ${g}`;
+            expect(show('x', r.state, p), tag).toBe(fmt(range(l)));
+            expect(show('y', r.state, p), tag).toBe('0.00');
+          }
   });
 });
 

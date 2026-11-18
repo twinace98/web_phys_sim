@@ -9,6 +9,7 @@
   "buoyancy.fluid.oil": "올리브유",
   "buoyancy.fluid.glycerin": "글리세린",
   "buoyancy.fluid.mercury": "수은",
+  "buoyancy.hand": "손",
   "buoyancy.p.a": "한 변 $a$",
   "buoyancy.d.a": "정육면체의 한 변 길이 (바꾸면 처음 상태로)",
   "buoyancy.p.press": "면의 압력",

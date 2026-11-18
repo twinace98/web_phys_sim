@@ -18,6 +18,8 @@ const NI_COLOR = '#8c8c8c';
 /** Dopant density range [cm⁻³]: from barely above n_i(300 K) to just short of degeneracy. */
 const CONC_MIN = 1e13;
 const CONC_MAX = 1e18;
+/** A density below 1 cm⁻³ is less than one carrier per cm³: the readout says so instead of 10⁻⁹². */
+export const belowOne = (v: number): string | undefined => (v < 1 ? '< 1' : undefined);
 /** Undoped: 8 dots stand for this density (n_i reaches it near 800 K). */
 export const REF_UNDOPED = 1e16;
 
@@ -221,15 +223,15 @@ export const doping: Scene<P, { t: number }> = {
   },
 
   readouts: [
-    { label: 'n', unit: 'cm⁻³', value: (_s, p) => carriersOf(p).n, zeroTol: 0 },
-    { label: 'p', unit: 'cm⁻³', value: (_s, p) => carriersOf(p).p, zeroTol: 0 },
+    { label: 'n', unit: 'cm⁻³', value: (_s, p) => carriersOf(p).n, zeroTol: 0, format: belowOne },
+    { label: 'p', unit: 'cm⁻³', value: (_s, p) => carriersOf(p).p, zeroTol: 0, format: belowOne },
   ],
 
   formula: (_s, p) => dopingLines(p),
 
   info: {
     goals: ['ch41.d.goal.dope', 'ch41.d.goal.T'],
-    observe: ['ch41.d.obs.i', 'ch41.d.obs.n', 'ch41.d.obs.p', 'ch41.d.obs.conc', 'ch41.d.obs.freeze', 'ch41.d.obs.intr', 'ch41.d.obs.law'],
+    observe: ['ch41.d.obs.i', 'ch41.d.obs.n', 'ch41.d.obs.p', 'ch41.d.obs.conc', 'ch41.d.obs.freeze', 'ch41.d.obs.intr', 'ch41.d.obs.law', 'ch41.d.obs.below'],
     equations: ['n\\,p = n_i^2', 'n + N_A^- = p + N_D^+'],
     assumptions: ['ch41.d.assume.si', 'ch41.d.assume.dots', 'ch41.d.assume.stat'],
   },

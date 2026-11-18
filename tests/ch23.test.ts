@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { EPS0, circlePoly, selfIntersects, splinePoly, squarePoly, winding } from '../src/sims/field/physics';
 import { defaults } from '../src/core/params';
 import type { Handle, ParamValue, Params } from '../src/core/types';
-import { gaussScene } from '../src/sims/ch23/scene';
+import { RING_GAP, RING_W, gaussScene, lineChargeGlyph } from '../src/sims/ch23/scene';
+import { chargeGlyph } from '../src/sims/field/render';
+import { ProbeDraw } from './stage-probe';
 import { ENC_FLUX, LINE_E, LINE_LAYOUT, LINE_POOL, gauss } from '../src/sims/ch23/physics';
 import { freeDefault, surfacePoly } from '../src/sims/field/surface';
 
@@ -85,5 +87,62 @@ describe('ch23 free curve never crosses itself (QA E2)', () => {
     ctrl(2).onDrag(c as never, { t: 0 }, { x: cx + 0.02, y: cy + 0.5 });
     expect(c.sets).toBe(1);
     expect(selfIntersects(surfacePoly('free', c.params.G, c.params.F))).toBe(false);
+  });
+});
+
+describe('ch23 line charges drawn end-on, distinct from point charges (review §0-1)', () => {
+  type C = { x: number; y: number; r: number; role?: string; fill?: string };
+  function circlesOf(p: Params, w: number, h: number): C[] {
+    const circles: C[] = [];
+    const g = new (class extends ProbeDraw {
+      circle(c: { x: number; y: number }, r: number, st?: { role?: string; fill?: string }): void {
+        const [x, y] = this.vp.toPx(c.x, c.y);
+        circles.push({ x, y, r, role: st?.role, fill: st?.fill });
+      }
+    })(w, h);
+    g.vp.fit(gaussScene.world(p as never), w, h);
+    gaussScene.draw(g, { t: 0 }, p as never, { t: 0, cursorT: 0, scrubbing: false, lecture: false });
+    return circles;
+  }
+
+  it('± disc inside a ring of the same colour on a white halo, on the stage and in the tray, every view and screen', () => {
+    for (const [w, h] of [
+      [1280, 800],
+      [390, 844],
+    ])
+      for (const view of ['lines', 'vectors', 'off']) {
+        const p = { ...defaults(gaussScene.params), view } as Params;
+        const circles = circlesOf(p, w, h);
+        const src = LINE_POOL.sources(LINE_POOL.fromPreset(LINE_LAYOUT));
+        for (const c of src) {
+          const r = Math.abs(c.s) > 1.5 ? 13 : 10;
+          const role = c.s > 0 ? 'positive' : 'negative';
+          const ring = circles.filter((k) => Math.abs(k.r - r - RING_GAP) < 1e-9 && k.role === role && k.fill === '#ffffff');
+          const disc = circles.filter((k) => k.r === r && k.fill === role);
+          // Concentric: the ring sits around the disc with a visible gap.
+          expect(ring.some((a) => disc.some((d) => Math.hypot(a.x - d.x, a.y - d.y) < 1e-9))).toBe(true);
+        }
+        // Tray chips for ±2 carry the ring too; neighbouring chips (44 px apart) do not touch.
+        for (const role of ['positive', 'negative']) expect(circles.some((k) => Math.abs(k.r - 13 - RING_GAP) < 1e-9 && k.role === role)).toBe(true);
+        expect(2 * (13 + RING_GAP + RING_W / 2)).toBeLessThan(44);
+      }
+    // Every disc drawn has its ring (rings = discs).
+    const all = circlesOf(defaults(gaussScene.params), 390, 844);
+    expect(all.filter((k) => k.fill === '#ffffff' && k.role !== undefined).length).toBe(all.filter((k) => k.fill === 'positive' || k.fill === 'negative').length);
+  });
+
+  it('lineChargeGlyph draws ring then disc; the shared point-charge glyph (Ch 22, 24) stays without a ring', () => {
+    const rec = (f: (g: ProbeDraw) => void) => {
+      const out: { r: number; role?: string }[] = [];
+      const g = new (class extends ProbeDraw {
+        circle(_c: unknown, r: number, st?: { role?: string }): void {
+          out.push({ r, role: st?.role });
+        }
+      })(400, 400);
+      f(g);
+      return out;
+    };
+    expect(rec((g) => lineChargeGlyph(g, { x: 0, y: 0 }, -1))).toEqual([{ r: 10 + RING_GAP, role: 'negative' }, { r: 10, role: undefined }]);
+    expect(rec((g) => chargeGlyph(g, { x: 0, y: 0 }, 2)).map((c) => c.role)).toEqual([undefined]);
   });
 });
