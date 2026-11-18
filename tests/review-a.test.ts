@@ -223,8 +223,8 @@ describe('Ch 5 third law: forces drawn as a push', () => {
   it('F_AB acts on A to the left, F_BA on B to the right, equal size, from the contact faces', () => {
     const p = defaults(third.params) as any;
     const r = new Runner(third, p, 1);
-    r.stepFrame();
-    r.stepFrame();
+    // Into the collision (contact from 0.6 s).
+    while ((r.state as any).t < 0.75) r.stepFrame();
     const s = r.state as any;
     expect(s.FA).toBeLessThan(0);
     expect(s.FB).toBeGreaterThan(0);
@@ -243,6 +243,24 @@ describe('Ch 5 third law: forces drawn as a push', () => {
     expect(ab.x + ab.w).toBeLessThan(xa);
     expect(ba.x).toBeGreaterThan(xb);
     expect(tips.length).toBeGreaterThan(0);
+  });
+
+  it('free-body diagrams: F, N and mg on each cart, labels apart, at 1280 and 390 px', () => {
+    const p = { ...(defaults(third.params) as any), fbd: true };
+    const r = new Runner(third, p, 1);
+    while ((r.state as any).t < 0.75) r.stepFrame();
+    for (const [w, h] of [[1280, 192], [390, 250]]) {
+      const g = probe(third, r.state, p, w, h);
+      const labels = g.marks.filter((m) => m.kind === 'text' && /F\*_\{|N\*_|m\*_/.test(m.text ?? ''));
+      expect(labels.map((m) => m.text).sort()).toEqual(['*F*_{AB}', '*F*_{BA}', '*N*_{A}', '*N*_{B}', '*m*_{A}*g*', '*m*_{B}*g*']);
+      for (let i = 0; i < labels.length; i++)
+        for (let j = i + 1; j < labels.length; j++) {
+          const a = labels[i];
+          const b = labels[j];
+          const apart = a.x + a.w <= b.x || b.x + b.w <= a.x || Math.abs(a.y - b.y) >= 14;
+          expect(apart, `${a.text} / ${b.text} at ${w}px`).toBe(true);
+        }
+    }
   });
 });
 

@@ -1,13 +1,16 @@
-// Ch 5 scene: third law. Two carts push each other apart: the forces are equal and opposite,
-// the accelerations are inversely proportional to the masses.
+// Ch 5 scene: third law. Cart A carries a spring bumper. It either hits cart B (collide) or is
+// released against it from rest (release). The force on each cart comes from the same spring
+// compression, so F_AB = −F_BA at every instant, whatever the masses; only the accelerations
+// differ. The free-body diagrams add N and mg on each cart: equal and opposite, but on the same
+// body, so they are not a third-law pair.
 import type { NumberParam, ParamSchema, Role, Scene } from '../../core/types';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { drawRich } from '../../draw/text';
 import { color, theme } from '../../draw/theme';
-import { drawTrack, padded } from './common';
-import { cartsAt, type Carts } from './physics';
+import { padded } from './common';
+import { bumperAt, contactWindow, peakForce, type Bumper } from './physics';
 
-type P = { mA: number; mB: number; F: number };
+type P = { mode: string; mA: number; mB: number; v0: number; k: number; fbd: boolean };
 
 interface S {
   t: number;
@@ -23,62 +26,122 @@ interface S {
 }
 
 const RATE = 240;
-const T_END = 3;
-const TC = 1;
+/** Bumper natural length [m], contact time of the collision [s], release compression [m]. */
+const L0 = 1;
+const T1 = 0.6;
+const C0 = 0.5;
+/** Time shown after the carts separate [s]. */
+const AFTER = 1.5;
+export const THIRD_G = 9.8;
 const CART_W = 46; // px
 const CART_H = 26; // px
 const SPRING = '#5c5c5c';
-/** Longest v arrow, as a fraction of the half track. */
-const V_LEN = 0.25;
-/** Force arrow length [px], the same for both carts (equal magnitudes). */
-const F_LEN = 40;
+/** Longest arrow on the stage [px]. */
+const F_LEN = 44;
+const V_LEN = 60;
+/** Longest arrow of the free-body diagrams [px]. */
+const FBD_LEN = 58;
 
-const cartsOf = (p: P): Carts => ({ mA: p.mA, mB: p.mB, F: p.F, tc: TC });
+export const bumperOf = (p: P): Bumper => ({
+  mA: p.mA,
+  mB: p.mB,
+  k: p.k,
+  L0,
+  mode: p.mode === 'release' ? 'release' : 'collide',
+  v0: p.v0,
+  t1: T1,
+  c0: C0,
+});
+
+const tEnd = (p: P) => contactWindow(bumperOf(p))[1] + AFTER;
 
 function stateAt(p: P, t: number): Omit<S, 't' | 'n'> {
-  const k = cartsAt(cartsOf(p), t);
+  const k = bumperAt(bumperOf(p), t);
   return { xA: k.A.x, xB: k.B.x, vA: k.A.v, vB: k.B.v, aA: k.A.a, aB: k.B.a, FA: k.FA, FB: k.FB };
 }
 
-/** Half-width of the track: the farther cart's end position, at least 2 m. */
-function half(p: P): number {
-  const e = stateAt(p, T_END);
-  return Math.max(-e.xA, e.xB, 2);
+/** Faces at the start and the end: the stage spans both. */
+function span(p: P): [number, number] {
+  const s0 = stateAt(p, 0);
+  const s1 = stateAt(p, tEnd(p));
+  let lo = Math.min(s0.xA, s1.xA);
+  let hi = Math.max(s0.xB, s1.xB, lo + L0);
+  if (hi - lo < 4) {
+    const mid = (lo + hi) / 2;
+    lo = mid - 2;
+    hi = mid + 2;
+  }
+  return [lo, hi];
+}
+
+/** Range of the velocities over the run (monotonic during the contact). */
+function vRange(p: P): [number, number] {
+  const s0 = stateAt(p, 0);
+  const s1 = stateAt(p, tEnd(p));
+  const vs = [s0.vA, s0.vB, s1.vA, s1.vB];
+  return [Math.min(...vs), Math.max(...vs)];
 }
 
 const massParam = (key: 'A' | 'B', def: number): NumberParam => ({
-    kind: 'number',
-    label: `ch05.t.p.m${key}`,
-    desc: `ch05.t.d.m${key}`,
-    group: 'main',
-    live: false,
-    control: 'slider',
-    min: 0.5,
-    max: 5,
-    step: 0.1,
-    default: def,
-    unit: 'kg',
-  });
+  kind: 'number',
+  label: `ch05.t.p.m${key}`,
+  desc: `ch05.t.d.m${key}`,
+  group: 'main',
+  live: false,
+  control: 'slider',
+  min: 0.5,
+  max: 5,
+  step: 0.1,
+  default: def,
+  unit: 'kg',
+});
 
 const params: ParamSchema<P> = {
-  mA: massParam('A', 1),
-  mB: massParam('B', 2),
-  F: {
+  mode: {
+    kind: 'select',
+    label: 'ch05.t.p.mode',
+    desc: 'ch05.t.d.mode',
+    group: 'main',
+    live: false,
+    default: 'collide',
+    options: [
+      { value: 'collide', label: 'ch05.t.mode.collide' },
+      { value: 'release', label: 'ch05.t.mode.release' },
+    ],
+  },
+  mA: massParam('A', 3),
+  mB: massParam('B', 1),
+  fbd: { kind: 'toggle', label: 'ch05.t.p.fbd', desc: 'ch05.t.d.fbd', group: 'main', live: true, default: false },
+  v0: {
     kind: 'number',
-    label: 'ch05.t.p.F',
-    desc: 'ch05.t.d.F',
+    label: 'ch05.t.p.v0',
+    desc: 'ch05.t.d.v0',
     group: 'advanced',
     live: false,
     control: 'slider',
     min: 0.5,
-    max: 5,
+    max: 3,
     step: 0.1,
     default: 2,
-    unit: 'N',
+    unit: 'm/s',
+    visibleIf: (p) => p.mode !== 'release',
+  },
+  k: {
+    kind: 'number',
+    label: 'ch05.t.p.k',
+    desc: 'ch05.t.d.k',
+    group: 'advanced',
+    live: false,
+    control: 'slider',
+    min: 30,
+    max: 150,
+    step: 5,
+    default: 50,
+    unit: 'N/m',
   },
 };
 
-function cart(g: Draw, x0: number, x1: number, name: string): void {
+function cart(g: Draw, x0: number, x1: number, name: string, faded = false): void {
   const h = g.px(CART_H);
   const y0 = g.px(6);
   g.polygon(
@@ -88,14 +151,14 @@ function cart(g: Draw, x0: number, x1: number, name: string): void {
       { x: x1, y: y0 + h },
       { x: x0, y: y0 + h },
     ],
-    { fill: 'position', fillAlpha: 0.9 },
+    { fill: 'position', fillAlpha: faded ? 0.25 : 0.9 },
   );
   for (const x of [x0 + (x1 - x0) * 0.25, x0 + (x1 - x0) * 0.75]) g.circle({ x, y: g.px(4) }, 4, { fill: '#5c5c5c' });
-  g.text({ x: (x0 + x1) / 2, y: y0 + h / 2 }, name, { size: 13, color: '#ffffff', align: 'center', baseline: 'middle', weight: 600 });
+  g.text({ x: (x0 + x1) / 2, y: y0 + h / 2 }, name, { size: 13, color: faded ? color('position') : '#ffffff', align: 'center', baseline: 'middle', weight: 600 });
 }
 
-/** Zigzag spring between the facing sides while the carts touch it. */
-function spring(g: Draw, a: number, b: number): void {
+/** Bumper on A's right face: zigzag to its free end (natural length) or to B's face when compressed. */
+function bumper(g: Draw, a: number, b: number): void {
   const y = g.px(19);
   const amp = g.px(5);
   const pts = [{ x: a, y }];
@@ -103,12 +166,14 @@ function spring(g: Draw, a: number, b: number): void {
   for (let i = 1; i < n; i++) pts.push({ x: a + ((b - a) * i) / n, y: y + (i % 2 ? amp : -amp) });
   pts.push({ x: b, y });
   g.polyline(pts, { color: SPRING, width: 1.25 });
+  // End plate.
+  g.line({ x: b, y: y - g.px(9) }, { x: b, y: y + g.px(9) }, { color: SPRING, width: 2.5 });
 }
 
 /** Dashed analytic trace of cart B from 0 to the cursor, plus "A" / "B" tags. */
 function drawB(pd: PlotDraw, p: P, tc: number, key: 'F' | 'a' | 'v', role: Role): void {
   const pts: [number, number][] = [];
-  const N = 240;
+  const N = 360;
   for (let i = 0; i <= N; i++) {
     const t = (tc * i) / N;
     const k = stateAt(p, t);
@@ -116,23 +181,45 @@ function drawB(pd: PlotDraw, p: P, tc: number, key: 'F' | 'a' | 'v', role: Role)
   }
   pd.polyline(pts, { role, width: 2, dash: [6, 4] });
 
-  // Tags beside the two curves, once the cursor has passed them: during contact, on the side
-  // facing zero for F and a (the curves sit at the edges of the range), outside for v.
-  const tTag = 0.5 * TC;
+  // Tags beside the two curves at the middle of the contact (largest force), once the cursor has
+  // passed it: on the side facing zero for F and a (the curves sit at the edges of the range),
+  // outside for v. After the contact for v, where the two lines are farthest apart.
+  const [t0, t2] = contactWindow(bumperOf(p));
+  const tTag = key === 'v' ? Math.min(t2 + 0.5 * AFTER, tEnd(p)) : (t0 + t2) / 2;
   if (tc < tTag) return;
   const k = stateAt(p, tTag);
   const yA = key === 'F' ? k.FA : key === 'a' ? k.aA : k.vA;
   const yB = key === 'F' ? k.FB : key === 'a' ? k.aB : k.vB;
-  // A curve at the edge of the range gets its tag on the inner side; a small one, outside.
-  const big = Math.max(Math.abs(yA), Math.abs(yB));
-  const outA = key === 'v' || Math.abs(yA) < 0.5 * big ? 1 : -1;
-  const outB = key === 'v' || Math.abs(yB) < 0.5 * big ? 1 : -1;
   const s = theme.scale;
   const c = color(role);
   const [xa, ya] = pd.toPx(tTag, yA);
   const [xb, yb] = pd.toPx(tTag, yB);
-  drawRich(pd.ctx, 'A', xa, ya + outA * 11 * s, { size: 12, color: c, align: 'center', baseline: 'middle', weight: 600 });
-  drawRich(pd.ctx, 'B', xb, yb - outB * 11 * s, { size: 12, color: c, align: 'center', baseline: 'middle', weight: 600 });
+  // Screen y grows downwards: B above A for F and a (B's values are positive).
+  const above = yB >= yA;
+  const off = key === 'v' ? 11 : -11;
+  drawRich(pd.ctx, 'A', xa, ya + (above ? -off : off) * s, { size: 12, color: c, align: 'center', baseline: 'middle', weight: 600 });
+  drawRich(pd.ctx, 'B', xb, yb + (above ? off : -off) * s, { size: 12, color: c, align: 'center', baseline: 'middle', weight: 600 });
+}
+
+/** Free-body diagram of one cart from its centre: contact force, normal force and weight. */
+function fbd(g: Draw, x: number, F: number, m: number, name: 'A' | 'B', perN: number): void {
+  const y = g.px(19);
+  const len = (f: number) => Math.max(Math.abs(f) * perN, g.px(10));
+  const W = m * THIRD_G;
+  const other = name === 'A' ? 'B' : 'A';
+  if (Math.abs(F) > 1e-9) {
+    const fx = Math.sign(F) * len(F);
+    g.arrow({ x, y }, { x: fx, y: 0 }, { role: 'force', width: 2.5 });
+    g.text({ x: x + fx, y }, `*F*_{${name}${other}}`, { size: 13, role: 'force', align: F < 0 ? 'right' : 'left', baseline: 'middle', dx: F < 0 ? -5 : 5 });
+  }
+  // N and mg labels just beyond their tips, centred: clear of the horizontal force label even
+  // when a light cart's vertical arrows are short.
+  const n = Math.max(W * perN, g.px(16));
+  g.arrow({ x, y }, { x: 0, y: n }, { role: 'muted', width: 2.5 });
+  g.text({ x, y: y + n }, `*N*_{${name}}`, { size: 13, role: 'muted', align: 'center', baseline: 'middle', dy: -12 });
+  g.arrow({ x, y }, { x: 0, y: -n }, { role: 'muted', width: 2.5, dash: [5, 3] });
+  g.text({ x, y: y - n }, `*m*_{${name}}*g*`, { size: 13, role: 'muted', align: 'center', baseline: 'middle', dy: 12 });
+  g.circle({ x, y }, 2.5, { fill: 'fg' });
 }
 
 export const third: Scene<P, S> = {
@@ -140,20 +227,20 @@ export const third: Scene<P, S> = {
   title: 'ch05.t.scene',
   layout: 'stack',
   params,
-  time: { h: 1 / RATE, recordEvery: 1, frameStep: 0.1, tEnd: T_END },
+  time: { h: 1 / RATE, recordEvery: 1, frameStep: 0.05, tEnd: (p) => tEnd(p as P) },
 
   world: (p) => {
-    // Cart A ends at −half with its body W px further out and its v arrow (V_LEN·half from the
-    // cart centre) plus label beyond: world margin for the arrow, px padding for body and label.
-    const L = half(p) * (1 + V_LEN + 0.04);
-    return { x: [-L, L], y: [-1, 1], aspect: 'fit-x', padPx: 28 + CART_W / 2 + 16 };
+    const [lo, hi] = span(p);
+    const pad = 0.04 * (hi - lo);
+    // Px padding: A's body lies left of its face, B's right of its face, plus their labels.
+    return { x: [lo - pad, hi + pad], y: [-1, 1], aspect: 'fit-x', padPx: 28 + CART_W + 24 };
   },
 
   init: (p) => ({ t: 0, n: 0, ...stateAt(p, 0) }),
 
   step: (s, _h, p) => {
     s.n += 1;
-    s.t = Math.min(s.n / RATE, T_END);
+    s.t = Math.min(s.n / RATE, tEnd(p));
     Object.assign(s, stateAt(p, s.t));
   },
 
@@ -161,35 +248,43 @@ export const third: Scene<P, S> = {
   snapshot: (s) => ({ ...s }),
 
   draw: (g, s, p) => {
-    const hw = half(p);
-    const L = hw * (1 + V_LEN);
-    drawTrack(g, -L, L);
+    const [lo, hi] = span(p);
     const W = g.px(CART_W);
-    // A sits left of its contact face xA, B right of xB; the spring hangs from A.
-    if (s.t < TC) spring(g, s.xA, s.xB);
-    cart(g, s.xA - W, s.xA, 'A');
-    cart(g, s.xB, s.xB + W, 'B');
+    // Track only: positions on it do not matter here.
+    g.line({ x: lo - W - g.px(20), y: 0 }, { x: hi + W + g.px(20), y: 0 }, { role: 'axis', width: 1.25 });
 
-    // Contact forces: each drawn on the cart it acts on, from the contact face, pointing away
-    // from the other cart (B pushes A to the left, A pushes B to the right). Just above the carts.
-    const yF = g.px(CART_H + 14);
-    if (s.FB !== 0) {
-      const f = g.px(F_LEN);
-      g.arrow({ x: s.xA, y: yF }, { x: Math.sign(s.FA) * f, y: 0 }, { role: 'force', width: 2.5 });
-      g.text({ x: s.xA + Math.sign(s.FA) * f, y: yF }, '*F*_{AB}', { size: 13, role: 'force', align: 'right', baseline: 'middle', dx: -6 });
-      g.arrow({ x: s.xB, y: yF }, { x: Math.sign(s.FB) * f, y: 0 }, { role: 'force', width: 2.5 });
-      g.text({ x: s.xB + Math.sign(s.FB) * f, y: yF }, '*F*_{BA}', { size: 13, role: 'force', align: 'left', baseline: 'middle', dx: 6 });
+    bumper(g, s.xA, Math.min(s.xB, s.xA + L0));
+    // Free-body diagrams are drawn over the carts: fade the bodies so the arrows read.
+    cart(g, s.xA - W, s.xA, 'A', p.fbd);
+    cart(g, s.xB, s.xB + W, 'B', p.fbd);
+
+    const Fpk = peakForce(bumperOf(p));
+    if (p.fbd) {
+      // One scale for every force, so N and mg compare with the contact force.
+      const perN = g.px(FBD_LEN) / Math.max(Fpk, p.mA * THIRD_G, p.mB * THIRD_G);
+      fbd(g, s.xA - W / 2, s.FA, p.mA, 'A', perN);
+      fbd(g, s.xB + W / 2, s.FB, p.mB, 'B', perN);
+      return;
     }
-    const vMax = Math.max((p.F / Math.min(p.mA, p.mB)) * TC, 0.1);
-    const aMax = p.F / Math.min(p.mA, p.mB);
-    const yv = g.px(CART_H + 36);
-    const ya = g.px(CART_H + 58);
-    for (const [x, v, a] of [
-      [s.xA - W / 2, s.vA, s.aA],
-      [s.xB + W / 2, s.vB, s.aB],
+
+    // Contact forces: each drawn on the cart it acts on, from its contact face, pointing away from
+    // the other cart. Same length (equal magnitudes), scaled by the largest force of the run.
+    const yF = g.px(CART_H + 14);
+    if (Math.abs(s.FB) > 1e-9) {
+      const f = Math.max((Math.abs(s.FB) / Fpk) * g.px(F_LEN), g.px(8));
+      g.arrow({ x: s.xA, y: yF }, { x: -f, y: 0 }, { role: 'force', width: 2.5 });
+      g.text({ x: s.xA - f, y: yF }, '*F*_{AB}', { size: 13, role: 'force', align: 'right', baseline: 'middle', dx: -6 });
+      g.arrow({ x: s.xB, y: yF }, { x: f, y: 0 }, { role: 'force', width: 2.5 });
+      g.text({ x: s.xB + f, y: yF }, '*F*_{BA}', { size: 13, role: 'force', align: 'left', baseline: 'middle', dx: 6 });
+    }
+    const [v0, v1] = vRange(p);
+    const vMax = Math.max(Math.abs(v0), Math.abs(v1), 0.1);
+    const yv = g.px(CART_H + 38);
+    for (const [x, v] of [
+      [s.xA - W / 2, s.vA],
+      [s.xB + W / 2, s.vB],
     ] as const) {
-      if (Math.abs(v) > 1e-9) g.arrow({ x, y: yv }, { x: (v / vMax) * V_LEN * hw, y: 0 }, { role: 'velocity', label: '*v*' });
-      if (Math.abs(a) > 1e-9) g.arrow({ x, y: ya }, { x: (a / aMax) * 0.18 * hw, y: 0 }, { role: 'acceleration', label: '*a*' });
+      if (Math.abs(v) > 1e-6) g.arrow({ x, y: yv }, { x: (v / vMax) * g.px(V_LEN), y: 0 }, { role: 'velocity', label: '*v*' });
     }
   },
 
@@ -198,19 +293,28 @@ export const third: Scene<P, S> = {
       id: 'F',
       label: 'F\\,(\\mathrm{N})',
       traces: [{ channel: 'FA', role: 'force' }],
-      yRange: (p) => padded(-p.F, p.F, 1),
+      yRange: (p) => {
+        const f = peakForce(bumperOf(p));
+        return padded(-f, f, 1);
+      },
     },
     {
       id: 'a',
       label: 'a\\,(\\mathrm{m/s^2})',
       traces: [{ channel: 'aA', role: 'acceleration' }],
-      yRange: (p) => padded(-p.F / p.mA, p.F / p.mB, 0.5),
+      yRange: (p) => {
+        const f = peakForce(bumperOf(p));
+        return padded(-f / p.mA, f / p.mB, 0.5);
+      },
     },
     {
       id: 'v',
       label: 'v\\,(\\mathrm{m/s})',
       traces: [{ channel: 'vA', role: 'velocity' }],
-      yRange: (p) => padded((-p.F / p.mA) * TC, (p.F / p.mB) * TC, 0.5),
+      yRange: (p) => {
+        const [a, b] = vRange(p);
+        return padded(a, b, 0.5);
+      },
     },
   ],
 
@@ -225,9 +329,13 @@ export const third: Scene<P, S> = {
   ],
 
   info: {
-    goals: ['ch05.t.goal.pair', 'ch05.t.goal.mass'],
-    observe: ['ch05.t.obs.mirror', 'ch05.t.obs.ratio', 'ch05.t.obs.equal', 'ch05.t.obs.after'],
-    equations: ['\\vec F_{AB} = -\\vec F_{BA}', 'm_A a_A = -m_B a_B \\;\\Rightarrow\\; \\frac{\\lvert a_A\\rvert}{\\lvert a_B\\rvert} = \\frac{m_B}{m_A}'],
+    goals: ['ch05.t.goal.pair', 'ch05.t.goal.fbd'],
+    observe: ['ch05.t.obs.mirror', 'ch05.t.obs.heavy', 'ch05.t.obs.release', 'ch05.t.obs.fbd', 'ch05.t.obs.partner', 'ch05.t.obs.stiff'],
+    equations: [
+      '\\vec F_{AB} = -\\vec F_{BA}',
+      'F_{BA} = k\\,c \\quad (c:\\ \\text{compression})',
+      'm_A a_A = -m_B a_B \\;\\Rightarrow\\; \\frac{\\lvert a_A\\rvert}{\\lvert a_B\\rvert} = \\frac{m_B}{m_A}',
+    ],
     assumptions: ['ch05.t.assume'],
   },
 };

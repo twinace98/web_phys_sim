@@ -25,7 +25,9 @@ export const malus = (I: number, theta: number) => I * Math.cos(theta) ** 2;
 /** Refraction angle from n₁ sin θ₁ = n₂ sin θ₂; NaN beyond the critical angle. */
 export function snell(n1: number, n2: number, th1: number): number {
   const s = (n1 / n2) * Math.sin(th1);
-  return Math.abs(s) > 1 ? NaN : Math.asin(s);
+  // Rounding at exactly the critical angle (sin θ₂ = 1 + 1e-16) is still the grazing ray.
+  if (Math.abs(s) > 1 + 1e-12) return NaN;
+  return Math.asin(Math.max(-1, Math.min(1, s)));
 }
 
 /** Critical angle for going from n₁ into n₂ < n₁; NaN if n₁ ≤ n₂. */

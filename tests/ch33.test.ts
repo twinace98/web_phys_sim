@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { afterFirst, knobDir, polar, segments } from '../src/sims/ch33/polar';
 import { MEDIA, acceptance, coreAngle, criticalAngle, malus, polarizerChain, reflectance, snell, wallIncidence } from '../src/sims/ch33/physics';
-import { fibre, indexLabels, traceFibre, traceRays } from '../src/sims/ch33/refraction';
+import { dragAngle, fibre, indexLabels, refraction, traceFibre, traceRays } from '../src/sims/ch33/refraction';
 import { probe } from './stage-probe';
 
 describe('ch33 fibre index labels (round 2)', () => {
@@ -189,5 +189,38 @@ describe('ch33 review fixes', () => {
     for (const n of [2, 3])
       for (const theta of [0, 1, 37, 90, 133, 180])
         for (const r of polar.readouts!) expect(Number.isFinite(r.value({ t: 0 }, { ...defaults(polar.params), n, theta }))).toBe(true);
+  });
+});
+
+describe('Ch 33 refraction: smooth approach to total internal reflection', () => {
+  const TC = (criticalAngle(1.5, 1.0) * 180) / Math.PI; // 41.81°
+
+  it('the angle sliders step by 0.1°, so the last step before θc leaves a faint transmitted ray', () => {
+    expect((refraction.params.theta as any).step).toBeLessThanOrEqual(0.1);
+    expect((fibre.params.alpha as any).step).toBeLessThanOrEqual(0.1);
+    const T = (deg: number) => 1 - reflectance(1.5, 1.0, (deg * Math.PI) / 180);
+    // Before: 41° → 42° jumped from T = 0.62 to 0.
+    expect(T(41)).toBeCloseTo(0.62, 2);
+    const last = Math.floor(TC * 10) / 10; // 41.8°
+    expect(T(last)).toBeLessThan(0.12);
+    expect(T(last - 0.1)).toBeLessThan(0.32);
+  });
+
+  it('dragging near θc lands exactly on it: grazing ray, θ2 = 90°, R = 1', () => {
+    expect(dragAngle(TC - 0.25, TC)).toBe(TC);
+    expect(dragAngle(TC + 0.2, TC)).toBe(TC);
+    expect(dragAngle(35.04, TC)).toBe(35);
+    expect(dragAngle(41.46, TC)).toBe(41.5);
+    expect(dragAngle(60, NaN)).toBe(60);
+    const th2 = snell(1.5, 1.0, (TC * Math.PI) / 180);
+    expect(Number.isNaN(th2)).toBe(false);
+    expect((th2 * 180) / Math.PI).toBeCloseTo(90, 4);
+    expect(reflectance(1.5, 1.0, (TC * Math.PI) / 180)).toBeCloseTo(1, 6);
+    // Every TIR pair: snell at its own critical angle is the grazing ray, not NaN.
+    for (const [a, b] of [[1.33, 1], [2.42, 1], [1.5, 1.33], [2.42, 1.5]]) {
+      const tc = criticalAngle(a, b);
+      expect(snell(a, b, tc)).toBeCloseTo(Math.PI / 2, 4);
+      expect(Number.isNaN(snell(a, b, tc + 1e-6))).toBe(true);
+    }
   });
 });

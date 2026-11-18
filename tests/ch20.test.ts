@@ -317,3 +317,22 @@ describe('ch20 heat flow: tangents', () => {
     expect(Math.abs(kA / -kB - 1)).toBeCloseTo(0.124, 2);
   });
 });
+
+describe('Ch 20 free expansion: the entropy shown is a change from the all-left state', () => {
+  it('plot and readout are labelled ΔS (S = 0 at W = 1 is a reference, not the absolute entropy)', () => {
+    const plot = expansionScene.plots!.find((pl) => pl.id === 'S')!;
+    expect(plot.label).toContain('\\Delta S');
+    expect(expansionScene.readouts!.map((r) => r.label)).toContain('\\Delta S/k');
+    expect(expansionScene.info!.assumptions).toContain('ch20.e.assume.ref');
+  });
+
+  it('ΔS_max = ln C(N, N/2) approaches the thermodynamic N ln 2 (N = 1000: 689.47 vs 693.15)', () => {
+    const N = 1000;
+    const p = { ...(defaults(expansionScene.params) as any), N };
+    const [, hi] = expansionScene.plots!.find((pl) => pl.id === 'S')!.yRange(p);
+    const Smax = hi / 1.15;
+    expect(Smax).toBeCloseTo(689.4673, 3);
+    expect(Smax).toBeCloseTo(N * Math.log(2) - 0.5 * Math.log((Math.PI * N) / 2), 3);
+    expect(N * Math.log(2) - Smax).toBeLessThan(0.006 * N * Math.log(2));
+  });
+});

@@ -8,8 +8,9 @@
   "ch20.e.obs.peak": "$W(n)$ bars: largest at $n = N/2$; the highlighted bar is the current macrostate",
   "ch20.e.obs.small": "$N = 4$: all particles often gather in the left half again (probability $1/2^4 = 1/16$)",
   "ch20.e.obs.large": "$N = 1000$: probability $1/2^{1000} \\approx 10^{-301}$, so the initial state never returns in practice; $n$ only fluctuates by about $\\sqrt N/2$ around $N/2$",
-  "ch20.e.obs.S": "$S(t)$: rises quickly, then fluctuates just below its maximum $S_\\text{max}$",
+  "ch20.e.obs.S": "$\\Delta S(t)$: rises quickly, then fluctuates just below its maximum $\\Delta S_\\text{max}$. For large $N$, $\\Delta S_\\text{max} \\to Nk\\ln 2$, the thermodynamic free-expansion result $nR\\ln(V_f/V_i)$ ($N = 1000$: 689.5 vs 693.1)",
   "ch20.e.assume": "Particles do not collide with each other (ideal gas) and reflect perfectly from the walls and the partition. All start on the left; the user removes the partition",
+  "ch20.e.assume.ref": "Entropy reference: the all-left state ($W = 1$) is set to zero. Only the left/right arrangement is counted, so this is not the absolute entropy (counting positions within each half and velocities too, the initial state has $S > 0$). Only the change $\\Delta S$ is physical",
   "ch20.h.p.na": "Solid A size $N_\\text{A}$",
   "ch20.h.d.na": "Number of oscillators in solid A; solid B has the rest ($N_\\text{A} + N_\\text{B} = 100$)",
   "ch20.h.p.q": "Energy quanta $q$",
@@ -47,5 +48,5 @@
   "ch20.c.assume.ideal": "Ideal gas, about 0.401 mol, A: 10 L, 600 K",
   "ch20.c.assume": "Quasi-static, reversible steps; reservoirs large enough to keep their temperatures; no friction",
   "ch20.e.remove": "Remove partition",
-  "ch20.e.obs.remove": "At first the gas is in the left half behind the partition ($n = N$, $W = 1$, $S = 0$). Press \"Remove partition\" under the box, or the partition itself, to remove it and let the gas spread to the right. Reset (R) puts the partition back"
+  "ch20.e.obs.remove": "At first the gas is in the left half behind the partition ($n = N$, $W = 1$, $\\Delta S = 0$). Press \"Remove partition\" under the box, or the partition itself, to remove it and let the gas spread to the right. Reset (R) puts the partition back"
 }

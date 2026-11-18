@@ -48,6 +48,18 @@ function clipped(g: Draw, x0: number, y0: number, x1: number, y1: number, fn: ()
   g.ctx.restore();
 }
 
+/** Snap distance to the critical (or acceptance) angle while dragging [°]. */
+export const SNAP_DEG = 0.3;
+
+/**
+ * Dragged angle [°]: to 0.1°, and onto the critical angle when within SNAP_DEG of it, so the
+ * grazing ray (θ₂ = 90°, R = 1) can be reached by hand. NaN critical angle: no snapping.
+ */
+export function dragAngle(raw: number, crit: number): number {
+  if (Number.isFinite(crit) && Math.abs(raw - crit) < SNAP_DEG) return crit;
+  return Math.round(raw * 10) / 10;
+}
+
 // ------------------------------------------------------------------ refraction
 
 type PR = { n1: string; n2: string; theta: number };
@@ -66,7 +78,8 @@ const refrParams: ParamSchema<PR> = {
     control: 'slider',
     min: 0,
     max: 89,
-    step: 1,
+    // Fine steps: the reflectance rises from 0.38 to 1 within the last degree below θc (glass → air).
+    step: 0.1,
     default: 35,
     unit: '°',
   },
@@ -106,9 +119,12 @@ export const refraction: Scene<PR, { t: number }> = {
     g.text({ x: -XR, y: -YR }, name(p.n2, n2), { size: 14, align: 'left', dx: 10, dy: -12 });
 
     if (Number.isFinite(tc)) {
-      const c = { x: -LR * Math.sin(tc), y: LR * Math.cos(tc) };
+      // Shorter than the ray and labelled off to the side away from the normal, so the label
+      // stays clear of the drag handle and of the incident ray when θ₁ ≈ θc.
+      const c = { x: -0.75 * LR * Math.sin(tc), y: 0.75 * LR * Math.cos(tc) };
       g.line({ x: 0, y: 0 }, c, { color: TICK, width: 1, dash: [2, 4] });
-      g.text(c, '*θ*_{c}', { size: 13, color: TICK, align: 'right', baseline: 'middle', dx: -6, dy: -6 });
+      const off = g.px(14);
+      g.text({ x: c.x - off * Math.cos(tc), y: c.y - off * Math.sin(tc) }, '*θ*_{c}', { size: 13, color: TICK, align: 'center', baseline: 'middle' });
     }
 
     const S = { x: -LR * Math.sin(th1), y: LR * Math.cos(th1) };
@@ -126,7 +142,8 @@ export const refraction: Scene<PR, { t: number }> = {
       pos: (_s, p) => ({ x: -LR * Math.sin(p.theta * DEG), y: LR * Math.cos(p.theta * DEG) }),
       radiusPx: 16,
       onDrag: (ctx, _s, w) => {
-        const a = Math.round(Math.min(89, Math.max(0, Math.atan2(-w.x, w.y) / DEG)));
+        const raw = Math.min(89, Math.max(0, Math.atan2(-w.x, w.y) / DEG));
+        const a = dragAngle(raw, criticalAngle(MEDIA[ctx.params.n1], MEDIA[ctx.params.n2]) / DEG);
         if (a !== ctx.params.theta) ctx.set('theta', a);
       },
     },
@@ -171,7 +188,7 @@ const fibreParams: ParamSchema<PF> = {
     control: 'slider',
     min: 0,
     max: 80,
-    step: 1,
+    step: 0.1,
     default: 15,
     unit: '°',
   },
@@ -355,7 +372,8 @@ export const fibre: Scene<PF, { t: number }> = {
       pos: (_s, p) => ({ x: X0 - LIN * Math.cos(p.alpha * DEG), y: -LIN * Math.sin(p.alpha * DEG) }),
       radiusPx: 16,
       onDrag: (ctx, _s, w) => {
-        const a = Math.round(Math.min(80, Math.max(0, Math.atan2(-w.y, X0 - w.x) / DEG)));
+        const raw = Math.min(80, Math.max(0, Math.atan2(-w.y, X0 - w.x) / DEG));
+        const a = dragAngle(raw, acceptance({ n1: N_CORE, n2: Number(ctx.params.clad), n0: 1 }) / DEG);
         if (a !== ctx.params.alpha) ctx.set('alpha', a);
       },
     },

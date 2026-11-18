@@ -27,26 +27,108 @@ export interface Push {
 export const netForce = (p: Push, t: number) => (t < p.tOff ? p.F : 0);
 export const pushState = (p: Push, t: number): Kin => pushedAt(p.F / p.m, p.tOff, t);
 
-// ------------------------------------------------------------------ third law: two carts
+// ------------------------------------------------------------------ third law: two carts and a bumper
 
-export interface Carts {
+/**
+ * Cart A carries a massless spring bumper (natural length L0, stiffness k) on its right face xA;
+ * cart B's left face is xB. While the gap g = xB − xA is shorter than L0 the spring is compressed by
+ * c = L0 − g and pushes on both: on B by +k·c (from A), on A by −k·c (from B). The two forces come
+ * from the same compression, so they are equal and opposite at every instant for any masses.
+ */
+export interface Bumper {
   mA: number;
   mB: number;
-  /** Size of the contact force each cart exerts on the other [N]. */
-  F: number;
-  /** Contact time [s]. */
-  tc: number;
+  /** Spring constant [N/m]. */
+  k: number;
+  /** Natural length of the bumper [m]. */
+  L0: number;
+  /** 'collide': A at v0 hits B at rest; 'release': both at rest, spring compressed by c0. */
+  mode: 'collide' | 'release';
+  /** Initial velocity of A [m/s] (collide). */
+  v0: number;
+  /** Time at which the bumper touches B [s] (collide). */
+  t1: number;
+  /** Initial compression [m] (release). */
+  c0: number;
+}
+
+export const bumperOmega = (b: Bumper) => Math.sqrt((b.k * (b.mA + b.mB)) / (b.mA * b.mB));
+
+/** Time from contact to separation [s]. */
+export const contactTime = (b: Bumper) => (b.mode === 'collide' ? Math.PI : Math.PI / 2) / bumperOmega(b);
+
+/** Contact start, contact end [s]. */
+export function contactWindow(b: Bumper): [number, number] {
+  const t0 = b.mode === 'collide' ? b.t1 : 0;
+  return [t0, t0 + contactTime(b)];
+}
+
+/** Largest spring force during the contact [N]. */
+export function peakForce(b: Bumper): number {
+  const mu = (b.mA * b.mB) / (b.mA + b.mB);
+  return b.mode === 'collide' ? b.v0 * Math.sqrt(b.k * mu) : b.k * b.c0;
+}
+
+export interface BumperState {
+  /** Faces: A's right face (bumper root) and B's left face [m]. */
+  A: Kin;
+  B: Kin;
+  /** Spring compression [m]. */
+  c: number;
+  /** Force on A by B and on B by A [N]. */
+  FA: number;
+  FB: number;
 }
 
 /**
- * A (left) and B (right) push each other apart from rest. F_AB (on A by B) = −F, F_BA (on B by A) = +F:
- * equal and opposite, so a_A = −F/m_A and a_B = F/m_B.
+ * Exact motion. The centre of mass moves uniformly; the gap obeys c'' = −ω² c with ω² = k/μ
+ * while the spring is compressed. Collide: B's face at 0 at t = 0, contact at t1.
+ * Release: centre of mass at 0, released at t = 0.
  */
-export function cartsAt(c: Carts, t: number) {
-  const on = t < c.tc;
-  const A = pushedAt(-c.F / c.mA, c.tc, t);
-  const B = pushedAt(c.F / c.mB, c.tc, t);
-  return { FA: on ? -c.F : 0, FB: on ? c.F : 0, A, B };
+export function bumperAt(b: Bumper, t: number): BumperState {
+  const M = b.mA + b.mB;
+  const w = bumperOmega(b);
+  const [t0, t2] = contactWindow(b);
+  // Centre of mass (of the two faces) and its velocity.
+  const V = b.mode === 'collide' ? (b.mA * b.v0) / M : 0;
+  const g0 = b.mode === 'collide' ? b.L0 + b.v0 * b.t1 : b.L0 - b.c0;
+  const X0 = b.mode === 'collide' ? (b.mA * -g0) / M : 0;
+  // Gap g, its rate gd and compression c.
+  let g: number;
+  let gd: number;
+  let c = 0;
+  if (b.mode === 'collide') {
+    if (t < t0) {
+      g = g0 - b.v0 * t;
+      gd = -b.v0;
+    } else if (t < t2) {
+      const s = t - t0;
+      c = (b.v0 / w) * Math.sin(w * s);
+      g = b.L0 - c;
+      gd = -b.v0 * Math.cos(w * s);
+    } else {
+      g = b.L0 + b.v0 * (t - t2);
+      gd = b.v0;
+    }
+  } else if (t < t2) {
+    c = b.c0 * Math.cos(w * t);
+    g = b.L0 - c;
+    gd = b.c0 * w * Math.sin(w * t);
+  } else {
+    g = b.L0 + b.c0 * w * (t - t2);
+    gd = b.c0 * w;
+  }
+  const F = b.k * c;
+  // Relative acceleration g'' = F/μ, shared as −F/mA and +F/mB.
+  const X = X0 + V * t;
+  return {
+    A: { x: X - (b.mB / M) * g, v: V - (b.mB / M) * gd, a: -F / b.mA || 0 },
+    B: { x: X + (b.mA / M) * g, v: V + (b.mA / M) * gd, a: F / b.mB },
+    c,
+    // `|| 0`: no −0 once the carts have separated.
+    FA: -F || 0,
+    FB: F,
+  };
 }
 
 // ------------------------------------------------------------------ inertial frames: ball in a train
