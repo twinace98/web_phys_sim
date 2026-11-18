@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
 import { agm, ellipticK, exactPeriod, omega0, oscAt, pendulumStep, period, periodError, smallAnglePeriod, type Oscillator } from '../src/sims/ch15/physics';
-import { ARROW_MAX, bobArrows, pendulum, sigFor, worldTop } from '../src/sims/ch15/pendulum';
+import { ARROW_MAX, ERR_RECT, bobArrows, errPct, pendulum, sigFor, worldTop } from '../src/sims/ch15/pendulum';
 import { shm } from '../src/sims/ch15/shm';
 import { offStage, probe, ProbeDraw } from './stage-probe';
 
@@ -140,6 +140,36 @@ function measuredPeriod(theta0: number, L = 1): number {
 
 const ui = (t: number) => ({ t, cursorT: t, scrubbing: false, lecture: false });
 
+describe('ch15 pendulum: legend and error chart', () => {
+  it('the θ(t) legend names both curves in ko and en', async () => {
+    const page = (await import('../src/sims/ch15')).default;
+    for (const lang of ['ko', 'en'] as const) {
+      expect(page.i18n[lang]['ch15.n.leg.real']).toBeTruthy();
+      expect(page.i18n[lang]['ch15.n.leg.model']).toContain('cos');
+    }
+    expect(pendulum.info.observe).toContain('ch15.n.obs.inset');
+  });
+
+  it('the chart marks the current release on (T − T0)/T0: 0.191 % at 10°, 1.74 % at 30°, 18.0 % at 90°', () => {
+    const p = defaults(pendulum.params) as any;
+    for (const [deg, txt] of [[10, '0.191 %'], [30, '1.74 %'], [90, '18.0 %'], [170, '144 %']] as const) {
+      const q = { ...p, theta0: deg };
+      const g = new ProbeDraw(768, 650);
+      g.vp.fit(pendulum.world(q), 768, 650);
+      pendulum.draw(g, pendulum.init(q, null as never), q, ui(0));
+      expect(g.marks.some((m) => m.text === txt)).toBe(true);
+      // The chart sits inside the world, below the swing (bob at y = −L at the bottom).
+      expect(pendulum.world(q).y[0]).toBeLessThan(ERR_RECT.y0 - 0.2);
+      expect(ERR_RECT.y1).toBeLessThan(-1.5);
+    }
+    // Monotonic: smaller angle, smaller error; below 1 % under 22.8°.
+    const e = [5, 10, 20, 22.8, 23, 45, 90].map((d) => errPct(p, d));
+    for (let i = 1; i < e.length; i++) expect(e[i]).toBeGreaterThan(e[i - 1]);
+    expect(errPct(p, 22.8)).toBeLessThan(1);
+    expect(errPct(p, 23)).toBeGreaterThan(1);
+  });
+});
+
 describe('ch15 pendulum: one real pendulum against the small-angle model', () => {
   const pd = { L: 1, g: 9.8 };
 
@@ -184,7 +214,9 @@ describe('ch15 pendulum: one real pendulum against the small-angle model', () =>
       const g = new Rec(768, 650);
       g.vp.fit(pendulum.world(q), 768, 650);
       pendulum.draw(g, s, q, ui(s.t));
-      return g.marks.map((m) => m.text ?? 'tip');
+      // The pendulum's own marks only: the error chart below the swing has its own test.
+      const yChart = g.vp.toPx(0, ERR_RECT.y1 + 0.2)[1];
+      return g.marks.filter((m) => m.y < yChart).map((m) => m.text ?? 'tip');
     };
     const T = exactPeriod(pd, p.theta0 * DEG);
     // At release (rest): only a_t.

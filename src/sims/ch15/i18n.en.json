@@ -37,5 +37,8 @@
   "ch15.n.obs.graph": "$\\theta$ graph, grey dashed: the small-angle model $\\theta_0\\cos\\omega_0 t$ ($\\omega_0 = \\sqrt{g/L}$); at 90° the real pendulum falls further behind each swing",
   "ch15.n.obs.at": "Formula panel: real $a_\\text{t} = -g\\sin\\theta$ against the model $a_{\\text{t},0} = -g\\theta$. At large $\\theta$ the model overestimates the restoring acceleration, so its period is shorter",
   "ch15.n.assume.err": "$T$: period of the real motion (exact, $K$ = complete elliptic integral of the first kind); the simulation (RK4) returns to $\\theta_0$ after $T$. The error compares $T$ with the model $T_0$, relative to $T_0$",
-  "ch15.n.assume.arrows": "Arrow lengths: $v$ and the acceleration parts are each scaled so that their largest value in the swing has the same length; $a_\\text{t}$ and $a_\\text{r}$ share one scale. $a_\\text{t}$ is drawn just outside $v$ on the same line"
+  "ch15.n.assume.arrows": "Arrow lengths: $v$ and the acceleration parts are each scaled so that their largest value in the swing has the same length; $a_\\text{t}$ and $a_\\text{r}$ share one scale. $a_\\text{t}$ is drawn just outside $v$ on the same line",
+  "ch15.n.leg.real": "Real pendulum",
+  "ch15.n.leg.model": "Small-angle model *θ*_{0} cos *ω*_{0}*t*",
+  "ch15.n.obs.inset": "Graph below the pendulum: the period error $\\Delta T/T_0 = (T - T_0)/T_0$ against the release angle $\\theta_0$ (log scale), the black dot at the current angle. The smaller the angle, the faster the error falls, as $\\theta_0^2/16$: below 1 % (grey dashed line) under 23°, 0.19 % at 10°"
 }
