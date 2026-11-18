@@ -29,6 +29,8 @@ import {
   type SlitState,
 } from '../wave2d/slits';
 import { drawWave } from '../wave2d/view';
+import { num, tn } from '../../core/tex';
+import { fitSig } from '../ch31/fit';
 import { firstMin } from './physics';
 
 type P = { slits: string; a: number; lambda: number; D: number; d: number; yp: number };
@@ -182,6 +184,42 @@ export function envelope(p: P): Float64Array {
   return envMemo;
 }
 
+const UM = '\\ \\mu\\mathrm{m}';
+
+/**
+ * Σ panel: first minimum a sin θ₁ = λ (or λ/a ≥ 1: no minimum), its screen height
+ * y₁ = D tan θ₁, ΔL/λ at the marked point, and for two slits d/a with the missing orders.
+ */
+export function formulaLines(p: P): string[] {
+  const lam = p.lambda / 1000;
+  const ratio = lam / p.a;
+  const th = firstMin(lam, p.a);
+  const lines: string[] = [];
+  const head = `\\sin\\theta_1 = \\frac{\\lambda}{a} = \\frac{${num(lam)}}{${num(p.a)}}`;
+  if (Number.isNaN(th)) lines.push(`${head} = ${tn(ratio)} \\ge 1`);
+  else {
+    const thDeg = th * DEG;
+    const sr = fitSig((r) => tn(Math.asin(r(ratio)) * DEG), tn(thDeg));
+    lines.push(`${head} = ${tn(ratio, sr)},\\quad \\theta_1 = ${tn(thDeg)}^\\circ`);
+    const y1 = p.D * Math.tan(th);
+    const sy = fitSig((r) => tn(p.D * Math.tan(r(thDeg) / DEG)), tn(y1));
+    // Far from the Fraunhofer regime the stage drops the y₁ mark (no minimum there); so does the panel.
+    if (y1Mark(p) !== 'hidden')
+      lines.push(`y_1 = D\\tan\\theta_1 = ${num(p.D)}\\tan ${tn(thDeg, sy)}^\\circ = ${tn(y1)}${UM}`);
+  }
+  const n = markDiff(p);
+  const dL = n * lam;
+  const sl = fitSig((r) => tn(r(dL) / lam, 2), tn(n, 2));
+  lines.push(`\\frac{\\Delta L}{\\lambda} = \\frac{${tn(dL, sl)}${UM}}{${num(lam)}${UM}} = ${tn(n, 2)}`);
+  if (two(p)) {
+    const q = sepOf(p) / p.a;
+    const k = Math.round(q);
+    const whole = Math.abs(q - k) < 1e-9;
+    lines.push(`\\frac{d}{a} = \\frac{${num(sepOf(p))}}{${num(p.a)}} = ${whole ? `${k}\\ \\Rightarrow\\ m = \\pm ${k}, \\pm ${2 * k}, \\ldots` : tn(q)}`);
+  }
+  return lines;
+}
+
 export const singleSlit: Scene<P, SlitState> = {
   id: 'single',
   title: 'ch36.s.scene',
@@ -271,6 +309,8 @@ export const singleSlit: Scene<P, SlitState> = {
     { label: '\\theta_1', unit: '°', value: (_s, p) => firstMin(p.lambda / 1000, p.a) * DEG },
     { label: '\\Delta L/\\lambda', unit: '', value: (_s, p) => markDiff(p), sig: 2 },
   ],
+
+  formula: (_s, p) => formulaLines(p),
 
   info: {
     goals: ['ch36.s.goal.cause', 'ch36.s.goal.min', 'ch36.s.goal.two'],

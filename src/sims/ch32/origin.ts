@@ -5,7 +5,9 @@ import { t } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2, WorldSpec } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { TICK } from '../inset/inset';
-import { A0, V1, orbit } from './physics';
+import { u } from '../../core/tex';
+import { fitSig, tns } from '../ch31/fit';
+import { A0, E_CHARGE, MU_B, M_E, V1, orbit } from './physics';
 
 type P = { dir: string; spin: string };
 
@@ -96,6 +98,37 @@ function vec(g: Draw, from: Vec2, dy: number, color: string, label: string, dash
   g.text({ x: from.x, y: from.y + dy }, label, { size: 15, color, align: 'left', baseline: 'middle', dx: 10, dy: dy > 0 ? 6 : -6 });
 }
 
+/**
+ * Σ panel: the first Bohr orbit as a current loop (T, I, μ = IA, L = mvr), μ_z = −(e/2m)L_z with
+ * the sign of the chosen orbit, and the spin moment μ_s,z = −(e/m)S_z = ∓μ_B.
+ */
+export function formulaOrigin(p: P): string[] {
+  const { T, I, mu, L } = ORB;
+  const r = A0;
+  const v = V1;
+  const e = E_CHARGE;
+  const st = fitSig((q) => tns((2 * Math.PI * q(r)) / q(v)), tns(T));
+  const si = fitSig((q) => tns((q(e) / q(T)) * 1e3), tns(I * 1e3));
+  const sm = fitSig((q) => tns(q(I) * Math.PI * q(r) ** 2), tns(mu));
+  const sl = fitSig((q) => tns(q(M_E) * q(v) * q(r)), tns(L));
+  const d = p.dir === 'ccw' ? 1 : -1;
+  const sgn = (k: number) => (k > 0 ? '+' : '-');
+  const up = p.spin === 'up' ? 1 : -1;
+  const JT = u('J/T');
+  // Long products split over two lines, so they stay legible on a phone.
+  return [
+    `T = \\frac{2\\pi r}{v} = \\frac{2\\pi(${tns(r, st)})}{${tns(v, st)}} = ${tns(T)}${u('s')}`,
+    `I = \\frac{e}{T} = \\frac{${tns(e, si)}}{${tns(T, si)}} = ${tns(I * 1e3)}${u('mA')}`,
+    `\\mu = IA = I\\pi r^2 = (${tns(I, sm)})\\,\\pi\\,(${tns(r, sm)})^2`,
+    `= ${tns(mu)}${JT}`,
+    `L = mvr = (${tns(M_E, sl)})(${tns(v, sl)})(${tns(r, sl)})`,
+    `= ${tns(L)}${u('J\\,s')} = \\hbar`,
+    `\\mu_z = -\\frac{e}{2m}L_z = -\\frac{e}{2m}(${sgn(d)}\\hbar) = ${sgn(-d)}\\mu_B = ${tns(-d * mu)}${JT}`,
+    `\\mu_{s,z} = -\\frac{e}{m}S_z = -\\frac{e}{m}\\left(${sgn(up)}\\frac{\\hbar}{2}\\right)`,
+    `= ${sgn(-up)}\\mu_B =${tns(-up * MU_B)}${JT}`,
+  ];
+}
+
 export const origin: Scene<P, { t: number }> = {
   id: 'origin',
   title: 'ch32.o.scene',
@@ -156,6 +189,8 @@ export const origin: Scene<P, { t: number }> = {
     { label: '\\mu = IA', unit: '×10⁻²⁴ J/T', value: () => ORB.mu * 1e24 },
     { label: 'L', unit: '×10⁻³⁴ J·s', value: () => ORB.L * 1e34 },
   ],
+
+  formula: (_s, p) => formulaOrigin(p),
 
   info: {
     goals: ['ch32.o.goal.loop', 'ch32.o.goal.spin'],
