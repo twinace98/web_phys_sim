@@ -2,7 +2,9 @@
 // ground or a uniformly moving train it obeys the first law; seen from an accelerating train it
 // accelerates backwards with no force on it, so that frame is not inertial.
 import { t as tr } from '../../core/i18n';
+import { tn, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
+import { sigToMatch } from '../ch02/sigma';
 import type { Draw } from '../../draw/draw';
 import { padded } from './common';
 import { ballGround, ballInTrain, trainAt, type Train } from './physics';
@@ -208,6 +210,23 @@ export const frames: Scene<P, S> = {
     { label: 'a', unit: 'm/s²', value: (s, p) => ball(p, s.t).a },
     { label: 'v', unit: 'm/s', value: (s, p) => ball(p, s.t).v },
   ],
+
+  // Σ panel: no horizontal force on the ball. Ground frame: a = 0, v = v_0. Train frame:
+  // a' = a − a_0, v' = a' t, and the pseudo force −m a_0 when shown.
+  formula: (s, p) => {
+    const b = ball(p, s.t);
+    const A0 = trainOf(p).A;
+    const F = `F_\\text{net} = ${tn(0)}${u('N')}`;
+    if (p.frame !== 'train') return [`${F} \\;\\Rightarrow\\; a = ${tn(b.a)}${u('m/s^2')}`, `v = v_0 = ${tn(b.v)}${u('m/s')}`];
+    const sig = sigToMatch(b.v, [b.a, s.t], (a, t) => a * t);
+    const lines = [
+      F,
+      `a' = a - a_0 = 0 - ${A0.toFixed(1)} = ${tn(b.a)}${u('m/s^2')}`,
+      `v' = a't = ${tp(b.a, sig)} \\times ${tn(s.t, sig)} = ${tn(b.v)}${u('m/s')}`,
+    ];
+    if (A0 > 0 && p.pseudo) lines.push(`ma' = -ma_0 = -1 \\times ${A0.toFixed(1)} = ${tn(-A0)}${u('N')}`);
+    return lines;
+  },
 
   info: {
     goals: ['ch05.f.goal.inertial', 'ch05.f.goal.non'],
