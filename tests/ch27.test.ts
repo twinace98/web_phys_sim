@@ -3,6 +3,7 @@ import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
 import { ONE_TAU, chargeAt, currentAt, finalCharge, tau, type RC } from '../src/sims/ch27/physics';
 import { rcCircuit } from '../src/sims/ch27/scene';
+import { timeScale, timeWindow } from '../src/core/types';
 
 const c: RC = { R: 2e3, C: 1e-3, emf: 12 };
 
@@ -142,5 +143,35 @@ describe('ch27 switch before play (runner restarts on a live change before the f
     const n = r.hist.length;
     r.setParam('sw', 'charge');
     expect(r.hist.length).toBe(n);
+  });
+});
+
+describe('ch27 time axis follows τ (QA E5)', () => {
+  const at = (R: number, C: number) => ({ ...defaults(rcCircuit.params), R, C });
+  it('the window is 10τ within 0.5 to 20 s: 5τ is never a sliver of the axis', () => {
+    // Before: a fixed 20 s window, so at τ = 0.05 s (0.5 kΩ, 100 μF) 5τ was 1.25 % of the axis.
+    const cases: [number, number, number][] = [
+      [0.5, 100, 0.05],
+      [1.3, 170, 0.221],
+      [2, 1000, 2],
+      [4, 1000, 4],
+    ];
+    for (const [R, C, T] of cases) {
+      const p = at(R, C);
+      expect(tau({ R: R * 1e3, C: C * 1e-6, emf: 12 })).toBeCloseTo(T, 9);
+      const w = timeWindow(rcCircuit.time, p);
+      expect(w).toBeCloseTo(Math.min(20, Math.max(0.5, 10 * T)), 9);
+      // 5τ fills at least a quarter of the axis; the τ marker sits at least 5 % in.
+      expect((5 * T) / w).toBeGreaterThanOrEqual(0.25);
+      expect(T / w).toBeGreaterThanOrEqual(0.05);
+    }
+    expect(timeWindow(rcCircuit.time, defaults(rcCircuit.params))).toBe(20);
+  });
+
+  it('short τ runs slower than real time (0.1× at 0.05 s), 1× from τ = 0.5 s', () => {
+    expect(timeScale(rcCircuit.time, at(0.5, 100))).toBeCloseTo(0.1, 12);
+    expect(timeScale(rcCircuit.time, at(1, 250))).toBeCloseTo(0.5, 12);
+    expect(timeScale(rcCircuit.time, at(2, 250))).toBe(1);
+    expect(timeScale(rcCircuit.time, defaults(rcCircuit.params))).toBe(1);
   });
 });

@@ -28,7 +28,8 @@
   "ch28.c.goal.K": "Each gap crossing adds $qV$ of kinetic energy; the radius grows and the path is a spiral",
   "ch28.c.obs.step": "$K(t)$ climbs in steps, one per half turn, each when the gap voltage peaks",
   "ch28.c.obs.spiral": "Inside a dee the proton moves on a half circle; the time for a half circle does not depend on the radius",
-  "ch28.c.obs.detune": "$f \\neq f_c$: the phase at each crossing drifts, acceleration turns into deceleration, the spiral winds back in and the energy stays far below the in-tune value",
+  "ch28.c.obs.r": "The readout $r$ is the orbit radius $mv/\\lvert q\\rvert B$; the centre of the spiral wanders a little, so it differs slightly from the distance to the centre of the dees. The proton is extracted when $r = R$ = 5 cm",
+  "ch28.c.obs.detune": "$f \\neq f_c$: the phase at each crossing slips a little every half turn. A small detuning only adds turns and the proton still leaves with the same energy ($f/f_c$ = 0.97–1.02 at 10 kV); beyond a few percent acceleration turns into deceleration, the spiral winds back in and the proton usually never reaches the extraction radius. The tolerance is wider the fewer the turns (the larger the gap voltage)",
   "ch28.c.obs.V0": "A larger gap voltage gives taller steps and fewer turns; the exit energy is the same, $K_\\text{max} = (qBR)^2/2m$ = 120 keV",
   "ch28.c.assume": "Proton, $B$ = 1 T, dee radius $R$ = 5 cm, gap 6 mm (drawn wider than in real machines), gap voltage set high to keep the number of turns small; the magnet pole is a little wider than the dees; when the orbit radius reaches $R$ a deflector extracts the proton (straight line afterwards); fringe fields neglected; non-relativistic"
 }

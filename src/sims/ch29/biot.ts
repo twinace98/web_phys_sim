@@ -42,6 +42,19 @@ const obs = (p: P): Vec2 => {
   return { x: a[0], y: a[1] };
 };
 
+/** P at the centre of the loop (within rounding of the drag). */
+const atCentre = (P0: Vec2) => Math.hypot(P0.x, P0.y) < 1e-6;
+/** Elements for the n → ∞ limit of the loop sum (each ≪ D_MIN, the closest P gets to the wire). */
+const N_FINE = 20000;
+/**
+ * Loop reference [μT]: μ0 I / 2R at the centre (every n gives it exactly there); elsewhere the
+ * n → ∞ limit of the sum, since μ0 I / 2R is the centre value only.
+ */
+function loopRef(P0: Vec2): number {
+  if (atCentre(P0)) return loopCentre();
+  return elements('loop', N_FINE).reduce((a, e) => a + dBz(e, P0.x, P0.y), 0);
+}
+
 interface Model {
   els: Element[];
   dB: number[];
@@ -56,7 +69,7 @@ function model(p: P): Model {
     const dB = els.map((e) => dBz(e, P0.x, P0.y));
     const cum: number[] = [];
     dB.reduce((a, v, i) => (cum[i] = a + v), 0);
-    const ref = p.wire === 'loop' ? loopCentre() : Math.sign(P0.y || 1) * infiniteWire(Math.abs(P0.y));
+    const ref = p.wire === 'loop' ? loopRef(P0) : Math.sign(P0.y || 1) * infiniteWire(Math.abs(P0.y));
     return { els, dB, cum, ref };
   });
 }
@@ -185,7 +198,8 @@ export const biot: Scene<P, S> = {
     );
     // Left end, below the line when it is positive (the running sum starts near 0 there).
     const [x, y] = pd.toPx(T_END * 0.02, m.ref);
-    const label = p.wire === 'loop' ? `μ_{0}*I*/2*R* = ${fmt(m.ref)} μT` : `μ_{0}*I*/2π*d* = ${fmt(m.ref)} μT`;
+    const label =
+      p.wire !== 'loop' ? `μ_{0}*I*/2π*d* = ${fmt(m.ref)} μT` : atCentre(obs(p)) ? `μ_{0}*I*/2*R* = ${fmt(m.ref)} μT` : `*n* → ∞: ${fmt(m.ref)} μT`;
     drawRich(pd.ctx, label, x, y + (m.ref >= 0 ? 15 : -6) * theme.scale, { size: 11, color: '#6b6b6b' });
   },
 

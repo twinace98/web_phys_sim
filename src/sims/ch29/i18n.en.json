@@ -5,7 +5,7 @@
   "ch29.b.wire.straight": "Straight wire",
   "ch29.b.wire.loop": "Circular loop",
   "ch29.b.p.n": "Current elements",
-  "ch29.b.d.n": "Number of current elements $d\\vec l$ the wire is cut into",
+  "ch29.b.d.n": "Number $n$ of current elements $d\\vec l$ the wire is cut into",
   "ch29.b.p.P": "Field point position",
   "ch29.b.goal.sum": "Biot-Savart law: the field of the whole wire is the sum of the $d\\vec B$ of each current element $I\\,d\\vec l$",
   "ch29.b.goal.dir": "$d\\vec B$ is perpendicular to both $d\\vec l$ and $\\vec r$. With the wire and the field point in one plane, $d\\vec B$ is perpendicular to the page (⊙ out, ⊗ in)",
@@ -14,11 +14,11 @@
   "ch29.b.obs.r": "Drag $P$ away from the wire: $B$ falls as $1/d$; compare with the dashed reference $\\mu_0 I/2\\pi d$",
   "ch29.b.obs.loop": "Centre of the loop: every element gives the same $dB$ in the same direction, summing to $\\mu_0 I/2R$",
   "ch29.b.obs.inside": "Inside the loop the field is ⊙; outside, the nearby elements dominate and it is ⊗",
-  "ch29.b.obs.n": "More elements give nearly the same sum (smaller elements are more accurate)",
+  "ch29.b.obs.n": "The sum converges as $n$ grows, once the elements are much shorter than their distance to $P$: 6 cm from the straight wire the sum is off by $-91$ % at $n = 4$, $-9$ % at $n = 24$ and $-0.2$ % at $n = 48$. Just outside the loop (0.51 m from its centre) $n = 4$ even gets the sign wrong",
   "ch29.b.as.units": "Current $I = 10$ A, lengths in m, field in μT",
   "ch29.b.as.plane": "The wire and the field point lie in one plane (the page)",
   "ch29.b.as.mid": "Each element's contribution is evaluated at its midpoint (midpoint rule)",
-  "ch29.b.as.ref": "The straight wire is 2.2 m long; the dashed reference $\\mu_0 I/2\\pi d$ is the value for an infinitely long wire. Loop radius $R = 0.45$ m",
+  "ch29.b.as.ref": "The straight wire is 2.2 m long; the dashed reference $\\mu_0 I/2\\pi d$ is the value for an infinitely long wire. Loop radius $R = 0.45$ m. For the loop the dashed line is $\\mu_0 I/2R$ with $P$ at the centre, elsewhere the limit of very fine elements ($n \\to \\infty$)",
   "ch29.a.scene": "Ampère's law",
   "ch29.a.p.preset": "Arrangement",
   "ch29.a.d.preset": "Starting arrangement of the wires (drag to move; drag out of the tray at the lower left to add; drop on the bin or double-click to remove)",
@@ -43,5 +43,5 @@
   "ch29.a.as.2d": "Cross-sections of infinitely long straight wires perpendicular to the page, $B = \\mu_0 I/2\\pi r$; the solenoid section has finite length, so the field outside is not exactly zero",
   "ch29.a.as.units": "1 A per wire, lengths in m, $\\oint \\vec B\\cdot d\\vec l$ in μT·m",
   "ch29.a.as.sign": "The path runs counter-clockwise; by the right-hand rule a ⊙ current counts as positive",
-  "ch29.a.as.num": "$\\oint \\vec B\\cdot d\\vec l$ is a numerical integral along the path. Wires are kept at least 3.5 cm from the path"
+  "ch29.a.as.num": "$\\oint \\vec B\\cdot d\\vec l$ is a numerical integral along the path. Wires are kept at least 3.5 cm from the path. The free curve cannot be dragged into crossing itself"
 }
