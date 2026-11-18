@@ -2,10 +2,15 @@
 // compared with the small-angle (SHM) model T₀ = 2π√(L/g). The model appears only as a faint curve
 // in the θ(t) graph and as numbers in the readouts and the formula panel. Free-body diagram: string
 // tension F_T (along the string) and weight mg on a 1 kg bob; the motion does not depend on the mass.
+import { fmt, fmtTick } from '../../core/format';
+import { t } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { num, paren, tn, u } from '../../core/tex';
 import { sigFit } from '../ch07/sigfit';
 import type { Draw } from '../../draw/draw';
+import { drawRich, measureRich } from '../../draw/text';
+import { color, theme } from '../../draw/theme';
+import { Inset, TICK, type Rect } from '../inset/inset';
 import { FBD_MIN_PX, FBD_ZERO, drawFbd, fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
 import { ellipticK, exactPeriod, pendulumAccel, pendulumMax, pendulumStep, periodError, smallAnglePeriod, type Pendulum } from './physics';
 
@@ -16,6 +21,43 @@ const DEG = Math.PI / 180;
 const G = 9.8;
 const RATE = 1000;
 const MODEL = '#8c8c8c';
+
+/**
+ * Error inset below the swing [L]: (T − T₀)/T₀ against θ₀ on a log scale, the current release
+ * marked, so the small-angle model visibly improves as the angle shrinks.
+ */
+export const ERR_RECT: Rect = { x0: -0.78, y0: -2.3, x1: 1.12, y1: -1.62 };
+/** Bottom of the world: room for the inset's tick labels and axis title. */
+const ERR_BOTTOM = -2.62;
+/** Error axis: log10 of the percentage, 0.01 % to 300 %. */
+export const ERR_LOG: [number, number] = [-2, Math.log10(300)];
+
+/** Percentage error of the small-angle period at release angle θ₀ [deg]. */
+export const errPct = (p: P, deg: number) => 100 * periodError(pend(p), deg * DEG);
+
+function drawErrInset(g: Draw, p: P): void {
+  const ins = new Inset(g, ERR_RECT, [0, 180], ERR_LOG);
+  ins.frame({
+    xTicks: [0, 45, 90, 135, 180],
+    yTicks: [-2, 0, 2],
+    yFmt: (v) => fmtTick(10 ** v),
+    xLabel: '*θ*_{0} (°)',
+  });
+  // y title in the bottom row, left (the x title is right): nothing above the chart, where the
+  // bob and its labels swing on a squeezed phone stage. ΔT = T − T₀ (ⓘ).
+  g.text(ins.P(0, ERR_LOG[0]), 'Δ*T*/*T*_{0} (%)', { size: 12, color: TICK, align: 'left', dx: -30, dy: 30 });
+  // 1 % guide: below it the small-angle model is good to 1 %.
+  ins.curve([[0, 0], [180, 0]], { color: '#d8d8d8', width: 1, dash: [3, 4] });
+  const pts: [number, number][] = [];
+  for (let d = 2; d <= 178; d += 1) pts.push([d, Math.log10(errPct(p, d))]);
+  ins.clip(() => ins.curve(pts, { color: MODEL, width: 1.75 }));
+  const e = errPct(p, p.theta0);
+  ins.dot(p.theta0, Math.log10(e), '#1a1a1a', 5);
+  const at = ins.P(p.theta0, Math.log10(e));
+  // Value beside the dot, on the side with room.
+  const right = p.theta0 < 120;
+  g.text(at, `${fmt(e, 3)} %`, { size: 12, color: '#1a1a1a', align: right ? 'left' : 'right', baseline: 'middle', dx: right ? 8 : -8, dy: 8 });
+}
 /** Bob radius [px]. */
 const BOB = 11;
 /** Longest arrow over the swing [L]: v and the acceleration components are each scaled to it. */
@@ -82,8 +124,9 @@ export function fbdForces(s: { th: number; w: number }, p: P): FbdForce[] {
  */
 export const fbdPerN = (g: Draw, p: P) => {
   const max = BOB_M * G * (3 - 2 * Math.cos(p.theta0 * DEG));
-  // Room below the bob at the bottom: 0.2 L to the world bottom plus the 18 px padding, less the label.
-  const room = 0.2 / g.px(1) + 18 - 20;
+  // Room below the bob at the bottom: down to the top of the error chart (its top tick label),
+  // less the mg label.
+  const room = (-1 - ERR_RECT.y1) / g.px(1) - 10 - 20;
   return fbdScale(max, Math.min(FBD_PX, Math.max(24, (room * max) / (BOB_M * G))));
 };
 
@@ -169,7 +212,7 @@ export const pendulum: Scene<P, S> = {
   layout: 'side',
   params,
   time: { h: 1 / RATE, recordEvery: 8, frameStep: 0.05, window: 8 },
-  world: (p) => ({ x: [-1.2, 1.2], y: [-1.2, worldTop(p)], aspect: 'contain', padPx: 18 }),
+  world: (p) => ({ x: [-1.2, 1.2], y: [ERR_BOTTOM, worldTop(p)], aspect: 'contain', padPx: 18 }),
 
   init: (p) => ({ t: 0, th: p.theta0 * DEG, w: 0 }),
   step: (s, h, p) => {
@@ -224,6 +267,7 @@ export const pendulum: Scene<P, S> = {
     g.circle(B, BOB, { fill: 'position', alpha: p.fbd ? 0.25 : 1 });
     if (p.fbd) drawForces(g, B, s, p);
     g.circle(O, 3, { fill: '#5c5c5c' });
+    drawErrInset(g, p);
   },
 
   plots: [
@@ -231,7 +275,8 @@ export const pendulum: Scene<P, S> = {
       id: 'th',
       label: '\\theta\\,(^\\circ)',
       traces: [{ channel: 'th', role: 'position' }],
-      yRange: (p) => [-p.theta0 * 1.2, p.theta0 * 1.2],
+      // Headroom above θ₀ for the legend.
+      yRange: (p) => [-p.theta0 * 1.2, p.theta0 * 1.6],
     },
   ],
 
@@ -247,6 +292,29 @@ export const pendulum: Scene<P, S> = {
       pts.push([t, model(p, t) / DEG]);
     }
     pd.polyline(pts, { color: MODEL, width: 1.25, dash: [5, 4], alpha: 0.8 });
+    // Legend, one row at the top left: the real (blue, solid) and the model (grey, dashed) curve.
+    const sc = theme.scale;
+    const [x0, y0] = pd.toPx(t0 === 0 ? 0 : t0, p.theta0 * 1.6);
+    const ctx = pd.ctx;
+    let x = x0 + 10 * sc;
+    const y = y0 + 12 * sc;
+    for (const [key, col, dash, w] of [
+      ['ch15.n.leg.real', color('position'), [] as number[], 2],
+      ['ch15.n.leg.model', MODEL, [5, 4], 1.5],
+    ] as const) {
+      ctx.save();
+      ctx.strokeStyle = col;
+      ctx.lineWidth = w * sc;
+      ctx.setLineDash(dash.map((d) => d * sc));
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 22 * sc, y);
+      ctx.stroke();
+      ctx.restore();
+      const label = t(key);
+      drawRich(ctx, label, x + 28 * sc, y, { size: 12, color: col === MODEL ? '#5c5c5c' : col, baseline: 'middle' });
+      x += 28 * sc + measureRich(ctx, label, { size: 12 }) + 18 * sc;
+    }
   },
 
   readouts: [
@@ -288,7 +356,7 @@ export const pendulum: Scene<P, S> = {
 
   info: {
     goals: ['ch15.n.goal.small', 'ch15.n.goal.large'],
-    observe: ['ch15.n.obs.err', 'ch15.n.obs.arrows', 'ch15.n.obs.graph', 'ch15.n.obs.at', 'ch15.n.obs.L'],
+    observe: ['ch15.n.obs.err', 'ch15.n.obs.inset', 'ch15.n.obs.arrows', 'ch15.n.obs.graph', 'ch15.n.obs.at', 'ch15.n.obs.L'],
     equations: [
       '\\ddot\\theta = -\\frac{g}{L}\\sin\\theta \\approx -\\frac{g}{L}\\theta',
       'T_0 = 2\\pi\\sqrt{L/g}, \\quad T = 4\\sqrt{L/g}\\,K\\!\\left(\\sin\\tfrac{\\theta_0}{2}\\right)',
