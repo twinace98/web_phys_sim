@@ -5,5 +5,6 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   base: './',
   build: { target: 'es2022', chunkSizeWarningLimit: 800 },
-  test: { include: ['tests/**/*.test.ts'], environment: 'node' },
+  // Heavy stage-layout tests run several times slower on the CI runner than locally.
+  test: { include: ['tests/**/*.test.ts'], environment: 'node', testTimeout: 30_000 },
 });
