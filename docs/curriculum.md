@@ -70,7 +70,7 @@
 | 25 | Capacitance | 탭 1 평행판 축전기: 유전체 삽입, 전원 연결 ($V$ 일정) / 분리 ($Q$ 일정), $C$·$Q$·$V$·$E$·$U$ 표와 기준 대비 비율 | 전용 |
 | 26 | Current and Resistance | 탭 1 전자 산란과 저항: 드루데 모형 드리프트, 단면 통과 전하로 전류 측정, $I$-$V$ 그래프, $R = \rho L/A$ | E5 |
 | 27 | Circuits | 탭 1 RC 회로: 충전 / 방전 전환, $V_C$·$i$·$q$ 그래프, $t = \tau$ 표식 (63 %, 37 %) | E6 |
-| 28 | Magnetic Fields | 탭 1 자기장 속 하전입자 ($\vec F \perp \vec v$, 속력 비교 → 주기 동일) · 탭 2 사이클로트론 ($f = f_c$일 때만 가속 지속) | E1 |
+| 28 | Magnetic Fields | 탭 1 자기장 속 하전입자 ($\vec F \perp \vec v$, 속력 비교 → 주기 동일) · 탭 2 사이클로트론 ($f \approx f_c$에서 반복 가속, 몇 % 넘게 어긋나면 인출 실패) | E1 |
 | 29 | Magnetic Fields Due to Currents | 탭 1 비오-사바르 법칙 (직선 도선·원형 고리, 요소별 $dB$ 합산 그래프) · 탭 2 앙페르 법칙 (도선 배치, 고리 변형, $\oint \vec B\cdot d\vec l$ vs $\mu_0 I_\text{enc}$, 솔레노이드 단면) | E2 |
 | 30 | Induction and Inductance | 탭 1 패러데이 법칙 (고리의 자기장 영역 통과·자석 통과, $\Phi_B(t)$ 기울기 → $\mathcal{E}(t)$, 유도전류와 유도 자기장) · 탭 2 맥스웰 방정식 (자기 가우스·패러데이·앙페르-맥스웰 미니 장면과 수치 확인, 전기 가우스는 Ch 23) | E2 |
 | 31 | Electromagnetic Oscillations and AC | 탭 1 자유 진동 (LC 에너지 교환, 용수철 대응, 감쇠) · 탭 2 교류 회로 (위상차의 원인, 기울기·넓이 표시, 위상자, 공명 곡선) | E6 |
