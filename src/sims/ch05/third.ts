@@ -7,6 +7,7 @@ import { tn, u } from '../../core/tex';
 import type { NumberParam, ParamSchema, Role, Scene } from '../../core/types';
 import { sigToMatch } from '../ch02/sigma';
 import type { Draw, PlotDraw } from '../../draw/draw';
+import { drawFbd } from '../../draw/fbd';
 import { drawRich } from '../../draw/text';
 import { color, theme } from '../../draw/theme';
 import { padded } from './common';
@@ -113,7 +114,7 @@ const params: ParamSchema<P> = {
   },
   mA: massParam('A', 3),
   mB: massParam('B', 1),
-  fbd: { kind: 'toggle', label: 'ch05.t.p.fbd', desc: 'ch05.t.d.fbd', group: 'main', live: true, default: false },
+  fbd: { kind: 'toggle', label: 'fbd.p', desc: 'fbd.d', group: 'main', live: true, default: false },
   v0: {
     kind: 'number',
     label: 'ch05.t.p.v0',
@@ -205,23 +206,14 @@ function drawB(pd: PlotDraw, p: P, tc: number, key: 'F' | 'a' | 'v', role: Role)
 
 /** Free-body diagram of one cart from its centre: contact force, normal force and weight. */
 function fbd(g: Draw, x: number, F: number, m: number, name: 'A' | 'B', perN: number): void {
-  const y = g.px(19);
-  const len = (f: number) => Math.max(Math.abs(f) * perN, g.px(10));
   const W = m * THIRD_G;
   const other = name === 'A' ? 'B' : 'A';
-  if (Math.abs(F) > 1e-9) {
-    const fx = Math.sign(F) * len(F);
-    g.arrow({ x, y }, { x: fx, y: 0 }, { role: 'force', width: 2.5 });
-    g.text({ x: x + fx, y }, `*F*_{${name}${other}}`, { size: 13, role: 'force', align: F < 0 ? 'right' : 'left', baseline: 'middle', dx: F < 0 ? -5 : 5 });
-  }
-  // N and mg labels just beyond their tips, centred: clear of the horizontal force label even
-  // when a light cart's vertical arrows are short.
-  const n = Math.max(W * perN, g.px(16));
-  g.arrow({ x, y }, { x: 0, y: n }, { role: 'muted', width: 2.5 });
-  g.text({ x, y: y + n }, `*N*_{${name}}`, { size: 13, role: 'muted', align: 'center', baseline: 'middle', dy: -12 });
-  g.arrow({ x, y }, { x: 0, y: -n }, { role: 'muted', width: 2.5, dash: [5, 3] });
-  g.text({ x, y: y - n }, `*m*_{${name}}*g*`, { size: 13, role: 'muted', align: 'center', baseline: 'middle', dy: 12 });
-  g.circle({ x, y }, 2.5, { fill: 'fg' });
+  // The pair force in the force colour; N and mg muted: they balance on one cart and are not a pair.
+  drawFbd(g, { x, y: g.px(19) }, [
+    { F: { x: F, y: 0 }, label: `*F*_{${name}${other}}` },
+    { F: { x: 0, y: W }, label: `*N*_{${name}}`, role: 'muted' },
+    { F: { x: 0, y: -W }, label: `*m*_{${name}}*g*`, role: 'muted', field: true },
+  ], perN / g.px(1));
 }
 
 export const third: Scene<P, S> = {

@@ -1,17 +1,19 @@
 // Ch 11 scene: rolling down an incline. A hoop, a disk and a solid sphere roll without slipping
 // on parallel lanes of the same incline; a block slides without friction as a reference. All start
 // from rest together. a = g sin θ / (1 + β) with β = I / (M R²), so the order is fixed by the mass
-// distribution alone. One body (chosen) shows the velocities of its contact point, centre and top.
+// distribution alone. One body (chosen) shows the velocities of its contact point, centre and top,
+// or, with the free-body diagram, the forces on it: Mg, N and the static friction f_s up the incline.
 import { t as tr } from '../../core/i18n';
 import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw, PlotDraw } from '../../draw/draw';
+import { drawFbd, fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
 import { drawRich } from '../../draw/text';
 import { ROLE_COLOR } from '../../draw/theme';
 import { sigFit } from '../ch07/sigfit';
 import { BETA, BODIES, G, finishTime, pointVelocity, rollAccel, rollState, type Body, type Incline } from './physics';
 
-type P = { theta: number; focus: string };
+type P = { theta: number; focus: string; fbd: boolean };
 
 interface S {
   t: number;
@@ -22,7 +24,7 @@ const RATE = 240;
 const H = 1 / RATE;
 const LEN = 1.6; // run along the incline [m]
 const R = 0.12; // radius of the round bodies [m]
-const M = 1; // mass of every body [kg]
+export const M = 1; // mass of every body [kg]
 const GAP = 0.5; // lane spacing, perpendicular to the incline [m]
 const STRIP = 0.04; // lane thickness [m]
 const EXT = R + 0.08; // lane beyond the finish line, so a body stopped there sits on it [m]
@@ -76,7 +78,46 @@ const params: ParamSchema<P> = {
     default: 'disk',
     options: BODIES.map((b) => ({ value: b, label: `ch11.r.body.${b}` })),
   },
+  fbd: fbdParam(),
 };
+
+/**
+ * Forces on the chosen body [N] (x right, y up): weight, the normal force of the lane and, for the
+ * round bodies, the static friction up the incline from the same solution as a (the block slides
+ * without friction). Their sum is M a down the incline.
+ */
+export function fbdForces(p: P): FbdForce[] {
+  const b = focusOf(p);
+  const { th, u, n } = frame(p);
+  const W = M * G;
+  const N = W * Math.cos(th);
+  const out: FbdForce[] = [
+    { F: { x: 0, y: -W }, label: '*M**g*', field: true },
+    { F: { x: N * n.x, y: N * n.y }, label: '*N*' },
+  ];
+  if (b !== 'block') {
+    const f = rollAccel(BETA[b], th).f * M;
+    out.push({ F: { x: -f * u.x, y: -f * u.y }, label: '*f*_{s}' });
+  }
+  return out;
+}
+
+/**
+ * Px per newton for the run: the weight, the largest force on any body, gets at most 56 px and 0.8 of
+ * the lane spacing (on a small stage the arrows stay near their own lane), and less where Mg below the
+ * finish or N above the start would reach the edge of the stage with its label.
+ */
+export function fbdPerN(g: Draw, p: P): number {
+  const { th, at } = frame(p);
+  const i = LANES.indexOf(focusOf(p));
+  const [, yTop] = g.vp.toWorld(0, 0);
+  const [, yBot] = g.vp.toWorld(0, g.vp.h);
+  const label = 20;
+  const below = (at(i, LEN, R).y - yBot) / g.px(1) - label;
+  // N = Mg cos θ rises cos θ of its length; its label sits above the tip.
+  const above = ((yTop - at(i, 0, R).y) / g.px(1) - label) / Math.cos(th) ** 2;
+  return fbdScale(M * G, Math.max(20, Math.min(56, (0.8 * GAP) / g.px(1), below, above)));
+}
 
 function drawLanes(g: Draw, p: P): void {
   const { th, u, n, at } = frame(p);
@@ -104,14 +145,20 @@ function drawLanes(g: Draw, p: P): void {
     const lr = g.px(44);
     g.text({ x: lr * Math.cos(la), y: lr * Math.sin(la) }, '*θ*', { size: 13, color: '#5c5c5c', align: 'center', baseline: 'middle' });
   }
-  // Body names behind the start of each lane.
+  // Body names behind the start of each lane; with the free-body diagram not the chosen body's (its
+  // friction label would run into it at the start; the drop-down names it).
   LANES.forEach((b, i) => {
+    if (p.fbd && b === focusOf(p)) return;
     const c = at(i, -BACK, R);
     g.text({ x: c.x - u.x * g.px(6), y: c.y - u.y * g.px(6) }, tr(`ch11.r.tag.${b}`), { size: 12, color: BODY_COLOR[b], align: 'right', baseline: 'middle', weight: b === focusOf(p) ? 700 : 500 });
   });
 }
 
-function drawBody(g: Draw, p: P, b: Body, i: number, t: number): void {
+/**
+ * One body. `a` < 1 fades it: the chosen body under its free-body diagram (0.35, so the arrows from
+ * its centre read) and the other bodies while the diagram is shown (0.5, so labels over them read).
+ */
+function drawBody(g: Draw, p: P, b: Body, i: number, t: number, a = 1): void {
   const { n, at } = frame(p);
   const k = rollState(ramp(p), b, t);
   const col = BODY_COLOR[b];
@@ -120,7 +167,7 @@ function drawBody(g: Draw, p: P, b: Body, i: number, t: number): void {
     const c1 = at(i, k.s + R);
     const c2 = at(i, k.s + R, 2 * R);
     const c3 = at(i, k.s - R, 2 * R);
-    g.polygon([c0, c1, c2, c3], { fill: col, fillAlpha: 0.3, color: col, width: 1.75 });
+    g.polygon([c0, c1, c2, c3], { fill: col, fillAlpha: 0.3 * a, color: col, width: 1.75, alpha: a });
     return;
   }
   const c = at(i, k.s, R);
@@ -128,12 +175,12 @@ function drawBody(g: Draw, p: P, b: Body, i: number, t: number): void {
   const mark = { x: Math.cos(k.phi) * n.x - Math.sin(k.phi) * n.y, y: Math.sin(k.phi) * n.x + Math.cos(k.phi) * n.y };
   const rim = { x: c.x + R * mark.x, y: c.y + R * mark.y };
   if (b === 'hoop') {
-    g.circle(c, rPx - 2, { color: col, width: 4 });
-    g.line(c, rim, { color: col, width: 1.5 });
+    g.circle(c, rPx - 2, { color: col, width: 4, alpha: a });
+    g.line(c, rim, { color: col, width: 1.5, alpha: a });
   } else if (b === 'disk') {
-    g.circle(c, rPx, { fill: col, alpha: 0.3, color: col, width: 1.75 });
-    g.circle(c, rPx * 0.25, { color: col, width: 1.25 });
-    g.line(c, rim, { color: '#1a1a1a', width: 1.75 });
+    g.circle(c, rPx, { fill: col, alpha: 0.3 * a, color: col, width: 1.75 });
+    g.circle(c, rPx * 0.25, { color: col, width: 1.25, alpha: a });
+    g.line(c, rim, { color: '#1a1a1a', width: 1.75, alpha: a });
   } else {
     // Solid sphere: shaded so it reads as a ball, not a flat disk.
     const { ctx } = g;
@@ -143,16 +190,16 @@ function drawBody(g: Draw, p: P, b: Body, i: number, t: number): void {
     grad.addColorStop(0, '#ffffff');
     grad.addColorStop(1, col);
     ctx.save();
-    ctx.globalAlpha = 0.75;
+    ctx.globalAlpha = 0.75 * a;
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.arc(x, y, rr, 0, 2 * Math.PI);
     ctx.fill();
     ctx.restore();
-    g.circle(c, rPx, { color: col, width: 1.75 });
-    g.line(c, rim, { color: '#1a1a1a', width: 1.75 });
+    g.circle(c, rPx, { color: col, width: 1.75, alpha: a });
+    g.line(c, rim, { color: '#1a1a1a', width: 1.75, alpha: a });
   }
-  g.circle(c, 2, { fill: '#1a1a1a' });
+  if (a === 1) g.circle(c, 2, { fill: '#1a1a1a' });
 }
 
 /** Velocities of the contact point, the centre and the top of the chosen body. */
@@ -249,6 +296,16 @@ export function formulaLines(s: S, p: P): string[] {
           `f_s = \\frac{\\beta}{1 + \\beta} Mg\\sin\\theta`,
           `= \\frac{${be}}{1 + ${be}}(${num(M)})(${gs}) = ${tn(f * M)}${u('N')}`,
         ];
+  if (p.fbd) {
+    // Net force along the incline from the drawn forces (N and the perpendicular part of Mg cancel).
+    const W = M * G * Math.sin(rp.theta);
+    const sf = sigFit([W, f * M], (x, y) => x - y, W - f * M);
+    lines.push(
+      b === 'block'
+        ? `\\Sigma F = Mg\\sin\\theta = ${tn(W)}${u('N')} = Ma`
+        : `\\Sigma F = Mg\\sin\\theta - f_s = ${tn(W, sf)} - ${tn(f * M, sf)} = ${tn(W - f * M)}${u('N')} = Ma`,
+    );
+  }
   const sv = sigFit([k.a, k.s], (a, d) => Math.sqrt(2 * a * d), k.v);
   lines.push(`v_\\mathrm{cm} = \\sqrt{2as} = \\sqrt{2(${tn(k.a, sv)})(${tn(k.s, sv)})} = ${tn(k.v)}${u('m/s')}`);
   if (b !== 'block') {
@@ -301,8 +358,16 @@ export const rollScene: Scene<P, S> = {
 
   draw: (g, s, p) => {
     drawLanes(g, p);
-    LANES.forEach((b, i) => drawBody(g, p, b, i, s.t));
-    drawVelocities(g, p, s.t);
+    const f = focusOf(p);
+    LANES.forEach((b, i) => drawBody(g, p, b, i, s.t, !p.fbd ? 1 : b === f ? 0.35 : 0.5));
+    if (!p.fbd) {
+      drawVelocities(g, p, s.t);
+      return;
+    }
+    // Free-body diagram of the chosen body from its centre; its velocity arrows would cross the
+    // friction and weight arrows, so they give way.
+    const i = LANES.indexOf(f);
+    drawFbd(g, frame(p).at(i, rollState(ramp(p), f, s.t).s, R), fbdForces(p), fbdPerN(g, p));
   },
 
   plots: [

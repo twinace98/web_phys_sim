@@ -2,6 +2,7 @@
 import { fmtTick, niceTicks } from '../../core/format';
 import { num, paren, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
+import { drawFbd, fbdParam, type FbdForce } from '../../draw/fbd';
 import { kinematicPlots } from './common';
 import { G_EARTH, THROW_V0, fallProfile, ranges, stateAt, type Profile, type Ranges, type Throw } from './physics';
 import { sigToMatch } from './sigma';
@@ -12,6 +13,7 @@ type P = {
   h: number;
   strobe: boolean;
   vectors: boolean;
+  fbd: boolean;
 };
 
 interface S {
@@ -27,6 +29,14 @@ const STROBE_DT = 0.1;
 const TICK = '#6b6b6b';
 /** Longest v arrow, as a fraction of the view height H. */
 const V_LEN = 0.25;
+/** a arrow at a = −g and the mg arrow of the free-body diagram, as a fraction of H. */
+const A_LEN = 0.12;
+
+/**
+ * Free-body diagram of the ball: gravity only, at every instant of the flight (at the top too).
+ * The model has no mass: forces are per `m` kilograms, so ΣF/m = a = −g for any m.
+ */
+export const freefallForces = (m = 1): FbdForce[] => [{ F: { x: 0, y: -m * G_EARTH }, label: '*m**g*', field: true }];
 
 let memoKey = '';
 let memo: { pr: Profile; rg: Ranges } | null = null;
@@ -84,6 +94,7 @@ const params: ParamSchema<P> = {
   },
   strobe: { kind: 'toggle', label: 'ch02.ff.p.strobe', desc: 'ch02.ff.d.strobe', group: 'advanced', live: true, default: true },
   vectors: { kind: 'toggle', label: 'ch02.p.vectors', desc: 'ch02.d.vectors', group: 'advanced', live: true, default: true },
+  fbd: fbdParam(),
 };
 
 export const freefall: Scene<P, S> = {
@@ -95,8 +106,8 @@ export const freefall: Scene<P, S> = {
 
   world: (p) => {
     const H = top(p);
-    // On landing the v arrow (up to V_LEN·H) and its label hang below the ground.
-    const bottom = p.vectors ? V_LEN + 0.07 : 0.08;
+    // On landing the v arrow (up to V_LEN·H) or the mg arrow (A_LEN·H) and its label hang below the ground.
+    const bottom = Math.max(p.vectors ? V_LEN + 0.07 : 0.08, p.fbd ? A_LEN + 0.08 : 0);
     return { x: [-0.5 * H, 0.5 * H], y: [-bottom * H, 1.1 * H], aspect: 'contain', padPx: 24 };
   },
 
@@ -144,9 +155,15 @@ export const freefall: Scene<P, S> = {
     if (p.vectors) {
       const vMax = Math.max(Math.abs(rg.v[0]), Math.abs(rg.v[1]), 1);
       g.arrow({ x: g.px(22), y: s.y }, { x: 0, y: (s.v / vMax) * V_LEN * H }, { role: 'velocity', width: 2, label: '*v*' });
-      g.arrow({ x: g.px(44), y: s.y }, { x: 0, y: (s.a / G_EARTH) * 0.12 * H }, { role: 'acceleration', width: 2, label: '*a*' });
+      // The free-body diagram carries the same information as a (mg along −y): a hides behind it.
+      if (!p.fbd) g.arrow({ x: g.px(44), y: s.y }, { x: 0, y: (s.a / G_EARTH) * A_LEN * H }, { role: 'acceleration', width: 2, label: '*a*' });
     }
-    g.circle({ x: 0, y: s.y }, 9, { fill: 'position' });
+    if (p.fbd) {
+      // Faded ball, mg from its centre: A_LEN·H long, as the a arrow it replaces.
+      g.circle({ x: 0, y: s.y }, 9, { fill: 'position', alpha: 0.25 });
+      g.circle({ x: 0, y: s.y }, 9, { role: 'position', width: 1.25 });
+      drawFbd(g, { x: 0, y: s.y }, freefallForces(), (A_LEN * H) / g.px(1) / G_EARTH);
+    } else g.circle({ x: 0, y: s.y }, 9, { fill: 'position' });
   },
 
   plots: kinematicPlots<P>('y', model),
@@ -170,6 +187,8 @@ export const freefall: Scene<P, S> = {
     );
     const T = tn(s.t, sig);
     return [
+      // Free-body diagram: mg is the only force, so ΣF = ma gives a = −g for any mass.
+      ...(p.fbd ? [`\\Sigma F_y = -mg = ma \\;\\Rightarrow\\; a = -g`] : []),
       `a = -g = ${tn(s.a)}${u('m/s^2')}`,
       `v = v_0 - gt = ${num(v0)} - ${num(g)} \\times ${T} = ${tn(s.v)}${u('m/s')}`,
       `y = h + v_0 t - \\tfrac{1}{2} g t^2`,

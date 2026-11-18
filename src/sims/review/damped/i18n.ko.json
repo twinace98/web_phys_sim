@@ -25,7 +25,7 @@
   "damped.f.obs.m": "$m$을 키우면 $b_c = 2\\sqrt{km}$이 커지고 감쇠 시간 $2m/b$가 길어짐 → 같은 $b$에서 더 오래 진동",
   "damped.f.obs.ref": "회색 점선 = 감쇠가 없을 때 ($b = 0$)의 $x_0\\cos\\omega_0 t$. 감쇠가 있으면 주기가 조금 길어짐 ($\\omega' < \\omega_0$), $b$가 $b_c$에 가까울수록 뚜렷",
   "damped.f.assume.start": "처음 변위 $x_0$ = 0.20 m에서 정지 상태로 놓음 → $x = x_m e^{-bt/2m}\\cos(\\omega' t + \\phi)$의 $x_m = x_0\\omega_0/\\omega'$ (약한 감쇠에서 $x_m \\approx x_0$). 포락선은 부족감쇠에서, 근사식 $\\tfrac{1}{2}kx_m^2 e^{-bt/m}$은 약한 감쇠 ($b \\le b_c/2$)에서만 표시",
-  "damped.f.assume.grav": "$x$는 평형 위치에서 잰 변위 (위가 +), 중력은 평형 위치만 옮김. 감쇠력은 속도에 비례, 용수철과 막대의 질량 무시",
+  "damped.f.assume.grav": "$x$는 평형 위치에서 잰 변위 (위가 +), 중력은 평형 위치만 옮김 (자유물체도: 용수철 힘 $F_s = mg - kx$, $g = 9.8\\ \\text{m/s}^2$). 감쇠력은 속도에 비례, 용수철과 막대의 질량 무시",
   "damped.f.assume.arrows": "화살표 길이는 상대 크기 ($v$는 $x_0\\omega_0$, $F_d$는 $kx_0$ 기준). RK4 수치 적분 (시간 간격 1 ms), 포락선과 기준 곡선은 해석해",
   "damped.d.goal.res": "지지대를 각진동수 $\\omega_d$로 흔들면 (구동력 $F_m\\cos\\omega_d t$, $F_m = kd$) 과도 상태가 지난 뒤 물체도 $\\omega_d$로 진동. 진폭 $x_m$은 $\\omega_d \\approx \\omega_0$에서 가장 큼 (공명)",
   "damped.d.goal.b": "감쇠가 작을수록 공명 봉우리가 높고 좁음, 봉우리 높이 $\\approx F_m/(b\\omega_0)$",
@@ -34,6 +34,6 @@
   "damped.d.obs.b": "회색 곡선 = $b$ 0.5 (실선), 1 (파선), 2 kg/s (점선): $b$가 2배가 될 때마다 봉우리 높이가 약 절반, 폭은 넓어짐",
   "damped.d.obs.phase": "$\\omega_d \\ll \\omega_0$: 물체가 지지대 (회색 $y_s$)와 함께 움직임 ($\\phi \\approx 0$). $\\omega_d = \\omega_0$: 1/4 주기 늦음 ($\\phi = 90^\\circ$). $\\omega_d \\gg \\omega_0$: 반대로 움직임 ($\\phi \\approx 180^\\circ$)",
   "damped.d.obs.ring": "고리 = 현재 진폭 $\\sqrt{x^2 + (v/\\omega_d)^2}$, 정상 상태에서 점 ($x_m$)과 일치. 과도 상태에서는 맥놀이처럼 출렁임",
-  "damped.d.assume.drive": "지지대 진폭 $d$ = 0.020 m: 회전 원판의 핀이 지지대의 홈을 밀어 $y_s = d\\cos\\omega_d t$ (스카치 요크). 용수철 힘 $k(y_s - x)$ → 구동력 $F_m = kd$",
+  "damped.d.assume.drive": "지지대 진폭 $d$ = 0.020 m: 회전 원판의 핀이 지지대의 홈을 밀어 $y_s = d\\cos\\omega_d t$ (스카치 요크). 용수철 힘 $k(y_s - x)$ → 구동력 $F_m = kd$. 자유물체도는 이 힘을 $F_s = mg - kx$와 구동력 $F = ky_s$로 나눠 그림",
   "damped.d.assume.start": "물체는 평형 위치에서 정지 상태로 출발. RK4 수치 적분 (시간 간격 1 ms), 공명 곡선과 파선은 정상 상태 해석해"
 }

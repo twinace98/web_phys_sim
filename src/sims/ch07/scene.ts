@@ -6,13 +6,14 @@ import { num, tn, u } from '../../core/tex';
 import { t as tr } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
+import { FBD_MIN_PX, drawFbd, fbdParam, type FbdForce } from '../../draw/fbd';
 import { measureRich } from '../../draw/text';
 import { color, theme, withAlpha } from '../../draw/theme';
 import { LabelLayout } from '../ch03/labels';
 import { sigFit } from './sigfit';
 import { F_MAX, SEG, TRACK, force, kinetic, makeSetup, trajectory, work, type Preset, type Setup, type Trajectory } from './physics';
 
-type P = { preset: string; bars: boolean; custom: number[] };
+type P = { preset: string; bars: boolean; fbd: boolean; custom: number[] };
 
 interface S {
   t: number;
@@ -28,9 +29,19 @@ const GUIDE = '#c8c8c8';
 
 // World layout: the track always spans u ∈ [0, TRACK]; bands stacked vertically.
 const Y_TRACK = 6.1;
+/** With the free-body diagram the track moves up by this much, so N and mg have room. */
+const FBD_DY = 0.9;
+const yTrack = (p: P) => (p.fbd ? Y_TRACK + FBD_DY : Y_TRACK);
 const F_BAND: [number, number] = [3.4, 5.3];
 const K_BAND: [number, number] = [0.45, 2.55];
 const BAR_W = 0.55;
+/** g for the weight and the normal force of the free-body diagram [m/s²]. */
+export const G7 = 9.8;
+/** Block half-width and height [px]. */
+const BW = 13;
+const BH = 22;
+/** Longest free-body arrow [px] when the stage has room. */
+const FBD_LEN = 56;
 
 /** Narrow (portrait) screens put the bars under the graphs instead of beside them. */
 const narrow = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
@@ -40,7 +51,7 @@ function barBox(): { x: number; mid: number; half: number } {
 }
 
 let memoKey = '';
-let memo: { su: Setup; tj: Trajectory; F: [number, number]; K: number; B: number } | null = null;
+let memo: { su: Setup; tj: Trajectory; F: [number, number]; K: number; B: number; Fmax: number } | null = null;
 function model(p: P) {
   const key = `${p.preset}|${p.custom.join(',')}`;
   if (key !== memoKey || !memo) {
@@ -66,7 +77,10 @@ function model(p: P) {
       K = Math.max(K, k);
       B = Math.max(B, Math.abs(k - K0));
     }
-    memo = { su, tj, F: [fLo - 0.15 * span, fHi + 0.15 * span], K: Math.max(K, 1) * 1.15, B: Math.max(B, 1) * 1.1 };
+    // Largest |F| the block meets over the run (free-body scale).
+    let Fmax = 0;
+    for (let i = 0; i < tj.n; i++) Fmax = Math.max(Fmax, Math.abs(force(su.prof, tj.x[i])));
+    memo = { su, tj, F: [fLo - 0.15 * span, fHi + 0.15 * span], K: Math.max(K, 1) * 1.15, B: Math.max(B, 1) * 1.1, Fmax };
     memoKey = key;
   }
   return memo;
@@ -95,9 +109,40 @@ const params: ParamSchema<P> = {
       { value: 'custom', label: 'ch07.preset.custom' },
     ],
   },
+  fbd: fbdParam(),
   bars: { kind: 'toggle', label: 'ch07.p.bars', desc: 'ch07.d.bars', group: 'advanced', live: true, default: true },
   custom: { kind: 'array', label: 'ch07.p.custom', group: 'hidden', live: false, default: [1, 0.5, -1, -0.5], min: -F_MAX, max: F_MAX },
 };
+
+/**
+ * Free-body diagram of the block: the force F(x) of the preset (F_s for the spring), N and mg. On the
+ * frictionless horizontal track N and mg cancel and do no work; F is the net force, F = m a.
+ */
+export function workFbd(s: { x: number }, p: P): FbdForce[] {
+  const { su } = model(p);
+  const W = su.m * G7;
+  return [
+    { F: { x: force(su.prof, s.x), y: 0 }, label: su.prof.kind === 'spring' ? '*F*_{s}' : '*F*' },
+    { F: { x: 0, y: W }, label: '*N*' },
+    { F: { x: 0, y: -W }, label: '*m**g*', field: true },
+  ];
+}
+
+/**
+ * px per newton of the free-body diagram: one scale per run, from the run's largest force (the
+ * weight). The weight gets FBD_LEN px, or less when the gap between the track and the F(x) graph
+ * (or the stage top) leaves less room for the arrow and its label.
+ */
+function fbdPerPx(g: Draw, m: ReturnType<typeof model>, yt: number): number {
+  const [, cy] = g.vp.toPx(0, yt);
+  const [, fTop] = g.vp.toPx(0, F_BAND[1]);
+  const c = cy - (BH / 2) * theme.scale;
+  // Label beyond each tip: 11 px to its centre, about 8 px of text, 4 px margin. Below, the F (N)
+  // axis title (about 16 px) sits on the F band top.
+  const room = Math.min(fTop - 16 * theme.scale - c, c) / theme.scale - 23;
+  const len = Math.max(Math.min(room, FBD_LEN), FBD_MIN_PX + 6);
+  return len / Math.max(m.su.m * G7, m.Fmax);
+}
 
 let hatchCache: CanvasPattern | null = null;
 function hatch(ctx: CanvasRenderingContext2D): CanvasPattern | null {
@@ -227,6 +272,11 @@ export function formulaLines(s: S, p: P): string[] {
       lines.push(`W = \\int_{x_0}^{x} F\\,dx = \\sum_i F_i\\,\\Delta x_i`, `= ${sum} = ${tn(W)}${u('J')}`);
     }
   }
+  if (p.fbd) {
+    // Free-body diagram: N and mg cancel, F is the net force (N and mg do no work on this track).
+    const Wt = m * G7;
+    lines.push(`\\Sigma F_x = F = ${tn(F)}${u('N')} = ma,\\quad \\Sigma F_y = N - mg = ${tn(Wt)} - ${tn(Wt)} = 0`);
+  }
   lines.push(`K = \\tfrac12 mv^2 = \\tfrac12(${num(m)})(${tn(s.v)})^2 = ${tn(K)}${u('J')}`);
   lines.push(`\\Delta K = \\tfrac12 m(v^2 - v_0^2)`, `= \\tfrac12(${num(m)})[(${tn(s.v, sigFit([s.v], (v) => 0.5 * m * (v * v - su.v0 * su.v0), dK))})^2 - ${num(su.v0)}^2] = ${tn(dK)}${u('J')}`);
   return lines;
@@ -239,8 +289,9 @@ export const workEnergy: Scene<P, S> = {
   time: { h: 1 / RATE, recordEvery: 1, frameStep: 0.05, tEnd: (p) => model(p as P).tj.tEnd },
 
   world: (p) => {
-    if (narrow()) return { x: [-0.9, TRACK + 0.5], y: [p.bars ? -3.7 : -0.5, 7.0], aspect: 'contain', padPx: 10 };
-    return { x: [-0.9, p.bars ? barBox().x + 2 * BAR_W + 1.2 : TRACK + 0.5], y: [-0.5, 7.0], aspect: 'contain', padPx: 14 };
+    const top = 7.0 + (p.fbd ? FBD_DY : 0);
+    if (narrow()) return { x: [-0.9, TRACK + 0.5], y: [p.bars ? -3.7 : -0.5, top], aspect: 'contain', padPx: 10 };
+    return { x: [-0.9, p.bars ? barBox().x + 2 * BAR_W + 1.2 : TRACK + 0.5], y: [-0.5, top], aspect: 'contain', padPx: 14 };
   },
 
   init: (p) => {
@@ -274,26 +325,54 @@ export const workEnergy: Scene<P, S> = {
       g.text({ x: U(su, x), y: K_BAND[0] }, fmtTick(x), { size: 11, color: TICK, align: 'center', dy: 16 });
     }
     g.text({ x: TRACK, y: K_BAND[0] }, '*x* (m)', { size: 12, color: TICK, align: 'right', dy: 32 });
-    g.line({ x: ub, y: K_BAND[0] }, { x: ub, y: Y_TRACK }, { color: GUIDE, width: 1, dash: [3, 4] });
+    const YT = yTrack(p);
+    // With the free-body diagram the guide stops at the F band: mg hangs in the gap above it.
+    g.line({ x: ub, y: K_BAND[0] }, { x: ub, y: p.fbd ? F_BAND[1] : YT }, { color: GUIDE, width: 1, dash: [3, 4] });
 
     // Track and block with its force and velocity arrows.
-    g.line({ x: 0, y: Y_TRACK }, { x: TRACK, y: Y_TRACK }, { role: 'axis', width: 1.5 });
-    for (const x of ticks) g.line({ x: U(su, x), y: Y_TRACK }, { x: U(su, x), y: Y_TRACK - g.px(4) }, { role: 'axis', width: 1 });
+    g.line({ x: 0, y: YT }, { x: TRACK, y: YT }, { role: 'axis', width: 1.5 });
+    for (const x of ticks) g.line({ x: U(su, x), y: YT }, { x: U(su, x), y: YT - g.px(4) }, { role: 'axis', width: 1 });
     const F = force(su.prof, s.x);
-    const bw = g.px(13);
-    const bh = g.px(22);
+    const bw = g.px(BW);
+    const bh = g.px(BH);
     g.polygon(
       [
-        { x: ub - bw, y: Y_TRACK },
-        { x: ub + bw, y: Y_TRACK },
-        { x: ub + bw, y: Y_TRACK + bh },
-        { x: ub - bw, y: Y_TRACK + bh },
+        { x: ub - bw, y: YT },
+        { x: ub + bw, y: YT },
+        { x: ub + bw, y: YT + bh },
+        { x: ub - bw, y: YT + bh },
       ],
-      { fill: 'position' },
+      // Faded under the free-body diagram so its arrows read.
+      p.fbd ? { fill: 'position', fillAlpha: 0.25, role: 'position', width: 1.25 } : { fill: 'position' },
     );
-    const kf = 0.35; // world units per N
-    if (Math.abs(F) > 1e-9) g.arrow({ x: ub + Math.sign(F) * bw, y: Y_TRACK + bh / 2 }, { x: F * kf, y: 0 }, { role: 'force', width: 2.5, label: '*F*' });
-    if (Math.abs(s.v) > 1e-6) g.arrow({ x: ub, y: Y_TRACK + bh + g.px(12) }, { x: (s.v / 3) * 0.7, y: 0 }, { role: 'velocity', label: '*v*' });
+    // Free-body diagram from the block's centre; its labels are obstacles for the area label below.
+    // The separate F and v arrows would cross it: hidden.
+    const fbdBoxes: { x0: number; y0: number; x1: number; y1: number }[] = [];
+    if (p.fbd) {
+      const c = { x: ub, y: YT + bh / 2 };
+      const perPx = fbdPerPx(g, m, YT);
+      const forces = workFbd(s, p);
+      drawFbd(g, c, forces, perPx);
+      const [cx, cy] = g.vp.toPx(c.x, c.y);
+      const sc0 = theme.scale;
+      for (const f of forces) {
+        const mag = Math.hypot(f.F.x, f.F.y);
+        if (!(mag > 1e-9)) continue;
+        const L = Math.max(mag * perPx, FBD_MIN_PX) * sc0;
+        const w = measureRich(g.ctx, f.label, { size: 13 });
+        if (f.F.y !== 0) {
+          const ty = cy - Math.sign(f.F.y) * (L + 11 * sc0);
+          fbdBoxes.push({ x0: cx - w / 2 - 3 * sc0, y0: Math.min(cy, ty - 9 * sc0), x1: cx + w / 2 + 3 * sc0, y1: Math.max(cy, ty + 9 * sc0) });
+        } else {
+          const tx = cx + Math.sign(f.F.x) * (L + 5 * sc0);
+          fbdBoxes.push({ x0: Math.min(cx, tx - (f.F.x < 0 ? w : 0)) - 3 * sc0, y0: cy - 9 * sc0, x1: Math.max(cx, tx + (f.F.x > 0 ? w : 0)) + 3 * sc0, y1: cy + 9 * sc0 });
+        }
+      }
+    } else {
+      const kf = 0.35; // world units per N
+      if (Math.abs(F) > 1e-9) g.arrow({ x: ub + Math.sign(F) * bw, y: YT + bh / 2 }, { x: F * kf, y: 0 }, { role: 'force', width: 2.5, label: '*F*' });
+      if (Math.abs(s.v) > 1e-6) g.arrow({ x: ub, y: YT + bh + g.px(12) }, { x: (s.v / 3) * 0.7, y: 0 }, { role: 'velocity', label: '*v*' });
+    }
 
     // F(x) graph with the shaded work.
     bandAxis(g, m.F[0], m.F[1], (v) => yF(m, v), '*F* (N)', F_BAND[1]);
@@ -328,6 +407,7 @@ export const workEnergy: Scene<P, S> = {
     // Area label beside the guide line at the top of the F band, else at its bottom: the first
     // spot clear of the F(x) curve and the drag pills.
     const lay = new LabelLayout(g);
+    lay.boxes.push(...fbdBoxes);
     lay.polyline(fPts);
     if (p.preset === 'custom') {
       for (let i = 0; i < SEG; i++) {

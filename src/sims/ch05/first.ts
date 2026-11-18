@@ -3,10 +3,11 @@
 // the net force is zero and the velocity stays constant.
 import { tn, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
+import { fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
 import { sigToMatch } from '../ch02/sigma';
-import { drawTrack, padded } from './common';
+import { drawPuckFbd, drawTrack, padded, weightPair } from './common';
 
-type P = { v0: number; mu: number; push: boolean; strobe: boolean };
+type P = { v0: number; mu: number; push: boolean; strobe: boolean; fbd: boolean };
 
 interface S {
   t: number;
@@ -51,6 +52,7 @@ const params: ParamSchema<P> = {
     default: 0,
   },
   push: { kind: 'toggle', label: 'ch05.l1.p.push', desc: 'ch05.l1.d.push', group: 'main', live: true, default: false },
+  fbd: fbdParam(),
   v0: {
     kind: 'number',
     label: 'ch05.l1.p.v0',
@@ -72,6 +74,18 @@ export function firstForces(v: number, mu: number, push: boolean): { f: number; 
   if (v <= 0) return { f: 0, F: 0 };
   const fk = mu * FIRST_M * FIRST_G;
   return { f: -fk, F: push ? fk : 0 };
+}
+
+/**
+ * Free-body diagram of the puck: kinetic friction and the push (while it slides), N and mg. The
+ * vertical pair cancels; the horizontal sum is f + F = m a.
+ */
+export function firstFbd(s: { f: number; F: number }): FbdForce[] {
+  return [
+    { F: { x: s.f, y: 0 }, label: '*f*_{k}' },
+    { F: { x: s.F, y: 0 }, label: '*F*' },
+    ...weightPair(FIRST_M),
+  ];
 }
 
 /** One exact step of length h: constant deceleration until the puck stops, then at rest. */
@@ -112,7 +126,7 @@ export const first: Scene<P, S> = {
   draw: (g, s, p) => {
     const [lo, hi] = track(p);
     const span = hi - lo;
-    drawTrack(g, lo, hi);
+    drawTrack(g, lo, hi, 0, undefined, p.fbd ? s.x : undefined);
 
     // Equal time steps: evenly spaced marks mean constant velocity. Filled under the arrows (hides
     // the track line), outlined again over them so the friction arrow does not hide the marks.
@@ -120,6 +134,14 @@ export const first: Scene<P, S> = {
       if (p.strobe) for (const x of s.marks) g.circle({ x, y: 0 }, 4, { fill: fill ? '#ffffff' : undefined, role: 'position', width: 1.25 });
     };
     marks(true);
+
+    if (p.fbd) {
+      // Every force from the puck's centre on one scale: the weight is the largest force of any run.
+      // The separate f, F and v arrows would cross N and mg: hidden.
+      drawPuckFbd(g, s.x, firstFbd(s), fbdScale(FIRST_M * FIRST_G));
+      marks(false);
+      return;
+    }
 
     const r = g.px(10);
     const len = (F: number) => Math.max((Math.abs(F) / F_REF) * 0.1 * span, g.px(18));
@@ -164,11 +186,15 @@ export const first: Scene<P, S> = {
   // law), friction alone slows it at a = F_net/m. At rest there is no friction at all.
   formula: (s, p) => {
     const Fnet = s.f + s.F;
-    if (s.v <= 0) return [`f = ${tn(-s.f)}${u('N')}`, `F_\\text{net} = 0 \\;\\Rightarrow\\; v = ${tn(s.v)}${u('m/s')}`];
+    // Free-body diagram: the vertical pair cancels (no vertical motion).
+    const W = FIRST_M * FIRST_G;
+    const vert = p.fbd ? [`\\Sigma F_y = N - mg = ${tn(W)} - ${tn(W)} = 0`] : [];
+    if (s.v <= 0) return [`f = ${tn(-s.f)}${u('N')}`, `F_\\text{net} = 0 \\;\\Rightarrow\\; v = ${tn(s.v)}${u('m/s')}`, ...vert];
     const lines = [
       `f_k = \\mu_k m g = ${p.mu.toFixed(2)} \\times ${FIRST_M} \\times ${FIRST_G} = ${tn(-s.f)}${u('N')}`,
       p.push ? `F_\\text{net} = F - f_k = ${tn(s.F)} - ${tn(-s.f)} = ${tn(Fnet)}${u('N')}` : `F_\\text{net} = -f_k = ${tn(Fnet)}${u('N')}`,
     ];
+    lines.push(...vert);
     if (Fnet === 0) {
       lines.push(`F_\\text{net} = 0 \\;\\Rightarrow\\; v = v_0 = ${tn(s.v)}${u('m/s')}`);
       return lines;

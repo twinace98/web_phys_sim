@@ -8,6 +8,8 @@ import { D, drivenScene, wdOf, xSpan } from '../src/sims/review/damped/driven';
 import { H, X0, freeScene } from '../src/sims/review/damped/free';
 import en from '../src/sims/review/damped/i18n.en.json';
 import ko from '../src/sims/review/damped/i18n.ko.json';
+import globalEn from '../src/i18n/en.json';
+import globalKo from '../src/i18n/ko.json';
 import {
   amplitudeConst,
   bCrit,
@@ -276,8 +278,9 @@ describe('damped: page', () => {
     }
     for (const r of ['under', 'critical', 'over']) keys.add(`damped.regime.${r}`);
     for (const k of keys) {
-      expect(ko).toHaveProperty([k]);
-      expect(en).toHaveProperty([k]);
+      // Shared strings (the free-body-diagram toggle) come from src/i18n.
+      expect({ ...globalKo, ...ko }).toHaveProperty([k]);
+      expect({ ...globalEn, ...en }).toHaveProperty([k]);
     }
     expect(Object.keys(ko).sort()).toEqual(Object.keys(en).sort());
     for (const v of [...Object.values(ko), ...Object.values(en)]) {

@@ -1,8 +1,10 @@
 // Block on a vertical spring with a dashpot (vane in a liquid, Halliday Fig. 15-16), laid out in
 // canvas px. The support is a fixed ceiling or, for the driven oscillator, a slotted yoke moved by
 // a pin on a turning disk (Scotch yoke), so the support moves exactly as d cos θ.
+// Free-body diagrams of the block: all forces are vertical, so each gets its own column.
 import type { Vec2 } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
+import { drawFbd, fbdScale, type FbdForce } from '../../../draw/fbd';
 import { W } from '../../modern/frame';
 
 const STEEL = '#5c5c5c';
@@ -77,7 +79,7 @@ function hatch(g: Draw, x0: number, x1: number, y: number, up: boolean): void {
  * Draw the oscillator with block displacement x [m] (up positive). drive: support amplitude d [m] and
  * drive angle θ (pin at the top for θ = 0), support at d cos θ. Returns the block's right edge and centre [px].
  */
-export function drawMech(g: Draw, M: Mech, x: number, drive?: { d: number; theta: number }): { right: number; y: number } {
+export function drawMech(g: Draw, M: Mech, x: number, drive?: { d: number; theta: number }, faded = false): { right: number; y: number } {
   const { cx, block, sc } = M;
   const yb = M.yEq - x * sc;
   let ySpring = M.ySup;
@@ -95,7 +97,7 @@ export function drawMech(g: Draw, M: Mech, x: number, drive?: { d: number; theta
   } else {
     hatch(g, cx - block, cx + block, M.ySup, true);
   }
-  zigzag(g, cx, ySpring, yb - block / 2, Math.min(12, Math.max(6, block * 0.3)));
+  zigzag(g, cx, ySpring, yb - block / 2, zigW(M));
   // Rod and vane (piston) in the liquid.
   const piston = yb + block / 2 + M.rod;
   g.line(W(g, cx, yb + block / 2), W(g, cx, piston), { color: STEEL, width: 2 });
@@ -104,8 +106,35 @@ export function drawMech(g: Draw, M: Mech, x: number, drive?: { d: number; theta
   g.polyline([W(g, cx - hw, M.cylTop), W(g, cx - hw, M.cylBot), W(g, cx + hw, M.cylBot), W(g, cx + hw, M.cylTop)], { color: STEEL, width: 1.75 });
   g.polygon(rect(g, cx - hw + 3, piston - 2, cx + hw - 3, piston + 2), { fill: STEEL });
   hatch(g, cx - block, cx + block, M.cylBot + 1, false);
-  // Block.
-  g.polygon(rect(g, cx - block / 2, yb - block / 2, cx + block / 2, yb + block / 2), { fill: 'position', fillAlpha: 0.9 });
-  g.text(W(g, cx, yb), '*m*', { size: Math.min(15, block * 0.45), color: '#ffffff', align: 'center', baseline: 'middle' });
+  // Block; faded under a free-body diagram (no name then: the arrows start at its centre).
+  g.polygon(rect(g, cx - block / 2, yb - block / 2, cx + block / 2, yb + block / 2), { fill: 'position', fillAlpha: faded ? 0.25 : 0.9 });
+  if (!faded) g.text(W(g, cx, yb), '*m*', { size: Math.min(15, block * 0.45), color: '#ffffff', align: 'center', baseline: 'middle' });
   return { right: cx + block / 2, y: yb };
+}
+
+/** Free fall [m/s²]: gravity only shifts the equilibrium; it appears in the free-body diagram. */
+export const DAMPED_G = 9.8;
+
+/** Half-width of the spring's zigzag [px]. */
+const zigW = (M: Mech) => Math.min(12, Math.max(6, M.block * 0.3));
+
+/**
+ * Column offsets [px] of the vertical forces, in the order F_s, mg, F_d, F: the spring force just left
+ * of the zigzag, the weight as far right, F_d one column further left and the driving force one further
+ * right, clear of the spring and the rod (a label on the centre line would sit on them).
+ */
+export function fbdColumns(M: Mech): number[] {
+  const c = zigW(M) + 11;
+  return [-c, c, -2 * c, 2 * c];
+}
+
+/** Longest force arrow [px]: shorter on a small stage, so the arrows stay near the block. */
+export const fbdMaxPx = (M: Mech) => Math.min(56, Math.max(22, 0.5 * M.travel + 10));
+
+/** Vertical forces side by side from the block centre (px), one column each. Returns the right edge [px]. */
+export function drawColumns(g: Draw, M: Mech, y: number, forces: readonly FbdForce[], maxForce: number): number {
+  const cols = fbdColumns(M);
+  const perN = fbdScale(maxForce, fbdMaxPx(M));
+  forces.forEach((f, i) => drawFbd(g, W(g, M.cx + cols[i], y), [f], perN));
+  return M.cx + Math.max(...cols.slice(0, forces.length)) + 8;
 }

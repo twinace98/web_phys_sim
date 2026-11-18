@@ -3,6 +3,7 @@ import { fmtTick, niceTicks } from '../../core/format';
 import { num, tn, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
+import { drawFbd, fbdParam, type FbdForce } from '../../draw/fbd';
 import { theme } from '../../draw/theme';
 import { sigToMatch, sigsToMatch } from '../ch02/sigma';
 import { G, flightTime, maxHeight, range, stateAt, v0x, v0y, type Launch } from './physics';
@@ -14,6 +15,7 @@ type P = {
   g: string;
   strobe: string;
   vectors: boolean;
+  fbd: boolean;
 };
 
 interface S {
@@ -29,6 +31,17 @@ const RATE = 240;
 const DEG = Math.PI / 180;
 const TICK = '#6b6b6b';
 const GUIDE = '#b5b5b5';
+/** mg arrow of the free-body diagram on Earth, as a fraction of the view span. */
+const MG_LEN = 0.12;
+
+/**
+ * Free-body diagram of the ball: gravity only, during the whole flight. The model has no mass, so
+ * forces are per `m` kilograms: ΣF/m = (0, −g) = a for any m.
+ */
+export const projectileForces = (g: number, m = 1): FbdForce[] => [{ F: { x: 0, y: -m * g }, label: '*m**g*', field: true }];
+
+/** Free-body scale [px per N for m = 1 kg]: Earth's mg is MG_LEN·span long, so Mars and the Moon show shorter. */
+const fbdPerN = (g: Draw, span: number) => (MG_LEN * span) / g.px(1) / G.earth;
 
 const launchOf = (p: P): Launch => ({ h: p.h, v0: p.v0, theta: p.theta * DEG, g: G[p.g] ?? G.earth });
 
@@ -129,9 +142,14 @@ const params: ParamSchema<P> = {
     ],
   },
   vectors: { kind: 'toggle', label: 'ch04.p.vectors', desc: 'ch04.d.vectors', group: 'advanced', live: true, default: true },
+  fbd: fbdParam(),
 };
 
-function drawAxes(g: Draw, R: number, H: number, x0: number): void {
+/**
+ * Axes with ticks. `fbd`: the free-body diagram is on; `clearX`: the x where its mg arrow and label
+ * reach down through the x tick numbers, which are left out there.
+ */
+function drawAxes(g: Draw, R: number, H: number, x0: number, fbd = false, clearX?: number): void {
   g.line({ x: x0, y: 0 }, { x: R * 1.04, y: 0 }, { role: 'axis', width: 1.25 });
   g.line({ x: 0, y: 0 }, { x: 0, y: H * 1.06 }, { role: 'axis', width: 1.25 });
   // As many ticks as fit: about one per 45 px, so labels never run together on a phone.
@@ -139,7 +157,9 @@ function drawAxes(g: Draw, R: number, H: number, x0: number): void {
   for (const x of niceTicks(0, R, fit(R, 45, 6))) {
     if (x === 0) continue;
     g.line({ x, y: 0 }, { x, y: -g.px(5) }, { role: 'axis', width: 1 });
-    g.text({ x, y: 0 }, fmtTick(x), { size: 11, color: TICK, align: 'center', dy: 17 });
+    const lbl = fmtTick(x);
+    if (clearX !== undefined && Math.abs(x - clearX) < g.px(lbl.length * 3.5 + 14)) continue;
+    g.text({ x, y: 0 }, lbl, { size: 11, color: TICK, align: 'center', dy: 17 });
   }
   for (const y of niceTicks(0, H, fit(H, 28, 5))) {
     if (y === 0) continue;
@@ -147,9 +167,15 @@ function drawAxes(g: Draw, R: number, H: number, x0: number): void {
     // dx clears the y-shadow dot (radius 6.5 px) that slides along the axis.
     g.text({ x: 0, y }, fmtTick(y), { size: 11, color: TICK, align: 'right', baseline: 'middle', dx: -14 });
   }
-  g.text({ x: 0, y: 0 }, '0', { size: 11, color: TICK, align: 'right', dx: -6, dy: 15 });
+  // With the free-body diagram mg hangs below the origin at launch: the origin label moves to the
+  // y tick column (y = 0 has no tick label of its own).
+  if (fbd) g.text({ x: 0, y: 0 }, '0', { size: 11, color: TICK, align: 'right', baseline: 'middle', dx: -14 });
+  else g.text({ x: 0, y: 0 }, '0', { size: 11, color: TICK, align: 'right', dx: -6, dy: 15 });
   // Ends left of the landing point: the landing v arrow points down and to the right.
-  g.text({ x: R, y: 0 }, '*x* (m)', { size: 12, color: TICK, align: 'right', dx: -6, dy: 34 });
+  // With the free-body diagram it ends further left (mg hangs below the landing point), and it is
+  // left out while mg reaches through it.
+  const tx = R - g.px(fbd ? 26 : 6);
+  if (clearX === undefined || clearX < tx - g.px(52) || clearX > tx + g.px(12)) g.text({ x: tx, y: 0 }, '*x* (m)', { size: 12, color: TICK, align: 'right', dy: 34 });
   g.text({ x: 0, y: H * 1.06 }, '*y* (m)', { size: 12, color: TICK, align: 'center', dy: -10 });
 }
 
@@ -170,7 +196,9 @@ export const projectile: Scene<P, S> = {
     // labels need about 0.06 span more.
     const k = arrowScale(p, span);
     const right = Math.max(xMax + 0.08 * span, R + v0x(l) * k + 0.07 * span);
-    const bottom = Math.min(-0.13 * span, vyEnd * k - 0.07 * span);
+    let bottom = Math.min(-0.13 * span, vyEnd * k - 0.07 * span);
+    // On landing the mg arrow of the free-body diagram and its label hang below the ground.
+    if (p.fbd) bottom = Math.min(bottom, -(MG_LEN * (l.g / G.earth) + 0.07) * span);
     return { x: [-0.14 * span, right], y: [bottom, yMax + 0.1 * span], aspect: 'contain', padPx: 20 };
   },
 
@@ -201,7 +229,10 @@ export const projectile: Scene<P, S> = {
         { fill: '#efefef' },
       );
     }
-    drawAxes(g, Math.max(R, 0.5 * span), Math.max(H, 0.3 * span), x0);
+    // mg arrow plus its label [px]; when they reach the x tick numbers, those near the ball go.
+    const mgPx = p.fbd ? Math.max(l.g * fbdPerN(g, span), 14) + 20 : 0;
+    const clearX = p.fbd && s.y - g.px(mgPx) < g.px(10) ? s.x : undefined;
+    drawAxes(g, Math.max(R, 0.5 * span), Math.max(H, 0.3 * span), x0, p.fbd, clearX);
 
     // Path travelled so far (exact curve).
     const path: Vec2[] = [];
@@ -226,7 +257,8 @@ export const projectile: Scene<P, S> = {
     const ball = { x: s.x, y: s.y };
     const sx = { x: s.x, y: 0 };
     const sy = { x: 0, y: s.y };
-    g.line(ball, sx, { color: GUIDE, width: 1, dash: [3, 4] });
+    // With the free-body diagram the drop line starts below the mg label, so the two do not overlap.
+    if (s.y - g.px(mgPx) > 0) g.line({ x: s.x, y: s.y - g.px(mgPx) }, sx, { color: GUIDE, width: 1, dash: [3, 4] });
     g.line(ball, sy, { color: GUIDE, width: 1, dash: [3, 4] });
     g.circle(sx, 6.5, { fill: 'position', alpha: 0.4 });
     g.circle(sy, 6.5, { fill: 'position', alpha: 0.4 });
@@ -237,7 +269,9 @@ export const projectile: Scene<P, S> = {
       g.arrow(sx, { x: s.vx * k, y: 0 }, { role: 'velocity', width: 2 });
       g.arrow(sy, { x: 0, y: s.vy * k }, { role: 'velocity', width: 2 });
       if (Math.abs(s.vy * k) > g.px(4)) g.text({ x: 0, y: s.y + s.vy * k }, '*v*_{*y*}', { ...lbl, align: 'left', dx: 9 });
-      g.arrow(ball, { x: s.vx * k, y: s.vy * k }, { role: 'velocity', width: 2.5 });
+      // The free-body diagram replaces v on the ball (it runs along mg on a steep descent); the
+      // components v_x and v_y stay on the axes.
+      if (!p.fbd) g.arrow(ball, { x: s.vx * k, y: s.vy * k }, { role: 'velocity', width: 2.5 });
       // v beyond its tip; v_x above its tip, clear of the axis tick labels. When the ball is near
       // the x axis and v is nearly horizontal the two tips meet: the upper label moves further up.
       const sc = theme.scale;
@@ -245,16 +279,23 @@ export const projectile: Scene<P, S> = {
       const [tx, ty] = g.vp.toPx(ball.x + s.vx * k, ball.y + s.vy * k);
       const [xx, xy] = g.vp.toPx(s.x + s.vx * k, 0);
       const len = Math.hypot(tx - bx, ty - by);
-      const lv = len > 0.5 ? { x: (tx + ((tx - bx) / len) * 10 * sc) / sc, y: (ty + ((ty - by) / len) * 10 * sc) / sc } : null;
+      const lv = len > 0.5 && !p.fbd ? { x: (tx + ((tx - bx) / len) * 10 * sc) / sc, y: (ty + ((ty - by) / len) * 10 * sc) / sc } : null;
       const lx = { x: xx / sc, y: xy / sc - 15 };
       if (lv && Math.abs(lv.x - lx.x) < 26 && Math.abs(lv.y - lx.y) < 16) {
         if (lv.y >= lx.y) lx.y = lv.y - 16;
         else lv.y = lx.y - 16;
       }
-      g.screenText(lx.x, lx.y, '*v*_{*x*}', lbl);
+      // With the free-body diagram mg can hang down to just above v_x: its label goes beyond the tip.
+      if (p.fbd) g.screenText(xx / sc + 6, xy / sc - 9, '*v*_{*x*}', { ...lbl, align: 'left' });
+      else g.screenText(lx.x, lx.y, '*v*_{*x*}', lbl);
       if (lv) g.screenText(lv.x, lv.y, '*v*', lbl);
     }
-    g.circle(ball, 8, { fill: 'position' });
+    if (p.fbd) {
+      // Faded ball, mg from its centre on a fixed scale (shorter on Mars and the Moon).
+      g.circle(ball, 8, { fill: 'position', alpha: 0.25 });
+      g.circle(ball, 8, { role: 'position', width: 1.25 });
+      drawFbd(g, ball, projectileForces(l.g), fbdPerN(g, span));
+    } else g.circle(ball, 8, { fill: 'position' });
   },
 
   plots: [
@@ -298,6 +339,8 @@ export const projectile: Scene<P, S> = {
     const [sx, sy] = sigsToMatch(v, [s.vx, s.vy], (a, b) => Math.hypot(a, b));
     const sin = `${num(p.v0)}\\sin ${num(p.theta)}^\\circ`;
     return [
+      // Free-body diagram: gravity only, so a_x = 0 (v_x constant) and a_y = -g.
+      ...(p.fbd ? [`\\Sigma \\vec F = m\\vec g \\;\\Rightarrow\\; a_x = 0,\\ a_y = -g = ${tn(-g)}${u('m/s^2')}`] : []),
       `v_x = v_0\\cos\\theta = ${num(p.v0)}\\cos ${num(p.theta)}^\\circ = ${tn(s.vx)}${u('m/s')}`,
       `v_y = v_0\\sin\\theta - gt`,
       `= ${sin} - ${num(g)} \\times ${T} = ${tn(s.vy)}${u('m/s')}`,

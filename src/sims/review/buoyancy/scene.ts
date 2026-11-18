@@ -272,7 +272,8 @@ export const buoyancyScene: Scene<P, S> = {
     // Labels sit beside the arrow tips (F_g, F_b to the right, N to the left), so they stay apart.
     const label = (x: number, y: number, s: string, side: 1 | -1) =>
       g.text({ x: x + side * g.px(5), y }, s, { size: 13, color: FORCE, align: side > 0 ? 'left' : 'right', baseline: 'middle' });
-    g.arrow({ x: com.x - dx, y: com.y }, { x: 0, y: -Fg * k }, { color: FORCE, width: 2.5 });
+    // Weight (a force at a distance) dashed, contact forces solid, as in every free-body diagram.
+    g.arrow({ x: com.x - dx, y: com.y }, { x: 0, y: -Fg * k }, { color: FORCE, width: 2.5, dash: [5, 3] });
     // Where the two tips meet (a light block floating high), F_g goes to the left of its arrow.
     const yG = com.y - Fg * k + g.px(4);
     const yB = cob.y + Fb * k - g.px(4);
