@@ -1,42 +1,32 @@
 // Photoelectric effect: a phototube lit by photons of one wavelength, ejected electrons crossing
-// the gap against (or with) the applied voltage, an ammeter, a photon-energy gauge, and two plots:
-// measured stopping voltages against frequency (fitted line, slope h/e) and the I–V curve.
-// The measured points live in the hidden array parameter D, so they survive in the URL.
+// the gap against (or with) the applied voltage, an ammeter, a photon-energy gauge, and the I–V
+// curve with its cutoff at −V_stop.
 import { fmt } from '../../../core/format';
-import { t } from '../../../core/i18n';
 import type { Rng } from '../../../core/rng';
-import type { Handle, ParamSchema, Scene, SceneCtx, Vec2 } from '../../../core/types';
+import type { ParamSchema, Scene, Vec2 } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
 import { measureRich } from '../../../draw/text';
-import { Frame, PX_WORLD, TICK, W, canvasBox, linePx, rectPx, split, textPx, type Box } from '../../modern/frame';
+import { Frame, PX_WORLD, W, canvasBox, linePx, rectPx, split, textPx, type Box } from '../../modern/frame';
 import { wavelengthRGB } from '../../wave2d/field';
 import {
   F_RANGE,
   H_OVER_E,
   METALS,
-  MAX_POINTS,
   QE,
-  addPoint,
   classicalDelay,
   current,
   currentClassical,
-  emptyPoints,
-  fitLines,
   iSat,
   kMax,
   metalIndex,
   photonEnergy,
   photonRate,
-  pointValues,
-  readPoints,
   thresholdF,
   vStop,
-  vStopClassical,
   wavelength,
-  type Fit,
 } from './physics';
 
-export type P = { f: number; V: number; metal: string; power: number; classical: boolean; D: number[] };
+export type P = { f: number; V: number; metal: string; power: number; classical: boolean };
 
 interface Photon {
   /** Progress along the beam, 0 (source) to 1 (emitter face). */
@@ -86,19 +76,6 @@ const K_COLOR = '#56B4E9';
 const INK = '#1a1a1a';
 const CLASSICAL = '#8c8c8c';
 const GLASS = '#aab4bb';
-/** Per-metal colour and marker (shape varies too, never colour alone). */
-const METAL_STYLE: { color: string; shape: Shape }[] = [
-  { color: '#0072B2', shape: 'circle' },
-  { color: '#D55E00', shape: 'square' },
-  { color: '#009E73', shape: 'triangle' },
-  { color: '#CC79A7', shape: 'diamond' },
-  { color: '#E69F00', shape: 'down' },
-];
-type Shape = 'circle' | 'square' | 'triangle' | 'diamond' | 'down';
-
-/** V_stop–f plot axes: f [10¹⁴ Hz], V [V]. */
-const F_AX: [number, number] = [0, 17];
-const VS_AX: [number, number] = [-6, 5];
 /** Energy gauge range [eV]. */
 const E_GAUGE = 7;
 
@@ -164,7 +141,6 @@ const params: ParamSchema<P> = {
     unit: 'µW',
   },
   classical: { kind: 'toggle', label: 'pe.p.classical', desc: 'pe.d.classical', group: 'advanced', live: true, default: false },
-  D: { kind: 'array', label: 'pe.p.D', group: 'hidden', live: true, default: emptyPoints(), min: 0, max: 1000 },
 };
 
 // ------------------------------------------------------------------ dynamics (display only; the ammeter uses the model)
@@ -203,7 +179,6 @@ const H_STEP = 1 / 60;
 interface Layout {
   wide: boolean;
   tube: Box;
-  vf: Box;
   iv: Box;
 }
 
@@ -213,24 +188,15 @@ function layout(g: Draw): Layout {
   const h = o.b - o.t;
   const wide = w >= 620 && w > 1.1 * h;
   if (wide) {
-    const [tube, right] = split(o, true, 0.5, 26);
-    const [vf, iv] = split(right, false, 0.58, 16);
-    return { wide, tube, vf, iv };
+    const [tube, iv] = split(o, true, 0.5, 26);
+    return { wide, tube, iv };
   }
-  const [tube, rest] = split(o, false, 0.42, 8);
-  const [vf, iv] = split(rest, false, 0.56, 10);
-  return { wide, tube, vf, iv };
+  const [tube, iv] = split(o, false, 0.5, 10);
+  return { wide, tube, iv };
 }
 
 /** Plot frame inside a region: room for tick labels (left, bottom) and a header row (top). */
 const plotBox = (r: Box, header: number): Box => ({ l: r.l + 40, r: r.r - 8, t: r.t + header, b: r.b - 22 });
-
-interface Btn {
-  box: Box;
-  c: Vec2;
-}
-/** Button positions [world] from the last frame, for the stage handles. */
-let lastBtn: { measure: Btn | null; clear: Btn | null } = { measure: null, clear: null };
 
 // ------------------------------------------------------------------ tube
 
@@ -395,131 +361,6 @@ function drawGauge(g: Draw, b: Box, p: P): void {
 
 // ------------------------------------------------------------------ plots
 
-function marker(g: Draw, x: number, y: number, shape: Shape, col: string, filled: boolean, r = 4.5): void {
-  const st = { color: col, width: 1.5, fill: filled ? col : '#ffffff' };
-  if (shape === 'circle') {
-    g.circle(W(g, x, y), r, st);
-    return;
-  }
-  const pts: [number, number][] =
-    shape === 'square'
-      ? [
-          [-r, -r],
-          [r, -r],
-          [r, r],
-          [-r, r],
-        ]
-      : shape === 'diamond'
-        ? [
-            [0, -r * 1.3],
-            [r * 1.3, 0],
-            [0, r * 1.3],
-            [-r * 1.3, 0],
-          ]
-        : shape === 'triangle'
-          ? [
-              [0, -r * 1.25],
-              [r * 1.15, r * 0.85],
-              [-r * 1.15, r * 0.85],
-            ]
-          : [
-              [0, r * 1.25],
-              [r * 1.15, -r * 0.85],
-              [-r * 1.15, -r * 0.85],
-            ];
-  g.polygon(
-    pts.map(([dx, dy]) => W(g, x + dx, y + dy)),
-    { color: col, width: 1.5, fill: filled ? col : '#ffffff' },
-  );
-}
-
-function button(g: Draw, x: number, y: number, label: string, alignRight: boolean, enabled: boolean): Btn {
-  const w = measureRich(g.ctx, label, { size: 12 }) + 18;
-  const hgt = 24;
-  const box: Box = alignRight ? { l: x - w, r: x, t: y, b: y + hgt } : { l: x, r: x + w, t: y, b: y + hgt };
-  roundRect(g, box, 5, { color: enabled ? '#5c5c5c' : '#c8c8c8', width: 1.25, fill: '#ffffff' });
-  textPx(g, (box.l + box.r) / 2, (box.t + box.b) / 2 + 0.5, label, { size: 12, color: enabled ? INK : '#9a9a9a', align: 'center', baseline: 'middle' });
-  return { box, c: W(g, (box.l + box.r) / 2, (box.t + box.b) / 2) };
-}
-
-/** Fit of the stored points, or null below two points of one metal. */
-export function fitOf(p: P): Fit | null {
-  return fitLines(pointValues(readPoints(p.D)));
-}
-
-function drawVf(g: Draw, R: Box, p: P): void {
-  // Right margin for the metal labels of the fitted lines.
-  const box = { ...plotBox(R, 30), r: R.r - 24 };
-  const fr = new Frame(g, box, F_AX, VS_AX);
-  const F = (hz: number) => hz / 1e14;
-  fr.axes({ xLabel: '*f* (10^{14} Hz)', yLabel: '*V*_{stop} (V)', xTicks: [0, 5, 10, 15], yTicks: [-6, -4, -2, 0, 2, 4] });
-  fr.line(F_AX[0], 0, F_AX[1], 0, { color: '#c8c8c8', width: 1 });
-  const pts = pointValues(readPoints(p.D));
-  const fit = fitLines(pts);
-  const m0 = metalIndex(p.metal);
-
-  fr.clip(() => {
-    if (p.classical) fr.line(F_AX[0], vStopClassical(p.power), F_AX[1], vStopClassical(p.power), { color: CLASSICAL, width: 2, dash: [7, 5] });
-    if (fit) {
-      for (let m = 0; m < METALS.length; m++) {
-        if (!fit.fitted[m]) continue;
-        const fs = pts.filter((q) => q.m === m).map((q) => F(q.f));
-        const lo = Math.min(...fs);
-        const hi = Math.max(...fs);
-        const v = (x: number) => fit.slope * x * 1e14 + fit.intercept[m];
-        const st = METAL_STYLE[m];
-        // Solid over the measured range, dashed extrapolation to f = 0 (intercept −Φ/e) and to the edge.
-        fr.line(0, v(0), lo, v(lo), { color: st.color, width: 1.25, dash: [4, 4] });
-        fr.line(lo, v(lo), hi, v(hi), { color: st.color, width: 2 });
-        fr.line(hi, v(hi), F_AX[1], v(F_AX[1]), { color: st.color, width: 1.25, dash: [4, 4] });
-      }
-    }
-  }, 1);
-  // Threshold f0 = Φ/h of the current metal: a tick on the V = 0 line, labelled below it.
-  {
-    const st = METAL_STYLE[m0];
-    const x0 = fr.X(thresholdF(phiOf(p)));
-    const y0 = fr.Y(0);
-    linePx(g, x0, y0 - 5, x0, y0 + 5, { color: st.color, width: 2 });
-    textPx(g, x0 + 3, y0 + 7, '*f*_{0}', { size: 11, color: st.color, align: 'left', baseline: 'top' });
-  }
-  // Where a measurement now would land (hollow); a measured point drawn after it fills it.
-  if (kMax(p.f, phiOf(p)) > 0) {
-    const st = METAL_STYLE[m0];
-    marker(g, fr.X(p.f), fr.Y(vStop(p.f, phiOf(p))), st.shape, st.color, false, 5.5);
-  }
-  for (const q of pts) {
-    const st = METAL_STYLE[q.m];
-    marker(g, fr.X(F(q.f)), fr.Y(q.v), st.shape, st.color, true);
-  }
-  // Metal labels in the right margin where each fitted line leaves the plot, pushed apart vertically.
-  if (fit) {
-    const labels: { y: number; m: number }[] = [];
-    for (let m = 0; m < METALS.length; m++) {
-      if (fit.fitted[m]) labels.push({ y: fr.Y(fit.slope * F_AX[1] * 1e14 + fit.intercept[m]), m });
-    }
-    labels.sort((a, b) => a.y - b.y);
-    const gap = 12;
-    for (let i = 0; i < labels.length; i++) labels[i].y = Math.max(labels[i].y, box.t + 6, i ? labels[i - 1].y + gap : -Infinity);
-    for (let i = labels.length - 1; i >= 0; i--) labels[i].y = Math.min(labels[i].y, i < labels.length - 1 ? labels[i + 1].y - gap : box.b - 6);
-    for (const l of labels) textPx(g, box.r + 4, l.y, METALS[l.m].id, { size: 11, color: METAL_STYLE[l.m].color, align: 'left', baseline: 'middle', weight: 600 });
-  }
-  if (p.classical) {
-    // Above the dashed line, or below it when the y-axis label is in the way.
-    const yc = fr.Y(vStopClassical(p.power));
-    textPx(g, fr.X(0.4), yc - 16 < box.t + 18 ? yc + 14 : yc - 5, t('pe.classical'), { size: 11, color: CLASSICAL, align: 'left' });
-  }
-
-  // Buttons in the header row, right-aligned.
-  const canMeasure = kMax(p.f, phiOf(p)) > 0;
-  const clear = pts.length ? button(g, R.r - 8, R.t + 1, t('pe.clear'), true, true) : null;
-  const measure = button(g, clear ? clear.box.l - 8 : R.r - 8, R.t + 1, t('pe.measure'), true, canMeasure);
-  const n = pts.length;
-  if (n) textPx(g, measure.box.l - 8, R.t + 13.5, `${n}/${MAX_POINTS}`, { size: 11, color: TICK, align: 'right', baseline: 'middle' });
-  lastBtn = { measure, clear };
-}
-
-/** I–V axis top [nA]: a nice value above the largest saturation current (at the lowest frequency that still ejects). */
 export function iAxisMax(power: number): number {
   const fMin = Math.max(F_RANGE[0], thresholdF(Math.min(...METALS.map((m) => m.phi))));
   const top = photonRate(power, fMin) * QE * 1e9 * 1.05;
@@ -566,26 +407,6 @@ function drawIv(g: Draw, R: Box, p: P): void {
   g.circle(fr.P(p.V, I), 4.5, { fill: INK });
 }
 
-// ------------------------------------------------------------------ measure / clear
-
-function measure(ctx: SceneCtx<P>): void {
-  const D = addPoint(ctx.params.D, ctx.params.f, metalIndex(ctx.params.metal));
-  if (D) ctx.set('D', D);
-}
-
-function clearAll(ctx: SceneCtx<P>): void {
-  if (readPoints(ctx.params.D).length) ctx.set('D', emptyPoints());
-}
-
-/** Stage buttons: a single click or tap acts (Handle.onTap); dragging does nothing. */
-const buttonHandle = (which: 'measure' | 'clear', act: (ctx: SceneCtx<P>) => void): Handle<S, P> => ({
-  radiusPx: 20,
-  when: (p: P) => which === 'measure' || readPoints(p.D).length > 0,
-  pos: () => lastBtn[which]?.c ?? { x: -1e6, y: -1e6 },
-  onDrag: () => {},
-  onTap: (ctx: SceneCtx<P>) => act(ctx),
-});
-
 // ------------------------------------------------------------------ TeX helpers
 
 /** TeX number: fixed decimals, ASCII minus. */
@@ -614,11 +435,6 @@ export function formulaLines(p: P): string[] {
       ? `e\\,V_\\text{stop} = K_\\text{max} = hf - \\Phi = ${tf(E, 2)} - ${tf(phi, 2)} = ${tf(km, 2)}\\ \\mathrm{eV}`
       : `e\\,V_\\text{stop} = K_\\text{max} = 0\\ \\ (f < f_0)`,
   ];
-  const fit = fitOf(p);
-  const he = `h/e = ${tsci(H_OVER_E, 4)}\\ \\mathrm{V\\,s}`;
-  lines.push(fit ? `\\Delta V_\\text{stop}/\\Delta f = ${tsci(fit.slope, 4)}\\ \\mathrm{V\\,s}\\ \\ (${he})` : he);
-  const m = metalIndex(p.metal);
-  if (fit?.fitted[m]) lines.push(`V_\\text{stop}(f{=}0) = ${tf(fit.intercept[m], 2)}\\ \\mathrm{V}\\ \\ (-\\Phi/e = ${tf(-phi, 2)}\\ \\mathrm{V})`);
   if (p.classical) lines.push(`t_\\text{cl} = \\Phi/(S A) = ${tsci(classicalDelay(p.power, phi), 2)}\\ \\mathrm{s}`);
   return lines;
 }
@@ -643,11 +459,8 @@ export const photoelectric: Scene<P, S> = {
   draw: (g, s, p) => {
     const L = layout(g);
     drawTube(g, L.tube, s, p);
-    drawVf(g, L.vf, p);
     drawIv(g, L.iv, p);
   },
-
-  handles: [buttonHandle('measure', measure), buttonHandle('clear', clearAll)],
 
   readouts: [
     { label: 'hf', unit: 'eV', value: (_s, p) => photonEnergy(p.f) },
@@ -659,12 +472,12 @@ export const photoelectric: Scene<P, S> = {
 
   info: {
     goals: ['pe.goal.photon', 'pe.goal.h'],
-    observe: ['pe.obs.threshold', 'pe.obs.stop', 'pe.obs.power', 'pe.obs.measure', 'pe.obs.classical'],
+    observe: ['pe.obs.threshold', 'pe.obs.stop', 'pe.obs.power', 'pe.obs.classical'],
     equations: [
       'K_\\text{max} = hf - \\Phi = e\\,V_\\text{stop}, \\qquad f_0 = \\frac{\\Phi}{h}',
       'V_\\text{stop} = \\frac{h}{e}\\,f - \\frac{\\Phi}{e}, \\qquad \\lambda = \\frac{c}{f}',
       'I_\\text{sat} = \\frac{eP}{hf}, \\qquad I = I_\\text{sat}\\left(1 - \\frac{e\\lvert V\\rvert}{K_\\text{max}}\\right)',
     ],
-    assumptions: ['pe.as.yield', 'pe.as.dist', 'pe.as.phi', 'pe.as.ideal', 'pe.as.data', 'pe.as.classical', 'pe.as.uv', 'pe.as.display'],
+    assumptions: ['pe.as.yield', 'pe.as.dist', 'pe.as.phi', 'pe.as.ideal', 'pe.as.classical', 'pe.as.uv', 'pe.as.display'],
   },
 };
