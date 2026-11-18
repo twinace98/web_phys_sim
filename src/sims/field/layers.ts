@@ -32,6 +32,43 @@ export const EQ_MIN_PX = 3;
 /** Safety cap on the number of levels each side of zero. */
 export const EQ_K_MAX = 400;
 
+/**
+ * Pieces of a polyline (flat world coordinates) where room(x, y) ≥ 1, each cut end placed where
+ * room crosses 1 (linear between vertices). Pieces shorter than minLen are dropped.
+ */
+export function clipDense(l: readonly number[], room: (x: number, y: number) => number, minLen = 0): number[][] {
+  const out: number[][] = [];
+  const keep = (c: number[]) => {
+    let s = 0;
+    for (let k = 2; k < c.length; k += 2) s += Math.hypot(c[k] - c[k - 2], c[k + 1] - c[k - 1]);
+    if (s >= minLen) out.push(c);
+  };
+  let cur: number[] = [];
+  let px = l[0];
+  let py = l[1];
+  let pr = room(px, py);
+  if (pr >= 1) cur.push(px, py);
+  for (let k = 2; k < l.length; k += 2) {
+    const x = l[k];
+    const y = l[k + 1];
+    const r = room(x, y);
+    if ((pr >= 1) !== (r >= 1)) {
+      const t = (pr - 1) / (pr - r);
+      cur.push(px + t * (x - px), py + t * (y - py));
+      if (r < 1) {
+        if (cur.length >= 4) keep(cur);
+        cur = [];
+      }
+    }
+    if (r >= 1) cur.push(x, y);
+    px = x;
+    py = y;
+    pr = r;
+  }
+  if (cur.length >= 4) keep(cur);
+  return out;
+}
+
 export class FieldLayers {
   private vec = new Memo<Float32Array>();
   private lin = new Memo<PxLines>();
@@ -97,7 +134,9 @@ export class FieldLayers {
     const E = this.eq.get(key, () => {
       const gr = this.potGrid(g, src, cap);
       const step = dV / scale;
-      const buckets = levelCells(gr.vals, gr.nx, gr.ny, step, kMax, EQ_MIN_PX / POT_CELL);
+      // Cells pass a looser test (half the gap); each line is then cut where the exact spacing
+      // step / |E| falls to the gap, so lines end on a smooth curve, not on cell edges.
+      const buckets = levelCells(gr.vals, gr.nx, gr.ny, step, kMax, EQ_MIN_PX / 2 / POT_CELL);
       const ks = [...buckets.keys()].sort((a, b) => a - b);
       const cs = gridContours(
         g,
@@ -105,10 +144,19 @@ export class FieldLayers {
         ks.map((k) => k * step),
         ks.map((k) => buckets.get(k)),
       );
+      const f = fieldFn(src, this.kernel);
+      const gap = g.px(EQ_MIN_PX);
+      // Stubs left between dense patches (e.g. at the saddles between the charges of a row).
+      const frag = g.px(12);
+      /** Spacing to the next line over the minimum gap (≥ 1: drawn). */
+      const room = (x: number, y: number) => {
+        const [ex, ey] = f(x, y);
+        return step / (Math.hypot(ex, ey) * gap);
+      };
       const pick = (sel: (l: number) => boolean) =>
         linesPx(
           g,
-          cs.filter((c) => sel(c.level)).flatMap((c) => c.lines),
+          cs.filter((c) => sel(c.level)).flatMap((c) => (Math.abs(c.level) <= 1e-12 ? c.lines : c.lines.flatMap((l) => clipDense(l, room, frag)))),
           null,
         );
       return { pos: pick((l) => l > 1e-12), neg: pick((l) => l < -1e-12), zero: pick((l) => Math.abs(l) <= 1e-12) };

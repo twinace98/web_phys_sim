@@ -171,9 +171,10 @@ function particleKey(g: Draw, rIon: number, rEl: number): void {
     const [wx, wy] = g.vp.toWorld(px, y);
     return { x: wx, y: wy };
   };
+  // Same dots as on the stage, but never below 2.5 px so the colour reads on a phone.
   for (const [label, r, fill] of [
-    [tr('ch26.key.electron'), rEl, 'negative'],
-    [tr('ch26.key.ion'), rIon, ION],
+    [tr('ch26.key.electron'), Math.max(2.5, rEl), 'negative'],
+    [tr('ch26.key.ion'), Math.max(2.5, rIon), ION],
   ] as const) {
     g.text(at(x), label, { size, color: TICK, align: 'right', baseline: 'middle' });
     x -= measureRich(g.ctx, label, { size }) + (5 + r) * k;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { KQ, POINT_POOL, V, pointSources, pointWorld } from '../src/sims/field/charges';
-import { FieldLayers } from '../src/sims/field/layers';
+import { FieldLayers, clipDense } from '../src/sims/field/layers';
 import { extendPath, thinPath, workAlong } from '../src/sims/ch24/physics';
 import { potential } from '../src/sims/ch24/scene';
 import { defaults } from '../src/core/params';
@@ -184,5 +184,19 @@ describe('ch24 a long drag keeps following the pointer (QA E3, P3)', () => {
         const u = Math.max(0, Math.min(1, ((c.x - ax) * dx + (c.y - ay) * dy) / (dx * dx + dy * dy || 1)));
         expect(Math.hypot(ax + u * dx - c.x, ay + u * dy - c.y)).toBeGreaterThan(0.045);
       }
+  });
+});
+
+describe('clipDense: equipotentials end where the spacing reaches the gap', () => {
+  it('cuts at the interpolated crossing and drops short stubs', () => {
+    // room = x along a straight line from x = 0 to 4: drawn where x ≥ 1, cut exactly at x = 1.
+    const line = [0, 0, 2, 0, 4, 0];
+    const [piece] = clipDense(line, (x) => x);
+    expect(piece[0]).toBeCloseTo(1, 12);
+    expect(piece.slice(-2)).toEqual([4, 0]);
+    // Dense in the middle (1 < x < 3): two pieces; with minLen 1.5 the 1-long stubs go.
+    const two = clipDense([0, 0, 1.5, 0, 2.5, 0, 4, 0], (x) => (x < 1 || x > 3 ? 2 : 0.5));
+    expect(two.length).toBe(2);
+    expect(clipDense([0, 0, 1.5, 0, 2.5, 0, 4, 0], (x) => (x < 1 || x > 3 ? 2 : 0.5), 1.5).length).toBe(0);
   });
 });
