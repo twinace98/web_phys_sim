@@ -3,8 +3,6 @@ import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
 import { newton } from '../src/sims/ch05/newton';
 
-const MASSES = [0.5, 0.7, 1, 1.3, 2, 2.9, 3.6, 5];
-
 function endState(p: any) {
   const r = new Runner(newton as any, p);
   r.play();
@@ -12,35 +10,35 @@ function endState(p: any) {
   return r.state as any;
 }
 
-describe('ch05 second law: a heavier puck visibly accelerates less', () => {
-  for (const force of ['off', 'on']) {
-    it(`force ${force}: the track and plot ranges do not change with m, so x, v, a scale as 1/m on screen`, () => {
-      const base = { ...(defaults(newton.params) as any), force, F: 2 };
-      const w0 = newton.world(base);
-      const ranges0 = newton.plots!.map((pl) => pl.yRange!(base));
-      const frac: number[] = [];
-      const xs: number[] = [];
-      for (const m of MASSES) {
-        const p = { ...base, m };
+describe('ch05 second law: fixed scales, so a = F/m shows on screen', () => {
+  const base = defaults(newton.params) as any;
+  const w0 = newton.world(base);
+  const ranges0 = newton.plots!.map((pl) => pl.yRange!(base));
+
+  it('the track and plot ranges change with neither F nor m', () => {
+    for (const F of [0.5, 1, 2.3, 5]) {
+      for (const m of [1, 1.7, 3, 5]) {
+        const p = { ...base, F, m };
         expect(newton.world(p)).toEqual(w0);
         expect(newton.plots!.map((pl) => pl.yRange!(p))).toEqual(ranges0);
-        const s = endState(p);
-        const span = w0.x[1] - w0.x[0];
-        frac.push((s.x - w0.x[0]) / span);
-        xs.push(s.x);
-        // Puck inside the drawn world at the end.
-        expect(s.x).toBeLessThanOrEqual(w0.x[1]);
+        // The puck stays on the drawn track.
+        expect(endState(p).x).toBeLessThanOrEqual(w0.x[1]);
       }
-      // Before: every mass ended at the same fraction of the stage (pixel-identical pictures).
-      for (let i = 1; i < frac.length; i++) expect(frac[i]).toBeLessThan(frac[i - 1] - 0.005);
-      expect(xs[0] / xs[xs.length - 1]).toBeCloseTo(10, 6);
-    });
-  }
+    }
+  });
 
-  it('the force plot range is fixed by the largest force, so F shows in the plot', () => {
-    const p = defaults(newton.params) as any;
-    const rF = newton.plots!.find((pl) => pl.id === 'F')!.yRange!;
-    expect(rF({ ...p, F: 0.5 })).toEqual(rF({ ...p, F: 5 }));
-    expect(rF(p)[1]).toBeGreaterThanOrEqual(5);
+  it('distance on screen scales as F/m: twice the force, twice as far; twice the mass, half as far', () => {
+    const x = (F: number, m: number) => endState({ ...base, F, m }).x;
+    expect(x(4, 2) / x(2, 2)).toBeCloseTo(2, 9);
+    expect(x(2, 2) / x(2, 4)).toBeCloseTo(2, 9);
+    expect(x(5, 1) / x(0.5, 5)).toBeCloseTo(50, 9);
+  });
+
+  it('the largest acceleration (5 N on 1 kg) fills the a plot and the track', () => {
+    const s = endState({ ...base, F: 5, m: 1 });
+    const ra = newton.plots!.find((pl) => pl.id === 'a')!.yRange!(base);
+    expect(s.a).toBeLessThanOrEqual(ra[1]);
+    expect(s.a / ra[1]).toBeGreaterThan(0.85);
+    expect(s.x).toBeCloseTo(40, 9);
   });
 });

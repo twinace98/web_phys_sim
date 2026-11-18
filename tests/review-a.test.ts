@@ -13,6 +13,7 @@ import { aArrowLen, circular } from '../src/sims/ch04/circular';
 import { crossingTime, vBG } from '../src/sims/ch04/physics';
 import { relative } from '../src/sims/ch04/relative';
 import { projectile } from '../src/sims/ch04/scene';
+import { first } from '../src/sims/ch05/first';
 import { newton } from '../src/sims/ch05/newton';
 import { third } from '../src/sims/ch05/third';
 import { workEnergy } from '../src/sims/ch07/scene';
@@ -181,6 +182,7 @@ describe('arrows and labels stay on the stage', () => {
   it('Ch 5 third law: cart A v arrow at the left end (P2)', () => {
     expect(checkStage(third, STACK)).toEqual([]);
     expect(checkStage(newton, STACK)).toEqual([]);
+    expect(checkStage(first, STACK)).toEqual([]);
   });
   it('Ch 7 work-energy', () => {
     expect(checkStage(workEnergy, SOLO)).toEqual([]);
