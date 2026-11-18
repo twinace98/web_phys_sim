@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { HB2M, finiteWell, infiniteLevel, solve } from '../src/sims/modern/eigen';
 import { FINITE_MARGIN, finiteWellCount, forbiddenProbability, wellModel, z0Of, type WellParams } from '../src/sims/ch39/physics';
-import { HBAR_EVFS, model, supStates } from '../src/sims/ch39/scene';
+import { HBAR_EVFS, MIN_AMP_PX, clusterRank, model, supStates, wells } from '../src/sims/ch39/scene';
+import { defaults } from '../src/core/params';
+import type { Vec2 } from '../src/core/types';
+import type { Stroke } from '../src/draw/draw';
+import { ROLE_COLOR } from '../src/draw/theme';
+import { ProbeDraw } from './stage-probe';
 
 const base: WellParams = { kind: 'infinite', L: 1, U0: 2, hw: 0.2, Ub: 2, b: 0.2 };
 
@@ -127,5 +132,76 @@ describe('ch39 level labels near the top of a finite well', () => {
     expect(levelText(E[3], 3.4)).toBe('3.3996');
     expect(levelText(E[0], 3.4)).toBe('0.255');
     expect(levelText(2.18, Infinity)).toBe('2.18');
+  });
+});
+
+describe('ch39 wells: every wavefunction stays visible (review 2026-11-17, §0-1)', () => {
+  /** Records ψ polylines (stage px) and text marks. */
+  class WaveProbe extends ProbeDraw {
+    readonly waves: { pts: [number, number][]; dash: boolean }[] = [];
+    // The base polyline takes no arguments (it records nothing): read them through a rest parameter.
+    polyline(...a: unknown[]): void {
+      const [pts, st] = a as [Vec2[], Stroke | undefined];
+      if (st?.color === ROLE_COLOR.position) this.waves.push({ pts: pts.map((q) => this.vp.toPx(q.x, q.y)), dash: !!st.dash });
+    }
+  }
+  /** Stage sizes measured in the browser: 1280 × 800 and 390 × 844 windows. */
+  const STAGES = [
+    [1280, 704],
+    [390, 680],
+  ] as const;
+  const draw = (over: Record<string, unknown>, w: number, h: number) => {
+    const p = { ...defaults(wells.params), ...over } as never;
+    const g = new WaveProbe(w, h);
+    g.vp.fit(wells.world(p), w, h);
+    wells.draw(g, { t: 0 }, p, { t: 0, cursorT: 0, scrubbing: false, lecture: false });
+    return g;
+  };
+  const tall = (pts: [number, number][]) => Math.max(...pts.map((q) => q[1])) - Math.min(...pts.map((q) => q[1]));
+  const grid = (lo: number, hi: number, n: number) => Array.from({ length: n + 1 }, (_, i) => Number((lo + ((hi - lo) * i) / n).toFixed(2)));
+
+  const cases: Record<string, unknown>[] = [];
+  for (const L of grid(0.5, 1.5, 20)) cases.push({ pot: 'infinite', L });
+  for (const L of grid(0.5, 1.5, 4)) for (const U0 of grid(0.5, 4.5, 8)) cases.push({ pot: 'finite', L, U0 });
+  for (const hw of grid(0.1, 0.5, 8)) cases.push({ pot: 'harmonic', hw });
+  for (const L of grid(0.5, 1.5, 4)) for (const Ub of grid(0.5, 4.5, 8)) for (const b of [0.05, 0.1, 0.2, 0.35, 0.5]) cases.push({ pot: 'double', L, Ub, b });
+
+  it(`review case (double, L = 1.5 nm, U_b = 4.5 eV, b = 0.5 nm): ψ at least ${MIN_AMP_PX} px tall (before 0.3 px), pairs dashed`, () => {
+    for (const [w, h] of STAGES) {
+      const g = draw({ pot: 'double', L: 1.5, Ub: 4.5, b: 0.5 }, w, h);
+      expect(g.waves.length).toBe(8);
+      for (const wv of g.waves) expect(tall(wv.pts)).toBeGreaterThan(MIN_AMP_PX - 0.5);
+      expect(g.waves.map((wv) => wv.dash)).toEqual([false, true, false, true, false, true, false, true]);
+    }
+  });
+
+  it(`sweep: every well, slider ends and in-between, ψ and |ψ|², 1280 and 390 px: no curve under ${MIN_AMP_PX} px, labels never overlap`, () => {
+    const low: string[] = [];
+    for (const c of cases) {
+      for (const show of ['psi', 'prob']) {
+        for (const [w, h] of STAGES) {
+          const g = draw({ ...c, show }, w, h);
+          g.waves.forEach((wv, k) => {
+            if (tall(wv.pts) < MIN_AMP_PX - 0.5) low.push(`${JSON.stringify(c)} ${show} ${w}: ψ${k} ${tall(wv.pts).toFixed(1)} px`);
+            // Inside the frame (box t = 30, b = h − 34): the odd partner of the ground pair dips below its level.
+            const ys = wv.pts.map((q) => q[1]);
+            if (Math.max(...ys) > h - 34 + 0.5 || Math.min(...ys) < 30 - 0.5) low.push(`${JSON.stringify(c)} ${show} ${w}: ψ${k} leaves the frame`);
+          });
+          const ys = g.marks.filter((m) => m.kind === 'text' && /eV$/.test(m.text ?? '')).map((m) => m.y);
+          for (let i = 1; i < ys.length; i++) if (ys[i - 1] - ys[i] < 13.9) low.push(`${JSON.stringify(c)} ${w}: labels ${i - 1}, ${i} overlap`);
+          for (const y of ys) if (y < 6) low.push(`${JSON.stringify(c)} ${w}: label off the top at ${y.toFixed(0)}`);
+        }
+      }
+    }
+    expect(low).toEqual([]);
+  });
+
+  it('only the double well pairs levels (dashed partner); the other wells draw every ψ solid', () => {
+    for (const c of cases) {
+      const m = model({ ...defaults(wells.params), ...c } as never);
+      const rank = clusterRank(m.st.E, m.yr[1] - m.yr[0]);
+      if (c.pot !== 'double') expect(rank.every((r) => r === 0), JSON.stringify(c)).toBe(true);
+      expect(Math.max(...rank), JSON.stringify(c)).toBeLessThanOrEqual(1);
+    }
   });
 });

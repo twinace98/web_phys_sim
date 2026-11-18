@@ -82,6 +82,39 @@ export function endTime(p: P): number | undefined {
   return end;
 }
 
+/**
+ * Lowest U the particle reaches from rest at x0 [J]: the minimum over the interval around x0
+ * where U ≤ E0 (it never passes a turning point), up to the edge of the track if nothing stops it.
+ * Friction only shortens the run, so E0 − U_min still bounds K from above.
+ */
+export function reachMinU(pot: Potential, x0: number): number {
+  const E0 = pot.U(x0);
+  const dx = 0.002;
+  let min = E0;
+  for (const dir of [-1, 1]) {
+    for (let i = 1; ; i++) {
+      const x = Math.min(pot.hi, Math.max(pot.lo, x0 + dir * i * dx));
+      const U = pot.U(x);
+      if (U > E0) break;
+      min = Math.min(min, U);
+      if (x === pot.lo || x === pot.hi) break;
+    }
+  }
+  return min;
+}
+
+/**
+ * K, U, E plot range: the bottom from the potential at the track ends (as before); the top covers
+ * E0 and the largest K = E0 − U_min, plus a quarter of the span (at least 0.25 J).
+ */
+export function energyRange(p: P): [number, number] {
+  const pot = potOf(p);
+  const E0 = pot.U(x0Of(p));
+  const lo = Math.min(0, pot.U(pot.lo), pot.U(pot.hi));
+  const top = Math.max(E0, E0 - reachMinU(pot, x0Of(p)));
+  return [Math.max(lo, Y_LO) - 0.3, top + 0.25 * Math.max(top - lo, 1)];
+}
+
 const energies = (s: S, p: P) => {
   const U = potOf(p).U(s.x);
   const K = 0.5 * M * s.v * s.v;
@@ -247,12 +280,7 @@ export const energyScene: Scene<P, S> = {
         { channel: 'K', role: 'energyK' },
         { channel: 'E', role: 'energyE' },
       ],
-      yRange: (p) => {
-        const pot = potOf(p);
-        const E0 = pot.U(x0Of(p));
-        const lo = Math.min(0, pot.U(pot.lo), pot.U(pot.hi));
-        return [Math.max(lo, Y_LO) - 0.3, E0 + 0.25 * Math.max(E0 - lo, 1)];
-      },
+      yRange: (p) => energyRange(p),
     },
     {
       id: 'x',

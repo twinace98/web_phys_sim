@@ -319,6 +319,8 @@ export const projectile: Scene<P, S> = {
   ],
 
   readouts: [
+    { label: 'x', unit: 'm', value: (s) => s.x },
+    { label: 'y', unit: 'm', value: (s) => s.y },
     { label: 'v_x', unit: 'm/s', value: (s) => s.vx },
     { label: 'v_y', unit: 'm/s', value: (s) => s.vy },
     { label: 'v', unit: 'm/s', value: (s) => Math.hypot(s.vx, s.vy) },

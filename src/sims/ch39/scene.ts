@@ -6,7 +6,7 @@ import type { ParamSchema, ParamSpec, Scene } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
 import { HB2M } from '../modern/eigen';
-import { Frame, PX_WORLD, linePx, textPx, type Box } from '../modern/frame';
+import { Frame, PX_WORLD, TICK, linePx, textPx, type Box } from '../modern/frame';
 import { allowed, finiteWellCount, wellModel, z0Of, type WellKind, type WellModel, type WellParams } from './physics';
 
 type Common = { pot: string; L: number; U0: number; hw: number; Ub: number; b: number };
@@ -178,13 +178,35 @@ function levelLabels(f: Frame, items: { E: number; text: string; color?: string 
   }
 }
 
-/** Vertical size of the wavefunction drawings [eV]: below the typical level spacing. */
-function amplitude(Es: number[], span: number): number {
-  if (Es.length < 2) return 0.09 * span;
-  const gaps = Es.slice(1).map((E, i) => E - Es[i]);
-  const med = [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)];
-  const typical = Math.min(...gaps.filter((d) => d >= 0.3 * med));
-  return Math.min(0.42 * typical, 0.09 * span);
+/**
+ * Levels closer than this fraction of the energy axis form one cluster: the tunnelling pairs of
+ * the double well (split by 10⁻⁴ of the axis for a high, wide barrier). Their curves share a
+ * baseline; the upper partner is drawn dashed.
+ */
+export const CLUSTER_FRAC = 0.03;
+/** Smallest drawn wavefunction height [px]: a pair split by 0.3 px no longer flattens every curve. */
+export const MIN_AMP_PX = 10;
+
+/** Position of each level inside its cluster (0 = lowest member). */
+export function clusterRank(Es: number[], span: number): number[] {
+  const r = Es.map(() => 0);
+  for (let k = 1; k < Es.length; k++) if (Es[k] - Es[k - 1] < CLUSTER_FRAC * span) r[k] = r[k - 1] + 1;
+  return r;
+}
+
+/**
+ * Vertical size of the wavefunction drawings [eV]: below the spacing between level clusters, so a
+ * near-degenerate pair does not set the scale, and never under MIN_AMP_PX (`pxPerEV` of the frame).
+ * The curves stay inside the frame with 10 % of the room to spare: `below` = room between a dipping
+ * curve's level and the bottom of the axis (the odd partner of the ground pair dips by A), `above` =
+ * top of the axis − highest level, both per unit of A (|ψ|² rises by 1.6 A).
+ */
+export function amplitude(Es: number[], span: number, pxPerEV: number, below = Infinity, above = Infinity): number {
+  const between = Es.slice(1)
+    .map((E, i) => E - Es[i])
+    .filter((d) => d >= CLUSTER_FRAC * span);
+  const A = between.length ? Math.min(0.42 * Math.min(...between), 0.09 * span) : 0.09 * span;
+  return Math.max(Math.min(A, 0.9 * below, 0.9 * above), MIN_AMP_PX / pxPerEV);
 }
 
 /**
@@ -285,12 +307,25 @@ export const wells: Scene<PW, { t: number }> = {
     drawPotential(f, m);
     const { st } = m;
     const span = m.yr[1] - m.yr[0];
-    const A = amplitude(st.E, span);
     const prob = p.show === 'prob';
+    const Emax = st.E[st.E.length - 1] ?? 0;
+    // Room under the ψ curves that dip below their level, per unit of A (|ψ|² never dips).
+    let below = Infinity;
+    if (!prob) {
+      st.psi.forEach((psi, k) => {
+        let mx = 0;
+        let mn = 0;
+        for (const v of psi) {
+          mx = Math.max(mx, Math.abs(v));
+          mn = Math.min(mn, v);
+        }
+        if (mn < 0) below = Math.min(below, (st.E[k] - m.yr[0]) / (-mn / mx));
+      });
+    }
+    const A = amplitude(st.E, span, (f.box.b - f.box.t) / span, below, (m.yr[1] - Emax) / (prob ? 1.6 : 1));
     // Upper member of a close pair (double well): dashed, so both partners stay readable.
-    const gaps = st.E.slice(1).map((E, i) => E - st.E[i]);
-    const med = [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] ?? 0;
-    const partner = (k: number) => k > 0 && gaps[k - 1] < 0.3 * med;
+    const rank = clusterRank(st.E, span);
+    const partner = (k: number) => rank[k] % 2 === 1;
     // ψ in units of its own maximum, so every state is drawn the same height.
     f.clip(() => {
       st.E.forEach((E, k) => {
@@ -314,7 +349,10 @@ export const wells: Scene<PW, { t: number }> = {
         }
       });
     });
-    f.axes({ xLabel: '*x* (nm)', yLabel: '*E* (eV)' });
+    // x label in the bottom margin, under the tick numbers: inside the frame the odd partner of the
+    // ground pair (double well) dips across it.
+    f.axes({ yLabel: '*E* (eV)' });
+    textPx(g, f.box.r, f.box.b + 30, '*x* (nm)', { size: 12, color: TICK, align: 'right' });
     levelLabels(
       f,
       st.E.map((E, k) => ({ E, text: label(k + m.n0, E, narrow, p.pot === 'finite' ? p.U0 : Infinity) })),
