@@ -3,6 +3,7 @@
 // markers and the envelope of the standing wave belong to the resonance tab.
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
+import { num, tn, tp, u } from '../../core/tex';
 import { reflectAt, type End, type Mode, type Reflect } from './physics';
 
 type P = { mode: string; end: string; lambda: number; parts: boolean };
@@ -12,7 +13,7 @@ const V = 2;
 const TAU = 0.5; // pulse duration: 1 m long on the string
 const X_LEFT = -0.3;
 
-function cfg(p: P): Reflect {
+export function cfg(p: P): Reflect {
   const pulse = p.mode === 'pulse';
   // The pulse starts fully on the string (from x = 0.2 m to 1.2 m); the wave's front starts at x = 0.
   return { L, v: V, A: pulse ? 0.3 : 0.2, mode: p.mode as Mode, end: p.end as End, lambda: p.lambda, tau: TAU, t0: pulse ? 1.2 / V : 0 };
@@ -124,6 +125,8 @@ export const reflect: Scene<P, { t: number }> = {
 
   readouts: [{ label: 'v', unit: 'm/s', value: () => V }],
 
+  formula: (s, p) => formulaLines(s.t, p),
+
   info: {
     goals: ['ch16.goal.reflect', 'ch16.goal.standing'],
     observe: ['ch16.obs.fixed', 'ch16.obs.free', 'ch16.obs.sum', 'ch16.obs.wave', 'ch16.obs.waveEnd'],
@@ -135,3 +138,25 @@ export const reflect: Scene<P, { t: number }> = {
     assumptions: ['ch16.assume.ideal', 'ch16.assume.left'],
   },
 };
+
+/**
+ * Σ panel: when the front reaches the end, the wave's f = v/λ and its node positions x' = L − x,
+ * and the displacement at the end now: incident ∓ reflected (0 at a fixed end, 2h at a free end).
+ */
+export function formulaLines(t: number, p: P): string[] {
+  const r = cfg(p);
+  const x0 = r.v * r.t0;
+  const lines: string[] = [];
+  if (r.mode === 'pulse') lines.push(`t_L = (L - x_0)/v = (${L} - ${num(x0)})/${V} = ${tn((L - x0) / V)}${u('s')}`);
+  else {
+    lines.push(`t_L = L/v = ${L}/${V} = ${tn(L / V)}${u('s')}`);
+    lines.push(`f = v/\\lambda = ${V}/${num(r.lambda)} = ${tn(V / r.lambda)}${u('Hz')}`);
+    const half = `${tn(r.lambda / 2)}${u('m')}`;
+    lines.push(r.end === 'fixed' ? `x' = m\\lambda/2 = m \\times ${half}` : `x' = (m + \\tfrac{1}{2})\\lambda/2 = (m + \\tfrac{1}{2}) \\times ${half}`);
+  }
+  const { inc, y } = reflectAt(r, L, t);
+  const h = tp(inc, 4);
+  lines.push(`h(t - L/v) = ${tn(inc, 4)}${u('m')}`);
+  lines.push(r.end === 'fixed' ? `y(L) = h - h = ${h} - ${h} = ${tn(y)}${u('m')}` : `y(L) = h + h = 2 \\times ${h} = ${tn(y)}${u('m')}`);
+  return lines;
+}

@@ -4,7 +4,9 @@ import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
 import { Inset, Obstacles, TICK } from '../inset/inset';
-import { edgePhase, firstMin, phasorChain, sourcesIntensity } from './physics';
+import { num, tn } from '../../core/tex';
+import { fitSig } from '../ch31/fit';
+import { edgePhase, firstMin, phasorChain, singleSlit, sourcesIntensity } from './physics';
 
 type P = { theta: number; a: number; lambda: number; N: number };
 
@@ -252,6 +254,35 @@ function drawPlot(g: Draw, p: P): void {
   ins.dot(p.theta, intensity(p), '#1a1a1a', 5.5);
 }
 
+/**
+ * Σ panel: the first minimum θ₁, the edge-to-edge phase φ, I/I_m of the N-source chain (the
+ * readout) and the continuous slit (sin α/α)² it approaches for N → ∞.
+ */
+export function formulaLines(p: P): string[] {
+  const lam = p.lambda / 1000;
+  const lines: string[] = [];
+  const t1 = firstMin(lam, p.a);
+  const ratio = lam / p.a;
+  if (Number.isNaN(t1)) lines.push(`\\sin\\theta_1 = \\frac{\\lambda}{a} = \\frac{${num(lam)}}{${num(p.a)}} = ${tn(ratio)} \\ge 1`);
+  else lines.push(`\\theta_1 = \\sin^{-1}\\frac{\\lambda}{a} = \\sin^{-1}\\frac{${num(lam)}}{${num(p.a)}} = ${tn(t1 / DEG)}^\\circ`);
+  const phi = phiOf(p) / DEG;
+  lines.push(`\\phi = \\frac{2\\pi}{\\lambda}\\,a\\sin\\theta = \\frac{360^\\circ}{${num(lam)}}(${num(p.a)})\\sin(${num(p.theta)}^\\circ) = ${tn(phi)}^\\circ`);
+  const I = intensity(p);
+  // φ/2 and φ/2N with enough figures that the shown sines give the printed I/I_m (steep near a zero).
+  const h = phi / 2;
+  if (Math.abs(h) < 1e-9) {
+    lines.push(`\\phi = 0:\\ \\frac{I}{I_m} = ${tn(I)}`);
+    return lines;
+  }
+  const sh = fitSig((r) => tn((Math.sin(r(h) * DEG) / (p.N * Math.sin(r(h / p.N) * DEG))) ** 2), tn(I));
+  lines.push(
+    `\\frac{I}{I_m} = \\left[\\frac{\\sin(\\phi/2)}{N\\sin(\\phi/2N)}\\right]^2`,
+    `=\\left[\\frac{\\sin(${tn(h, sh)}^\\circ)}{${p.N}\\sin(${tn(h / p.N, sh)}^\\circ)}\\right]^2 = ${tn(I)}`,
+  );
+  lines.push(`N \\to \\infty:\\ \\left(\\frac{\\sin\\alpha}{\\alpha}\\right)^2 = ${tn(singleSlit(p.a, lam, p.theta * DEG))},\\quad \\alpha = \\frac{\\phi}{2}`);
+  return lines;
+}
+
 export const phasor: Scene<P, { t: number }> = {
   id: 'phasor',
   title: 'ch36.ph.scene',
@@ -287,6 +318,8 @@ export const phasor: Scene<P, { t: number }> = {
     { label: '\\phi', unit: '°', value: (_s, p) => phiOf(p) / DEG },
     { label: 'I/I_m', unit: '', value: (_s, p) => intensity(p) },
   ],
+
+  formula: (_s, p) => formulaLines(p),
 
   info: {
     goals: ['ch36.ph.goal.chain', 'ch36.ph.goal.min'],

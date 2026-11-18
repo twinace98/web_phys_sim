@@ -1,6 +1,7 @@
 // Ch 19 scene: pressure as the sum of molecular impulses. A hard-disk gas; every bounce on the
 // right wall delivers 2 m v_x. The accumulated impulse grows at the mean force, so its time
 // average per wall length converges to the ideal-gas pressure NkT/A.
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { drawRich } from '../../draw/text';
 import { ROLE_COLOR, theme } from '../../draw/theme';
@@ -235,6 +236,8 @@ export const gasScene: Scene<P, S> = {
     { label: 'NkT/A', unit: 'mN/m', value: (_s, p) => idealPressure(p.N, p.L, p.T) },
   ],
 
+  formula: (s, p) => formulaLines(s, p),
+
   info: {
     goals: ['ch19.goal.sum', 'ch19.goal.ideal'],
     observe: ['ch19.obs.J', 'ch19.obs.fluct', 'ch19.obs.N', 'ch19.obs.T', 'ch19.obs.hist'],
@@ -242,3 +245,22 @@ export const gasScene: Scene<P, S> = {
     assumptions: ['ch19.assume.2d', 'ch19.assume.disk', 'ch19.assume.dense', 'ch19.assume.relax', 'ch19.assume.win'],
   },
 };
+
+/**
+ * Σ panel: the measured pressure J/(L t) (t counted from 10 ps, as pCum does), the ideal-gas
+ * NkT/A with SI values, their ratio, and the rms speed √(2kT/m) of the 2D gas.
+ */
+export function formulaLines(s: S, p: P): string[] {
+  const g = s.gas;
+  const pc = pCum(g);
+  const p0 = idealPressure(p.N, p.L, p.T);
+  // k and m (physics.ts KB, MASS) written out: tn prints values below 10⁻⁹ as 0.
+  const kB = '1.381\\times 10^{-23}';
+  const m = '6.646\\times 10^{-27}';
+  return [
+    `\\frac{J}{L\\,t} = \\frac{${tn(g.J, 4)}}{${num(p.L)} \\times ${tn(Math.max(g.t, WIN), 4)}} = ${tn(pc)}${u('mN/m')}`,
+    `\\frac{NkT}{A} = \\frac{${num(p.N)} \\times ${kB} \\times ${num(p.T)}}{(${num(p.L)}\\times 10^{-9})^2} = ${tn(p0)}${u('mN/m')}`,
+    `\\frac{J/(L\\,t)}{NkT/A} = \\frac{${tn(pc, 4)}}{${tn(p0, 4)}} = ${tn(pc / p0)}`,
+    `\\sqrt{\\frac{2kT}{m}} = \\sqrt{\\frac{2 \\times ${kB} \\times ${num(p.T)}}{${m}}} = ${tn(Math.SQRT2 * sigmaV(p.T))}${u('km/s')}`,
+  ];
+}

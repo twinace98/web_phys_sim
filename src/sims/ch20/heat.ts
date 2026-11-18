@@ -2,6 +2,7 @@
 // microstates Ω_A Ω_B grows, so energy flows from the hotter solid to the colder one until
 // ∂S_A/∂E_A = ∂S_B/∂E_B, i.e. equal temperatures (1/T = ∂S/∂E).
 import type { Rng } from '../../core/rng';
+import { tn, tp } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
@@ -365,6 +366,8 @@ export const heatScene: Scene<P, S> = {
     { label: 'kT_\\text{B}/\\varepsilon', unit: '', value: (s, p) => temps(p, s.qSmooth)[1] },
   ],
 
+  formula: (s, p) => formulaLines(s, p),
+
   info: {
     goals: ['ch20.h.goal.flow', 'ch20.h.goal.T'],
     observe: ['ch20.h.obs.flow', 'ch20.h.obs.max', 'ch20.h.obs.slope', 'ch20.h.obs.size', 'ch20.h.obs.fluct'],
@@ -376,3 +379,26 @@ export const heatScene: Scene<P, S> = {
     assumptions: ['ch20.h.assume.model', 'ch20.h.assume.omega', 'ch20.h.assume.slope', 'ch20.h.assume.T', 'ch20.h.assume.arrow'],
   },
 };
+
+/**
+ * Σ panel: S_A/k, S_B/k and S_tot/k of the current split (four figures, so the sum adds up), and
+ * the readout temperatures kT/ε = 1/ln(1 + N/q̄) from q̄, the q smoothed over 1.5 s.
+ */
+export function formulaLines(s: S, p: P): string[] {
+  const [NA, NB] = sizes(p);
+  const qA = s.qA;
+  const qB = p.q - qA;
+  const e = ent(p, qA);
+  const [TA, TB] = temps(p, s.qSmooth);
+  const kT = (X: string, N: number, q: number, T: number) =>
+    q > 0
+      ? `kT_\\text{${X}}/\\varepsilon = \\frac{1}{\\ln(1 + N_\\text{${X}}/\\bar q_\\text{${X}})} = \\frac{1}{\\ln(1 + ${N}/${tn(q, 4)})} = ${tn(T)}`
+      : `\\bar q_\\text{${X}} = 0 \\;\\Rightarrow\\; kT_\\text{${X}}/\\varepsilon = ${tn(T)}`;
+  return [
+    `S_\\text{A}/k = \\ln\\Omega_\\text{A} = \\ln\\binom{${qA + NA - 1}}{${qA}} = ${tn(e.a, 4)}`,
+    `S_\\text{B}/k = \\ln\\Omega_\\text{B} = \\ln\\binom{${qB + NB - 1}}{${qB}} = ${tn(e.b, 4)}`,
+    `S_\\text{tot}/k = ${tp(e.a, 4)} + ${tp(e.b, 4)} = ${tn(e.tot, 4)}`,
+    kT('A', NA, s.qSmooth, TA),
+    kT('B', NB, p.q - s.qSmooth, TB),
+  ];
+}

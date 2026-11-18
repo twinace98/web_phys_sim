@@ -1,7 +1,9 @@
 // Ch 6 scene: static and kinetic friction. A pull that grows steadily (or a board that tilts
 // steadily) meets static friction that matches it up to μs N; then the block slips and the
 // friction drops to μk N.
+import { tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
+import { sigToMatch } from '../ch02/sigma';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { drawRich } from '../../draw/text';
 import { color, theme } from '../../draw/theme';
@@ -203,6 +205,55 @@ export const friction: Scene<P, S> = {
     { label: '\\mu_s N', unit: 'N', value: (s, p) => fsMax(p, s) },
     { label: 'v', unit: 'm/s', value: (s) => s.v },
   ],
+
+  // Σ panel: N, the static limit μs N and the friction now: f_s = (what is needed) ≤ μs N while at
+  // rest, f_k = μk N once sliding. Incline: the slip angle tan θc = μs.
+  formula: (s, p) => {
+    const mat = MATERIALS[p.mat] ?? MATERIALS.wood;
+    const mus = mat.mus.toFixed(2);
+    const muk = mat.muk.toFixed(2);
+    const fs = fsMax(p, s);
+    const sN = Math.max(
+      sigToMatch(fs, [s.N], (n) => mat.mus * n),
+      s.sliding ? sigToMatch(s.f, [s.N], (n) => mat.muk * n) : 3,
+    );
+    const N = tn(s.N, sN);
+    const limit = `\\mu_s N = ${mus} \\times ${N} = ${tn(fs)}${u('N')}`;
+    const kinetic = `f_k = \\mu_k N = ${muk} \\times ${N} = ${tn(s.f)}${u('N')}`;
+    if (!incline(p)) {
+      const lines = [`N = mg = ${M} \\times ${G} = ${tn(s.N)}${u('N')}`, limit];
+      if (!s.sliding) {
+        lines.push(`f_s = F = ${tn(s.f)}${u('N')} \\le \\mu_s N`);
+        return lines;
+      }
+      const sa = sigToMatch(s.a, [s.F, s.f], (F, f) => (F - f) / M);
+      lines.push(kinetic, `a = \\frac{F - f_k}{m} = \\frac{${tn(s.F, sa)} - ${tn(s.f, sa)}}{${M}} = ${tn(s.a)}${u('m/s^2')}`);
+      return lines;
+    }
+    const deg = s.theta / DEG;
+    const thc = `\\tan^{-1} ${mus} = ${tn(Math.atan(mat.mus) / DEG)}^\\circ`;
+    const sT = Math.max(
+      sigToMatch(s.N, [deg], (d) => M * G * Math.cos(d * DEG)),
+      s.sliding ? sigToMatch(s.a, [deg], (d) => G * (Math.sin(d * DEG) - mat.muk * Math.cos(d * DEG))) : sigToMatch(s.f, [deg], (d) => M * G * Math.sin(d * DEG)),
+    );
+    const th = `${tn(deg, sT)}^\\circ`;
+    if (!s.sliding) {
+      return [
+        `N = mg\\cos\\theta = ${M} \\times ${G}\\cos ${th} = ${tn(s.N)}${u('N')}`,
+        `f_s = mg\\sin\\theta = ${M} \\times ${G}\\sin ${th} = ${tn(s.f)}${u('N')}`,
+        limit,
+        `\\tan\\theta_c = \\mu_s \\;\\Rightarrow\\; \\theta_c = ${thc}`,
+      ];
+    }
+    return [
+      `\\theta = \\theta_c = ${thc}`,
+      `N = mg\\cos\\theta = ${M} \\times ${G}\\cos ${th} = ${tn(s.N)}${u('N')}`,
+      limit,
+      kinetic,
+      `a = g(\\sin\\theta - \\mu_k\\cos\\theta)`,
+      `= ${G}(\\sin ${th} - ${muk}\\cos ${th}) = ${tn(s.a)}${u('m/s^2')}`,
+    ];
+  },
 
   info: {
     goals: ['ch06.f.goal.static', 'ch06.f.goal.kinetic'],

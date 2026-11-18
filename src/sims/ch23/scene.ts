@@ -1,12 +1,18 @@
 // Ch 23 scene: Gaussian surface (circle, square, free curve) around line charges; the outward
 // field component along it and ∮ E_n dl next to λ_enc / ε0.
+import { tn, u } from '../../core/tex';
+import type { Params } from '../../core/types';
 import { pathScene } from '../field/closedpath';
+import { EPS0 } from '../field/physics';
 import { chargeGlyph, texNum } from '../field/render';
 import { ENC_FLUX, LINE_E, LINE_LAYOUT, LINE_POOL } from './physics';
 
 const UNIT = '\\ \\mathrm{N\\,m/C}';
 
-export const gaussScene = pathScene({
+/** Values the factory last passed to the stage panel: ∮ E_n dl, λ_enc/ε0 [N m/C], λ_enc [nC/m]. */
+let shown = { flux: 0, rhs: 0, enc: 0 };
+
+const base = pathScene({
   id: 'gauss',
   prefix: 'ch23',
   kernel: 'line',
@@ -19,8 +25,10 @@ export const gaussScene = pathScene({
   glyph: chargeGlyph,
   integralScale: LINE_E,
   encScale: ENC_FLUX,
-  overlay: (flux, rhs, enc) =>
-    `\\begin{array}{rcl} \\lambda_\\text{enc} &=& ${texNum(enc, 3, 1e-9).replace(/\.00$/, '')}\\ \\mathrm{nC/m} \\\\ \\oint E_n\\,dl &=& ${texNum(flux, 3, 0.05)}${UNIT} \\\\ \\lambda_\\text{enc}/\\varepsilon_0 &=& ${texNum(rhs, 3, 0.05)}${UNIT} \\end{array}`,
+  overlay: (flux, rhs, enc) => {
+    shown = { flux, rhs, enc };
+    return `\\begin{array}{rcl} \\lambda_\\text{enc} &=& ${texNum(enc, 3, 1e-9).replace(/\.00$/, '')}\\ \\mathrm{nC/m} \\\\ \\oint E_n\\,dl &=& ${texNum(flux, 3, 0.05)}${UNIT} \\\\ \\lambda_\\text{enc}/\\varepsilon_0 &=& ${texNum(rhs, 3, 0.05)}${UNIT} \\end{array}`;
+  },
   G0: { default: [-0.3, 0, 0.4] },
   box: [-1.15, -0.75, 1.15, 0.75],
   info: {
@@ -30,3 +38,29 @@ export const gaussScene = pathScene({
     assumptions: ['ch23.as.2d', 'ch23.as.units', 'ch23.as.num', 'ch23.as.snap'],
   },
 });
+
+/** Below the stage panel's zero tolerance a value prints as 0, as there. */
+const z = (v: number, tol: number) => (Math.abs(v) < tol ? 0 : v);
+
+/**
+ * The stage panel's values from the factory's own (memoised) model, read through the overlay it
+ * builds: ∮ E_n dl and λ_enc/ε0 [N m/C], λ_enc [nC/m].
+ */
+export function gaussValues(p: Params): { flux: number; rhs: number; enc: number } {
+  base.overlay!({ t: 0 }, p as never);
+  return { flux: z(shown.flux, 0.05), rhs: z(shown.rhs, 0.05), enc: z(shown.enc, 1e-9) };
+}
+
+/** Σ panel: λ_enc, λ_enc/ε0 with ε0 substituted, and the numerical ∮ E_n dl. */
+export const gaussScene: typeof base = {
+  ...base,
+  formula: (_s, p) => {
+    const { flux, rhs, enc } = gaussValues(p);
+    const lam = Number.isInteger(enc) ? String(enc) : tn(enc);
+    return [
+      `\\lambda_\\text{enc} = ${lam}${u('nC/m')}`,
+      `\\frac{\\lambda_\\text{enc}}{\\varepsilon_0} = \\frac{${enc === 0 ? '0' : `${lam}\\times 10^{-9}`}}{${texNum(EPS0, 4, 0)}} = ${tn(rhs)}${UNIT}`,
+      `\\oint E_n\\,dl = ${tn(flux)}${UNIT}`,
+    ];
+  },
+};

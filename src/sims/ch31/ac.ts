@@ -5,6 +5,8 @@ import { fmtTick, niceTicks } from '../../core/format';
 import type { Overlay, ParamSchema, Role, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
+import { num, tn, tp, u } from '../../core/tex';
+import { fitSig } from './fit';
 import { acAt, currentAmp, impedance, omega0, phase, reactanceC, reactanceL, type Drive, type RLC } from './physics';
 
 type P = { ratio: number; mode: string; R: number };
@@ -231,6 +233,31 @@ function overlays(p: P): Overlay[] {
 const vLabel =
   `\\textcolor{${ROLE_COLOR.force}}{v_R}\\;\\textcolor{${ROLE_COLOR.acceleration}}{v_L}\\;` + `\\textcolor{${ROLE_COLOR.position}}{v_C}\\,(\\mathrm{V})`;
 
+/** Σ panel: ω_d, X_L and X_C, Z, φ and I, the same values as the readouts. */
+export function formulaAC(p: P): string[] {
+  const c = rlcOf(p);
+  const wd = driveOf(p).wd;
+  const XL = reactanceL(c, wd);
+  const XC = reactanceC(c, wd);
+  const X = XL - XC;
+  const Z = impedance(c, wd);
+  const phiDeg = phase(c, wd) * DEG;
+  const I = currentAmp(c, driveOf(p)) * 1e3;
+  const ohm = u('\\Omega');
+  // X_L − X_C with enough figures for Z and φ; Z with enough for I = ℰm/Z.
+  const sx = fitSig((r) => tn(Math.atan2(r(X), c.R) * DEG) + tn(Math.hypot(c.R, r(X))), tn(phiDeg) + tn(Z));
+  const sz = fitSig((r) => tn((EM / r(Z)) * 1e3), tn(I));
+  const s0 = fitSig((r) => tn(p.ratio * r(W0)), tn(wd));
+  return [
+    `\\omega_d = ${num(p.ratio)}\\,\\omega_0 = ${num(p.ratio)} \\times ${tn(W0, s0)} = ${tn(wd)}${u('rad/s')}`,
+    `X_L = \\omega_d L = ${tn(XL)}${ohm},\\quad X_C = \\frac{1}{\\omega_d C} = ${tn(XC)}${ohm}`,
+    `Z = \\sqrt{R^2 + (X_L - X_C)^2}`,
+    `= \\sqrt{${num(p.R)}^2 + ${tp(X, sx)}^2} = ${tn(Z)}${ohm}`,
+    `\\tan\\phi = \\frac{X_L - X_C}{R} = \\frac{${tn(X, sx)}}{${num(p.R)}},\\quad \\phi = ${tn(phiDeg)}^\\circ`,
+    `I = \\frac{\\mathcal{E}_m}{Z} = \\frac{${EM}${u('V')}}{${tn(Z, sz)}${ohm}} = ${tn(I)}${u('mA')}`,
+  ];
+}
+
 export const acScene: Scene<P, S> = {
   id: 'ac',
   title: 'ch31.a.scene',
@@ -287,6 +314,8 @@ export const acScene: Scene<P, S> = {
     { label: '\\phi', unit: '°', value: (_s, p) => phase(rlcOf(p), driveOf(p).wd) * DEG },
     { label: 'Z', unit: 'Ω', value: (_s, p) => impedance(rlcOf(p), driveOf(p).wd) },
   ],
+
+  formula: (_s, p) => formulaAC(p),
 
   info: {
     goals: ['ch31.a.goal.phase', 'ch31.a.goal.res'],

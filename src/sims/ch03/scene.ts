@@ -1,9 +1,11 @@
 // Ch 3 scenes: components of a vector (with rotatable axes) and the parallelogram sum.
 import { fmt, fmtTick } from '../../core/format';
+import { tn, tp } from '../../core/tex';
 import type { ParamSchema, Role, Scene, SceneCtx, SelectParam, Vec2, WorldSpec } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR, theme } from '../../draw/theme';
 import { LabelLayout } from './labels';
+import { sigsToMatch } from '../ch02/sigma';
 import { add, axes, clampWithPartner, components, placeComponentTip, placeTip, setComponent, type V2 } from './physics';
 
 const DEG = Math.PI / 180;
@@ -208,6 +210,24 @@ export const componentsScene: Scene<PC, { t: number }> = {
     })),
   ],
 
+  // Σ panel: magnitude from the components, components from magnitude and angle (as on the stage).
+  formula: (_s, p) => {
+    const c = components([p.A[0], p.A[1]], p.phi * DEG);
+    if (c.mag < 1e-9) return ['A = 0, \\quad A_x = A_y = 0'];
+    const deg = c.theta / DEG;
+    const [sx, sy] = sigsToMatch(c.mag, [c.ax, c.ay], (x, y) => Math.hypot(x, y));
+    // A and θ appear in both lines: the larger of the digits each line needs.
+    const ca = sigsToMatch(c.ax, [c.mag, deg], (m, d) => m * Math.cos(d * DEG));
+    const sa = sigsToMatch(c.ay, [c.mag, deg], (m, d) => m * Math.sin(d * DEG));
+    const A = tn(c.mag, Math.max(ca[0], sa[0]));
+    const th = `(${tn(deg, Math.max(ca[1], sa[1]))}^\\circ)`;
+    return [
+      `A = \\sqrt{A_x^2 + A_y^2} = \\sqrt{${tp(c.ax, sx)}^2 + ${tp(c.ay, sy)}^2} = ${tn(c.mag)}`,
+      `A_x = A\\cos\\theta = ${A}\\cos${th} = ${tn(c.ax)}`,
+      `A_y = A\\sin\\theta = ${A}\\sin${th} = ${tn(c.ay)}`,
+    ];
+  },
+
   info: {
     goals: ['ch03.c.goal.proj', 'ch03.c.goal.axes'],
     observe: ['ch03.c.obs.drag', 'ch03.c.obs.comp', 'ch03.c.obs.neg', 'ch03.c.obs.rot', 'ch03.c.obs.incline'],
@@ -314,6 +334,18 @@ export const sumScene: Scene<PS, { t: number }> = {
     { pos: (_s, p) => P([p.A[0], p.A[1]]), radiusPx: 18, onDrag: (ctx, _s, w) => dragOne(ctx, 'A', w) },
     { pos: (_s, p) => P([p.B[0], p.B[1]]), radiusPx: 18, onDrag: (ctx, _s, w) => dragOne(ctx, 'B', w) },
   ],
+
+  // Σ panel: componentwise sum, then the magnitude of C (as labelled on the stage).
+  formula: (_s, p) => {
+    const a: V2 = [p.A[0], p.A[1]];
+    const b: V2 = [p.B[0], p.B[1]];
+    const c = add(a, b);
+    return [
+      `C_x = A_x + B_x = ${tn(a[0])} + ${tp(b[0])} = ${tn(c[0])}`,
+      `C_y = A_y + B_y = ${tn(a[1])} + ${tp(b[1])} = ${tn(c[1])}`,
+      `C = \\sqrt{C_x^2 + C_y^2} = \\sqrt{${tp(c[0])}^2 + ${tp(c[1])}^2} = ${tn(Math.hypot(c[0], c[1]))}`,
+    ];
+  },
 
   info: {
     goals: ['ch03.s.goal.para', 'ch03.s.goal.comp'],

@@ -1,8 +1,10 @@
 // Ch 2 scene: x(t), v(t), a(t) linked by slope (derivative) and area (integral).
 import { fmtTick, niceTicks } from '../../core/format';
+import { num, tn, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { kinematicPlots, padded } from './common';
-import { CUSTOM_A_MAX, CUSTOM_SEGS, T_END, makeProfile, ranges, stateAt, type Motion, type Profile, type Ranges } from './physics';
+import { CUSTOM_A_MAX, CUSTOM_SEGS, T_END, areaUnderA, areaUnderV, makeProfile, ranges, stateAt, type Motion, type Profile, type Ranges } from './physics';
+import { sigToMatch } from './sigma';
 
 type P = {
   motion: string;
@@ -96,6 +98,27 @@ const params: ParamSchema<P> = {
   vectors: { kind: 'toggle', label: 'ch02.p.vectors', desc: 'ch02.d.vectors', group: 'advanced', live: true, default: true },
 };
 
+/**
+ * Σ panel: a as the slope of v over the current segment (v is linear on it), v and x as the start
+ * value plus the area under a and v up to now.
+ */
+export function graphsFormula(pr: Profile, s: S): string[] {
+  const seg = pr.segs.find((g) => s.t < g.t1) ?? pr.segs[pr.segs.length - 1];
+  const va = stateAt(pr, seg.t0).v;
+  const vb = stateAt(pr, seg.t1).v;
+  const dt = seg.t1 - seg.t0;
+  const sa = sigToMatch(s.a, [vb, va], (b, a) => (b - a) / dt);
+  const dv = areaUnderA(pr, 0, s.t);
+  const sv = sigToMatch(s.v, [dv], (d) => pr.v0 + d);
+  const dx = areaUnderV(pr, 0, s.t);
+  const sx = sigToMatch(s.x, [dx], (d) => pr.x0 + d);
+  return [
+    `a = \\frac{\\Delta v}{\\Delta t} = \\frac{${tn(vb, sa)} - ${tp(va, sa)}}{${num(seg.t1)} - ${num(seg.t0)}} = ${tn(s.a)}${u('m/s^2')}`,
+    `v = v_0 + \\int_0^t a\\,dt = ${num(pr.v0)} + ${tp(dv, sv)} = ${tn(s.v)}${u('m/s')}`,
+    `x = x_0 + \\int_0^t v\\,dt = ${num(pr.x0)} + ${tp(dx, sx)} = ${tn(s.x)}${u('m')}`,
+  ];
+}
+
 export const kinematics: Scene<P, S> = {
   id: 'graphs',
   title: 'ch02.scene',
@@ -174,6 +197,8 @@ export const kinematics: Scene<P, S> = {
     { label: 'v', unit: 'm/s', value: (s) => s.v },
     { label: 'a', unit: 'm/s²', value: (s) => s.a },
   ],
+
+  formula: (s, p) => graphsFormula(model(p).pr, s),
 
   info: {
     goals: ['ch02.goal.slope', 'ch02.goal.area'],

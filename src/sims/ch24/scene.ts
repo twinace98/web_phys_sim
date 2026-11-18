@@ -1,5 +1,6 @@
 // Ch 24 scene: equipotential lines (or a potential map) over the charges of Ch 22, and the
 // work done by the field on a test charge dragged along any path.
+import { paren, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { BOX, KQ, POINT_POOL, V, clearOf, layoutParam, pointCoords, pointSources, pointWorld, presetParam, presetTag } from '../field/charges';
 import { FieldLayers, palette } from '../field/layers';
@@ -39,6 +40,36 @@ const work = new Memo<number>();
 
 const end = (s: S): Vec2 => ({ x: s.path[s.path.length - 2], y: s.path[s.path.length - 1] });
 const W = (s: S, p: P) => work.get(`${srcKey(pointSources(p))}|${s.path.length}|${s.path[0]},${s.path[1]}|${s.path[s.path.length - 2]},${s.path[s.path.length - 1]}`, () => workAlong(pointSources(p), s.path, 1));
+
+/** V [V] at the test charge, ΔV = V − V_A [V] (the readouts). */
+export const Vq = (s: S, p: P) => V(pointSources(p), end(s).x, end(s).y);
+export const VA = (s: S, p: P) => V(pointSources(p), s.A.x, s.A.y);
+export const workNJ = (s: S, p: P) => W(s, p);
+
+/**
+ * Decimals for the two terms of a difference: one more than the 3-figure result shows, so the
+ * printed subtraction reproduces it.
+ */
+export const diffDecimals = (r: number) => {
+  const a = Math.abs(Number(r.toPrecision(3)));
+  return a < 1e-9 ? 3 : Math.min(8, Math.max(0, 2 - Math.floor(Math.log10(a))) + 1);
+};
+/** Fixed decimals, TeX minus. */
+const fixed = (v: number, d: number) => (Math.abs(v) < 0.5 * 10 ** -d ? 0 : v).toFixed(d);
+
+/** Σ panel: V at the test charge and at A, ΔV, the path integral W and −q0 ΔV. */
+export function formulaLines(s: S, p: P): string[] {
+  const v = Vq(s, p);
+  const a = VA(s, p);
+  const dV = v - a;
+  const d = diffDecimals(dV);
+  return [
+    `V = \\sum_i k\\,\\frac{q_i}{r_i} = ${tn(v)}${u('V')}`,
+    `\\Delta V = V - V_A = ${fixed(v, d)} - ${paren(fixed(a, d))} = ${tn(dV)}${u('V')}`,
+    `W = q_0\\!\\int_A^B \\vec E\\cdot d\\vec s = ${tn(workNJ(s, p))}${u('nJ')}`,
+    `-q_0\\,\\Delta V = -(1\\ \\mathrm{nC})(${tn(dV)}\\ \\mathrm{V}) = ${tn(-dV)}${u('nJ')}`,
+  ];
+}
 
 export const potential: Scene<P, S> = {
   id: 'potential',
@@ -105,10 +136,12 @@ export const potential: Scene<P, S> = {
   ],
 
   readouts: [
-    { label: 'V', unit: 'V', value: (s, p) => V(pointSources(p), end(s).x, end(s).y) },
-    { label: '\\Delta V', unit: 'V', value: (s, p) => V(pointSources(p), end(s).x, end(s).y) - V(pointSources(p), s.A.x, s.A.y) },
+    { label: 'V', unit: 'V', value: (s, p) => Vq(s, p) },
+    { label: '\\Delta V', unit: 'V', value: (s, p) => Vq(s, p) - VA(s, p) },
     { label: 'W', unit: 'nJ', value: (s, p) => W(s, p) },
   ],
+
+  formula: (s, p) => formulaLines(s, p),
 
   info: {
     goals: ['ch24.goal.V', 'ch24.goal.perp'],

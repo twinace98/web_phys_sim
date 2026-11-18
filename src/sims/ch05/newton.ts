@@ -1,6 +1,8 @@
 // Ch 5 scene: second law. A puck on a frictionless surface is pushed from rest by a constant
 // force: a = F/m, so v grows linearly with slope F/m.
+import { tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
+import { sigToMatch } from '../ch02/sigma';
 import { drawTrack, padded } from './common';
 import { netForce, pushState, type Push } from './physics';
 
@@ -150,6 +152,21 @@ export const newton: Scene<P, S> = {
     { label: 'a', unit: 'm/s²', value: (s) => s.a },
     { label: 'v', unit: 'm/s', value: (s) => s.v },
   ],
+
+  // Σ panel: a = F_net/m, then v and x of uniform acceleration from rest at the current t.
+  formula: (s, p) => {
+    const sig = Math.max(
+      sigToMatch(s.v, [s.a, s.t], (a, t) => a * t),
+      sigToMatch(s.x, [s.a, s.t], (a, t) => 0.5 * a * t * t),
+    );
+    const a = tn(s.a, sig);
+    const T = tn(s.t, sig);
+    return [
+      `a = \\frac{F_\\text{net}}{m} = \\frac{${p.F.toFixed(1)}}{${p.m.toFixed(1)}} = ${tn(s.a)}${u('m/s^2')}`,
+      `v = at = ${a} \\times ${T} = ${tn(s.v)}${u('m/s')}`,
+      `x = \\tfrac{1}{2}at^2 = \\tfrac{1}{2} \\times ${a} \\times ${T}^2 = ${tn(s.x)}${u('m')}`,
+    ];
+  },
 
   info: {
     goals: ['ch05.n.goal.second'],

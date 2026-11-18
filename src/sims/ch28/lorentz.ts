@@ -1,6 +1,8 @@
 // Ch 28 scene: charged particles in a uniform field into the page. F = q v × B is always
 // perpendicular to v: speed constant, circular path, period independent of the speed.
+import { num, tn, u } from '../../core/tex';
 import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
+import { texNum } from '../field/render';
 import { fieldGrid, particle } from './common';
 import { PARTICLES, gyrate, lorentz, period, radius, type Kin, type Particle } from './physics';
 
@@ -82,6 +84,35 @@ const params: ParamSchema<P> = {
 };
 
 const cm = (k: Kin): Vec2 => ({ x: k.x * 100, y: k.y * 100 });
+
+/** Readouts: r [cm] of the fastest particle, T [ns]. */
+export const readR = (s: S, p: P) => {
+  const k = s.ps[s.ps.length - 1];
+  return radius(ptOf(p), Math.hypot(k.vx, k.vy), Bof(p)) * 100;
+};
+export const readT = (p: P) => period(ptOf(p), Bof(p)) * 1e9;
+
+/**
+ * Σ panel for the fastest particle: F = |q|vB, r = mv/|q|B and T = 2πm/|q|B. Constants carry
+ * four figures so the shown arithmetic gives the 3-figure result.
+ */
+export function formulaLines(s: S, p: P): string[] {
+  const pt = ptOf(p);
+  const k = s.ps[s.ps.length - 1];
+  const v = Math.hypot(k.vx, k.vy);
+  const B = Bof(p);
+  const [fx, fy] = lorentz(k, pt, -B);
+  const m = texNum(pt.m, 4, 0);
+  const q = texNum(Math.abs(pt.q), 4, 0);
+  // B in T as set (2 mT → 0.002).
+  const Bt = isElectron(p) ? String(Number((p.Be / 1000).toPrecision(4))) : num(p.Bi);
+  const vt = tn(v, 3);
+  return [
+    `F = \\lvert q\\rvert vB = (${texNum(Math.abs(pt.q), 3, 0)})(${vt})(${Bt}) = ${texNum(Math.hypot(fx, fy), 3, 0)}${u('N')}`,
+    `r = \\frac{mv}{\\lvert q\\rvert B} = \\frac{(${m})(${vt})}{(${q})(${Bt})}\\ \\mathrm{m} = ${tn(readR(s, p))}${u('cm')}`,
+    `T = \\frac{2\\pi m}{\\lvert q\\rvert B} = \\frac{2\\pi(${m})}{(${q})(${Bt})}\\ \\mathrm{s} = ${tn(readT(p))}${u('ns')}`,
+  ];
+}
 
 export const lorentzScene: Scene<P, S> = {
   id: 'lorentz',
@@ -189,9 +220,11 @@ export const lorentzScene: Scene<P, S> = {
   },
 
   readouts: [
-    { label: 'r', unit: 'cm', value: (s, p) => radius(ptOf(p), Math.hypot(s.ps[s.ps.length - 1].vx, s.ps[s.ps.length - 1].vy), Bof(p)) * 100 },
-    { label: 'T', unit: 'ns', value: (_s, p) => period(ptOf(p), Bof(p)) * 1e9 },
+    { label: 'r', unit: 'cm', value: (s, p) => readR(s, p) },
+    { label: 'T', unit: 'ns', value: (_s, p) => readT(p) },
   ],
+
+  formula: (s, p) => formulaLines(s, p),
 
   info: {
     goals: ['ch28.l.goal.perp', 'ch28.l.goal.T'],

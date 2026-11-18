@@ -3,8 +3,10 @@
 // constant (velocity Verlet); with friction E falls and the turning points close in.
 import { t as tr } from '../../core/i18n';
 import { fmtTick, niceTicks } from '../../core/format';
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
+import { sigFit } from '../ch07/sigfit';
 import { POTENTIALS, equilibria, forbidden, stepParticle, turningPoints, type PotKind, type Potential } from './physics';
 
 type P = { pot: string; friction: boolean; x0s: number[] };
@@ -265,6 +267,32 @@ export const energyScene: Scene<P, S> = {
     { label: 'U', unit: 'J', value: (s, p) => energies(s, p).U },
     { label: 'E', unit: 'J', value: (s, p) => energies(s, p).E },
   ],
+
+  // U(x) and F = −dU/dx in closed form at the particle, K from its speed, and E = K + U.
+  formula: (s, p) => {
+    const pot = potOf(p);
+    const { K, U, E } = energies(s, p);
+    const F = -pot.dU(s.x);
+    // x with enough digits that U and F follow from it as printed (near x = ±2, U is a small difference).
+    const x = tn(s.x, Math.max(sigFit([s.x], (q) => pot.U(q), U), sigFit([s.x], (q) => -pot.dU(q), F)));
+    const lines =
+      KINDS[idx(p)] === 'double'
+        ? [
+            `U = \\tfrac18(x^2 - 4)^2 = \\tfrac18[(${x})^2 - 4]^2 = ${tn(U)}${u('J')}`,
+            `F = -\\frac{dU}{dx} = -\\tfrac12 x(x^2 - 4)`,
+            `= -\\tfrac12(${x})[(${x})^2 - 4] = ${tn(F)}${u('N')}`,
+          ]
+        : [
+            `U = 1.2 + \\tfrac49\\left(\\tfrac13 x^3 - 2.25x\\right)`,
+            `= 1.2 + \\tfrac49\\left[\\tfrac13(${x})^3 - 2.25(${x})\\right] = ${tn(U)}${u('J')}`,
+            `F = -\\frac{dU}{dx} = -\\tfrac49(x^2 - 2.25)`,
+            `= -\\tfrac49[(${x})^2 - 2.25] = ${tn(F)}${u('N')}`,
+          ];
+    lines.push(`K = \\tfrac12 mv^2 = \\tfrac12(${num(M)})(${tn(s.v)})^2 = ${tn(K)}${u('J')}`);
+    const sg = sigFit([K, U], (k, uu) => k + uu, E);
+    lines.push(`E = K + U = ${tn(K, sg)} + ${tn(U, sg).startsWith('-') ? `(${tn(U, sg)})` : tn(U, sg)} = ${tn(E)}${u('J')}`);
+    return lines;
+  },
 
   info: {
     goals: ['ch08.e.goal.read', 'ch08.e.goal.force'],
