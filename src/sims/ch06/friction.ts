@@ -85,7 +85,7 @@ function drawPull(g: Draw, s: FrictionState): void {
   const c: Vec2 = { x: 0.4 + B / 2 + s.x, y: 0 };
   const mid: Vec2 = { x: c.x, y: B / 2 };
   block(g, c, { x: 1, y: 0 }, { x: 0, y: 1 });
-  g.arrow(mid, { x: 0, y: -M * G * KF }, { role: 'force', width: 2, label: '*m**g*' });
+  g.arrow(mid, { x: 0, y: -M * G * KF }, { role: 'force', width: 2, dash: [5, 3], label: '*m**g*' });
   g.arrow(mid, { x: 0, y: s.N * KF }, { role: 'force', width: 2, label: '*N*' });
   if (s.F > 0) g.arrow({ x: c.x + B / 2, y: B / 2 }, { x: s.F * KF, y: 0 }, { role: 'force', width: 2, label: '*F*' });
   if (s.f > 0) {
@@ -113,7 +113,7 @@ function drawTilt(g: Draw, s: FrictionState): void {
   const c = add(O, u, S0 - s.x);
   const mid = add(c, n, B / 2);
   block(g, c, u, n);
-  g.arrow(mid, { x: 0, y: -M * G * KF }, { role: 'force', width: 2, label: '*m**g*' });
+  g.arrow(mid, { x: 0, y: -M * G * KF }, { role: 'force', width: 2, dash: [5, 3], label: '*m**g*' });
   g.arrow(mid, { x: n.x * s.N * KF, y: n.y * s.N * KF }, { role: 'force', width: 2, label: '*N*' });
   if (s.f > 0) {
     // Friction runs along the board: label above the tip, off the board line, growing up the

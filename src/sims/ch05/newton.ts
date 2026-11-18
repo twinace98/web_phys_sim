@@ -2,11 +2,12 @@
 // force: a = F/m, so v grows linearly with slope F/m.
 import { tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
+import { fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
 import { sigToMatch } from '../ch02/sigma';
-import { drawTrack, padded } from './common';
+import { G5, drawPuckFbd, drawTrack, padded, weightPair } from './common';
 import { netForce, pushState, type Push } from './physics';
 
-type P = { m: number; F: number; strobe: boolean };
+type P = { m: number; F: number; strobe: boolean; fbd: boolean };
 
 interface S {
   t: number;
@@ -63,8 +64,12 @@ const params: ParamSchema<P> = {
     default: 2,
     unit: 'kg',
   },
+  fbd: fbdParam(),
   strobe: { kind: 'toggle', label: 'ch05.n.p.strobe', desc: 'ch05.n.d.strobe', group: 'advanced', live: true, default: true },
 };
+
+/** Free-body diagram of the puck: the push F, N and mg. N and mg cancel; the sum is F = m a. */
+export const newtonFbd = (s: { F: number }, p: { m: number }): FbdForce[] => [{ F: { x: s.F, y: 0 }, label: '*F*' }, ...weightPair(p.m)];
 
 function stateAt(p: P, t: number): Omit<S, 'n' | 't'> {
   const pu = pushOf(p);
@@ -98,7 +103,7 @@ export const newton: Scene<P, S> = {
   draw: (g, s, p) => {
     const [lo, hi] = TRACK;
     const span = hi - lo;
-    drawTrack(g, lo, hi);
+    drawTrack(g, lo, hi, 0, undefined, p.fbd ? s.x : undefined);
 
     // Equal time steps: the spacing grows by the same amount a·Δt² each step.
     if (p.strobe) {
@@ -107,6 +112,13 @@ export const newton: Scene<P, S> = {
         // Open dots, unlike the axis ticks below the track.
         g.circle({ x: q.x, y: 0 }, 4, { fill: '#ffffff', role: 'position', width: 1.25 });
       }
+    }
+
+    if (p.fbd) {
+      // Every force from the puck's centre on one scale (the run's largest force, mg or F). The
+      // separate F, v and a arrows would cross N and mg: hidden.
+      drawPuckFbd(g, s.x, newtonFbd(s, p), fbdScale(Math.max(p.m * G5, p.F)));
+      return;
     }
 
     const vMax = V_MAX;
@@ -161,7 +173,10 @@ export const newton: Scene<P, S> = {
     );
     const a = tn(s.a, sig);
     const T = tn(s.t, sig);
+    const W = p.m * G5;
     return [
+      // Free-body diagram: N and mg cancel, the push is the net force.
+      ...(p.fbd ? [`\\Sigma F_x = F = ${p.F.toFixed(1)}${u('N')},\\quad \\Sigma F_y = N - mg = ${tn(W)} - ${tn(W)} = 0`] : []),
       `a = \\frac{F_\\text{net}}{m} = \\frac{${p.F.toFixed(1)}}{${p.m.toFixed(1)}} = ${tn(s.a)}${u('m/s^2')}`,
       `v = at = ${a} \\times ${T} = ${tn(s.v)}${u('m/s')}`,
       `x = \\tfrac{1}{2}at^2 = \\tfrac{1}{2} \\times ${a} \\times ${T}^2 = ${tn(s.x)}${u('m')}`,

@@ -6,10 +6,12 @@ import { tn, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { sigToMatch } from '../ch02/sigma';
 import type { Draw } from '../../draw/draw';
-import { padded } from './common';
+import { theme } from '../../draw/theme';
+import { FBD_MIN_PX, drawFbd, fbdParam, type FbdForce } from '../../draw/fbd';
+import { G5, padded, weightPair } from './common';
 import { ballGround, ballInTrain, trainAt, type Train } from './physics';
 
-type P = { frame: string; motion: string; A: number; pseudo: boolean };
+type P = { frame: string; motion: string; A: number; pseudo: boolean; fbd: boolean };
 
 interface S {
   t: number;
@@ -28,6 +30,11 @@ const T_UNIFORM = 4;
 const PSEUDO = '#7a7a7a';
 const BODY = '#5c5c5c';
 const POST = '#9a9a9a';
+/** Ball mass [kg] (as in the pseudo force −m a_0 of the Σ panel). */
+export const FRAMES_M = 1;
+/** Longest free-body arrow [px] when the stage has room; dash of the pseudo force (as without the diagram). */
+const FBD_LEN = 56;
+const PSEUDO_DASH = [5, 4];
 
 const trainOf = (p: P): Train => ({ v0: V0, A: p.motion === 'accel' ? p.A : 0, b0: B0 });
 
@@ -84,8 +91,20 @@ const params: ParamSchema<P> = {
     unit: 'm/s²',
     visibleIf: (p) => p.motion === 'accel',
   },
+  fbd: fbdParam(),
   pseudo: { kind: 'toggle', label: 'ch05.f.p.pseudo', desc: 'ch05.f.d.pseudo', group: 'advanced', live: true, default: true },
 };
+
+/**
+ * Free-body diagram of the ball in the chosen frame. Real forces: N and mg only (frictionless
+ * table), in every frame. In the accelerating train, with the pseudo-force toggle on, the
+ * fictitious −m a_0 as well: exerted by no body, but needed for ΣF = m a' there.
+ */
+export function framesFbd(p: P): { real: FbdForce[]; pseudo: number } {
+  const A = trainOf(p).A;
+  const pseudo = p.frame === 'train' && A > 0 && p.pseudo ? -FRAMES_M * A : 0;
+  return { real: weightPair(FRAMES_M), pseudo };
+}
 
 function rect(g: Draw, x0: number, y0: number, x1: number, y1: number, st: Parameters<Draw['polygon']>[1]): void {
   g.polygon(
@@ -105,6 +124,44 @@ function drawTrain(g: Draw, c: number): void {
   for (const dx of [-HALF + 0.9, -HALF + 1.8, HALF - 1.8, HALF - 0.9]) g.circle({ x: c + dx, y: 0.2 }, 6, { fill: BODY });
   g.line({ x: c - TABLE, y: TABLE_Y }, { x: c + TABLE, y: TABLE_Y }, { color: BODY, width: 3 });
   for (const dx of [-TABLE + 0.3, TABLE - 0.3]) g.line({ x: c + dx, y: TABLE_Y }, { x: c + dx, y: 0.35 }, { color: BODY, width: 1.5 });
+}
+
+/**
+ * Faded ball with its free-body diagram from the centre. One scale per run (the ball's height, the
+ * stage and the train do not change during it): the weight, the largest force, gets a length that
+ * keeps the N and mg labels on the stage, below the a_0 arrow in the ground frame, and off the roof,
+ * car-floor and ground lines. The pseudo force is grey and dashed,
+ * as without the diagram: neither a field force nor a contact force.
+ */
+function drawBallFbd(g: Draw, p: P, bc: Vec2, ceil: number | null): void {
+  const sc = theme.scale;
+  const [, cy] = g.vp.toPx(bc.x, bc.y);
+  const yPx = (y: number) => (g.vp.toPx(0, y)[1] - cy) / sc;
+  // Label centre 11 px beyond the tip, text about ±8 px.
+  const up = Math.min(cy / sc, ceil === null ? Infinity : -yPx(ceil) - 10) - 23;
+  const down = (g.vp.h - cy) / sc - 23;
+  const lines = [-yPx(ROOF), yPx(0.35), yPx(0)];
+  const clear = (L: number) => lines.every((d) => Math.abs(L + 11 - d) > 10);
+  // The longest clear length up to FBD_LEN; on a small stage, where none is, the shortest clear one
+  // up to 1.5 FBD_LEN (labels beyond the roof and the ground); else the shortest arrow.
+  const lo = FBD_MIN_PX + 6;
+  const hi = Math.floor(Math.min(up, down));
+  const pick = (from: number, to: number, step: 1 | -1): number | null => {
+    for (let l = from; step < 0 ? l >= to : l <= to; l += step) if (clear(l)) return l;
+    return null;
+  };
+  const L = pick(Math.min(hi, FBD_LEN), lo, -1) ?? pick(FBD_LEN + 1, Math.min(hi, 1.5 * FBD_LEN), 1) ?? lo;
+  const perPx = L / (FRAMES_M * G5);
+  g.circle(bc, 9, { fill: 'position', alpha: 0.25 });
+  g.circle(bc, 9, { role: 'position', width: 1.25 });
+  const { real, pseudo } = framesFbd(p);
+  drawFbd(g, bc, real, perPx);
+  if (pseudo !== 0) {
+    const len = g.px(Math.max(Math.abs(pseudo) * perPx, FBD_MIN_PX)) * Math.sign(pseudo);
+    g.arrow(bc, { x: len, y: 0 }, { color: PSEUDO, width: 2.5, dash: PSEUDO_DASH });
+    // Above the arrow's line: the table top is just below the ball centre.
+    g.text({ x: bc.x + len, y: bc.y }, tr('ch05.f.pseudoLabel'), { size: 13, color: PSEUDO, align: 'right', baseline: 'middle', dx: -5, dy: -9 });
+  }
 }
 
 export const frames: Scene<P, S> = {
@@ -161,6 +218,14 @@ export const frames: Scene<P, S> = {
     const kv = 0.6; // world m per (m/s)
     const ka = 1.2; // world m per (m/s²)
     const vLane = TABLE_Y + 2 * BALL_R + g.px(38);
+    // Acceleration of the train itself, seen from the ground: above the roof, and at least one lane
+    // above the ball's v arrow (they meet on a phone).
+    const a0Lane = Math.max(ROOF + g.px(16), vLane + g.px(22));
+    if (p.fbd) {
+      drawBallFbd(g, p, bc, !inTrain && train.A > 0 ? a0Lane : null);
+      if (!inTrain && train.A > 0) g.arrow({ x: carX, y: a0Lane }, { x: train.A * ka, y: 0 }, { role: 'acceleration', label: tr('ch05.f.trainA') });
+      return;
+    }
     if (Math.abs(b.v) > 1e-9) g.arrow({ x: bx, y: vLane }, { x: b.v * kv, y: 0 }, { role: 'velocity', label: '*v*' });
     if (Math.abs(b.a) > 1e-9) g.arrow({ x: bx, y: TABLE_Y + 2 * BALL_R + g.px(16) }, { x: b.a * ka, y: 0 }, { role: 'acceleration', label: '*a*' });
     if (inTrain && train.A > 0 && p.pseudo) {
@@ -170,11 +235,7 @@ export const frames: Scene<P, S> = {
     }
     g.circle(bc, 9, { fill: 'position' });
 
-    // Acceleration of the train itself, seen from the ground.
-    if (!inTrain && train.A > 0) {
-      // Above the roof, and at least one lane above the ball's v arrow (they meet on a phone).
-      g.arrow({ x: carX, y: Math.max(ROOF + g.px(16), vLane + g.px(22)) },{ x: train.A * ka, y: 0 }, { role: 'acceleration', label: tr('ch05.f.trainA') });
-    }
+    if (!inTrain && train.A > 0) g.arrow({ x: carX, y: a0Lane }, { x: train.A * ka, y: 0 }, { role: 'acceleration', label: tr('ch05.f.trainA') });
   },
 
   plots: [
@@ -217,7 +278,10 @@ export const frames: Scene<P, S> = {
     const b = ball(p, s.t);
     const A0 = trainOf(p).A;
     const F = `F_\\text{net} = ${tn(0)}${u('N')}`;
-    if (p.frame !== 'train') return [`${F} \\;\\Rightarrow\\; a = ${tn(b.a)}${u('m/s^2')}`, `v = v_0 = ${tn(b.v)}${u('m/s')}`];
+    // Free-body diagram: the vertical pair cancels in every frame.
+    const W = FRAMES_M * G5;
+    const vert = p.fbd ? [`\\Sigma F_y = N - mg = ${tn(W)} - ${tn(W)} = 0`] : [];
+    if (p.frame !== 'train') return [`${F} \\;\\Rightarrow\\; a = ${tn(b.a)}${u('m/s^2')}`, `v = v_0 = ${tn(b.v)}${u('m/s')}`, ...vert];
     const sig = sigToMatch(b.v, [b.a, s.t], (a, t) => a * t);
     const lines = [
       F,
@@ -225,7 +289,7 @@ export const frames: Scene<P, S> = {
       `v' = a't = ${tp(b.a, sig)} \\times ${tn(s.t, sig)} = ${tn(b.v)}${u('m/s')}`,
     ];
     if (A0 > 0 && p.pseudo) lines.push(`ma' = -ma_0 = -1 \\times ${A0.toFixed(1)} = ${tn(-A0)}${u('N')}`);
-    return lines;
+    return [...lines, ...vert];
   },
 
   info: {
