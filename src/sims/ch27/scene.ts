@@ -1,5 +1,6 @@
 // Ch 27 scene: RC circuit. The switch charges the capacitor through R from the battery,
 // or discharges it through R. Plots mark t = τ after the latest switch (63 %, 37 %).
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { drawRich } from '../../draw/text';
@@ -243,6 +244,58 @@ function grow(rec: { vc: number; i: number; q: number }): void {
   }
 }
 
+/** Readouts: V_C [V] and i [mA] (loop rule with the switch of the parameters). */
+export const readVC = (s: S, p: P) => {
+  prepare(s, p);
+  return s.q / rcOf(p).C;
+};
+export const readI = (s: S, p: P) => {
+  prepare(s, p);
+  return currentOf(rcOf(p), s, p.sw) * 1e3;
+};
+
+/** Decimals for a term subtracted before a 3-figure result: one more than the result shows. */
+const decFor = (r: number) => {
+  const a = Math.abs(Number(r.toPrecision(3)));
+  return a < 1e-9 ? 3 : Math.min(8, Math.max(0, 2 - Math.floor(Math.log10(a))) + 1);
+};
+
+/**
+ * Σ panel: τ = RC, q(t) of the current segment (since the latest switch at t_s), V_C = q/C and
+ * the loop rule for i with the switch position of the parameters.
+ */
+export function formulaLines(s: S, p: P): string[] {
+  const vc = readVC(s, p);
+  const i = readI(s, p);
+  const c = rcOf(p);
+  const T = tau(c);
+  const qm = s.q * 1e3;
+  const CE = finalCharge(c, true) * 1e3;
+  const dt = s.t - s.ts;
+  // Elapsed time and τ in the exponent as the readouts show them (t is live).
+  const ex = `e^{-${tn(dt)}/${tn(T)}}`;
+  const tt = s.ts > 0 ? '(t - t_s)' : 't';
+  const lines = [`\\tau = RC = (${num(p.R)}\\ \\mathrm{k\\Omega})(${num(p.C)}\\ \\mathrm{\\mu F}) = ${tn(T)}${u('s')}`];
+  if (s.mode === 'charge' && Math.abs(s.q0) < 1e-12) {
+    lines.push(`q = C\\mathcal{E}(1 - e^{-${tt}/\\tau}) = (${tn(CE)}\\ \\mathrm{mC})(1 - ${ex}) = ${tn(qm)}${u('mC')}`);
+  } else if (s.mode === 'charge') {
+    lines.push(`q = C\\mathcal{E} + (q_0 - C\\mathcal{E})\\,e^{-${tt}/\\tau}`);
+    lines.push(`q = ${tn(CE)} + (${tn(s.q0 * 1e3)} - ${tn(CE)})\\,${ex} = ${tn(qm)}${u('mC')}`);
+  } else {
+    lines.push(`q = q_0\\,e^{-${tt}/\\tau} = (${tn(s.q0 * 1e3)}\\ \\mathrm{mC})\\,${ex} = ${tn(qm)}${u('mC')}`);
+  }
+  lines.push(`V_C = \\frac{q}{C} = \\frac{${tn(qm, 4)}\\times 10^{-3}}{${num(p.C)}\\times 10^{-6}}\\ \\mathrm{V} = ${tn(vc)}${u('V')}`);
+  const R = `${num(p.R)}\\ \\mathrm{k\\Omega}`;
+  if (p.sw === 'charge') {
+    // Once settled the readout prints i = 0 (rounding noise), and V_C = ℰ to its figures.
+    const d = i === 0 ? 2 : decFor(EMF - vc);
+    lines.push(`i = \\frac{\\mathcal{E} - V_C}{R} = \\frac{${EMF} - ${vc.toFixed(d)}}{${R}} = ${tn(i)}${u('mA')}`);
+  } else {
+    lines.push(`i = -\\frac{V_C}{R} = -\\frac{${tn(vc, 4)}\\ \\mathrm{V}}{${R}} = ${tn(i)}${u('mA')}`);
+  }
+  return lines;
+}
+
 export const rcCircuit: Scene<P, S> = {
   id: 'rc',
   title: 'ch27.scene',
@@ -349,23 +402,11 @@ export const rcCircuit: Scene<P, S> = {
 
   readouts: [
     { label: '\\tau', unit: 's', value: (_s, p) => tau(rcOf(p)) },
-    {
-      label: 'V_C',
-      unit: 'V',
-      value: (s, p) => {
-        prepare(s, p);
-        return s.q / rcOf(p).C;
-      },
-    },
-    {
-      label: 'i',
-      unit: 'mA',
-      value: (s, p) => {
-        prepare(s, p);
-        return currentOf(rcOf(p), s, p.sw) * 1e3;
-      },
-    },
+    { label: 'V_C', unit: 'V', value: (s, p) => readVC(s, p) },
+    { label: 'i', unit: 'mA', value: (s, p) => readI(s, p) },
   ],
+
+  formula: (s, p) => formulaLines(s, p),
 
   info: {
     goals: ['ch27.goal.exp', 'ch27.goal.tau'],
