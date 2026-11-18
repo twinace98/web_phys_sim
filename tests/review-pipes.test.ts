@@ -9,10 +9,13 @@ import ko from '../src/sims/review/pipes/i18n.ko.json';
 import {
   V_SOUND,
   allowed,
+  columns,
+  densityShape,
   displacementAntinodes,
   displacementNodes,
   displacementShape,
   frequency,
+  particleX,
   pressureShape,
   wavelength,
   waveNumber,
@@ -181,5 +184,87 @@ describe('pipes: page', () => {
       expect(parts.length % 2).toBe(1);
       for (let i = 0; i < parts.length - 1; i += 2) expect(parts[i]).not.toMatch(/[A-Za-z0-9가-힣]$/);
     }
+  });
+});
+
+describe('pipes: tracer columns and density', () => {
+  const cases: [PipeType, number, number][] = [
+    ['open', 1, 1],
+    ['open', 3, 1],
+    ['open', 8, 0.25],
+    ['closed', 1, 1],
+    ['closed', 5, 2],
+    ['closed', 15, 1.37],
+  ];
+
+  it('a tracer column sits exactly on every displacement node and antinode', () => {
+    for (const [type, n, L] of cases)
+      for (const approx of [16, 36, 134]) {
+        const C = columns(type, L, n, approx);
+        const tr = C.x.filter((_x, i) => C.tracer[i]);
+        const nd = C.x.filter((_x, i) => C.node[i]);
+        close(nd, displacementNodes(type, L, n));
+        const all = [...displacementNodes(type, L, n), ...displacementAntinodes(type, L, n)].sort((a, b) => a - b);
+        close(tr, all);
+        expect(C.x[0]).toBe(0);
+        expect(C.x[C.x.length - 1]).toBeCloseTo(L, 12);
+      }
+  });
+
+  it('node columns stay fixed (displacement 0 to 1e-12); antinode columns move the full amplitude', () => {
+    for (const [type, n, L] of cases) {
+      const C = columns(type, L, n, 40);
+      const sm = 0.05 * L;
+      for (const ph of [0, 0.4, 1.3, Math.PI, 5]) {
+        C.x.forEach((x0, i) => {
+          if (!C.tracer[i]) return;
+          const d = particleX(type, L, n, x0, sm, ph) - x0;
+          if (C.node[i]) expect(Math.abs(d)).toBeLessThan(1e-12 * L);
+          else expect(Math.abs(d)).toBeCloseTo(sm * Math.abs(Math.cos(ph)), 12);
+        });
+      }
+    }
+  });
+
+  it('density from the moving columns: largest change at displacement nodes, none at antinodes', () => {
+    for (const [type, n, L] of cases) {
+      const C = columns(type, L, n, 60);
+      const sm = 0.001 * L;
+      const dx = C.x[1] - C.x[0];
+      // Δρ/ρ of the slab around column i: rest width / moved width − 1 (neighbours i ± 1), at ωt = 0.
+      const rel = (i: number) => {
+        const a = particleX(type, L, n, C.x[i] - dx, sm, 0);
+        const b = particleX(type, L, n, C.x[i] + dx, sm, 0);
+        return (2 * dx) / (b - a) - 1;
+      };
+      const k = waveNumber(type, L, n);
+      let maxAll = 0;
+      let maxNode = 0;
+      for (let i = 1; i < C.x.length - 1; i++) {
+        maxAll = Math.max(maxAll, Math.abs(rel(i)));
+        if (C.node[i]) maxNode = Math.max(maxNode, Math.abs(rel(i)));
+      }
+      // The largest density change of all columns is at a node; every node is within 5 % of it
+      // (compressed and rarefied slabs differ at second order).
+      if (C.node.slice(1, -1).some(Boolean)) expect(maxNode).toBe(maxAll);
+      C.x.forEach((x0, i) => {
+        if (i === 0 || i === C.x.length - 1 || !C.tracer[i]) return;
+        if (C.node[i]) {
+          expect(Math.abs(rel(i))).toBeGreaterThan(0.95 * maxAll);
+          expect(Math.abs(densityShape(type, L, n, x0))).toBeCloseTo(1, 12);
+          // Exactly: the slab is 2dx − 2 s_m sin(kx) sin(k dx) wide; to first order Δρ/ρ = −∂s/∂x = k s_m.
+          const sx = Math.sin(k * x0);
+          expect(rel(i)).toBeCloseTo(dx / (dx - sm * sx * Math.sin(k * dx)) - 1, 12);
+          expect(Math.abs(rel(i)) / (k * sm)).toBeCloseTo(1, 1);
+        } else {
+          expect(Math.abs(rel(i))).toBeLessThan(1e-12);
+          expect(Math.abs(densityShape(type, L, n, x0))).toBeLessThan(1e-12);
+        }
+      });
+    }
+  });
+
+  it('the density profile is the pressure profile (Δρ/ρ = Δp/B)', () => {
+    for (const [type, n, L] of cases) for (const x of [0, 0.13, 0.5, 0.77, 1].map((u) => u * L)) expect(densityShape(type, L, n, x)).toBe(pressureShape(type, L, n, x));
   });
 });

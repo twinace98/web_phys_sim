@@ -79,15 +79,34 @@ export interface Motion {
   v: number;
 }
 
-/** Highest the block bottom may go [m]. */
+/**
+ * Top of the drawing [m]: 0.86, raised for blocks larger than 0.25 m, so that a very light block
+ * released at the floor stays in view while it jumps out of the fluid (tests check the margin).
+ */
+export const viewTop = (a: number) => 0.86 + 1.75 * Math.max(0, a - 0.25);
+
+/** Highest the block bottom may be dragged to [m]. */
 export const yMax = (b: Block) => 0.84 - b.a;
 
-/** Linear drag F_d = −b v while the block is in the fluid (none in air) [N]. */
-export const drag = (b: Block, f: Fluid, y: number, v: number, zeta = ZETA): number => (levelAt(b, y).s > 0 ? -dampCoef(b, f, zeta) * v : 0);
+/** Form-drag coefficient of a cube moving face-on. */
+export const CD = 1.05;
+
+/**
+ * Drag while the block is in the fluid (none in air) [N]: the linear term −b v that damps small
+ * bobbing, plus form drag −½ C_d ρ_f A v|v| on the submerged fraction s/a. The quadratic term
+ * matters only at speed: it caps how fast a light block rises when released deep (terminal speed
+ * √(2(1 − ρ_obj/ρ_f) a g / C_d), at most about 2.7 m/s for a = 0.4 m), so it leaves the surface
+ * slowly enough to rise only about a block height into the air and fall back.
+ */
+export function drag(b: Block, f: Fluid, y: number, v: number, zeta = ZETA, cd = CD): number {
+  const { s } = levelAt(b, y);
+  if (s <= 0) return 0;
+  return -dampCoef(b, f, zeta) * v - 0.5 * cd * f.rho * blockArea(b) * (s / b.a) * v * Math.abs(v);
+}
 
 /** Net force without the floor [N]: F_b − F_g + F_d. */
-export function freeForce(b: Block, f: Fluid, y: number, v: number, zeta = ZETA): number {
-  return buoyancy(b, f, y) - weight(b) + drag(b, f, y, v, zeta);
+export function freeForce(b: Block, f: Fluid, y: number, v: number, zeta = ZETA, cd = CD): number {
+  return buoyancy(b, f, y) - weight(b) + drag(b, f, y, v, zeta, cd);
 }
 
 /** Normal force of the floor [N] when the block rests on it, else 0. */
@@ -96,10 +115,13 @@ export function normal(b: Block, f: Fluid, m: Motion): number {
   return Math.max(0, weight(b) - buoyancy(b, f, 0));
 }
 
-/** One RK4 step of size h. The floor stops the block (inelastic); the top limit too. */
-export function step(b: Block, f: Fluid, m: Motion, h: number, zeta = ZETA): void {
+/**
+ * One RK4 step of size h. The floor stops the block (inelastic). Above the fluid the block flies
+ * under gravity alone and falls back (no ceiling; the drag limits how high it gets).
+ */
+export function step(b: Block, f: Fluid, m: Motion, h: number, zeta = ZETA, cd = CD): void {
   const M = blockMass(b);
-  const acc = (y: number, v: number) => freeForce(b, f, y, v, zeta) / M;
+  const acc = (y: number, v: number) => freeForce(b, f, y, v, zeta, cd) / M;
   const k1v = acc(m.y, m.v);
   const k1y = m.v;
   const k2v = acc(m.y + (h / 2) * k1y, m.v + (h / 2) * k1v);
@@ -113,10 +135,5 @@ export function step(b: Block, f: Fluid, m: Motion, h: number, zeta = ZETA): voi
   if (m.y <= 0) {
     m.y = 0;
     if (m.v < 0) m.v = 0;
-  }
-  const top = yMax(b);
-  if (m.y >= top) {
-    m.y = top;
-    if (m.v > 0) m.v = 0;
   }
 }

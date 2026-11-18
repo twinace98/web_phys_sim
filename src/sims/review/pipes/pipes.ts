@@ -3,18 +3,19 @@
 // envelopes and nodes (N) and antinodes (A). The animation is slowed to one cycle every 2 s.
 import type { ParamSchema, Scene, Vec2 } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
-import { color, withAlpha } from '../../../draw/theme';
+import { color, theme, withAlpha } from '../../../draw/theme';
 import { W, linePx, textPx } from '../../modern/frame';
 import { soundTick } from '../../ch17/audio';
 import {
   V_SOUND,
+  columns,
   displacementAntinodes,
   displacementNodes,
   displacementShape,
   frequency,
   pressureShape,
   wavelength,
-  waveNumber,
+  particleX,
   type PipeType,
 } from './physics';
 import { tn, u } from './tex';
@@ -26,9 +27,9 @@ type S = { t: number };
 export const F_SHOW = 0.5;
 const STEEL = '#5c5c5c';
 const DOT = '#a0a0a0';
-const LABEL = '#6b6b6b';
 const ENV = '#9a9a9a';
-const GUIDE = '#dadada';
+/** Dotted guide through each displacement node (= pressure antinode), pipe to pressure graph. */
+const GUIDE = '#a8a8a8';
 
 export const harmonicOf = (p: P) => (p.type === 'open' ? p.nOpen : p.nClosed);
 
@@ -120,7 +121,8 @@ function graph(
   shape: (x: number) => number,
   phase: number,
   role: 'position' | 'force',
-  label: string,
+  labels: string[],
+  sub: string,
   nodes: number[],
   antinodes: number[],
   L: number,
@@ -142,10 +144,23 @@ function graph(
   }
   for (const e of env) g.polyline(e, { color: ENV, width: 1.25, dash: [5, 4] });
   g.polyline(cur, { role, width: 2.25 });
-  textPx(g, R.xl - 12, ym, label, { size: 15, color: role, align: 'right', baseline: 'middle' });
-  const lt = { size: 12, color: LABEL, align: 'center' as const, baseline: 'middle' as const };
-  for (const x of nodes) textPx(g, X(x), bot + 11, 'N', lt);
-  for (const x of antinodes) textPx(g, X(x), bot + 11, 'A', lt);
+  labels.forEach((l, i) => textPx(g, R.xl - 12, ym + (i - (labels.length - 1) / 2) * 20, l, { size: 15, color: role, align: 'right', baseline: 'middle' }));
+  // Node and antinode letters of this graph, in its colour and with its symbol as subscript
+  // (N_s, A_s for the displacement s; N_p, A_p for the pressure Δp), on a white backing so the
+  // dotted guides pass behind them.
+  const lt = { size: 14, color: role, align: 'center' as const, baseline: 'middle' as const };
+  const ctx = g.ctx;
+  for (const [xs, ch] of [
+    [nodes, 'N'],
+    [antinodes, 'A'],
+  ] as const)
+    for (const x of xs) {
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(X(x) - 10 * theme.scale, bot + 11 - 8 * theme.scale, 20 * theme.scale, 16 * theme.scale);
+      ctx.restore();
+      textPx(g, X(x), bot + 11, `${ch}_{*${sub}*}`, lt);
+    }
 }
 
 export const pipesScene: Scene<P, S> = {
@@ -170,8 +185,9 @@ export const pipesScene: Scene<P, S> = {
     const nodes = displacementNodes(p.type, L, n);
     const anti = displacementAntinodes(p.type, L, n);
 
-    // Guides through the displacement nodes (= pressure antinodes), pipe to pressure graph.
-    for (const x of nodes) linePx(g, X(x), R.pipe[0], X(x), R.pres[1], { color: GUIDE, width: 1, dash: [2, 3] });
+    // Guides through the displacement nodes (= pressure antinodes): from the fixed tracer column
+    // in the pipe through N_s on the displacement graph to A_p on the pressure graph.
+    for (const x of nodes) linePx(g, X(x), R.pipe[0], X(x), R.pres[1] + 4, { color: GUIDE, width: 1, dash: [2, 3] });
 
     // Pipe: walls, closed end, particles.
     const [pt, pb] = R.pipe;
@@ -179,12 +195,13 @@ export const pipesScene: Scene<P, S> = {
     const lam = (wavelength(p.type, L, n) / L) * pw; // px
     // Shown displacement: a strain s k of at most 0.6 (columns never cross), and at most 15 % of the pipe.
     const sPx = Math.min((0.6 * lam) / (2 * Math.PI), 0.15 * pw);
-    const k = waveNumber(p.type, L, n);
-    const cols = Math.max(16, Math.round(pw / 9));
-    const every = Math.max(5, Math.round(cols / 8));
+    const sm = (sPx / pw) * L;
+    // Columns about 9 px apart, one exactly on every displacement node and antinode (blue tracers).
+    const C = columns(p.type, L, n, Math.max(16, Math.round(pw / 9)));
+    const N = C.x.length - 1;
     // Columns continue past an open end (air moving in and out); everything is clipped to the pipe.
-    const ext = Math.ceil(sPx / (pw / cols)) + 1;
-    const j1 = p.type === 'closed' ? cols : cols + ext;
+    const ext = Math.ceil(sPx / (pw / N)) + 1;
+    const jEnd = p.type === 'closed' ? N : N + ext;
     const nRow = Math.max(3, Math.min(9, Math.round((pb - pt) / 13)));
     const ctx = g.ctx;
     // Compressions (Δp > 0) tinted in the pressure colour.
@@ -201,23 +218,25 @@ export const pipesScene: Scene<P, S> = {
     ctx.beginPath();
     ctx.rect(R.xl, pt + 3, pw, pb - pt - 6);
     ctx.clip();
-    for (let j = -ext; j < j1; j++) {
-      const x0 = (L * (j + 0.5)) / cols;
-      const xd = X(x0) + sPx * Math.cos(k * x0) * Math.cos(phase);
-      const tracer = j >= 0 && j < cols && j % every === Math.floor(every / 2);
-      for (let r = 0; r < nRow; r++) {
-        const y = pt + ((pb - pt) * (r + 0.5)) / nRow;
-        g.circle(W(g, xd, y), tracer ? 2.6 : 1.9, { fill: tracer ? 'position' : DOT });
+    const tracers: number[] = [];
+    for (let j = -ext; j <= jEnd; j++) {
+      const xd = X(particleX(p.type, L, n, (j * L) / N, sm, phase));
+      if (j >= 0 && j <= N && C.tracer[j]) {
+        tracers.push(xd);
+        continue;
       }
+      for (let r = 0; r < nRow; r++) g.circle(W(g, xd, pt + ((pb - pt) * (r + 0.5)) / nRow), 1.9, { fill: DOT });
     }
+    for (const xd of tracers) for (let r = 0; r < nRow; r++) g.circle(W(g, xd, pt + ((pb - pt) * (r + 0.5)) / nRow), 2.6, { fill: 'position' });
     ctx.restore();
     const wall = { color: STEEL, width: 3 };
     linePx(g, R.xl, pt, R.xr, pt, wall);
     linePx(g, R.xl, pb, R.xr, pb, wall);
     if (p.type === 'closed') linePx(g, R.xr, pt - 1.5, R.xr, pb + 1.5, { color: STEEL, width: 5 });
 
-    graph(g, R, R.disp, (x) => displacementShape(p.type, L, n, x), phase, 'position', '*s*', nodes, anti, L);
-    graph(g, R, R.pres, (x) => pressureShape(p.type, L, n, x), phase, 'force', 'Δ*p*', anti, nodes, L);
+    graph(g, R, R.disp, (x) => displacementShape(p.type, L, n, x), phase, 'position', ['*s*'], 's', nodes, anti, L);
+    // Δρ/ρ = Δp/B: the pressure graph is also the density graph.
+    graph(g, R, R.pres, (x) => pressureShape(p.type, L, n, x), phase, 'force', ['Δ*p*', 'Δ*ρ*'], 'p', anti, nodes, L);
   },
 
   readouts: [
@@ -242,9 +261,9 @@ export const pipesScene: Scene<P, S> = {
 
   info: {
     goals: ['pipes.goal.ends', 'pipes.goal.harm'],
-    observe: ['pipes.obs.open1', 'pipes.obs.dots', 'pipes.obs.np', 'pipes.obs.closed', 'pipes.obs.L', 'pipes.obs.sound'],
+    observe: ['pipes.obs.open1', 'pipes.obs.dots', 'pipes.obs.density', 'pipes.obs.np', 'pipes.obs.closed', 'pipes.obs.L', 'pipes.obs.sound'],
     equations: [
-      '\\Delta p = -B\\frac{\\partial s}{\\partial x}',
+      '\\Delta p = -B\\frac{\\partial s}{\\partial x}, \\quad \\frac{\\Delta\\rho}{\\rho} = -\\frac{\\partial s}{\\partial x} = \\frac{\\Delta p}{B}',
       '\\lambda = \\frac{2L}{n},\\ f = \\frac{nv}{2L} \\quad (n = 1, 2, 3, \\dots)',
       '\\lambda = \\frac{4L}{n},\\ f = \\frac{nv}{4L} \\quad (n = 1, 3, 5, \\dots)',
     ],
