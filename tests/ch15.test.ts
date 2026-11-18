@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
-import { agm, exactPeriod, omega0, oscAt, pendulumStep, period, smallAnglePeriod, type Oscillator } from '../src/sims/ch15/physics';
-import { pendulum } from '../src/sims/ch15/pendulum';
+import { agm, ellipticK, exactPeriod, omega0, oscAt, pendulumStep, period, periodError, smallAnglePeriod, type Oscillator } from '../src/sims/ch15/physics';
+import { ARROW_MAX, bobArrows, pendulum, sigFor, worldTop } from '../src/sims/ch15/pendulum';
 import { shm } from '../src/sims/ch15/shm';
+import { offStage, probe, ProbeDraw } from './stage-probe';
 
 const osc = (A: number, k: number, m: number, zeta = 0): Oscillator => ({ A, k, m, zeta });
 const DEG = Math.PI / 180;
@@ -72,17 +73,6 @@ describe('ch15 simple harmonic motion', () => {
     expect(r.state.x).toBeCloseTo(p.A * Math.cos(Math.sqrt(p.k / p.m) * r.state.t), 12);
   });
 
-  it('phase space (v horizontal, x vertical) is traced counterclockwise, with and without damping', () => {
-    // Counterclockwise in the (v, x) plane: v·dx/dt − x·dv/dt = v² − x a > 0.
-    for (const zeta of [0, 0.05, 0.2]) {
-      const o = osc(0.2, 20, 1, zeta);
-      for (let t = 0.01; t < 4; t += 0.037) {
-        const s = oscAt(o, t);
-        expect(s.v * s.v - s.x * s.a).toBeGreaterThan(0);
-      }
-    }
-  });
-
   it('readouts ω and T describe the same oscillation: ωT = 2π, also when damped', () => {
     for (const zeta of [0, 0.1, 0.2]) {
       const p = { ...defaults(shm.params), m: 2, k: 5, zeta };
@@ -118,12 +108,180 @@ describe('ch15 simple pendulum', () => {
     }
   });
 
-  it('scene: the pendulum lags its SHM model at 90°', () => {
+
+  it('K(k) = ∫ dφ/√(1 − k² sin²φ) and T = 4√(L/g) K(sin(θ₀/2))', () => {
+    for (const k of [0, 0.3, Math.SQRT1_2, 0.99]) {
+      const n = 20000;
+      let sum = 0;
+      for (let i = 0; i < n; i++) {
+        const phi = ((i + 0.5) / n) * (Math.PI / 2);
+        sum += 1 / Math.sqrt(1 - k * k * Math.sin(phi) ** 2);
+      }
+      expect(ellipticK(k)).toBeCloseTo((sum * Math.PI) / 2 / n, 6);
+    }
+    expect(ellipticK(Math.SQRT1_2)).toBeCloseTo(1.854075, 6);
+    expect(exactPeriod(pd, 90 * DEG)).toBeCloseTo(4 * Math.sqrt(1 / 9.8) * 1.854075, 6);
+  });
+});
+
+/** Period of the scene's own simulated motion: the first return to θ₀ (ω from + to −), released at rest. */
+function measuredPeriod(theta0: number, L = 1): number {
+  const p = { ...defaults(pendulum.params), theta0, L };
+  const s = pendulum.init(p, null as never);
+  const h = 1e-3;
+  let prev = s.w;
+  while (s.t < 30) {
+    pendulum.step!(s, h, p);
+    if (prev > 0 && s.w <= 0) return s.t - h * (s.w / (s.w - prev));
+    prev = s.w;
+  }
+  return NaN;
+}
+
+const ui = (t: number) => ({ t, cursorT: t, scrubbing: false, lecture: false });
+
+describe('ch15 pendulum: one real pendulum against the small-angle model', () => {
+  const pd = { L: 1, g: 9.8 };
+
+  it('the error (T − T₀)/T₀ grows with amplitude: 0.19 % at 10°, 1.74 % at 30°, 18.0 % at 90°', () => {
+    expect(100 * periodError(pd, 10 * DEG)).toBeCloseTo(0.1907, 3);
+    expect(100 * periodError(pd, 30 * DEG)).toBeCloseTo(1.7409, 3);
+    expect(100 * periodError(pd, 90 * DEG)).toBeCloseTo(18.034, 2);
+    expect(100 * periodError(pd, 150 * DEG)).toBeCloseTo(76.22, 1);
+    // independent of L
+    expect(periodError({ L: 0.2, g: 9.8 }, 30 * DEG)).toBeCloseTo(periodError({ L: 2, g: 9.8 }, 30 * DEG), 12);
+  });
+
+  it('the simulated motion has the exact period, so its measured error matches the readout', () => {
+    for (const [th0, pct] of [
+      [10, 0.19],
+      [30, 1.74],
+      [90, 18.03],
+    ] as const) {
+      const p = { ...defaults(pendulum.params), theta0: th0 };
+      const T = measuredPeriod(th0);
+      const T0 = smallAnglePeriod(pd);
+      expect(T).toBeCloseTo(exactPeriod(pd, th0 * DEG), 5);
+      expect(100 * (T / T0 - 1)).toBeCloseTo(pct, 2);
+      const [rT, rT0, rErr] = pendulum.readouts!.map((ro) => ro.value(pendulum.init(p, null as never), p));
+      expect(rT).toBeCloseTo(T, 5);
+      expect(rT0).toBeCloseTo(T0, 12);
+      expect(rErr).toBeCloseTo(pct, 2);
+    }
+    expect(pendulum.readouts!.map((r) => r.unit)).toEqual(['s', 's', '%']);
+  });
+
+  it('stage: one bob only (no SHM ghost), arrows v, a_t, a_r', () => {
     const p = defaults(pendulum.params);
-    const r = new Runner(pendulum, p);
-    r.play();
-    r.advance(smallAnglePeriod({ L: p.L, g: 9.8 }));
-    // the SHM model is back at θ₀; the real pendulum is not yet
-    expect(r.state.th).toBeLessThan(p.theta0 * DEG - 0.1);
+    const circles: number[] = [];
+    class Rec extends ProbeDraw {
+      circle(_c: { x: number; y: number }, rPx: number): void {
+        circles.push(rPx);
+      }
+    }
+    const labels = (s: { t: number; th: number; w: number }, q = p) => {
+      circles.length = 0;
+      const g = new Rec(768, 650);
+      g.vp.fit(pendulum.world(q), 768, 650);
+      pendulum.draw(g, s, q, ui(s.t));
+      return g.marks.map((m) => m.text ?? 'tip');
+    };
+    const T = exactPeriod(pd, p.theta0 * DEG);
+    // At release (rest): only a_t.
+    const s = pendulum.init(p, null as never);
+    expect(labels(s)).toEqual(['tip', '*a*_{t}']);
+    expect(circles.filter((r) => r > 5)).toHaveLength(1);
+    // At the bottom: v and a_r, a_t = 0.
+    while (s.t < T / 4 - 1e-9) pendulum.step!(s, 1e-3, p);
+    expect(labels(s).sort()).toEqual(['*a*_{r}', '*v*', 'tip', 'tip']);
+    expect(circles.filter((r) => r > 5)).toHaveLength(1);
+    // On the way down: all three, with v and a_t on the same line, pointing the same way.
+    const s2 = pendulum.init(p, null as never);
+    while (s2.t < T / 8) pendulum.step!(s2, 1e-3, p);
+    const a = bobArrows(s2, p);
+    expect(labels(s2).sort()).toEqual(['*a*_{r}', '*a*_{t}', '*v*', 'tip', 'tip', 'tip']);
+    expect(a.v.x * a.at.y - a.v.y * a.at.x).toBeCloseTo(0, 12);
+    expect(a.v.x * a.at.x + a.v.y * a.at.y).toBeGreaterThan(0);
+    // Toggle off: no arrows.
+    expect(labels(s2, { ...p, vectors: false })).toEqual([]);
+  });
+
+  it('arrows: v and the larger acceleration part reach ARROW_MAX over a swing; nothing off stage', () => {
+    for (const theta0 of [5, 10, 30, 90, 120, 170]) {
+      const p = { ...defaults(pendulum.params), theta0 };
+      const s = pendulum.init(p, null as never);
+      const T = exactPeriod(pd, theta0 * DEG);
+      let vMax = 0;
+      let aMax = 0;
+      while (s.t < T) {
+        const a = bobArrows(s, p);
+        vMax = Math.max(vMax, Math.hypot(a.v.x, a.v.y));
+        aMax = Math.max(aMax, Math.hypot(a.at.x, a.at.y), Math.hypot(a.ar.x, a.ar.y));
+        for (const [w, h] of [
+          [768, 650],
+          [390, 255],
+        ])
+          expect(offStage(probe(pendulum, s, p, w, h))).toEqual([]);
+        for (let i = 0; i < 20; i++) pendulum.step!(s, 1e-3, p);
+      }
+      expect(vMax).toBeCloseTo(ARROW_MAX, 2);
+      expect(aMax).toBeCloseTo(ARROW_MAX, 2);
+    }
+  });
+
+  it('a_r label sits beside the string, not on it; the stage top only grows for releases above 90°', () => {
+    const p = defaults(pendulum.params);
+    const s = pendulum.init(p, null as never);
+    const T = exactPeriod(pd, p.theta0 * DEG);
+    while (s.t < T / 8) pendulum.step!(s, 1e-3, p);
+    const g = probe(pendulum, s, p, 768, 650);
+    const lab = g.marks.find((m) => m.text === '*a*_{r}')!;
+    // distance from the label centre to the string line (pivot → bob), in px
+    const [ox, oy] = g.vp.toPx(0, 0);
+    const [bx, by] = g.vp.toPx(Math.sin(s.th), -Math.cos(s.th));
+    const cx = lab.x + lab.w / 2;
+    const d = Math.abs((bx - ox) * (oy - lab.y) - (ox - cx) * (by - oy)) / Math.hypot(bx - ox, by - oy);
+    expect(d).toBeGreaterThan(10);
+    for (const th0 of [5, 30, 90]) expect(worldTop({ ...p, theta0: th0 })).toBeLessThan(0.3);
+    expect(worldTop({ ...p, theta0: 170 })).toBeGreaterThan(1);
+  });
+
+  it('formula panel: T₀, K, T and the error with numbers; a_t against the model −gθ', () => {
+    const p = defaults(pendulum.params);
+    const s = pendulum.init(p, null as never);
+    const f = pendulum.formula!(s, p).join('\n');
+    expect(f).toContain('2\\pi\\sqrt{1.0/9.8} = 2.007');
+    expect(f).toContain('K(\\sin 45^\\circ) = 1.854');
+    expect(f).toContain('= 2.369\\ \\mathrm{s}');
+    expect(f).toContain('= 18.0\\ \\%');
+    expect(f).toContain('-9.8\\sin(90.0^\\circ) = -9.80');
+    expect(f).toContain('-g\\theta = -9.8 \\times 1.57 = -15.4');
+    // 10°: enough digits that the shown difference gives the shown error
+    const f10 = pendulum.formula!(pendulum.init({ ...p, theta0: 10 }, null as never), { ...p, theta0: 10 });
+    expect(f10[3]).toContain('\\frac{2.01092 - 2.00709}{2.00709} = 0.191');
+    expect(((2.01092 - 2.00709) / 2.00709) * 100).toBeCloseTo(0.191, 3);
+    expect(sigFor(0.18)).toBe(4);
+  });
+});
+
+describe('ch15 SHM layout without the phase-space panel', () => {
+  it('two columns only: no phase-space axes or labels, a narrower world, nothing off stage', () => {
+    const p = defaults(shm.params);
+    const w = shm.world(p);
+    expect(w.x[1] - w.x[0]).toBeLessThan(1.3); // was 2.03 with the phase-space column
+    for (const zeta of [0, 0.2]) {
+      const q = { ...p, A: 0.3, zeta };
+      const r = new Runner(shm, q);
+      r.play();
+      for (const t of [0.2, 0.9, 1.6, 3.3]) {
+        r.advance(t - r.state.t);
+        expect(probe(shm, r.state, q, 768, 650).marks.filter((m) => m.kind === 'text')).toEqual([]);
+        for (const [W, H] of [
+          [768, 650],
+          [390, 255],
+        ])
+          expect(offStage(probe(shm, r.state, q, W, H))).toEqual([]);
+      }
+    }
   });
 });
