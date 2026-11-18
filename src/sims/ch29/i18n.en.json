@@ -36,7 +36,7 @@
   "ch29.a.goal.out": "Currents outside the path change $\\vec B$ on it but add nothing to the circulation",
   "ch29.a.obs.single": "Single wire: the field lines are circles around the wire, $B \\propto 1/r$",
   "ch29.a.obs.pair": "Opposite pair: a loop around both has $I_\\text{enc} = 0$, so $\\oint \\vec B\\cdot d\\vec l = 0$ although $\\vec B$ on the path is not zero",
-  "ch29.a.obs.solenoid": "Solenoid section: strong, nearly uniform field inside, weak field outside. A loop around the top row gives the number of wires enclosed × $\\mu_0 I$",
+  "ch29.a.obs.solenoid": "Solenoid section: nearly uniform field along the middle inside, weak field outside. The centre field, 13.3 μT, is about 84 % of the ideal $\\mu_0 n I$ = 15.7 μT, because the coil is only 4 times as long as it is wide; a longer coil comes closer to $\\mu_0 n I$. A loop around the top row gives the number of wires enclosed × $\\mu_0 I$",
   "ch29.a.obs.arrows": "Arrows on the path: the tangential component $B_t$, vermilion along the path (counter-clockwise), blue against it",
   "ch29.a.obs.shape": "Stretching or reshaping the loop leaves the value unchanged as long as it encloses the same current",
   "ch29.a.obs.tray": "Tray at the lower left: add ⊙ (1 A out of the page) and ⊗ (1 A into the page); drop one on the tray (bin) or double-click it to remove it",
