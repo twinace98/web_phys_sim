@@ -207,6 +207,9 @@ const CL = 3.2; // cladding half-width
 const LIN = 5;
 const FX = 30;
 const FY = 6.2;
+/** Jacket band drawn outside the cladding [px], and its colour. */
+export const JACKET_PX = 4;
+const JACKET = '#3a3a3a';
 
 const fibreOf = (p: PF): Fibre => ({ n1: N_CORE, n2: Number(p.clad), n0: 1 });
 
@@ -239,7 +242,7 @@ const fibreParams: ParamSchema<PF> = {
   },
 };
 
-export type Layer = 'core' | 'clad' | 'out';
+export type Layer = 'core' | 'clad';
 
 export interface Seg {
   a: Vec2;
@@ -265,50 +268,51 @@ const MAX_SEGS = 1200;
 const I_MIN = 0.004;
 
 /**
- * Ray tree in a straight fibre: core |y| < CR (n1), cladding CR < |y| < CL (n2), outside (n0).
- * Every boundary splits a ray into a Fresnel-reflected branch and a Snell-refracted one (only the
- * reflected one under total internal reflection), so n·cos(angle to the axis) is the same in
- * every layer. A ray ends at the far end XF or, outside the fibre, at the stage edge. Branches
- * weaker than the line-drawing threshold are dropped; the strongest are traced first.
+ * Ray tree in a straight fibre: core |y| < CR (n1), cladding CR < |y| < CL (n2), and an
+ * absorbing jacket (buffer coating) on the outer cladding edge |y| = CL, as on a real fibre.
+ * Every core wall splits a ray into a Fresnel-reflected branch and a Snell-refracted one (only
+ * the reflected one under total internal reflection), so n·cos(angle to the axis) is the same
+ * in both layers. A ray ends at the far end XF (arrives) or on the jacket (absorbed: no
+ * reflection, nothing into the air). Branches weaker than the line-drawing threshold are
+ * dropped; the strongest are traced first.
  */
-export function traceRays(f: Fibre, alpha: number): { segs: Seg[]; hits: Hit[] } {
-  const nOf = (L: Layer) => (L === 'core' ? f.n1 : L === 'clad' ? f.n2 : f.n0);
+export function traceRays(f: Fibre, alpha: number): { segs: Seg[]; hits: Hit[]; absorbed: { at: Vec2; I: number }[]; arrived: number } {
+  const nOf = (L: Layer) => (L === 'core' ? f.n1 : f.n2);
   const beta = coreAngle(f, alpha);
   type Ray = { p: Vec2; ux: number; uy: number; I: number; L: Layer };
   const queue: Ray[] = [{ p: { x: X0, y: 0 }, ux: Math.cos(beta), uy: Math.sin(beta), I: 1 - reflectance(f.n0, f.n1, alpha), L: 'core' }];
   const segs: Seg[] = [];
   const hits: Hit[] = [];
+  const absorbed: { at: Vec2; I: number }[] = [];
+  let arrived = 0;
   while (queue.length && segs.length < MAX_SEGS) {
     let k = 0;
     for (let i = 1; i < queue.length; i++) if (queue[i].I > queue[k].I) k = i;
     const { p, ux, uy, I, L } = queue.splice(k, 1)[0];
-    if (L === 'out') {
-      // Straight on to the stage edge.
-      const tx = (FX - p.x) / ux;
-      const ty = Math.abs(uy) < 1e-12 ? Infinity : (Math.sign(uy) * FY - p.y) / uy;
-      const t = Math.max(0, Math.min(tx, ty));
-      segs.push({ a: p, b: { x: p.x + ux * t, y: p.y + uy * t }, I, layer: L });
-      continue;
-    }
-    // Next boundary along the ray: the core wall, or the inner or outer cladding edge.
+    // Next boundary along the ray: the core wall, or the inner or outer (jacket) cladding edge.
     const s = Math.sign(uy);
     let yB = NaN;
-    let to: Layer = L;
+    let to: Layer | 'jacket' = L;
     if (s !== 0 && L === 'core') {
       yB = s * CR;
       to = 'clad';
     } else if (s !== 0) {
       const outward = Math.sign(p.y) === s;
       yB = outward ? s * CL : -s * CR;
-      to = outward ? 'out' : 'core';
+      to = outward ? 'jacket' : 'core';
     }
     const xB = Number.isNaN(yB) ? Infinity : p.x + ((yB - p.y) / uy) * ux;
     if (xB >= XF) {
       segs.push({ a: p, b: { x: XF, y: p.y + ((XF - p.x) / ux) * uy }, I, layer: L });
+      arrived += I;
       continue;
     }
     const at = { x: xB, y: yB };
     segs.push({ a: p, b: at, I, layer: L });
+    if (to === 'jacket') {
+      absorbed.push({ at, I });
+      continue;
+    }
     const nFrom = nOf(L);
     const nTo = nOf(to);
     const inc = Math.acos(Math.min(1, Math.abs(uy)));
@@ -318,8 +322,11 @@ export function traceRays(f: Fibre, alpha: number): { segs: Seg[]; hits: Hit[] }
     if (I * R > I_MIN) queue.push({ p: at, ux, uy: -uy, I: I * R, L });
     if (!Number.isNaN(out) && I * (1 - R) > I_MIN) queue.push({ p: at, ux: Math.sin(out), uy: s * Math.cos(out), I: I * (1 - R), L: to });
   }
-  return { segs, hits };
+  return { segs, hits, absorbed, arrived };
 }
+
+/** Fraction of the incident light that reaches the far end of the fibre (after the entry-face reflection). */
+export const arrivedFraction = (p: PF): number => traceRays(fibreOf(p), p.alpha * DEG).arrived;
 
 /** The scene's ray tree split into core segments and those that left the core. */
 export function traceFibre(p: PF): { guided: Seg[]; escaped: Seg[]; hits: Hit[] } {
@@ -410,6 +417,9 @@ export const fibre: Scene<PF, { t: number }> = {
       ray(g, S, { x: X0, y: 0 }, 1);
       for (const sg of guided) ray(g, sg.a, sg.b, sg.I);
     });
+    // Absorbing jacket on the outer cladding edge, drawn over the ray ends that stop on it.
+    const jw = g.px(JACKET_PX);
+    for (const sy of [1, -1]) g.polygon(rect(X0, sy * CL, XF, sy * (CL + jw)), { fill: JACKET, color: JACKET, width: 1 });
     g.circle(S, 9, { fill: '#ffffff', color: RAY, width: 2 });
     // Angle arc and label well inside the handle's radius LIN, so the knob never covers them.
     const lin = LIN / g.px(1);
@@ -445,7 +455,7 @@ export const fibre: Scene<PF, { t: number }> = {
 
   info: {
     goals: ['ch33.f.goal.tir', 'ch33.f.goal.accept'],
-    observe: ['ch33.f.obs.guided', 'ch33.f.obs.leak', 'ch33.f.obs.clad'],
+    observe: ['ch33.f.obs.guided', 'ch33.f.obs.leak', 'ch33.f.obs.jacket', 'ch33.f.obs.clad'],
     equations: ['\\sin\\theta_c = \\frac{n_2}{n_1}', '\\sin\\alpha_\\text{max} = \\sqrt{n_1^2 - n_2^2}'],
     assumptions: ['ch33.f.assume.flat', 'ch33.r.assume.fresnel'],
   },
