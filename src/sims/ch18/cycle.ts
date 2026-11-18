@@ -1,7 +1,9 @@
 // Ch 18 scene: rectangular cyclic process (two isochores, two isobars). Over a full cycle
 // ΔE_int = 0 and the net work = net heat = the area enclosed by the loop (clockwise: engine,
 // W > 0; counter-clockwise: W < 0). The Carnot cycle lives in Ch 20 (carnot.ts).
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
+import { dELine, e4, qLine } from './formula';
 import { split, stageRect } from './panels';
 import { cycle, eint, legWork, pathAt, temp, type Cycle } from './physics';
 import { dofOf } from './process';
@@ -123,6 +125,8 @@ export const cycleScene: Scene<P, S> = {
     { label: '\\Delta E_\\text{int}', unit: 'J', value: (s, p) => point(s, p).dE },
   ],
 
+  formula: (s, p) => formulaLines(s, p),
+
   info: {
     goals: ['ch18.c.goal.cycle', 'ch18.c.goal.area'],
     observe: ['ch18.c.obs.zero', 'ch18.c.obs.area', 'ch18.c.obs.ccw', 'ch18.c.obs.legs'],
@@ -130,3 +134,24 @@ export const cycleScene: Scene<P, S> = {
     assumptions: ['ch18.assume.ideal', 'ch18.assume.quasi'],
   },
 };
+
+/**
+ * Σ panel: the work so far as the sum of p ΔV over the legs begun (0 on the isochores), ΔE_int
+ * since A, Q = ΔE_int + W, and the net work of the whole loop, ± its area (clockwise positive).
+ */
+export function formulaLines(s: S, p: P): string[] {
+  const f = dofOf(p.gas);
+  const { c } = model(p);
+  const pt = point(s, p);
+  const terms = c.legs.slice(0, pt.leg + 1).map((l, i) => e4(legWork(l, i < pt.leg ? 1 : pt.u)));
+  const ps = c.corners.map((q) => q.p);
+  const Vs = c.corners.map((q) => q.V);
+  const area = `(${num(Math.max(...ps))} - ${num(Math.min(...ps))})(${num(Math.max(...Vs))} - ${num(Math.min(...Vs))})`;
+  const net = pathAt(c.legs, 1, f).W;
+  return [
+    `W = \\textstyle\\sum p\\,\\Delta V = ${terms.join(' + ')} = ${tn(pt.W)}${u('J')}`,
+    dELine(pt.st, pt.dE, f),
+    qLine(pt.dE, pt.W, pt.Q),
+    `W_\\text{net} = \\oint p\\,dV = ${net < 0 ? '-' : ''}${area} = ${tn(net)}${u('J')}`,
+  ];
+}

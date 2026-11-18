@@ -2,6 +2,7 @@
 // with its envelope. The strip above shows the two amplitudes as arrows in a frame turning at
 // the mean frequency: they drift apart at f₂ − f₁, so the sum swells and fades.
 import { t } from '../../core/i18n';
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Role, Scene, UiState, Vec2 } from '../../core/types';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { color, withAlpha } from '../../draw/theme';
@@ -104,6 +105,8 @@ export const beats: Scene<P, S> = {
     { label: 'T_\\text{beat}', unit: 's', value: (_s, p) => 1 / beatFrequency(p.f1, f2Of(p)) },
   ],
 
+  formula: (s, p) => formulaLines(s.t, p),
+
   info: {
     goals: ['ch17.b.goal.sum', 'ch17.b.goal.fbeat'],
     observe: ['ch17.b.obs.phase', 'ch17.b.obs.env', 'ch17.b.obs.df', 'ch17.b.obs.arrows', 'ch17.b.obs.sound'],
@@ -114,6 +117,22 @@ export const beats: Scene<P, S> = {
     assumptions: ['ch17.b.assume.amp', 'ch17.b.assume.slow', 'ch17.b.assume.arrows', 'ch17.b.assume.env'],
   },
 };
+
+/** Σ panel: f₂, f_beat = |f₁ − f₂|, T_beat, the mean frequency, and the envelope 2A|cos π(f₂ − f₁)t| now. */
+export function formulaLines(time: number, p: P): string[] {
+  const f2 = f2Of(p);
+  const fb = beatFrequency(p.f1, f2);
+  const f1s = num(p.f1);
+  const f2s = num(f2);
+  return [
+    `f_2 = ${f1s} + ${num(p.df)} = ${tn(f2)}${u('Hz')}`,
+    `f_\\text{beat} = \\lvert f_1 - f_2 \\rvert = \\lvert ${f1s} - ${f2s} \\rvert = ${tn(fb)}${u('Hz')}`,
+    `T_\\text{beat} = 1/f_\\text{beat} = 1/${num(fb)} = ${tn(1 / fb)}${u('s')}`,
+    `\\tfrac{f_1 + f_2}{2} = (${f1s} + ${f2s})/2 = ${tn((p.f1 + f2) / 2)}${u('Hz')}`,
+    `2A\\lvert\\cos \\pi(f_2 - f_1)t \\rvert`,
+    `= 2A\\lvert\\cos(\\pi \\times ${num(p.df)} \\times ${tn(time, 4)}) \\rvert = ${tn(beatEnvelope(A, p.f1, f2, time) / A)}A`,
+  ];
+}
 
 /**
  * Labels y₁, y₂ beside the middle of their arrows, on the outside of the triangle O → a₁ → sum,
