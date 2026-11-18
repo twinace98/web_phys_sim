@@ -4,12 +4,13 @@
 // order of two events are read off; the fourth is the train-flash experiment.
 import { fmt } from '../../core/format';
 import { t } from '../../core/i18n';
+import { num, paren, tn, u } from '../../core/tex';
 import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR, theme } from '../../draw/theme';
 import { measureRich } from '../../draw/text';
 import { Frame, PX_WORLD, TICK, W, canvasBox, linePx, split, textPx, type Box } from '../modern/frame';
-import { bounce, contracted, dilationEvents, fromS, fromSp, gamma, movingPeriod, restPeriod, rodEvents, ticks, trainEvents, type Event2 } from './physics';
+import { bounce, contracted, dilationEvents, fromS, fromSp, gamma, interval, movingPeriod, restPeriod, rodEvents, ticks, trainEvents, type Event2 } from './physics';
 
 /** Frame colours: S blue, S' orange (as A and B in Ch 3). */
 export const S_COLOR = ROLE_COLOR.position;
@@ -146,6 +147,7 @@ export const lightClocks: Scene<PB, { t: number; n: number }> = {
     { label: '\\Delta t_0', unit: 's', value: () => restPeriod(L_CLOCK) },
     { label: '\\Delta t', unit: 's', value: (_s, p) => movingPeriod(L_CLOCK, p.beta) },
   ],
+  formula: (s, p) => clockLines(s.t, p.beta),
   info: {
     goals: ['ch37.c.goal.dilate', 'ch37.c.goal.mutual'],
     observe: ['ch37.c.obs.zigzag', 'ch37.c.obs.count', 'ch37.c.obs.both', 'ch37.c.obs.beta'],
@@ -215,6 +217,7 @@ export const rods: Scene<PB, { t: number; n: number }> = {
     { label: 'L_0', unit: 'ls', value: () => L_ROD },
     { label: 'L', unit: 'ls', value: (_s, p) => contracted(L_ROD, p.beta) },
   ],
+  formula: (_s, p) => rodLines(p.beta),
   info: {
     goals: ['ch37.l.goal.contract', 'ch37.l.goal.mutual'],
     observe: ['ch37.l.obs.short', 'ch37.l.obs.both', 'ch37.l.obs.beta'],
@@ -281,7 +284,7 @@ export function diagramEvents(p: PD): [string, Event2][] {
   ];
 }
 
-const n2 = (v: number) => (Math.abs(v) < 0.005 ? '0.00' : v.toFixed(2));
+export const n2 = (v: number) => (Math.abs(v) < 0.005 ? '0.00' : v.toFixed(2));
 
 /** TeX panel: the events in both frames, then the quantity read off the diagram. */
 export function eventTable(p: PD): string {
@@ -511,6 +514,8 @@ export const spacetime: Scene<PD, { t: number }> = {
 
   readouts: [{ label: '\\gamma', unit: '', value: (_s, p) => gamma(p.beta) }],
 
+  formula: (_s, p) => diagramLines(p),
+
   info: {
     goals: ['ch37.d.goal.axes', 'ch37.d.goal.read', 'ch37.d.goal.order'],
     observe: ['ch37.d.obs.dilate', 'ch37.d.obs.contract', 'ch37.d.obs.order', 'ch37.d.obs.light'],
@@ -624,6 +629,7 @@ export const simultaneity: Scene<PT, { t: number; n: number }> = {
     { label: '\\Delta t', unit: 's', value: (_s, p) => trainEvents(L_TRAIN, p.beta).frontS - trainEvents(L_TRAIN, p.beta).rearS },
     { label: "\\Delta t'", unit: 's', value: () => 0 },
   ],
+  formula: (_s, p) => trainLines(p.beta),
   info: {
     goals: ['ch37.s.goal.relative', 'ch37.s.goal.c'],
     observe: ['ch37.s.obs.train', 'ch37.s.obs.ground', 'ch37.s.obs.dt', 'ch37.s.obs.diagram'],
@@ -631,3 +637,92 @@ export const simultaneity: Scene<PT, { t: number; n: number }> = {
     assumptions: ['ch37.assume.units', 'ch37.s.assume.train'],
   },
 };
+
+// ------------------------------------------------------------------ formula panel
+
+/** Significant figures for two inputs whose difference prints at 3 figures, so the shown arithmetic holds. */
+export function diffSig(a: number, b: number): number {
+  const r = (v: number, s: number) => Number(v.toPrecision(s));
+  for (let s = 3; s < 8; s++) if (tn(r(a, s) - r(b, s)) === tn(a - b)) return s;
+  return 8;
+}
+
+/** Decimals for two diagram readings whose difference prints with n2 (two decimals). */
+function diffDecimals(a: number, b: number): number {
+  const r = (v: number, d: number) => Number(v.toFixed(d));
+  for (let d = 2; d < 6; d++) if (n2(r(a, d) - r(b, d)) === n2(a - b)) return d;
+  return 6;
+}
+
+const gammaLine = (beta: number) => `\\gamma = \\frac{1}{\\sqrt{1 - \\beta^2}} = \\frac{1}{\\sqrt{1 - (${num(beta)})^2}} = ${tn(gamma(beta))}`;
+
+/** Light clocks: γ, the two tick periods and the ticks counted so far. */
+export function clockLines(time: number, beta: number): string[] {
+  const P0 = restPeriod(L_CLOCK);
+  const P = movingPeriod(L_CLOCK, beta);
+  return [
+    gammaLine(beta),
+    `\\Delta t_0 = \\frac{2L}{c} = \\frac{2 \\times ${L_CLOCK}\\ \\mathrm{ls}}{c} = ${tn(P0)}${u('s')}`,
+    `\\Delta t = \\gamma\\,\\Delta t_0 = ${tn(gamma(beta), 4)} \\times ${tn(P0)} = ${tn(P)}${u('s')}`,
+    `n_0 = \\lfloor t/\\Delta t_0 \\rfloor = \\lfloor ${tn(time)}/${tn(P0)} \\rfloor = ${ticks(time, P0)}`,
+    `n = \\lfloor t/\\Delta t \\rfloor = \\lfloor ${tn(time)}/${tn(P, 4)} \\rfloor = ${ticks(time, P)}`,
+  ];
+}
+
+/** Rods: γ and the contracted length. */
+export function rodLines(beta: number): string[] {
+  return [
+    gammaLine(beta),
+    `L = \\frac{L_0}{\\gamma} = \\frac{${tn(L_ROD)}\\ \\mathrm{ls}}{${tn(gamma(beta), 4)}} = ${tn(contracted(L_ROD, beta))}${u('ls')}`,
+  ];
+}
+
+/** Spacetime diagram: the Lorentz transformation of the events read off in each mode (rounded as in the table). */
+export function diagramLines(p: PD): string[] {
+  const b = p.beta;
+  const g = gamma(b);
+  const G = tn(g, 4);
+  const B = num(b);
+  const lines = [gammaLine(b)];
+  if (p.mode === 'contract') {
+    const r = rodEvents(ROD_L0, ROD_FRONT, ROD_TP, b);
+    const d = diffDecimals(r.F.x, r.R.x);
+    lines.push(`L = x_\\mathrm{F} - x_\\mathrm{R} = ${r.F.x.toFixed(d)} - ${paren(r.R.x.toFixed(d))} = ${n2(r.F.x - r.R.x)}${u('ls')}`);
+    lines.push(`L_0 = x'_\\mathrm{F} - x'_\\mathrm{R'} = ${n2(r.F.xp)} - ${paren(n2(r.Rp.xp))} = ${n2(r.F.xp - r.Rp.xp)}${u('ls')}`);
+    lines.push(`L = \\frac{L_0}{\\gamma} = \\frac{${n2(ROD_L0)}}{${G}} = ${n2(ROD_L0 / g)}${u('ls')}`);
+    return lines;
+  }
+  if (p.mode === 'order') {
+    const E = fromS(p.B[0], p.B[1], b);
+    const x = n2(p.B[0]);
+    const t = n2(p.B[1]);
+    lines.push(`x'_\\mathrm{B} = \\gamma(x - \\beta\\,ct) = ${G}\\,(${x} - ${B} \\times ${paren(t)}) = ${n2(E.xp)}${u('ls')}`);
+    // Over two lines: one line would shrink to about 0.68 × in the docked panel.
+    lines.push(`\\Delta t' = \\gamma(\\Delta t - v\\Delta x/c^2)`, `= ${G}\\,(${t} - ${B} \\times ${paren(x)}) = ${n2(E.tp)}${u('s')}`);
+    lines.push(`(c\\Delta t)^2 - \\Delta x^2 = (${t})^2 - (${x})^2 = ${n2(interval(p.B[0], p.B[1]))}${u('ls^2')}`);
+    return lines;
+  }
+  const { E } = dilationEvents(TAU_TICK, b);
+  const tau = n2(TAU_TICK);
+  lines.push(`x_\\mathrm{E} = \\gamma(x' + \\beta\\,ct') = ${G}\\,(0 + ${B} \\times ${tau}) = ${n2(E.x)}${u('ls')}`);
+  lines.push(`ct_\\mathrm{E} = \\gamma(ct' + \\beta x') = ${G}\\,(${tau} + ${B} \\times 0) = ${n2(E.t)}${u('ls')}`);
+  lines.push(`\\Delta t = \\gamma\\,\\Delta t_0 = ${G} \\times ${tau} = ${n2(g * TAU_TICK)}${u('s')}`);
+  return lines;
+}
+
+/** Train flash: arrival times at the rear and the front in S, their difference, and Δt' = 0 in S'. */
+export function trainLines(beta: number): string[] {
+  const g = gamma(beta);
+  const ev = trainEvents(L_TRAIN, beta);
+  const half = L_TRAIN / (2 * g);
+  const B = num(beta);
+  const sig = diffSig(ev.frontS, ev.rearS);
+  return [
+    gammaLine(beta),
+    `\\frac{L}{2} = \\frac{L_0}{2\\gamma} = \\frac{${tn(L_TRAIN)}\\ \\mathrm{ls}}{2 \\times ${tn(g, 4)}} = ${tn(half)}${u('ls')}`,
+    `t_\\mathrm{R} = \\frac{L/2}{c + v} = \\frac{${tn(half, 4)}\\ \\mathrm{ls}}{(1 + ${B})\\,c} = ${tn(ev.rearS)}${u('s')}`,
+    `t_\\mathrm{F} = \\frac{L/2}{c - v} = \\frac{${tn(half, 4)}\\ \\mathrm{ls}}{(1 - ${B})\\,c} = ${tn(ev.frontS)}${u('s')}`,
+    `\\Delta t = t_\\mathrm{F} - t_\\mathrm{R} = ${tn(ev.frontS, sig)} - ${tn(ev.rearS, sig)} = ${tn(ev.frontS - ev.rearS)}${u('s')}`,
+    `t'_\\mathrm{R} = t'_\\mathrm{F} = \\frac{L_0}{2c} = ${tn(ev.rearSp)}${u('s')},\\quad \\Delta t' = 0`,
+  ];
+}

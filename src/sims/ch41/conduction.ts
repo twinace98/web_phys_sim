@@ -1,10 +1,11 @@
 // Ch 41 scene: conduction in E(k). An electric field shifts the occupied states in k; scattering
 // stops the shift at −eℰτ/ħ (field ℰ, so E stays the band energy). A partly filled band then carries a net current, a full band none.
 import { t } from '../../core/i18n';
+import { tn, tp } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { Frame, PX_WORLD, TICK, canvasBox, textPx } from '../modern/frame';
 import { ELECTRON } from './common';
-import { bandE, current, kGrid, occupied, shiftStep, wrap, type Filling } from './physics';
+import { NK, TAU, bandE, current, kGrid, occupied, shiftStep, wrap, type Filling } from './physics';
 
 type P = { fill: string; field: number };
 interface S {
@@ -134,6 +135,20 @@ export const conduction: Scene<P, S> = {
     { label: '\\Delta k', unit: '1/a', value: (s) => s.d, sig: 2 },
     { label: 'J', unit: '', value: (s, p) => current(occ(p.fill), s.d), sig: 2 },
   ],
+
+  // Steady shift −Fτ, the rate of change of the shift now (the step's equation), and the current.
+  formula: (s, p) => {
+    const F = DRIVE * p.field;
+    const unit = '\\ \\mathrm{1/a}';
+    const Ft = F === 0 ? '0' : tn(F, 2);
+    return [
+      `\\Delta k_\\infty = -\\frac{e\\mathcal{E}\\tau}{\\hbar} = -${Ft} \\times ${TAU} = ${tn(-F * TAU, 2)}${unit}`,
+      // Over two lines: one line would shrink to about 0.67 × in the docked panel.
+      `\\frac{d\\Delta k}{dt} = -\\frac{e\\mathcal{E}}{\\hbar} - \\frac{\\Delta k}{\\tau}`,
+      `= -${Ft} - \\frac{${tp(s.d)}}{${TAU}} = ${tn(-F - s.d / TAU, 2)}\\ \\mathrm{(1/a)/fs}`,
+      `J = -\\frac{1}{${NK}}\\sum_k f_k \\sin\\,(k + \\Delta k)a = ${tn(current(occ(p.fill), s.d), 2)}`,
+    ];
+  },
 
   info: {
     goals: ['ch41.c.goal.shift', 'ch41.c.goal.full'],
