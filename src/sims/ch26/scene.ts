@@ -7,7 +7,8 @@ import type { Draw } from '../../draw/draw';
 import { t as tr } from '../../core/i18n';
 import { measureRich } from '../../draw/text';
 import { theme } from '../../draw/theme';
-import { DENSITY, Q_E, SAMPLE, V_TH, currentOf, driftSpeed, heightOf, makeGas, resistanceOf, stepGas, tauOf, type Gas, type Wire } from './physics';
+import { num, tn, u } from '../../core/tex';
+import { DENSITY, Q_E, REF, SAMPLE, TAU_300, V_TH, accelOf, currentOf, driftSpeed, heightOf, makeGas, resistanceOf, stepGas, tauOf, type Gas, type Wire } from './physics';
 
 type P = { V: number; T: number; L: number; A: number };
 
@@ -183,6 +184,37 @@ function particleKey(g: Draw, rIon: number, rEl: number): void {
   }
 }
 
+/** Readouts: measured Ī [mA], V/Ī [Ω] (NaN until there is a reading). */
+export const readI = (s: S) => measuredI(s);
+export const readVI = (s: S, p: P) => (p.V > 0 && measuredI(s) > 0 ? (p.V / measuredI(s)) * 1e3 : NaN);
+
+/**
+ * Σ panel: τ(T), v_d = aτ, R = ρL/A scaled from the reference wire, the predicted I = V/R and,
+ * once counted, the measured Ī = ΔQ/Δt and V/Ī. Inputs of products and quotients carry four
+ * figures, so the shown arithmetic gives the result.
+ */
+export function formulaLines(s: S, p: P): string[] {
+  const w = wireOf(p);
+  const tau = tauOf(p.T);
+  const R = resistanceOf(w);
+  const lines = [`\\tau = \\tau_{300}\\,\\frac{300\\ \\mathrm{K}}{T} = (${TAU_300}\\ \\mathrm{s})\\,\\frac{300}{${num(p.T)}} = ${tn(tau)}${u('s')}`];
+  lines.push(
+    p.V > 0 ? `v_d = a\\tau = (${tn(accelOf(w, p.V), 4)}\\ \\mathrm{cm/s^2})(${tn(tau, 4)}\\ \\mathrm{s}) = ${tn(driftSpeed(w, p.V))}${u('cm/s')}` : `v_d = 0\\ \\ (V = 0)`,
+  );
+  lines.push(
+    `R = \\rho\\,\\frac{L}{A} = (${REF.R}\\ \\Omega)\\,\\frac{${num(p.L)}}{${REF.L}}\\cdot\\frac{${REF.A}}{${num(p.A)}}\\cdot\\frac{${num(p.T)}}{${REF.T}} = ${tn(R)}${u('\\Omega')}`,
+  );
+  lines.push(`I = \\frac{V}{R} = \\frac{${num(p.V)}\\ \\mathrm{V}}{${tn(R, 4)}\\ \\Omega} = ${tn(currentOf(w, p.V) * 1e3)}${u('mA')}`);
+  const I = readI(s);
+  if (Number.isFinite(I)) {
+    const dQ = (s.gas.count - s.c0) * Q_E;
+    lines.push(`\\bar I = \\frac{\\Delta Q}{\\Delta t} = \\frac{${tn(dQ, 4)}\\ \\mathrm{C}}{${tn(s.t - s.t0, 4)}\\ \\mathrm{s}} = ${tn(I)}${u('mA')}`);
+    const vi = readVI(s, p);
+    if (Number.isFinite(vi)) lines.push(`\\frac{V}{\\bar I} = \\frac{${num(p.V)}\\ \\mathrm{V}}{${tn(I, 4)}\\ \\mathrm{mA}} = ${tn(vi)}${u('\\Omega')}`);
+  }
+  return lines;
+}
+
 export const conduction: Scene<P, S> = {
   id: 'drift',
   title: 'ch26.scene',
@@ -327,10 +359,12 @@ export const conduction: Scene<P, S> = {
   },
 
   readouts: [
-    { label: 'I', unit: 'mA', value: (s) => measuredI(s) },
-    { label: 'V/I', unit: 'Ω', value: (s, p) => (p.V > 0 && measuredI(s) > 0 ? (p.V / measuredI(s)) * 1e3 : NaN) },
+    { label: 'I', unit: 'mA', value: (s) => readI(s) },
+    { label: 'V/I', unit: 'Ω', value: (s, p) => readVI(s, p) },
     { label: '\\rho L/A', unit: 'Ω', value: (_s, p) => resistanceOf(wireOf(p)) },
   ],
+
+  formula: (s, p) => formulaLines(s, p),
 
   info: {
     goals: ['ch26.goal.drift', 'ch26.goal.R'],
