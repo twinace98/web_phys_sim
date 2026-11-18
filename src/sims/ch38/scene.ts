@@ -4,12 +4,16 @@ import { t } from '../../core/i18n';
 import type { ParamSchema, Scene } from '../../core/types';
 import { ROLE_COLOR } from '../../draw/theme';
 import { Frame, PX_WORLD, TICK, W, canvasBox, linePx, textPx } from '../modern/frame';
+import { num, tn, u } from '../../core/tex';
 import {
+  DK,
+  HBAR_M,
   deltaK,
   packet,
   packetWidth,
   psi,
   vGroup,
+  vPhase,
   type Packet,
 } from './physics';
 
@@ -74,6 +78,31 @@ function pkOf(p: PP): Packet {
 }
 
 const H_PK = 0.02; // fs
+
+/**
+ * Formula panel: group and phase velocity, the classical particle at v_g t, and Δx Δk (the same
+ * calls as the readouts). Δx is printed only while the packet is localised within one repeat.
+ */
+export function packetLines(time: number, p: PP): string[] {
+  const pk = pkOf(p);
+  const vg = vGroup(p.k0);
+  const dk = deltaK(pk);
+  const dx = packetWidth(pk, time, vg * time, 600);
+  const lines = [
+    // ħ/m = 0.1158 nm²/fs, k₀ in nm⁻¹.
+    `v_\\text{g} = \\frac{\\hbar}{m}\\,k_0 = ${tn(HBAR_M, 4)} \\times ${num(p.k0)} = ${tn(vg)}${u('nm/fs')}`,
+    `v_\\text{p} = \\frac{\\omega_0}{k_0} = \\frac{v_\\text{g}}{2} = ${tn(vPhase(p.k0))}${u('nm/fs')}`,
+    `x = v_\\text{g}\\,t = ${tn(vg, 4)} \\times ${tn(time, 4)} = ${tn(vg * time)}${u('nm')}`,
+  ];
+  if (!Number.isFinite(dx)) {
+    lines.push(`\\Delta k = ${tn(dk)}${u('nm^{-1}')},\\quad \\Delta x > \\frac{2\\pi}{6\\,\\delta k} = \\frac{${num((2 * Math.PI) / DK)}\\ \\mathrm{nm}}{6} = ${tn((2 * Math.PI) / DK / 6)}${u('nm')}`);
+    return lines;
+  }
+  const prod = dx * dk;
+  lines.push(`\\Delta x = ${tn(dx)}${u('nm')},\\quad \\Delta k = ${tn(dk)}${u('nm^{-1}')}`);
+  lines.push(`\\Delta x\\,\\Delta k = ${tn(dx, 4)} \\times ${tn(dk, 4)} = ${tn(prod)} ${Number(tn(prod)) >= 0.5 ? '\\ge' : '<'} \\tfrac12`);
+  return lines;
+}
 
 export const wavePacket: Scene<PP, { t: number; n: number }> = {
   id: 'packet',
@@ -142,6 +171,8 @@ export const wavePacket: Scene<PP, { t: number; n: number }> = {
     { label: '\\Delta k', unit: 'nm⁻¹', value: (_s, p) => deltaK(pkOf(p)) },
     { label: '\\Delta x\\,\\Delta k', unit: '', value: (s, p) => packetWidth(pkOf(p), s.t, vGroup(p.k0) * s.t, 600) * deltaK(pkOf(p)) },
   ],
+
+  formula: (s, p) => packetLines(s.t, p),
 
   info: {
     goals: ['ch38.k.goal.build', 'ch38.k.goal.move'],

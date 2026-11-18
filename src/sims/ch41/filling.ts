@@ -1,9 +1,10 @@
 // Ch 41 scene: filling the bands. Band diagram with electrons and holes beside the Fermi-Dirac
 // occupation f(E); metal, two semiconductors and an insulator, at a chosen temperature.
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { Frame, PX_WORLD, TICK, canvasBox, linePx, pow10, split, textPx } from '../modern/frame';
-import { BAND, ELECTRON, bandBox, electron, hole, scatter } from './common';
-import { MATERIALS, N_METAL, fermi, intrinsicMu, ni, shownPairs, type MaterialId } from './physics';
+import { BAND, ELECTRON, bandBox, electron, hole, scatter, tz } from './common';
+import { KB, MATERIALS, N_METAL, Nc, Nv, fermi, intrinsicMu, ni, shownPairs, type MaterialId } from './physics';
 
 type P = { mat: string; T: number; scale: string };
 
@@ -108,6 +109,41 @@ function slots(f: Frame, x0: number, x1: number, e0: number, e1: number, fromTop
 const order = (n: number) =>
   Array.from({ length: n }, (_, i) => i).sort((a, b) => scatter(a + 7) - scatter(b + 7));
 
+/** kT [eV] as printed in the formula panel (5 figures: it sits in exponents of 20 and more). */
+export const kTLine = (T: number) => `kT = (${tn(KB, 4)}\\ \\mathrm{eV/K})(${T}\\ \\mathrm{K}) = ${tn(KB * T, 5)}${u('eV')}`;
+
+/**
+ * Formula panel: kT, then n_i from √(N_c N_v) e^{−E_g/2kT}, the intrinsic Fermi level and the
+ * occupation at the conduction-band edge (the dot on the f(E) plot). Metal: n and f(E_F + kT).
+ */
+export function fillingLines(p: P): string[] {
+  const mat = p.mat as MaterialId;
+  const L = layout(mat, p.T);
+  const kT = KB * p.T;
+  const lines = [kTLine(p.T)];
+  if (mat === 'metal') {
+    lines.push(`n = ${tn(L.n)}${u('cm^{-3}')}`);
+    if (p.T > 0) lines.push(`f(E_\\text{F} + kT) = \\frac{1}{e^{1} + 1} = ${tn(fermi(L.mu + kT, L.mu, p.T))}`);
+    return lines;
+  }
+  const m = MATERIALS[mat];
+  if (p.T <= 0) {
+    lines.push(`n_i = \\sqrt{N_\\text{c}N_\\text{v}}\\,e^{-E_\\text{g}/2kT} = 0`, `f(E_\\text{c}) = 0`);
+    return lines;
+  }
+  const x = m.Eg / (2 * kT);
+  const xc = (L.Ec! - L.mu) / kT;
+  lines.push(
+    `\\frac{E_\\text{g}}{2kT} = \\frac{${num(m.Eg)}\\ \\mathrm{eV}}{2 \\times ${tn(kT, 5)}\\ \\mathrm{eV}} = ${tn(x, 5)}`,
+    // n_i over two lines: one line would shrink to about 0.64 × in the docked panel.
+    `n_i = \\sqrt{N_\\text{c}N_\\text{v}}\\,e^{-E_\\text{g}/2kT}`,
+    `= (${tn(Math.sqrt(Nc(m, p.T) * Nv(m, p.T)), 4)}\\ \\mathrm{cm^{-3}})\\,e^{-${tn(x, 5)}} = ${tn(L.n)}${u('cm^{-3}')}`,
+    `E_\\text{F} = \\tfrac12 kT\\ln(N_\\text{v}/N_\\text{c}) = ${tn(L.mu)}${u('eV')}`,
+    `f(E_\\text{c}) = \\frac{1}{e^{(E_\\text{c} - E_\\text{F})/kT} + 1} = \\frac{1}{e^{${tn(xc, 5)}} + 1} = ${tz(fermi(L.Ec!, L.mu, p.T))}`,
+  );
+  return lines;
+}
+
 export const filling: Scene<P, { t: number }> = {
   id: 'filling',
   title: 'ch41.f.scene',
@@ -208,6 +244,8 @@ export const filling: Scene<P, { t: number }> = {
     { label: 'E_\\text{g}', unit: 'eV', value: (_s, p) => (p.mat === 'metal' ? NaN : MATERIALS[p.mat as Exclude<MaterialId, 'metal'>].Eg) },
     { label: 'n', unit: 'cm⁻³', value: (_s, p) => layout(p.mat as MaterialId, p.T).n },
   ],
+
+  formula: (_s, p) => fillingLines(p),
 
   info: {
     goals: ['ch41.f.goal.class', 'ch41.f.goal.T'],
