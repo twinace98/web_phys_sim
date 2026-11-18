@@ -7,7 +7,7 @@ import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
 import { HB2M } from '../modern/eigen';
 import { Frame, PX_WORLD, linePx, textPx, type Box } from '../modern/frame';
-import { allowed, wellModel, type WellKind, type WellModel, type WellParams } from './physics';
+import { allowed, finiteWellCount, wellModel, z0Of, type WellKind, type WellModel, type WellParams } from './physics';
 
 type Common = { pot: string; L: number; U0: number; hw: number; Ub: number; b: number };
 type PW = Common & { show: string };
@@ -187,7 +187,17 @@ function amplitude(Es: number[], span: number): number {
   return Math.min(0.42 * typical, 0.09 * span);
 }
 
-const label = (n: number, E: number, narrow: boolean) => (narrow ? `${fmt(E, 3)} eV` : `*E*_{${n}} = ${fmt(E, 3)} eV`);
+/**
+ * Level value with enough figures to stay below `top` (a finite well's U0): a level bound by
+ * 0.4 meV prints 3.3996, not 3.40, which would read as E = U0.
+ */
+export function levelText(E: number, top = Infinity): string {
+  let sig = 3;
+  while (sig < 6 && Number(fmt(E, sig).replace('−', '-')) >= top) sig++;
+  return fmt(E, sig);
+}
+
+const label = (n: number, E: number, narrow: boolean, top = Infinity) => (narrow ? `${levelText(E, top)} eV` : `*E*_{${n}} = ${levelText(E, top)} eV`);
 
 // ------------------------------------------------------------------ formula panel
 
@@ -224,6 +234,9 @@ export function wellLines(p: Common): string[] {
       `E_1 = ${tn(E[0])}${u('eV')} < ${inf}${u('eV')}`,
       `\\delta = \\frac{\\hbar}{\\sqrt{2m(U_0 - E_1)}}`,
       `= \\sqrt{\\frac{${tn(HB2M, 4)}\\ \\mathrm{eV\\,nm^2}}{(${num(p.U0)} - ${tn(E[0], 4)})\\ \\mathrm{eV}}} = ${tn(Math.sqrt(HB2M / (p.U0 - E[0])))}${u('nm')}`,
+      // Bound-state count from z0 = (L/2)√(2mU0)/ħ; the diagram shows exactly this many levels.
+      `z_0 = \\frac{L}{2}\\frac{\\sqrt{2mU_0}}{\\hbar} = \\frac{${num(p.L)}}{2}\\sqrt{\\frac{${num(p.U0)}}{${tn(HB2M, 4)}}} = ${tn(z0Of(p.L, p.U0), 4)}`,
+      `N = \\left\\lceil \\frac{2 z_0}{\\pi} \\right\\rceil = \\lceil ${tn((2 * z0Of(p.L, p.U0)) / Math.PI, 4)} \\rceil = ${finiteWellCount(p.L, p.U0)}`,
     ];
   }
   if (p.pot === 'harmonic') {
@@ -304,7 +317,7 @@ export const wells: Scene<PW, { t: number }> = {
     f.axes({ xLabel: '*x* (nm)', yLabel: '*E* (eV)' });
     levelLabels(
       f,
-      st.E.map((E, k) => ({ E, text: label(k + m.n0, E, narrow) })),
+      st.E.map((E, k) => ({ E, text: label(k + m.n0, E, narrow, p.pot === 'finite' ? p.U0 : Infinity) })),
     );
   },
 
@@ -529,7 +542,7 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
     const items = st.E.map((E, k) => ({ E, k })).filter(({ k }) => k === q.a || k === q.b);
     levelLabels(
       f,
-      items.map(({ E, k }) => ({ E, text: label(k + m.n0, E, narrow) })),
+      items.map(({ E, k }) => ({ E, text: label(k + m.n0, E, narrow, p.pot === 'finite' ? p.U0 : Infinity) })),
     );
   },
 
