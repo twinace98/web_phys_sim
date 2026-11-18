@@ -110,9 +110,9 @@ describe('ch41 review fixes', () => {
     expect(eg.value({ t: 0 }, { mat: 'si', T: 300, scale: 'log' })).toBeCloseTo(MATERIALS.si.Eg, 6);
   });
 
-  it('impurity concentration is a log slider 10¹⁵–10¹⁷ cm⁻³; n ≈ N_D at in-between values', () => {
+  it('impurity concentration is a log slider 10¹³–10¹⁸ cm⁻³; n ≈ N_D at in-between values', () => {
     const spec = doping.params.conc;
-    expect(spec.kind === 'number' && spec.control === 'slider' && spec.log && spec.min === 1e15 && spec.max === 1e17).toBe(true);
+    expect(spec.kind === 'number' && spec.control === 'slider' && spec.log && spec.min === 1e13 && spec.max === 1e18).toBe(true);
     for (const N of [1e15, 3.2e15, 4.7e16, 1e17]) {
       const c = carriersOf({ type: 'n', T: 300, conc: N });
       expect(c.n / N).toBeGreaterThan(0.9);
