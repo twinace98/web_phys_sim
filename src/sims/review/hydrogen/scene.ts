@@ -406,14 +406,14 @@ export const transitions: Scene<PT, ST> = {
     const { ni, nf } = p;
     const lo = Math.min(ni, nf);
     const hi = Math.max(ni, nf);
-    const lines = [`E_n = -\\frac{13.60\\ \\text{eV}}{n^2}:\\quad E_{${ni}} = ${texNum(energy(ni), 4)}\\ \\text{eV},\\quad E_{${nf}} = ${texNum(energy(nf), 4)}\\ \\text{eV}`];
+    const lines = [`E_n = -\\frac{13.5983\\ \\text{eV}}{n^2}:\\quad E_{${ni}} = ${texNum(energy(ni), 4)}\\ \\text{eV},\\quad E_{${nf}} = ${texNum(energy(nf), 4)}\\ \\text{eV}`];
     if (ni === nf) return [...lines, 'n_i = n_f:\\ \\Delta E = 0'];
     const dE = photonEnergy(ni, nf);
     const k = 1 / (lo * lo) - 1 / (hi * hi);
     return [
       ...lines,
-      `\\Delta E = E_{${hi}} - E_{${lo}} = 13.60\\left(\\frac{1}{${lo}^2} - \\frac{1}{${hi}^2}\\right)\\ \\text{eV} = ${texNum(dE, 5)}\\ \\text{eV}`,
-      `\\lambda = \\frac{hc}{\\Delta E} = \\frac{1239.8\\ \\text{eV}\\cdot\\text{nm}}{${texNum(dE, 5)}\\ \\text{eV}} = ${fmtLambda(HC_EVNM / dE)}`,
+      `\\Delta E = E_{${hi}} - E_{${lo}} = 13.5983\\left(\\frac{1}{${lo}^2} - \\frac{1}{${hi}^2}\\right)\\ \\text{eV} = ${texNum(dE, 5)}\\ \\text{eV}`,
+      `\\lambda = \\frac{hc}{\\Delta E} = \\frac{1239.84\\ \\text{eV}\\cdot\\text{nm}}{${texNum(dE, 5)}\\ \\text{eV}} = ${fmtLambda(HC_EVNM / dE)}`,
       `\\frac{1}{\\lambda} = R_\\text{H}\\left(\\frac{1}{${lo}^2} - \\frac{1}{${hi}^2}\\right) = ${texNum(R_H * k, 5)}\\ \\text{m}^{-1}`,
     ];
   },

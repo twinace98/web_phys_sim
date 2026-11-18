@@ -259,7 +259,7 @@ export const welljump: Scene<P, S> = {
     const { ni, nf, L } = p;
     const E1 = level(1, L);
     const lines = [
-      `E_1 = \\frac{h^2}{8mL^2} = \\frac{(hc)^2}{8\\,mc^2L^2} = \\frac{(1239.8\\ \\text{eV}\\cdot\\text{nm})^2}{8\\,(511.0\\ \\text{keV})\\,(${texNum(L, 3)}\\ \\text{nm})^2} = ${texNum(E1, 4)}\\ \\text{eV}`,
+      `E_1 = \\frac{h^2}{8mL^2} = \\frac{(hc)^2}{8\\,mc^2L^2} = \\frac{(1239.84\\ \\text{eV}\\cdot\\text{nm})^2}{8\\,(511.0\\ \\text{keV})\\,(${texNum(L, 3)}\\ \\text{nm})^2} = ${texNum(E1, 4)}\\ \\text{eV}`,
       `E_n = n^2E_1:\\quad E_{${ni}} = ${texNum(level(ni, L), 4)}\\ \\text{eV},\\quad E_{${nf}} = ${texNum(level(nf, L), 4)}\\ \\text{eV}`,
     ];
     if (ni === nf) return [...lines, 'n_i = n_f:\\ \\Delta E = 0'];
@@ -269,7 +269,7 @@ export const welljump: Scene<P, S> = {
     return [
       ...lines,
       `\\Delta E = E_{${hi}} - E_{${lo}} = (${hi}^2 - ${lo}^2)(${texNum(E1, 4)}\\ \\text{eV}) = ${texNum(dE, 4)}\\ \\text{eV}`,
-      `\\lambda = \\frac{hc}{\\Delta E} = \\frac{1239.8\\ \\text{eV}\\cdot\\text{nm}}{${texNum(dE, 4)}\\ \\text{eV}} = ${fmtLambda(HC_EVNM / dE)}`,
+      `\\lambda = \\frac{hc}{\\Delta E} = \\frac{1239.84\\ \\text{eV}\\cdot\\text{nm}}{${texNum(dE, 4)}\\ \\text{eV}} = ${fmtLambda(HC_EVNM / dE)}`,
     ];
   },
 

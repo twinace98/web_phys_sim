@@ -44,7 +44,10 @@ function fitEquations(box: HTMLElement, min = 0.8): void {
     k.style.fontSize = '';
     const avail = d.clientWidth;
     const need = k.scrollWidth;
-    if (avail > 0 && need > avail) k.style.fontSize = `${Math.max(min, avail / need)}em`;
+    // Scale KaTeX's own computed size (it is 1.21em of the parent): an em value here would be
+    // relative to the parent and shrink the line by a further 1/1.21.
+    const base = parseFloat(getComputedStyle(k).fontSize);
+    if (avail > 0 && need > avail && base > 0) k.style.fontSize = `${base * Math.max(min, avail / need)}px`;
   }
 }
 
