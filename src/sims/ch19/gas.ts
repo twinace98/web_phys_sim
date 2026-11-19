@@ -168,10 +168,6 @@ function drawHist(g: Parameters<Scene['draw']>[0], r: Rect, s: S, p: P): void {
       }
       c.d.polyline(pts, { color: '#1a1a1a', width: 1.75, dash: [5, 4] });
     });
-    // A bar taller than the axis (all molecules at one speed at the start) is cut: its count on top.
-    counts.forEach((n, k) => {
-      if (n > top) c.d.text(c.P((k + 0.5) * bw, top), String(n), { size: 12, color: ROLE_COLOR.velocity, align: 'center', baseline: 'top', dy: 3, weight: 600 });
-    });
   });
 }
 
