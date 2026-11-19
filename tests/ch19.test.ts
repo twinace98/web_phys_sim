@@ -23,7 +23,8 @@ import {
 } from '../src/sims/ch19/physics';
 import ko from '../src/sims/ch19/i18n.ko.json';
 import en from '../src/sims/ch19/i18n.en.json';
-import { gasScene } from '../src/sims/ch19/gas';
+import { binsOf, countTop, gasScene, speedCounts } from '../src/sims/ch19/gas';
+import { defaults } from '../src/core/params';
 
 describe('ch19 hard-disk gas', () => {
   it('initial kinetic energy is exactly NkT (2D) in both modes; disks do not overlap', () => {
@@ -222,5 +223,28 @@ describe('ch19 excess over NkT/A: what the info panel claims', () => {
       expect(msgs['ch19.assume.relax']).toMatch(/36/);
       expect(gasScene.info.assumptions).toContain('ch19.assume.relax');
     }
+  });
+});
+
+describe('ch19 histogram: live molecule counts (user request 2026-11-19)', () => {
+  it('bars count the molecules on the stage now: they sum to N and change from step to step', () => {
+    for (const N of [20, 100, 1000])
+      for (const init of ['equal', 'mb'])
+        for (const T of [100, 300, 1200]) {
+          const p = { ...defaults(gasScene.params), N, init, T } as never;
+          const s = gasScene.init(p, new Rng(7));
+          const c0 = speedCounts(s.gas, T);
+          expect(c0).toHaveLength(binsOf(N));
+          // Speeds above the axis (4.2 σ) are rare; every molecule below it is in a bin.
+          expect(c0.reduce((a, b) => a + b, 0)).toBeGreaterThanOrEqual(N - Math.ceil(0.01 * N));
+          for (let i = 0; i < 300; i++) gasScene.step!(s, 0.01, p);
+          const c1 = speedCounts(s.gas, T);
+          expect(c1.reduce((a, b) => a + b, 0)).toBeGreaterThanOrEqual(N - Math.ceil(0.01 * N));
+          if (init === 'equal' && N >= 100) expect(c1).not.toEqual(c0);
+          expect(Number.isInteger(countTop(N, T))).toBe(true);
+          expect(countTop(N, T)).toBeGreaterThanOrEqual(3);
+        }
+    expect(binsOf(20)).toBe(10);
+    expect(binsOf(1000)).toBe(24);
   });
 });

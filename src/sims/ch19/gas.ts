@@ -1,6 +1,7 @@
 // Ch 19 scene: pressure as the sum of molecular impulses. A hard-disk gas; every bounce on the
 // right wall delivers 2 m v_x. The accumulated impulse grows at the mean force, so its time
 // average per wall length converges to the ideal-gas pressure NkT/A.
+import { t as tr } from '../../core/i18n';
 import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { drawRich } from '../../draw/text';
@@ -13,15 +14,11 @@ type P = { N: number; T: number; L: number; init: string; arrows: boolean };
 interface S {
   t: number;
   gas: Gas;
-  /** Time-averaged speed histogram (probability density per bin). */
-  hist: number[];
-  histT: number;
 }
 
 const T_END = 200;
-const BINS = 24;
-const HIST_DT = 0.5;
-const HIST_TAU = 10;
+/** Bins of the speed histogram: fewer for few molecules, so a bin is not mostly empty. */
+export const binsOf = (N: number) => Math.max(10, Math.min(24, Math.round(2 * Math.sqrt(N))));
 const FORCE = ROLE_COLOR.force;
 const DISK = '#5c5c5c';
 const WALL = '#5c5c5c';
@@ -30,17 +27,22 @@ export const LABEL_PX = 40;
 
 const vMax = (T: number) => 4.2 * sigmaV(T);
 
-function sampleHist(s: S, p: P, first: boolean): void {
-  const g = s.gas;
-  const vm = vMax(p.T);
-  const bw = vm / BINS;
-  const c = new Array(BINS).fill(0);
+/** Molecules per speed bin right now (no time averaging), from the gas on the stage. */
+export function speedCounts(g: Gas, T: number): number[] {
+  const n = binsOf(g.N);
+  const bw = vMax(T) / n;
+  const c = new Array(n).fill(0);
   for (let i = 0; i < g.N; i++) {
     const k = Math.floor(Math.hypot(g.vx[i], g.vy[i]) / bw);
-    if (k < BINS) c[k] += 1 / (g.N * bw);
+    if (k < n) c[k] += 1;
   }
-  const a = first ? 1 : HIST_DT / HIST_TAU;
-  for (let k = 0; k < BINS; k++) s.hist[k] = (1 - a) * s.hist[k] + a * c[k];
+  return c;
+}
+
+/** Count axis top for N molecules: the Maxwell–Boltzmann peak count plus room for its scatter. */
+export function countTop(N: number, T: number): number {
+  const peak = N * speedPdf(sigmaV(T), T) * (vMax(T) / binsOf(N));
+  return Math.ceil(Math.max(1.35 * peak, peak + 3 * Math.sqrt(peak), 3));
 }
 
 const params: ParamSchema<P> = {
@@ -141,26 +143,34 @@ function drawBox(g: Parameters<Scene['draw']>[0], r: Rect, s: S, p: P): void {
 
 function drawHist(g: Parameters<Scene['draw']>[0], r: Rect, s: S, p: P): void {
   const vm = vMax(p.T);
-  const fmax = 1.25 * Math.max(speedPdf(sigmaV(p.T), p.T), ...s.hist.map((v) => Math.min(v, 2.2 * speedPdf(sigmaV(p.T), p.T))));
-  chart(g, r, [0, vm], [0, fmax], { l: 16, r: 14, t: 18, b: 36 }, (c) => {
-    c.axes({ xLabel: '*v* (km/s)', yTicks: 0 });
-    const bw = vm / s.hist.length;
+  const counts = speedCounts(s.gas, p.T);
+  const bw = vm / counts.length;
+  const top = countTop(p.N, p.T);
+  const step = [1, 2, 5, 10, 20, 50, 100, 200].find((d) => top / d <= 4) ?? 500;
+  const yTickList = Array.from({ length: Math.floor(top / step) + 1 }, (_, i) => i * step);
+  chart(g, r, [0, vm], [0, top], { l: 30, r: 14, t: 18, b: 36 }, (c) => {
+    c.axes({ xLabel: '*v* (km/s)', yLabel: tr('ch19.hist.y'), yTickList });
     c.clip(() => {
-      s.hist.forEach((h, k) => {
-        if (h <= 0) return;
-        c.d.polygon([c.P(k * bw, 0), c.P((k + 1) * bw, 0), c.P((k + 1) * bw, h), c.P(k * bw, h)], {
+      counts.forEach((n, k) => {
+        if (n <= 0) return;
+        c.d.polygon([c.P(k * bw, 0), c.P((k + 1) * bw, 0), c.P((k + 1) * bw, Math.min(n, top)), c.P(k * bw, Math.min(n, top))], {
           fill: ROLE_COLOR.velocity,
           fillAlpha: 0.35,
           color: '#ffffff',
           width: 1,
         });
       });
+      // Expected count per bin, N f(v) Δv.
       const pts: Vec2[] = [];
       for (let i = 0; i <= 120; i++) {
         const v = (vm * i) / 120;
-        pts.push(c.P(v, speedPdf(v, p.T)));
+        pts.push(c.P(v, p.N * speedPdf(v, p.T) * bw));
       }
       c.d.polyline(pts, { color: '#1a1a1a', width: 1.75, dash: [5, 4] });
+    });
+    // A bar taller than the axis (all molecules at one speed at the start) is cut: its count on top.
+    counts.forEach((n, k) => {
+      if (n > top) c.d.text(c.P((k + 0.5) * bw, top), String(n), { size: 12, color: ROLE_COLOR.velocity, align: 'center', baseline: 'top', dy: 3, weight: 600 });
     });
   });
 }
@@ -172,21 +182,16 @@ export const gasScene: Scene<P, S> = {
   time: { h: 0.01, recordEvery: 10, frameStep: 1, tEnd: T_END, scale: 10, unit: 'ps' },
   world: () => ({ x: [0, 1], y: [0, 1], aspect: 'contain' }),
   init: (p, rng) => {
-    const s: S = { t: 0, gas: initGas(p.N, p.L, p.T, p.init === 'mb' ? 'mb' : 'equal', rng), hist: new Array(BINS).fill(0), histT: 0 };
-    sampleHist(s, p, true);
+    const s: S = { t: 0, gas: initGas(p.N, p.L, p.T, p.init === 'mb' ? 'mb' : 'equal', rng) };
     return s;
   },
-  step: (s, h, p) => {
+  step: (s, h) => {
     stepGas(s.gas, h);
     s.t = s.gas.t;
     const hits = s.gas.hits;
     let drop = 0;
     while (drop < hits.length && hits[drop].t < s.t - WIN - 2) drop++;
     if (drop) hits.splice(0, drop);
-    if (s.t - s.histT >= HIST_DT - 1e-9) {
-      s.histT = s.t;
-      sampleHist(s, p, false);
-    }
   },
   record: (s) => ({ t: s.t, J: s.gas.J, pw: pWin(s.gas), pc: pCum(s.gas) }),
 

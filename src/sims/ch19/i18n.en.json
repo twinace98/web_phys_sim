@@ -18,10 +18,11 @@
   "ch19.obs.fluct": "The 10 ps moving average of the pressure fluctuates strongly; the average since the start, $J/(Lt)$, converges to the dashed line $NkT/A$",
   "ch19.obs.N": "Larger $N$: the pressure grows in proportion to $N$ and the relative fluctuations shrink",
   "ch19.obs.T": "Doubling the temperature: molecules move faster and hit more often, so the pressure doubles",
-  "ch19.obs.hist": "Even when every molecule starts at the same speed, collisions turn the speed distribution into the 2D Maxwell-Boltzmann distribution (dashed)",
+  "ch19.obs.hist": "Histogram below: how many molecules are in each speed bin right now (live). Dashed: the expected count $N f(v)\\,\\Delta v$ from the 2D Maxwell–Boltzmann distribution. Even from one common speed, collisions reshape the bars towards the dashed curve; with small $N$ the bars fluctuate strongly. A bar taller than the axis shows its count on top",
   "ch19.assume.2d": "2D gas: pressure = force per unit wall length (mN/m = pN/nm), area $A = L^2$",
   "ch19.assume.disk": "Hard disks the size of helium atoms (diameter 0.26 nm, mass $6.65\\times10^{-27}$ kg), perfectly elastic collisions, smooth walls. Where the disks would cover more than 1.5 % of the box, their diameter shrinks to keep 1.5 % (ideal gas: molecule size negligible; 0.066 nm at $N = 1000$, $L = 15$ nm)",
   "ch19.assume.dense": "The disks' size makes the measured pressure slightly higher than $NkT/A$: the area the disks block for each other, $2\\varphi$ (area fraction $\\varphi \\le 1.5$ %), plus a wall layer $\\sigma/L$ (a disk centre stops one radius from the wall, so the width it moves in is $L - \\sigma$; $\\sigma/L \\le 1.7$ %). Together $2\\varphi + \\sigma/L$: about 4 % at the defaults, within about 5 % at every setting",
   "ch19.assume.relax": "Collision rate: at the defaults a molecule collides about 36 times in 200 ps. At $N = 20$, $L = 30$ nm, 100 K only about twice, so the run ends before the speed distribution has fully reached the Maxwell-Boltzmann form",
-  "ch19.assume.win": "During the first 10 ps both pressure plots divide the impulse so far by 10 ps, so they start from 0"
+  "ch19.assume.win": "During the first 10 ps both pressure plots divide the impulse so far by 10 ps, so they start from 0",
+  "ch19.hist.y": "molecules"
 }
