@@ -1,6 +1,7 @@
 // Ch 41 scene: doped silicon. Donor or acceptor levels near the band edges, the Fermi level from
 // charge neutrality, and the carrier densities against temperature (freeze-out, extrinsic,
 // intrinsic).
+import { t as tr } from '../../core/i18n';
 import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { ROLE_COLOR } from '../../draw/theme';
@@ -181,6 +182,18 @@ export const doping: Scene<P, { t: number }> = {
     }
     // Fermi level.
     const yF = f.Y(q.mu);
+    // Name the level the dopant adds inside the gap: on the gap side of its line, clear of E_F,
+    // tied back to the line by a short leader when it had to move.
+    const levelLabel = (E: number, key: string, color: string, dir: 1 | -1) => {
+      const yL = f.Y(E);
+      const xr = f.X(x1);
+      let y = yL + dir * 13;
+      for (let k = 0; k < 15 && Math.abs(y - yF) < 11; k++) y += dir * 4;
+      if (Math.abs(y - yL) > 16) linePx(g, xr + 3, yL, xr + 3, y, { color, width: 1 });
+      textPx(g, xr, y, tr(key), { size: 12, color, align: 'right', baseline: 'middle' });
+    };
+    if (Nd > 0) levelLabel(Ec - ED, 'ch41.d.level.donor', ELECTRON, 1);
+    if (Na > 0) levelLabel(EA, 'ch41.d.level.acceptor', HOLE, -1);
     linePx(g, boxA.l, yF, boxA.r, yF, { color: '#1a1a1a', width: 1.25, dash: [6, 4] });
     textPx(g, boxA.r + 4, yF, '*E*_{F}', { size: 13, color: TICK, baseline: 'middle' });
     textPx(g, boxA.l - 6, f.Y(Ec), '*E*_{c}', { size: 13, color: TICK, align: 'right', baseline: 'middle' });
@@ -231,7 +244,7 @@ export const doping: Scene<P, { t: number }> = {
 
   info: {
     goals: ['ch41.d.goal.dope', 'ch41.d.goal.T'],
-    observe: ['ch41.d.obs.i', 'ch41.d.obs.n', 'ch41.d.obs.p', 'ch41.d.obs.conc', 'ch41.d.obs.freeze', 'ch41.d.obs.intr', 'ch41.d.obs.law', 'ch41.d.obs.below'],
+    observe: ['ch41.d.obs.i', 'ch41.d.obs.n', 'ch41.d.obs.p', 'ch41.d.obs.conc', 'ch41.d.obs.freeze', 'ch41.d.obs.intr', 'ch41.d.obs.levels', 'ch41.d.obs.law', 'ch41.d.obs.below'],
     equations: ['n\\,p = n_i^2', 'n + N_A^- = p + N_D^+'],
     assumptions: ['ch41.d.assume.si', 'ch41.d.assume.dots', 'ch41.d.assume.stat'],
   },

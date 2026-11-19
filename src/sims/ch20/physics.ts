@@ -1,5 +1,5 @@
-// Ch 20: counting microstates. Free expansion of N independent particles (W = C(N, n)) and two
-// Einstein solids exchanging energy quanta. Entropies are in units of k (S/k = ln W). DOM-free.
+// Ch 20: counting microstates. Free expansion of N independent particles (Ω = C(N, n)) and two
+// Einstein solids exchanging energy quanta. Entropies are in units of k (S/k = ln Ω, Halliday's W). DOM-free.
 import type { Rng } from '../../core/rng';
 
 const lnf: number[] = [0];

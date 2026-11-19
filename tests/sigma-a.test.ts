@@ -187,10 +187,13 @@ describe('Σ panel agrees with the simulation, Ch 2–6', () => {
     const cx: Expect[] = [
       [/F_\{\\text\{net\},r\} = (?!.*F_\\text\{cf\} =)/, 'F_{\\text{net},r}'],
       [/^\\frac\{mv\^2\}\{r\} = /, 'mv^2/r'],
-      [/^v = \\sqrt/, 'v'],
+      [/^\\sum F'_r = /, (() => 0) as Val],
     ];
     const steps = [0, 300, 600, 900, 1200, 2000];
-    for (const over of [{}, { cut: true }, { preset: 'flat' }, { preset: 'flat', ice: true }, { preset: 'banked' }, { preset: 'cone' }, { preset: 'cone', cut: true }])
-      check(c, over, steps, cx, 2);
+    const cases: Record<string, unknown>[] = [{}, { cut: true }, { preset: 'flat' }, { preset: 'flat', ice: true }, { preset: 'banked' }, { preset: 'cone' }, { preset: 'cone', cut: true }];
+    // Speed slider extremes, the ice skid speed either side, and the rotating frame on.
+    cases.push({ vString: 1, cut: true, rot: true }, { vString: 3.5, rot: true }, { preset: 'flat', vFlat: 2, rot: true }, { preset: 'flat', ice: true, vFlat: 4.42 }, { preset: 'flat', ice: true, vFlat: 10.5, rot: true });
+    cases.push({ preset: 'banked', vBanked: 4 }, { preset: 'banked', vBanked: 11, rot: true }, { preset: 'cone', vCone: 1.2, rot: true }, { preset: 'cone', vCone: 2.5, cut: true, rot: true });
+    for (const over of cases) check(c, over, steps, cx, 2);
   });
 });

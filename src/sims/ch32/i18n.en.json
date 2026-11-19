@@ -40,6 +40,7 @@
   "ch32.m.obs.para": "Paramagnet: a single curve with no loop, disorder as soon as $B = 0$. Higher temperature gives less alignment at the same $B$ (Curie's law)",
   "ch32.m.obs.curie": "Ferromagnet above 1.0: the domains break up and the loop disappears; it behaves like a paramagnet (Curie temperature)",
   "ch32.m.obs.dia": "Diamagnet: small moments are induced opposite to $B$ (Lenz's law, Ch 30), independent of temperature, gone when $B$ is off",
+  "ch32.m.assume.curie": "Curie's law $M = C\\,B_\\text{ext}/T$ (paramagnet, $\\mu B_\\text{ext} \\ll k_BT$): $C$ is the Curie constant, which depends on the material (unit K·A/(T·m)). In this model $\\tanh x \\approx x$ gives $M/M_\\text{s} \\approx \\mu B/k_BT$, so $C = \\mu M_\\text{s}/k_B$. Not to be confused with the Curie temperature $T_C$",
   "ch32.m.assume.model": "2D square lattice; each moment points only up or down; the neighbour alignment and thermal agitation are computed by a Monte Carlo method",
   "ch32.m.assume.units": "$B$ and $M$ are relative ($M_s$: all moments aligned); time advances in full lattice updates",
   "ch32.m.assume.dia": "The diamagnetic response is drawn much larger than real ($\\chi \\sim 10^{-5}$; here at most $M/M_s = -0.3$); arrow length $\\propto M/M_s$",

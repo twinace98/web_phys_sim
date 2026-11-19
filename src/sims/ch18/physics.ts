@@ -190,7 +190,7 @@ export interface Cycle {
 /**
  * Rectangle: A(10 L, 100 kPa) → isochoric heating → isobaric expansion → isochoric cooling →
  * isobaric compression. Carnot: isotherm at T_H = 600 K, adiabat to T_C (default 300 K), isotherm,
- * adiabat back. `cw` = clockwise in the p–V plane (engine); otherwise reversed (refrigerator).
+ * adiabat back. `cw` = clockwise in the p–V plane (engine); otherwise reversed (reverse cycle: refrigerator or heat pump).
  */
 export function cycle(kind: CycleKind, cw: boolean, f: number, tc = 300): Cycle {
   let corners: St[];

@@ -1,5 +1,6 @@
 // Ch 14 scene: Venturi tube. Tracers spread out in the throat (continuity), the standpipe
-// column drops there (Bernoulli), and a table under each tap lists every term.
+// column drops there (Bernoulli), ½ρv² stacks on each column up to one head line, and a table
+// under the tube lists A, v and A v.
 import { fmt } from '../../core/format';
 import { t } from '../../core/i18n';
 import { num, tn, u } from '../../core/tex';
@@ -18,18 +19,25 @@ const WALL = '#5c5c5c';
 const WATER = '#dcebf6';
 const TRACER = '#0072B2';
 const LABEL = '#6b6b6b';
-const ROW_PX = 19;
+const ROW_PX = 24;
+/** ½ρv² (orange) and ρgh (blue) in the labels above the standpipes and in the bars. */
+export const DYN = '#D55E00';
+export const STAT = '#0072B2';
+/** World room above the standpipes for the two term labels [m]. */
+const LABEL_ROOM = 0.09;
 
 const venturiOf = (p: P): Venturi => ({ A1, ratio: p.ratio, Q: p.Q / 1000, dy: p.dy / 100 });
 
 let memoKey = '';
-let memo: { v: Venturi; tt: TravelTime; tp: Tap[]; top: number } | null = null;
+let memo: { v: Venturi; tt: TravelTime; tp: Tap[]; head: number; top: number } | null = null;
 function model(p: P) {
   const key = `${p.ratio}|${p.Q}|${p.dy}`;
   if (key !== memoKey || !memo) {
     const v = venturiOf(p);
     const tp = taps(v);
-    memo = { v, tt: new TravelTime(v), tp, top: Math.max(...tp.map((q) => q.level)) + 0.06 };
+    // Total head: every water level plus its v²/2g bar reaches this line (Bernoulli).
+    const head = tp[0].level + tp[0].v ** 2 / (2 * G);
+    memo = { v, tt: new TravelTime(v), tp, head, top: head + 0.04 };
     memoKey = key;
   }
   return memo;
@@ -91,29 +99,70 @@ function wall(v: Venturi, side: 1 | -1, n = 160): Vec2[] {
   return pts;
 }
 
+/** Orange 45° hatching in the box [x0, x1] × [y0, y1] (world), with an orange outline. */
+function hatchBar(g: Draw, x0: number, x1: number, y0: number, y1: number): void {
+  if (!(y1 > y0)) return;
+  const st = g.px(5);
+  const w = x1 - x0;
+  for (let c = y0 - w; c < y1; c += st) {
+    // Line y = c + (x − x0), clipped to the box.
+    const a = { x: x0 + Math.max(0, y0 - c), y: Math.max(c, y0) };
+    const b = { x: x0 + Math.min(w, y1 - c), y: Math.min(c + w, y1) };
+    if (b.x > a.x) g.line(a, b, { color: DYN, width: 1 });
+  }
+  g.polyline(
+    [
+      { x: x0, y: y0 },
+      { x: x0, y: y1 },
+      { x: x1, y: y1 },
+      { x: x1, y: y0 },
+    ],
+    { color: DYN, width: 1.25 },
+  );
+}
+
+/** Three rows under the tube: area, speed, and their product, the same flow rate at every section. */
 function drawTable(g: Draw, tp: Tap[], yTop: number): void {
-  const rows: [string, string, (q: Tap) => string][] = [
-    ['*A*', 'cm²', (q) => fmt(q.A * 1e4, 3)],
-    ['*v*', 'm/s', (q) => fmt(q.v, 3)],
-    ['*Av*', 'L/s', (q) => fmt(q.flow * 1000, 3)],
-    ['*p*', 'kPa', (q) => f2(q.p / 1000)],
-    ['½*ρv*^{2}', 'kPa', (q) => f2(q.dyn / 1000)],
-    ['*ρgy*', 'kPa', (q) => f2(q.grav / 1000)],
-    [t('ch14.sum'), 'kPa', (q) => f2(q.sum / 1000)],
+  const rows: [string, string, (q: Tap) => string, boolean][] = [
+    [t('ch14.row.A'), 'cm²', (q) => fmt(q.A * 1e4, 3), false],
+    [t('ch14.row.v'), 'm/s', (q) => fmt(q.v, 3), false],
+    [t('ch14.row.Q'), 'L/s', (q) => fmt(q.flow * 1000, 3), true],
   ];
-  const head = { size: 12, color: LABEL, baseline: 'middle' as const };
+  const head = { size: 14, color: LABEL, baseline: 'middle' as const };
   const x0 = -0.07;
-  const xu = TAPS[2] + 0.13;
-  TAPS.forEach((x, i) => g.text({ x, y: yTop }, String(i + 1), { size: 13, color: '#1a1a1a', align: 'center', baseline: 'middle', weight: 600 }));
-  rows.forEach(([label, unit, val], r) => {
-    const dy = ROW_PX * (r + 1);
-    g.text({ x: x0, y: yTop }, label, { ...head, dy });
+  const xu = TAPS[2] + 0.12;
+  // A narrow stage has no room for the row names beside the first column: each name gets its own
+  // line above its values.
+  const stacked = (TAPS[0] - x0) / g.px(1) < 90;
+  const step = stacked ? 20 : ROW_PX;
+  TAPS.forEach((x, i) => g.text({ x, y: yTop }, String(i + 1), { size: 14, color: '#1a1a1a', align: 'center', baseline: 'middle', weight: 600 }));
+  let dy = 0;
+  const rules: number[] = [step / 2];
+  rows.forEach(([label, unit, val, strong], r) => {
+    if (r === 2) rules.push(dy + step / 2);
+    dy += step;
+    if (stacked) {
+      g.text({ x: x0, y: yTop }, label, { ...head, size: 13, dy });
+      dy += step;
+    } else g.text({ x: x0, y: yTop }, label, { ...head, dy });
     g.text({ x: xu, y: yTop }, unit, { ...head, dy });
-    TAPS.forEach((x, i) => g.text({ x, y: yTop }, val(tp[i]), { size: 12, color: '#1a1a1a', align: 'center', baseline: 'middle', dy }));
+    TAPS.forEach((x, i) => g.text({ x, y: yTop }, val(tp[i]), { size: 15, color: '#1a1a1a', align: 'center', baseline: 'middle', dy, weight: strong ? 600 : undefined }));
   });
-  // Rule under the section numbers.
-  const yr = yTop - g.px(ROW_PX / 2);
-  g.line({ x: x0, y: yr }, { x: xu + 0.06, y: yr }, { color: '#d0d0d0', width: 1 });
+  // Rules under the section numbers and above the flow row (the product of the two rows above).
+  for (const k of rules) {
+    const yr = yTop - g.px(k);
+    g.line({ x: x0, y: yr }, { x: xu + 0.06, y: yr }, { color: '#d0d0d0', width: 1 });
+  }
+}
+
+/** Above each standpipe: ½ρv² (orange) over ρgh (blue), in kPa. */
+function drawTerms(g: Draw, tp: Tap[], yTop: number): void {
+  TAPS.forEach((x, i) => {
+    const q = tp[i];
+    const st = { size: 13, align: 'center' as const, baseline: 'middle' as const };
+    g.text({ x, y: yTop }, `½*ρv*^{2} = ${f2(q.dyn / 1000)} kPa`, { ...st, color: DYN, dy: -32 });
+    g.text({ x, y: yTop }, `*ρgh* = ${f2((q.p + q.grav) / 1000)} kPa`, { ...st, color: STAT, dy: -14 });
+  });
 }
 
 /**
@@ -147,7 +196,7 @@ export const venturi: Scene<P, { t: number }> = {
   world: (p) => {
     const { top } = model(p);
     const r1 = Math.sqrt(A1 / Math.PI);
-    return { x: [-0.08, TUBE.L + 0.06], y: [-r1 - 0.42, top + 0.02], aspect: 'contain', padPx: 16 };
+    return { x: [-0.08, TUBE.L + 0.06], y: [-r1 - 0.42, top + LABEL_ROOM], aspect: 'contain', padPx: 16 };
   },
 
   init: () => ({ t: 0 }),
@@ -156,7 +205,7 @@ export const venturi: Scene<P, { t: number }> = {
   },
 
   draw: (g, s, p, ui) => {
-    const { v, tt, tp, top } = model(p);
+    const { v, tt, tp, head, top } = model(p);
     // Tracer positions are analytic in t: drawn at the frame's own time (h is half a frame here).
     const tNow = ui?.tFrame ?? s.t;
     const upper = wall(v, 1);
@@ -167,7 +216,7 @@ export const venturi: Scene<P, { t: number }> = {
     TAPS.forEach((x, i) => {
       const yw = axisY(v, x) + radiusAt(v, x);
       const lvl = tp[i].level;
-      const yTop = top - 0.02;
+      const yTop = top;
       g.polygon(
         [
           { x: x - W_PIPE, y: yw - 0.002 },
@@ -178,11 +227,17 @@ export const venturi: Scene<P, { t: number }> = {
         { fill: WATER },
       );
       g.line({ x: x - W_PIPE, y: lvl }, { x: x + W_PIPE, y: lvl }, { color: TRACER, width: 2 });
+      // ½ρv² as a height v²/2g stacked on the water column, hatched: not water, a measure of the
+      // kinetic term. Every stack ends at the same height.
+      hatchBar(g, x - W_PIPE, x + W_PIPE, lvl, head);
       g.line({ x: x - W_PIPE, y: yw }, { x: x - W_PIPE, y: yTop }, { color: WALL, width: 1.5 });
       g.line({ x: x + W_PIPE, y: yw }, { x: x + W_PIPE, y: yTop }, { color: WALL, width: 1.5 });
     });
-    // Inlet level carried across, so the drop at the throat reads at a glance.
-    g.line({ x: TAPS[0] + W_PIPE, y: tp[0].level }, { x: TAPS[2] + 0.1, y: tp[0].level }, { color: LABEL, width: 1, dash: [4, 4] });
+    // Inlet water level carried across (dashed, blue: real water), so the drop at the throat reads.
+    g.line({ x: TAPS[0] + W_PIPE, y: tp[0].level }, { x: TAPS[2] + 0.06, y: tp[0].level }, { color: STAT, width: 1, dash: [4, 4], alpha: 0.7 });
+    // The common top of the hatched stacks: p + ½ρv² + ρgy is the same at every section.
+    g.line({ x: TAPS[0] - 0.06, y: head }, { x: TAPS[2] + 0.06, y: head }, { color: DYN, width: 1, alpha: 0.6 });
+    drawTerms(g, tp, top);
 
     // Walls, with gaps where the standpipes join.
     const gapped = (pts: Vec2[]) => {
@@ -227,7 +282,7 @@ export const venturi: Scene<P, { t: number }> = {
 
   info: {
     goals: ['ch14.goal.cont', 'ch14.goal.bern'],
-    observe: ['ch14.obs.tracer', 'ch14.obs.column', 'ch14.obs.table', 'ch14.obs.ratio', 'ch14.obs.tilt'],
+    observe: ['ch14.obs.tracer', 'ch14.obs.column', 'ch14.obs.table', 'ch14.obs.terms', 'ch14.obs.ratio', 'ch14.obs.tilt'],
     equations: ['A_1 v_1 = A_2 v_2 = Q', 'p + \\tfrac{1}{2}\\rho v^2 + \\rho g y = \\text{const}'],
     assumptions: ['ch14.assume.flow', 'ch14.assume.p', 'ch14.assume.slow'],
   },

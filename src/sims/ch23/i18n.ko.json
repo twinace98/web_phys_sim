@@ -11,6 +11,7 @@
   "ch23.p.view": "표시",
   "ch23.d.view": "전기장을 전기력선이나 격자 화살표로 표시, 또는 끄기",
   "ch23.goal.law": "가우스 법칙: 닫힌 면을 지나는 전기 선속 = 안쪽 전하 / $\\varepsilon_0$, 면의 모양·크기와 무관",
+  "ch23.goal.2d": "교과서 식과의 관계: 화면은 지면에 수직인 무한히 긴 선전하의 단면. 선 방향 단위 길이당으로 나누면 면적분 $\\oint \\vec E\\cdot d\\vec A$ → 단면 곡선의 선적분 $\\oint E_n\\,dl$, $q_\\text{enc}$ → $\\lambda_\\text{enc}$: $\\oint E_n\\,dl = \\lambda_\\text{enc}/\\varepsilon_0$",
   "ch23.goal.out": "바깥 전하: 들어오는 선속과 나가는 선속이 같아 순 기여 0",
   "ch23.obs.cross": "전하를 끌어 면을 넘기면 $\\oint E_n\\,dl$이 계단처럼 변함 (그 전하의 $\\lambda/\\varepsilon_0$만큼)",
   "ch23.obs.outside": "바깥 전하를 움직이면 면 위 화살표 (국소 $E_n$)는 바뀌지만 합 $\\oint E_n\\,dl$은 그대로",

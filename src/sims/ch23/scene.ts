@@ -47,7 +47,7 @@ const base = pathScene({
   G0: { default: [-0.3, 0, 0.4] },
   box: [-1.15, -0.75, 1.15, 0.75],
   info: {
-    goals: ['ch23.goal.law', 'ch23.goal.out'],
+    goals: ['ch23.goal.law', 'ch23.goal.2d', 'ch23.goal.out'],
     observe: ['ch23.obs.cross', 'ch23.obs.outside', 'ch23.obs.shape', 'ch23.obs.arrows', 'ch23.obs.lines', 'ch23.obs.tray'],
     equations: ['\\oint \\vec E\\cdot d\\vec A = \\frac{q_\\text{enc}}{\\varepsilon_0}', '\\text{2D:}\\quad \\oint E_n\\,dl = \\frac{\\lambda_\\text{enc}}{\\varepsilon_0}, \\quad E = \\frac{\\lambda}{2\\pi\\varepsilon_0 r}'],
     assumptions: ['ch23.as.2d', 'ch23.as.units', 'ch23.as.num', 'ch23.as.snap'],

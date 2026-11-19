@@ -307,6 +307,6 @@ export const shm: Scene<P, S> = {
       '\\omega = \\sqrt{k/m}, \\quad T = 2\\pi\\sqrt{m/k}',
       'E = \\tfrac{1}{2}mv^2 + \\tfrac{1}{2}kx^2 = \\tfrac{1}{2}kA^2',
     ],
-    assumptions: ['ch15.assume.spring', 'ch15.assume.scale', 'ch15.assume.damp'],
+    assumptions: ['ch15.assume.spring', 'ch15.assume.scale', 'ch15.assume.zeta', 'ch15.assume.damp'],
   },
 };

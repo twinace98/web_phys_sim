@@ -11,6 +11,7 @@
   "ch23.p.view": "Show",
   "ch23.d.view": "Draw the field as field lines or grid arrows, or hide it",
   "ch23.goal.law": "Gauss' law: the electric flux through a closed surface equals the enclosed charge over $\\varepsilon_0$, whatever the shape or size",
+  "ch23.goal.2d": "Link to the textbook form: the scene is a slice through infinitely long line charges perpendicular to the page. Per unit length along the lines, the surface integral $\\oint \\vec E\\cdot d\\vec A$ becomes the line integral $\\oint E_n\\,dl$ around the slice and $q_\\text{enc}$ becomes $\\lambda_\\text{enc}$: $\\oint E_n\\,dl = \\lambda_\\text{enc}/\\varepsilon_0$",
   "ch23.goal.out": "An outside charge sends as much flux in as out, so its net contribution is 0",
   "ch23.obs.cross": "Drag a charge across the surface and $\\oint E_n\\,dl$ jumps by that charge's $\\lambda/\\varepsilon_0$",
   "ch23.obs.outside": "Move an outside charge: the arrows on the surface (local $E_n$) change, the total $\\oint E_n\\,dl$ does not",

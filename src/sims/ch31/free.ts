@@ -364,9 +364,9 @@ export const freeScene: Scene<P, S> = {
       'L\\frac{d^2q}{dt^2} + R\\frac{dq}{dt} + \\frac{q}{C} = 0',
       '\\omega_0 = \\frac{1}{\\sqrt{LC}}',
       "\\omega' = \\sqrt{\\frac{1}{LC} - \\left(\\frac{R}{2L}\\right)^2}, \\quad T' = \\frac{2\\pi}{\\omega'}",
-      'q = Q e^{-Rt/2L}\\cos(\\omega\' t + \\phi)',
+      'q = Q e^{-Rt/2L}\\cos(\\omega\' t + \\phi_0)',
       'U = \\frac{q^2}{2C} + \\frac{1}{2}Li^2',
     ],
-    assumptions: ['ch31.f.assume'],
+    assumptions: ['ch31.f.assume', 'ch31.f.assume.phase'],
   },
 };

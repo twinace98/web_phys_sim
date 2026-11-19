@@ -3,13 +3,16 @@
 // from rest together. a = g sin θ / (1 + β) with β = I / (M R²), so the order is fixed by the mass
 // distribution alone. One body (chosen) shows the velocities of its contact point, centre and top,
 // or, with the free-body diagram, the forces on it: Mg, N and the static friction f_s up the incline.
+// Each lane is tagged with its body's β and a; numbered badges mark the arrivals at the finish.
 import { t as tr } from '../../core/i18n';
 import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw, PlotDraw } from '../../draw/draw';
-import { drawFbd, fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
-import { drawRich } from '../../draw/text';
-import { ROLE_COLOR } from '../../draw/theme';
+import { FBD_MIN_PX, drawFbd, fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
+import { drawRich, measureRich } from '../../draw/text';
+import { ROLE_COLOR, theme } from '../../draw/theme';
+import { fmt } from '../../core/format';
+import { Recorder, textBox } from './place';
 import { sigFit } from '../ch07/sigfit';
 import { BETA, BODIES, G, finishTime, pointVelocity, rollAccel, rollState, type Body, type Incline } from './physics';
 
@@ -30,7 +33,7 @@ const STRIP = 0.04; // lane thickness [m]
 const EXT = R + 0.08; // lane beyond the finish line, so a body stopped there sits on it [m]
 const BACK = R + 0.08; // lane behind the start [m]
 const RUN_OUT = 0.3; // floor beyond the foot of the incline [m]
-const LEFT = 0.45; // room left of the lanes for the body names [m]
+const LEFT = 0.95; // room left of the lanes for the tags (name, β, a) [m]
 const ARROW_MAX = 0.5; // longest velocity arrow (top of the sphere at the finish) [m]
 
 /** Lanes from the bottom up. */
@@ -120,7 +123,7 @@ export function fbdPerN(g: Draw, p: P): number {
 }
 
 function drawLanes(g: Draw, p: P): void {
-  const { th, u, n, at } = frame(p);
+  const { th, n, at } = frame(p);
   // Lane 0 is the top of a wedge standing on the floor; the others are rails above it.
   const a0 = at(0, -BACK);
   g.polygon([a0, { x: 0, y: 0 }, { x: a0.x, y: 0 }], { fill: LANE_FILL, color: LANE_EDGE, width: 1 });
@@ -145,13 +148,38 @@ function drawLanes(g: Draw, p: P): void {
     const lr = g.px(44);
     g.text({ x: lr * Math.cos(la), y: lr * Math.sin(la) }, '*θ*', { size: 13, color: '#5c5c5c', align: 'center', baseline: 'middle' });
   }
-  // Body names behind the start of each lane; with the free-body diagram not the chosen body's (its
-  // friction label would run into it at the start; the drop-down names it).
+  // Tags behind the start of each lane: name and β, then a. Right edge clear of the lane's end cap
+  // (its lower corner is the leftmost point).
   LANES.forEach((b, i) => {
-    if (p.fbd && b === focusOf(p)) return;
-    const c = at(i, -BACK, R);
-    g.text({ x: c.x - u.x * g.px(6), y: c.y - u.y * g.px(6) }, tr(`ch11.r.tag.${b}`), { size: 12, color: BODY_COLOR[b], align: 'right', baseline: 'middle', weight: b === focusOf(p) ? 700 : 500 });
+    const [l1, l2] = tagLines(p, b);
+    const q = { x: at(i, -BACK, -STRIP).x - g.px(5) - g.px(tagShift(g, p, b)), y: at(i, -BACK, R).y };
+    const st = { size: 12, color: BODY_COLOR[b], align: 'right' as const, baseline: 'middle' as const, weight: b === focusOf(p) ? 700 : 500 };
+    g.text(q, l1, { ...st, dy: -7 });
+    g.text(q, l2, { ...st, dy: 7 });
   });
+}
+
+/**
+ * How far [px] the chosen body's tag moves left under its free-body diagram, so that it clears the
+ * friction label as the body leaves the start (fixed for the run, so the tag does not slide).
+ */
+function tagShift(g: Draw, p: P, b: Body): number {
+  if (!p.fbd || b !== focusOf(p) || b === 'block') return 0;
+  const sc = theme.scale;
+  const { at } = frame(p);
+  const i = LANES.indexOf(b);
+  const fs = fbdForces(p)[2];
+  const mag = Math.hypot(fs.F.x, fs.F.y);
+  const ux = fs.F.x / mag;
+  const uy = fs.F.y / mag;
+  const len = Math.max(mag * fbdPerN(g, p), FBD_MIN_PX) * sc;
+  const [cx, cy] = g.vp.toPx(at(i, 0, R).x, at(i, 0, R).y);
+  const lab = textBox(g.ctx, fs.label, cx + ux * len - 5 * sc, cy - uy * len - uy * 8 * sc, { size: 13, align: 'right', baseline: 'middle' });
+  const [xr, ya] = g.vp.toPx(at(i, -BACK, -STRIP).x - g.px(5), at(i, -BACK, R).y);
+  const h = 12 * 1.2 * sc;
+  const [y0, y1] = [ya - 7 * sc - h / 2, ya + 7 * sc + h / 2];
+  if (y1 <= lab.y0 || lab.y1 <= y0) return 0;
+  return Math.max(0, xr - (lab.x0 - 3 * sc)) / sc;
 }
 
 /**
@@ -183,19 +211,21 @@ function drawBody(g: Draw, p: P, b: Body, i: number, t: number, a = 1): void {
     g.line(c, rim, { color: '#1a1a1a', width: 1.75, alpha: a });
   } else {
     // Solid sphere: shaded so it reads as a ball, not a flat disk.
-    const { ctx } = g;
-    const [x, y] = g.vp.toPx(c.x, c.y);
-    const rr = Math.max(1, rPx);
-    const grad = ctx.createRadialGradient(x - rr * 0.35, y - rr * 0.35, rr * 0.1, x, y, rr);
-    grad.addColorStop(0, '#ffffff');
-    grad.addColorStop(1, col);
-    ctx.save();
-    ctx.globalAlpha = 0.75 * a;
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(x, y, rr, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.restore();
+    if (!dry(g)) {
+      const { ctx } = g;
+      const [x, y] = g.vp.toPx(c.x, c.y);
+      const rr = Math.max(1, rPx);
+      const grad = ctx.createRadialGradient(x - rr * 0.35, y - rr * 0.35, rr * 0.1, x, y, rr);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(1, col);
+      ctx.save();
+      ctx.globalAlpha = 0.75 * a;
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, rr, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.restore();
+    }
     g.circle(c, rPx, { color: col, width: 1.75, alpha: a });
     g.line(c, rim, { color: '#1a1a1a', width: 1.75, alpha: a });
   }
@@ -230,11 +260,28 @@ function drawVelocities(g: Draw, p: P, t: number): void {
       if (k.s - back - g.px(LABEL_PX) > -BACK + g.px(4)) {
         const [x, y] = g.vp.toPx(at0.x - u.x * back + n.x * g.px(2), at0.y - u.y * back + n.y * g.px(2));
         const { ctx } = g;
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(ramp(p).theta);
-        drawRich(ctx, '*v* = 0', 0, 0, { size: 12, color: ROLE_COLOR.velocity, align: 'right', baseline: 'bottom' });
-        ctx.restore();
+        const label = '*v* = 0';
+        const lst = { size: 12, color: ROLE_COLOR.velocity, align: 'right' as const, baseline: 'bottom' as const };
+        if (!dry(g)) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(ramp(p).theta);
+          drawRich(ctx, label, 0, 0, lst);
+          ctx.restore();
+        }
+        const w = measureRich(ctx, label, lst);
+        if (g instanceof Recorder) {
+          const th = ramp(p).theta;
+          const hh = 12 * 1.2 * theme.scale;
+          g.keep(
+            [
+              [-w, -hh],
+              [0, -hh],
+              [0, 0],
+              [-w, 0],
+            ].map(([a, b]) => [x + a * Math.cos(th) - b * Math.sin(th), y + a * Math.sin(th) + b * Math.cos(th)] as [number, number]),
+          );
+        }
       }
       continue;
     }
@@ -269,6 +316,101 @@ function curve(f: (t: number) => number, t1: number): [number, number][] {
 
 /** β of each body as an exact fraction. */
 const BETA_TEX: Record<Body, string> = { hoop: '1', disk: '\\tfrac12', sphere: '\\tfrac25', block: '0' };
+/** β as written on the stage. */
+const BETA_TXT: Record<Body, string> = { hoop: '1', disk: '1/2', sphere: '2/5', block: '0' };
+
+/** The two lines of a lane tag: name and β, then the acceleration. */
+export function tagLines(p: P, b: Body): [string, string] {
+  return [`${tr(`ch11.r.tag.${b}`)} *β* = ${BETA_TXT[b]}`, `*a* = ${fmt(rollAccel(BETA[b], ramp(p).theta).a, 3)} m/s²`];
+}
+
+/** Finish order (1 first) of each body; the order is fixed by β. */
+export const finishOrder = (b: Body) => [...BODIES].sort((x, y) => BETA[x] - BETA[y]).indexOf(b) + 1;
+const BADGE = 7; // radius of the finish-order badge [px]
+
+/** A Recorder that only measures. */
+const dry = (g: Draw) => g instanceof Recorder && g.dry;
+
+/** Everything on the stage except the tags' finish marks, at time t. */
+function drawScene(g: Draw, p: P, t: number): void {
+  drawLanes(g, p);
+  const f = focusOf(p);
+  LANES.forEach((b, i) => drawBody(g, p, b, i, t, !p.fbd ? 1 : b === f ? 0.35 : 0.5));
+  drawArrows(g, p, t);
+}
+
+/** The chosen body's velocity arrows or, with the diagram on, its free-body diagram. */
+function drawArrows(g: Draw, p: P, t: number): void {
+  if (!p.fbd) {
+    drawVelocities(g, p, t);
+    return;
+  }
+  // Free-body diagram of the chosen body from its centre; its velocity arrows would cross the
+  // friction and weight arrows, so they give way.
+  const f = focusOf(p);
+  const i = LANES.indexOf(f);
+  drawFbd(g, frame(p).at(i, rollState(ramp(p), f, t).s, R), fbdForces(p), fbdPerN(g, p));
+}
+
+let marksKey = '';
+let marksMemo: Map<Body, Vec2> = new Map();
+
+/**
+ * Centres (world) of the finish-order badges, beside the finish end of each lane. Chosen once per
+ * setting from the final picture (every body stopped at the line) plus the chosen body's arrows on
+ * their way to the line after the first finish, so a badge never moves and nothing passes over it. Spots in
+ * order of preference: behind and above the stopped body (three distances back), on the lane's line
+ * past its end, under the lane past its end (under the floor for the wedge), above the body. All
+ * lanes take the first spot that is clear for every lane; failing that, each lane its own first
+ * clear spot.
+ */
+export function finishBadges(g: Draw, p: P): Map<Body, Vec2> {
+  const key = [p.theta, focusOf(p), p.fbd, g.vp.w, g.vp.h, g.vp.scale, theme.scale, ...BODIES.map((b) => tr(`ch11.r.tag.${b}`))].join('|');
+  if (key === marksKey) return marksMemo;
+  const rec = new Recorder(g, true);
+  drawScene(rec, p, tEndOf(p));
+  // The chosen body's arrows and labels sweep past the finish after the first body has stopped there.
+  const t0 = finishTime(ramp(p), 'block');
+  const t1 = finishTime(ramp(p), focusOf(p));
+  for (let j = 0; j <= 40 && t1 > t0; j++) drawArrows(rec, p, t0 + ((t1 - t0) * j) / 40);
+  const { u, n, at } = frame(p);
+  const r = (BADGE + 1.5) * theme.scale;
+  const step = (q: Vec2, d: Vec2, k: number): Vec2 => ({ x: q.x + d.x * g.px(k), y: q.y + d.y * g.px(k) });
+  // Height of the free band above a stopped body: halfway between its top and the lane above.
+  const hMid = (2 * R + GAP - STRIP) / 2;
+  const spots: ((i: number) => Vec2)[] = [
+    (i) => step(at(i, LEN - R, hMid), u, -(4 + BADGE)),
+    (i) => step(at(i, LEN - R, hMid), u, -(22 + BADGE)),
+    (i) => step(at(i, LEN - R, hMid), u, -(40 + BADGE)),
+    (i) => step(at(i, LEN + EXT), u, 5 + BADGE),
+    (i) => step(step(at(i, LEN + EXT, -STRIP), u, BADGE), n, -(3 + BADGE)),
+    (i) => step(at(i, LEN + R, hMid), u, 4 + BADGE),
+  ];
+  const ok = (q: Vec2, taken: Vec2[]) => {
+    const [x, y] = rec.toPx(q);
+    return rec.clearDisc(x, y, r) && taken.every((o) => Math.hypot(...([0, 1].map((j) => rec.toPx(o)[j] - [x, y][j]) as [number, number])) >= 2 * r);
+  };
+  let out: Map<Body, Vec2> | null = null;
+  for (const spot of spots) {
+    const qs = LANES.map((_, i) => spot(i));
+    if (qs.every((q, j) => ok(q, qs.slice(0, j)))) {
+      out = new Map(LANES.map((b, i) => [b, qs[i]]));
+      break;
+    }
+  }
+  if (!out) {
+    const taken: Vec2[] = [];
+    out = new Map();
+    LANES.forEach((b, i) => {
+      const q = spots.map((s) => s(i)).find((x) => ok(x, taken)) ?? spots[0](i);
+      taken.push(q);
+      out!.set(b, q);
+    });
+  }
+  marksKey = key;
+  marksMemo = out;
+  return out;
+}
 
 /** K_rot / K_trans readout: β before the start, when both are zero. */
 export function kRatio(s: S, p: P): number {
@@ -357,17 +499,15 @@ export const rollScene: Scene<P, S> = {
   snapshot: (s) => ({ ...s }),
 
   draw: (g, s, p) => {
-    drawLanes(g, p);
-    const f = focusOf(p);
-    LANES.forEach((b, i) => drawBody(g, p, b, i, s.t, !p.fbd ? 1 : b === f ? 0.35 : 0.5));
-    if (!p.fbd) {
-      drawVelocities(g, p, s.t);
-      return;
+    drawScene(g, p, s.t);
+    // Finish order, once a body has crossed the line.
+    const badges = finishBadges(g, p);
+    for (const b of LANES) {
+      if (!rollState(ramp(p), b, s.t).done) continue;
+      const c = badges.get(b)!;
+      g.circle(c, BADGE, { fill: BODY_COLOR[b] });
+      g.text(c, String(finishOrder(b)), { size: 11, color: '#ffffff', align: 'center', baseline: 'middle', weight: 700 });
     }
-    // Free-body diagram of the chosen body from its centre; its velocity arrows would cross the
-    // friction and weight arrows, so they give way.
-    const i = LANES.indexOf(f);
-    drawFbd(g, frame(p).at(i, rollState(ramp(p), f, s.t).s, R), fbdForces(p), fbdPerN(g, p));
   },
 
   plots: [

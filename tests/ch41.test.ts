@@ -19,6 +19,7 @@ import { layout } from '../src/sims/ch41/filling';
 import { intrinsicMu } from '../src/sims/ch41/physics';
 import { REF_UNDOPED, belowOne, carriersOf, doping, dotRef } from '../src/sims/ch41/doping';
 import { fromQuery } from '../src/core/params';
+import { offStage, probe } from './stage-probe';
 
 describe('ch41 band formation', () => {
   it('N wells give N levels in each band, inside the Kronig-Penney bands', () => {
@@ -187,5 +188,30 @@ describe('ch41 doping', () => {
     const c = carriers(300, 0, 0);
     expect(c.n / ni(MATERIALS.si, 300)).toBeCloseTo(1, 6);
     expect(c.p / c.n).toBeCloseTo(1, 6);
+  });
+});
+
+describe('ch41 doping: dopant level labels', () => {
+  const isLevel = (s = '') => s.includes('ch41.d.level') || s.includes('*E*_{d}') || s.includes('*E*_{a}');
+  it('n- and p-type name their level in the gap, clear of the E_F line; undoped has none', () => {
+    for (const [w, h] of [
+      [1280, 704],
+      [390, 680],
+    ])
+      for (const type of ['i', 'n', 'p'] as const)
+        for (const T of [30, 50, 100, 200, 300, 500, 800])
+          for (const conc of [1e13, 1e15, 1e16, 1e17, 1e18]) {
+            const p = { ...fromQuery(doping.params, new URLSearchParams()), type, T, conc } as never;
+            const g = probe(doping, { t: 0 }, p, w, h);
+            const labels = g.marks.filter((m) => m.kind === 'text' && isLevel(m.text));
+            const ef = g.marks.find((m) => m.kind === 'text' && m.text === '*E*_{F}')!;
+            if (type === 'i') {
+              expect(labels).toHaveLength(0);
+              continue;
+            }
+            expect(labels).toHaveLength(1);
+            expect(Math.abs(labels[0].y - ef.y), `${type} ${T} K ${conc} at ${w}`).toBeGreaterThanOrEqual(10);
+            expect(offStage(g)).toEqual([]);
+          }
   });
 });

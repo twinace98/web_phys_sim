@@ -327,6 +327,6 @@ export const acScene: Scene<P, S> = {
       '\\tan\\phi = \\frac{X_L - X_C}{R}, \\quad \\omega_0 = \\frac{1}{\\sqrt{LC}}',
       'X_L = \\omega_d L, \\quad X_C = \\frac{1}{\\omega_d C}',
     ],
-    assumptions: ['ch31.a.assume'],
+    assumptions: ['ch31.a.assume.phase', 'ch31.a.assume'],
   },
 };

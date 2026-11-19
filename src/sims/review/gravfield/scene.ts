@@ -430,7 +430,7 @@ export const gravfield: Scene<P, S> = {
   formula: (_s, p) => formulaLines(p),
 
   info: {
-    goals: ['gravfield.goal.field', 'gravfield.goal.phi'],
+    goals: ['gravfield.goal.field', 'gravfield.goal.phi', 'gravfield.goal.grad'],
     observe: ['gravfield.obs.tray', 'gravfield.obs.drag', 'gravfield.obs.null', 'gravfield.obs.lines', 'gravfield.obs.eight', 'gravfield.obs.three', 'gravfield.obs.perp', 'gravfield.obs.single', 'gravfield.obs.analogy'],
     equations: [
       '\\vec g = \\frac{\\vec F}{m} = -\\sum_i \\frac{GM_i}{r_i^2}\\,\\hat r_i',

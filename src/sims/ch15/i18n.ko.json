@@ -20,6 +20,7 @@
   "ch15.obs.damp": "감쇠비 0.05: 진폭과 $E$가 지수적으로 줄어듦, 주기는 거의 그대로",
   "ch15.assume.spring": "질량 없는 이상적 용수철, $x$는 평형 위치에서 잰 변위 (중력은 평형 위치만 옮김). 자유물체도: 매단 용수철의 힘 $F_s = mg - kx$, $g = 9.8\\ \\text{m/s}^2$",
   "ch15.assume.scale": "원 위 화살표 길이: $v$는 $1/\\omega$배, $a$는 $1/\\omega^2$배로 줄여 그림",
+  "ch15.assume.zeta": "감쇠비 $\\zeta = b/(2\\sqrt{km})$: $b$ = 감쇠력 $F_d = -bv$의 비례 상수 (감쇠 상수). $\\zeta < 1$ 부족감쇠, $\\zeta = 1$ 임계감쇠, $\\zeta > 1$ 과감쇠 (이 장면은 $\\zeta \\le 0.2$, 부족감쇠만). 검토 페이지 감쇠 진동의 기호와 연결: $\\gamma = b/2m = \\zeta\\omega_0$, $b_c = 2\\sqrt{km}$ → $\\zeta = b/b_c$",
   "ch15.assume.damp": "감쇠가 있으면 수치 줄의 $\\omega$와 $T$는 감쇠 진동의 값: $\\omega = \\omega_0\\sqrt{1 - \\zeta^2}$, $T = 2\\pi/\\omega$, $\\omega_0 = \\sqrt{k/m}$",
   "ch15.n.scene": "단진자",
   "ch15.n.p.theta0": "처음 각",

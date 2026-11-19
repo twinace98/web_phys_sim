@@ -255,6 +255,6 @@ export const magnet: Scene<P, S> = {
     goals: ['ch32.m.goal.compete', 'ch32.m.goal.ferro'],
     observe: ['ch32.m.obs.domains', 'ch32.m.obs.loop', 'ch32.m.obs.para', 'ch32.m.obs.curie', 'ch32.m.obs.dia'],
     equations: ['M = \\frac{\\mu_\\text{total}}{V}', 'M = C\\,\\frac{B_\\text{ext}}{T}'],
-    assumptions: ['ch32.m.assume.model', 'ch32.m.assume.units', 'ch32.m.assume.relax', 'ch32.m.assume.dia'],
+    assumptions: ['ch32.m.assume.curie', 'ch32.m.assume.model', 'ch32.m.assume.units', 'ch32.m.assume.relax', 'ch32.m.assume.dia'],
   },
 };

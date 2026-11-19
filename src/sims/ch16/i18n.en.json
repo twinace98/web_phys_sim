@@ -21,6 +21,7 @@
   "ch16.obs.waveEnd": "Continuous wave at the end: a fixed end never moves (incident and reflected waves cancel); a free end swings with twice the incident amplitude (they add)",
   "ch16.assume.ideal": "Uniform, inextensible string, no energy loss, $v = 2\\ \\text{m/s}$",
   "ch16.assume.left": "The left side is part of a long string: the reflected wave leaves to the left and does not reflect again",
+  "ch16.assume.h": "$h$: shape function of the incident wave (pulse or sine wave). Incident wave $y_1 = h(t - x/v)$, reflected wave $y_2 = \\mp h\\big(t - (2L - x)/v\\big)$, the incident wave mirrored about $x = L$ and travelling back ($-$ fixed end, $+$ free end). At the end $x = L$: $y(L) = h - h = 0$ (fixed) or $h + h = 2h$ (free), with $h = h(t - L/v)$",
   "ch16.r.scene": "Resonance",
   "ch16.r.p.f": "Driving frequency",
   "ch16.r.d.f": "Frequency $f$ at which the left end is shaken; drag slowly to sweep it",
