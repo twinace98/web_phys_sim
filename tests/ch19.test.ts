@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { CanvasDraw } from '../src/draw/draw';
+import { ROLE_COLOR } from '../src/draw/theme';
 import { Rng } from '../src/core/rng';
 import {
   KB,
@@ -267,5 +269,33 @@ describe('ch19 histogram: no count printed over the bars (user request 2026-11-1
         expect(texts).toContain('0'); // the axis ticks are recorded
         expect(texts).not.toContain(String(N));
       }
+  });
+
+  it('a cut bar carries a wavy break (two wavy lines); a bar under the axis top does not', () => {
+    const spy = vi.spyOn(CanvasDraw.prototype, 'polyline');
+    const waves = (init: string, N: number, steps: number, w: number, h: number) => {
+      const p = { ...defaults(gasScene.params), N, init } as never;
+      const s = gasScene.init(p, new Rng(7));
+      for (let i = 0; i < steps; i++) gasScene.step!(s, 0.01, p);
+      const g = new ProbeDraw(w, h);
+      g.vp.fit(gasScene.world(p), w, h);
+      spy.mockClear();
+      gasScene.draw(g, s, p, { t: s.t, cursorT: s.t, scrubbing: false, lecture: false });
+      const T = (p as { T: number }).T;
+      const cut = speedCounts(s.gas, T).filter((n) => n > countTop(N, T)).length;
+      const n = spy.mock.calls.filter(([, st]) => (st as { color?: string } | undefined)?.color === ROLE_COLOR.velocity).length;
+      return { cut, n };
+    };
+    for (const N of [20, 100, 1000])
+      for (const [w, h] of [[1280, 800], [390, 844]] as const) {
+        const a = waves('equal', N, 0, w, h);
+        expect(a.cut).toBe(1);
+        expect(a.n).toBe(2);
+        const b = waves('mb', N, 0, w, h);
+        expect(b.n).toBe(2 * b.cut);
+        const c = waves('equal', N, 2000, w, h); // 20 ps, relaxed towards Maxwell–Boltzmann
+        expect(c.n).toBe(2 * c.cut);
+      }
+    spy.mockRestore();
   });
 });
