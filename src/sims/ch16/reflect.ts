@@ -61,6 +61,9 @@ const params: ParamSchema<P> = {
   parts: { kind: 'toggle', label: 'ch16.p.parts', desc: 'ch16.d.parts', group: 'advanced', live: true, default: true },
 };
 
+/** Opacity of the incident and reflected dashed waves under the string (user request 2026-11-19). */
+export const PARTS_ALPHA = 0.4;
+
 function curve(g: Draw, fn: (x: number) => number, x0: number, x1: number, st: Parameters<Draw['polyline']>[1], skipZero = false): void {
   const n = 480;
   const xs = Array.from({ length: n + 1 }, (_, i) => x0 + ((x1 - x0) * i) / n);
@@ -114,11 +117,12 @@ export const reflect: Scene<P, { t: number }> = {
     const t = s.t;
     g.line({ x: X_LEFT, y: 0 }, { x: L, y: 0 }, { color: '#e0e0e0', width: 1 });
 
-    // String first; the two waves dashed on top so they stay visible where they coincide with it.
+    // String first; the two waves dashed on top so they stay visible where they coincide with it,
+    // but faint (PARTS_ALPHA) so the real string (solid) stays the main line.
     curve(g, (x) => reflectAt(r, x, t).y, X_LEFT, L, { role: 'fg', width: 2.5 });
     if (p.parts) {
-      curve(g, (x) => reflectAt(r, x, t).inc, X_LEFT, L, { role: 'position', width: 1.75, dash: [6, 4] }, true);
-      curve(g, (x) => reflectAt(r, x, t).ref, X_LEFT, L, { role: 'energyU', width: 1.75, dash: [6, 4] }, true);
+      curve(g, (x) => reflectAt(r, x, t).inc, X_LEFT, L, { role: 'position', width: 1.5, dash: [6, 4], alpha: PARTS_ALPHA }, true);
+      curve(g, (x) => reflectAt(r, x, t).ref, X_LEFT, L, { role: 'energyU', width: 1.5, dash: [6, 4], alpha: PARTS_ALPHA }, true);
     }
     drawEnd(g, r.end, L, reflectAt(r, L, t).y, 0, 0.6);
   },

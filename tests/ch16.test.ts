@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { envelope, harmonic, nodes, reflectAt, resonance, steadyAmp, stringAdvance, stringInit, stringStep, type Driven, type Reflect } from '../src/sims/ch16/physics';
 import { defaults } from '../src/core/params';
-import { reflect } from '../src/sims/ch16/reflect';
+import { PARTS_ALPHA, reflect } from '../src/sims/ch16/reflect';
 import { STR, resonanceScene } from '../src/sims/ch16/resonance';
 import { ProbeDraw } from './stage-probe';
 
@@ -168,5 +168,12 @@ describe('ch16 amplitude marker: steady, no phase-dependent wobble (review §0-1
       // Finite-difference steady state against the continuous one (grid N = 100).
       expect(Math.abs(w.amp / resonance(STR, f) - 1)).toBeLessThan(0.03);
     }
+  });
+});
+
+describe('ch16 reflection: the dashed parts stay faint under the solid string (user request 2026-11-19)', () => {
+  it('incident and reflected waves are drawn at reduced opacity, the string at full', () => {
+    expect(PARTS_ALPHA).toBeGreaterThan(0.2);
+    expect(PARTS_ALPHA).toBeLessThanOrEqual(0.5);
   });
 });
