@@ -1,6 +1,6 @@
 // Ch 20 scene: free expansion. The gas starts in the left half behind a partition; the user removes
 // it (button under the box, or a tap on the partition). The macrostate n (particles in the left
-// half) then wanders towards N/2, where the number of microstates W = C(N, n) is largest.
+// half) then wanders towards N/2, where the number of microstates Ω = C(N, n) is largest.
 import { fmtTick } from '../../core/format';
 import { t as tr } from '../../core/i18n';
 import { num, tn } from '../../core/tex';
@@ -94,8 +94,8 @@ function drawBox(g: Draw, r: Rect, s: S, p: P): void {
   });
 }
 
-/** W(n) for every macrostate, the current one highlighted. */
-function drawW(g: Draw, r: Rect, s: S, p: P): void {
+/** Ω(n) (multiplicity) for every macrostate, the current one highlighted. */
+function drawOmega(g: Draw, r: Rect, s: S, p: P): void {
   const N = p.N;
   const lm = Smax(N);
   const small = N <= 10;
@@ -104,7 +104,7 @@ function drawW(g: Draw, r: Rect, s: S, p: P): void {
   chart(g, r, [-0.6, N + 0.6], [0, yTop], { l: small ? 40 : 34, r: 14, t: 20, b: 36 }, (c) => {
     c.axes({
       xLabel: '*n*',
-      yLabel: small ? '*W*' : '*W* / *W*_{max}',
+      yLabel: small ? 'Ω' : 'Ω / Ω_{max}',
       xTickList: N <= 10 ? Array.from({ length: N + 1 }, (_, k) => k) : undefined,
       yTicks: small ? 4 : 2,
     });
@@ -189,12 +189,12 @@ export const expansionScene: Scene<P, S> = {
     const full = stageRect(g);
     const [box, w] = full.w > 1.9 * full.h ? split(full, 'row', [1.2, 1], 10) : split(full, 'col', [1, 1], 6);
     drawBox(g, box, s, p);
-    drawW(g, w, s, p);
+    drawOmega(g, w, s, p);
   },
 
   plots: [
     { id: 'n', label: 'n', traces: [{ channel: 'n', role: 'position' }], yRange: (p) => [0, p.N * 1.05] },
-    { id: 'S', label: '\\Delta S/k = \\ln W', traces: [{ channel: 'S', role: 'fg' }], yRange: (p) => [0, Math.max(1, Smax(p.N) * 1.15)] },
+    { id: 'S', label: '\\Delta S/k = \\ln\\Omega', traces: [{ channel: 'S', role: 'fg' }], yRange: (p) => [0, Math.max(1, Smax(p.N) * 1.15)] },
   ],
 
   drawPlot: (id, pd, p) => {
@@ -209,8 +209,8 @@ export const expansionScene: Scene<P, S> = {
 
   readouts: [
     { label: 'n', unit: '', value: (s) => s.n, sig: 1 },
-    { label: 'W', unit: '', value: (s, p) => Math.exp(lnBinom(p.N, s.n)) },
-    // Relative to the all-left state (W = 1): only the change is physical.
+    { label: '\\Omega', unit: '', value: (s, p) => Math.exp(lnBinom(p.N, s.n)) },
+    // Relative to the all-left state (Ω = 1): only the change is physical.
     { label: '\\Delta S/k', unit: '', value: (s, p) => entropyLR(p.N, s.n) },
   ],
 
@@ -220,28 +220,28 @@ export const expansionScene: Scene<P, S> = {
     goals: ['ch20.e.goal.S', 'ch20.e.goal.irr'],
     observe: ['ch20.e.obs.remove', 'ch20.e.obs.peak', 'ch20.e.obs.small', 'ch20.e.obs.large', 'ch20.e.obs.S'],
     equations: [
-      'W(n) = \\binom{N}{n} = \\frac{N!}{n!\\,(N-n)!}',
-      '\\Delta S = k \\ln W(n) - k \\ln W(N) = k \\ln W(n)',
+      '\\Omega(n) = \\binom{N}{n} = \\frac{N!}{n!\\,(N-n)!}',
+      '\\Delta S = k \\ln\\Omega(n) - k \\ln\\Omega(N) = k \\ln\\Omega(n)',
       '\\Delta S_\\text{max} \\approx Nk \\ln 2 - \\tfrac{k}{2}\\ln\\frac{\\pi N}{2}',
       'P(n = N) = \\frac{1}{2^N}',
     ],
-    assumptions: ['ch20.e.assume', 'ch20.e.assume.ref'],
+    assumptions: ['ch20.e.assume', 'ch20.e.assume.ref', 'ch20.assume.omegaW'],
   },
 };
 
 /**
- * Σ panel: W(n) = C(N, n) of the current macrostate, ΔS/k = ln W relative to the all-left state
- * (W = 1), its largest value at n = N/2 with the large-N form, and P(n = N) = 1/2^N.
+ * Σ panel: Ω(n) = C(N, n) of the current macrostate, ΔS/k = ln Ω relative to the all-left state
+ * (Ω = 1), its largest value at n = N/2 with the large-N form, and P(n = N) = 1/2^N.
  */
 export function formulaLines(n: number, p: P): string[] {
   const N = p.N;
-  const W = Math.exp(lnBinom(N, n));
-  // W exactly while it prints as an integer, else four figures, so ln W reproduces ΔS/k.
-  const Wsub = W < 1e5 ? String(Math.round(W)) : tn(W, 4);
+  const Om = Math.exp(lnBinom(N, n));
+  // Ω exactly while it prints as an integer, else four figures, so ln Ω reproduces ΔS/k.
+  const OmSub = Om < 1e5 ? String(Math.round(Om)) : tn(Om, 4);
   const half = Math.floor(N / 2);
   return [
-    `W(n) = \\binom{N}{n} = \\binom{${N}}{${n}} = ${tn(W)}`,
-    `\\Delta S/k = \\ln W(n) = \\ln(${Wsub}) = ${tn(entropyLR(N, n))}`,
+    `\\Omega(n) = \\binom{N}{n} = \\binom{${N}}{${n}} = ${tn(Om)}`,
+    `\\Delta S/k = \\ln\\Omega(n) = \\ln(${OmSub}) = ${tn(entropyLR(N, n))}`,
     `\\Delta S_\\text{max}/k = \\ln\\binom{${N}}{${half}} = ${tn(Smax(N))}`,
     `\\approx N\\ln 2 - \\tfrac{1}{2}\\ln\\frac{\\pi N}{2} = ${N}\\ln 2 - \\tfrac{1}{2}\\ln(${num(N / 2)}\\pi) = ${tn(N * Math.LN2 - 0.5 * Math.log((Math.PI * N) / 2))}`,
     `P(n = N) = 1/2^N = 1/2^{${N}} = ${pow2(N)}`,

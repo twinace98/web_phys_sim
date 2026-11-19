@@ -25,6 +25,7 @@
   "ch13.o.obs.energy": "Energy graph: $K$ and $U$ trade off while $E$ stays flat; the probe is fastest when closest",
   "ch13.o.obs.crash": "0.5 × escape speed: the closest approach is inside the Earth, so the probe hits the surface",
   "ch13.o.obs.kepler": "Kepler's second law (settings): equal areas in equal times, a consequence of angular momentum conservation (Ch 11)",
+  "ch13.o.obs.ueff": "Effective potential (setting): $U_\\text{eff}(r) = -GMm/r + L^2/(2mr^2)$, with $L = mrv_\\perp$ the angular momentum of the probe (conserved, Ch 11; $v_\\perp$ = velocity component perpendicular to the radius). Where $E = U_\\text{eff}$, $r$ is at its minimum or maximum (perigee, apogee); in between, $E - U_\\text{eff}$ is the kinetic energy of the radial motion",
   "ch13.o.assume": "The Earth is a fixed uniform sphere (mass $5.97\\times10^{24}$ kg, radius 6371 km); no air drag, no rotation, no other bodies; probe mass 1000 kg. On huge near-escape orbits the Earth is drawn with a radius of at least 6 px (larger than to scale), and playback speeds up so that one orbit takes at most 10 s",
   "ch13.o.assume.num": "Fourth-order symplectic (Yoshida) integration with a 2.5 s step, so $E$ stays constant over many orbits"
 }
