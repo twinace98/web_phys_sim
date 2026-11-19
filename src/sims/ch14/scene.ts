@@ -99,6 +99,28 @@ function wall(v: Venturi, side: 1 | -1, n = 160): Vec2[] {
   return pts;
 }
 
+/** Orange 45° hatching in the box [x0, x1] × [y0, y1] (world), with an orange outline. */
+function hatchBar(g: Draw, x0: number, x1: number, y0: number, y1: number): void {
+  if (!(y1 > y0)) return;
+  const st = g.px(5);
+  const w = x1 - x0;
+  for (let c = y0 - w; c < y1; c += st) {
+    // Line y = c + (x − x0), clipped to the box.
+    const a = { x: x0 + Math.max(0, y0 - c), y: Math.max(c, y0) };
+    const b = { x: x0 + Math.min(w, y1 - c), y: Math.min(c + w, y1) };
+    if (b.x > a.x) g.line(a, b, { color: DYN, width: 1 });
+  }
+  g.polyline(
+    [
+      { x: x0, y: y0 },
+      { x: x0, y: y1 },
+      { x: x1, y: y1 },
+      { x: x1, y: y0 },
+    ],
+    { color: DYN, width: 1.25 },
+  );
+}
+
 /** Three rows under the tube: area, speed, and their product, the same flow rate at every section. */
 function drawTable(g: Draw, tp: Tap[], yTop: number): void {
   const rows: [string, string, (q: Tap) => string, boolean][] = [
@@ -205,21 +227,16 @@ export const venturi: Scene<P, { t: number }> = {
         { fill: WATER },
       );
       g.line({ x: x - W_PIPE, y: lvl }, { x: x + W_PIPE, y: lvl }, { color: TRACER, width: 2 });
-      // ½ρv² as a height v²/2g stacked on the water column: every stack ends on the head line.
-      g.polygon(
-        [
-          { x: x - W_PIPE, y: lvl },
-          { x: x + W_PIPE, y: lvl },
-          { x: x + W_PIPE, y: head },
-          { x: x - W_PIPE, y: head },
-        ],
-        { fill: DYN, fillAlpha: 0.35 },
-      );
+      // ½ρv² as a height v²/2g stacked on the water column, hatched: not water, a measure of the
+      // kinetic term. Every stack ends at the same height.
+      hatchBar(g, x - W_PIPE, x + W_PIPE, lvl, head);
       g.line({ x: x - W_PIPE, y: yw }, { x: x - W_PIPE, y: yTop }, { color: WALL, width: 1.5 });
       g.line({ x: x + W_PIPE, y: yw }, { x: x + W_PIPE, y: yTop }, { color: WALL, width: 1.5 });
     });
-    // The common top of the stacks: p + ½ρv² + ρgy is the same at every section.
-    g.line({ x: TAPS[0] - 0.06, y: head }, { x: TAPS[2] + 0.06, y: head }, { color: LABEL, width: 1, dash: [4, 4] });
+    // Inlet water level carried across (dashed, blue: real water), so the drop at the throat reads.
+    g.line({ x: TAPS[0] + W_PIPE, y: tp[0].level }, { x: TAPS[2] + 0.06, y: tp[0].level }, { color: STAT, width: 1, dash: [4, 4], alpha: 0.7 });
+    // The common top of the hatched stacks: p + ½ρv² + ρgy is the same at every section.
+    g.line({ x: TAPS[0] - 0.06, y: head }, { x: TAPS[2] + 0.06, y: head }, { color: DYN, width: 1, alpha: 0.6 });
     drawTerms(g, tp, top);
 
     // Walls, with gaps where the standpipes join.
