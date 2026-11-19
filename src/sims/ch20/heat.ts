@@ -376,7 +376,7 @@ export const heatScene: Scene<P, S> = {
       '\\Omega_\\text{tot} = \\Omega_\\text{A}\\,\\Omega_\\text{B}, \\quad S_\\text{tot} = S_\\text{A} + S_\\text{B}',
       '\\frac{1}{T} = \\frac{\\partial S}{\\partial E}, \\quad E = q\\,\\varepsilon',
     ],
-    assumptions: ['ch20.h.assume.model', 'ch20.h.assume.omega', 'ch20.h.assume.slope', 'ch20.h.assume.T', 'ch20.h.assume.arrow'],
+    assumptions: ['ch20.h.assume.model', 'ch20.h.assume.omega', 'ch20.assume.omegaW', 'ch20.h.assume.slope', 'ch20.h.assume.T', 'ch20.h.assume.arrow'],
   },
 };
 

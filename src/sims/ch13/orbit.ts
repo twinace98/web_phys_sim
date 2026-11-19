@@ -552,7 +552,7 @@ export const orbitScene: Scene<P, S> = {
 
   info: {
     goals: ['ch13.o.goal.law', 'ch13.o.goal.E', 'ch13.o.goal.esc'],
-    observe: ['ch13.o.obs.dir', 'ch13.o.obs.circ', 'ch13.o.obs.energy', 'ch13.o.obs.crash', 'ch13.o.obs.kepler'],
+    observe: ['ch13.o.obs.dir', 'ch13.o.obs.circ', 'ch13.o.obs.energy', 'ch13.o.obs.crash', 'ch13.o.obs.kepler', 'ch13.o.obs.ueff'],
     equations: [
       'F = \\frac{GMm}{r^2}, \\quad U = -\\frac{GMm}{r}',
       'E = K + U = \\tfrac{1}{2}mv^2 - \\frac{GMm}{r}',

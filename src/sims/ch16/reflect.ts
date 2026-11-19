@@ -139,7 +139,7 @@ export const reflect: Scene<P, { t: number }> = {
       "y = [2y_m \\sin kx']\\cos\\omega t, \\quad x' = L - x",
       'v = f\\lambda',
     ],
-    assumptions: ['ch16.assume.ideal', 'ch16.assume.left'],
+    assumptions: ['ch16.assume.ideal', 'ch16.assume.left', 'ch16.assume.h'],
   },
 };
 

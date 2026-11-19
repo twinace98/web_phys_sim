@@ -319,7 +319,7 @@ describe('ch20 heat flow: tangents', () => {
 });
 
 describe('Ch 20 free expansion: the entropy shown is a change from the all-left state', () => {
-  it('plot and readout are labelled ΔS (S = 0 at W = 1 is a reference, not the absolute entropy)', () => {
+  it('plot and readout are labelled ΔS (S = 0 at Ω = 1 is a reference, not the absolute entropy)', () => {
     const plot = expansionScene.plots!.find((pl) => pl.id === 'S')!;
     expect(plot.label).toContain('\\Delta S');
     expect(expansionScene.readouts!.map((r) => r.label)).toContain('\\Delta S/k');

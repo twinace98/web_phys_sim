@@ -296,6 +296,6 @@ export const frames: Scene<P, S> = {
     goals: ['ch05.f.goal.inertial', 'ch05.f.goal.non'],
     observe: ['ch05.f.obs.ground', 'ch05.f.obs.uniform', 'ch05.f.obs.accel', 'ch05.f.obs.pseudo'],
     equations: ["a' = a - a_0", "\\vec F_\\text{net} = 0 \\;\\Rightarrow\\; m\\vec a' = -m\\vec a_0"],
-    assumptions: ['ch05.f.assume'],
+    assumptions: ['ch05.f.assume', 'ch05.f.assume.sym'],
   },
 };

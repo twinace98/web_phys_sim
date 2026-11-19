@@ -20,6 +20,7 @@
   "ch15.obs.damp": "Damping ratio 0.05: the amplitude and $E$ decay exponentially; the period barely changes",
   "ch15.assume.spring": "Ideal massless spring; $x$ is the displacement from equilibrium (gravity only shifts the equilibrium). Free-body diagram: the hanging spring pulls with $F_s = mg - kx$, $g = 9.8\\ \\text{m/s}^2$",
   "ch15.assume.scale": "Arrows on the circle: $v$ scaled by $1/\\omega$, $a$ by $1/\\omega^2$",
+  "ch15.assume.zeta": "Damping ratio $\\zeta = b/(2\\sqrt{km})$, where $b$ is the damping constant of the damping force $F_d = -bv$. $\\zeta < 1$ underdamped, $\\zeta = 1$ critically damped, $\\zeta > 1$ overdamped (this scene: $\\zeta \\le 0.2$, underdamped only). Link to the symbols of the review page Damped Oscillations: $\\gamma = b/2m = \\zeta\\omega_0$, $b_c = 2\\sqrt{km}$, so $\\zeta = b/b_c$",
   "ch15.assume.damp": "With damping, $\\omega$ and $T$ in the readouts belong to the damped oscillation: $\\omega = \\omega_0\\sqrt{1 - \\zeta^2}$, $T = 2\\pi/\\omega$, $\\omega_0 = \\sqrt{k/m}$",
   "ch15.n.scene": "Simple pendulum",
   "ch15.n.p.theta0": "Release angle",
