@@ -278,8 +278,12 @@ describe('ch15 pendulum: one real pendulum against the small-angle model', () =>
     expect(worldTop({ ...p, theta0: 170 })).toBeGreaterThan(1);
   });
 
+  it('the pendulum starts from 30° by default (user request 2026-11-19): error 1.74 %', () => {
+    expect(defaults(pendulum.params).theta0).toBe(30);
+  });
+
   it('formula panel: T₀, K, T and the error with numbers; a_t against the model −gθ', () => {
-    const p = defaults(pendulum.params);
+    const p = { ...defaults(pendulum.params), theta0: 90 };
     const s = pendulum.init(p, null as never);
     const f = pendulum.formula!(s, p).join('\n');
     expect(f).toContain('2\\pi\\sqrt{1.0/9.8} = 2.007');

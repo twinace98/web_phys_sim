@@ -86,7 +86,7 @@ const params: ParamSchema<P> = {
     min: 5,
     max: 170,
     step: 1,
-    default: 90,
+    default: 30,
     unit: '°',
   },
   L: {
