@@ -30,7 +30,7 @@
   "ch41.scale.lin": "Linear",
   "ch41.f.goal.class": "How the bands are filled separates metals, semiconductors and insulators",
   "ch41.f.goal.T": "Raising the temperature spreads the Fermi-Dirac distribution, lifting valence electrons into the conduction band and leaving holes",
-  "ch41.f.obs.metal": "Metal: the Fermi level $E_\\text{F}$ lies inside a band with empty states just above, so it conducts. Temperature changes only a range $kT$ around $E_\\text{F}$",
+  "ch41.f.obs.metal": "Metal: the Fermi level $E_\\text{F}$ lies inside a partly filled band, with empty states just above, so it conducts. Temperature changes only a range $kT$ around $E_\\text{F}$",
   "ch41.f.obs.semi": "Semiconductor: at 0 K the valence band is full and the conduction band empty, like an insulator. Heating creates electron-hole pairs",
   "ch41.f.obs.ins": "Insulator (diamond): the gap is so large that $f(E_c) \\approx 10^{-23}$ even at 600 K; practically no conduction electrons",
   "ch41.f.obs.log": "Log axis: occupation at the bottom of the conduction band (dot) $\\approx e^{-E_\\text{g}/2kT}$, Ge > Si ≫ diamond",

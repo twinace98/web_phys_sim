@@ -17,11 +17,11 @@ export function bounce(t: number, P: number, L: number): number {
   return u < 0.5 ? 2 * u * L : 2 * (1 - u) * L;
 }
 
-/** Light clock of height L at rest: one tick (round trip) takes 2L. */
-export const restPeriod = (L: number) => 2 * L;
+/** Light clock with mirrors D apart at rest: one tick (round trip) takes 2D/c. */
+export const restPeriod = (D: number) => 2 * D;
 
 /** Seen moving at β, the light runs a zigzag at c, so each tick takes γ·2L. */
-export const movingPeriod = (L: number, beta: number) => gamma(beta) * 2 * L;
+export const movingPeriod = (D: number, beta: number) => gamma(beta) * 2 * D;
 
 /** Completed ticks after time t. */
 export const ticks = (t: number, period: number) => Math.floor(t / period + 1e-9);
