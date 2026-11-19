@@ -80,15 +80,15 @@ function vArrow(g: Draw, f: Frame, x: number, y: number, dir: 1 | -1, beta: numb
 // ------------------------------------------------------------------ light clocks
 
 type PB = { beta: number };
-const L_CLOCK = 1;
+const D_CLOCK = 1;
 const W_VIEW = 8;
 
 function drawClock(g: Draw, f: Frame, x: number, yb: number, colour: string, tLight: number, period: number, n: number): void {
   const w = 0.35;
   f.line(x - w, yb, x + w, yb, { color: colour, width: 4 });
-  f.line(x - w, yb + L_CLOCK, x + w, yb + L_CLOCK, { color: colour, width: 4 });
-  g.circle(f.P(x, yb + bounce(tLight, period, L_CLOCK)), 4.5, { fill: LIGHT });
-  f.text(x, yb + L_CLOCK, String(n), { size: 14, color: colour, align: 'center', dy: -12, weight: 600 });
+  f.line(x - w, yb + D_CLOCK, x + w, yb + D_CLOCK, { color: colour, width: 4 });
+  g.circle(f.P(x, yb + bounce(tLight, period, D_CLOCK)), 4.5, { fill: LIGHT });
+  f.text(x, yb + D_CLOCK, String(n), { size: 14, color: colour, align: 'center', dy: -12, weight: 600 });
 }
 
 /** One view of the two clocks: own clock at rest (top), the other moving at ±β (bottom). */
@@ -97,10 +97,10 @@ function clockView(g: Draw, box: Box, time: number, beta: number, own: string, o
   const yTop = 0.5;
   const yBot = -1.9;
   for (const y of [yTop, yBot]) f.line(-0.6, y - 0.12, W_VIEW + 0.6, y - 0.12, { color: GROUND, width: 1 });
-  const P0 = restPeriod(L_CLOCK);
+  const P0 = restPeriod(D_CLOCK);
   drawClock(g, f, 1.5, yTop, own, time, P0, ticks(time, P0));
   // Moving clock: light zigzags; it wraps around the view.
-  const P = movingPeriod(L_CLOCK, beta);
+  const P = movingPeriod(D_CLOCK, beta);
   const x0 = 1.5;
   const xAt = (tt: number) => wrapTo(x0 + dir * beta * tt, 0.2, W_VIEW - 0.2);
   // Trail of the light over the last two ticks, broken where the clock wraps.
@@ -115,7 +115,7 @@ function clockView(g: Draw, box: Box, time: number, beta: number, own: string, o
       f.polyline(seg, { color: TRAIL, width: 1.25 });
       seg = [];
     }
-    seg.push([x, yBot + bounce(tt, P, L_CLOCK)]);
+    seg.push([x, yBot + bounce(tt, P, D_CLOCK)]);
     prevX = x;
   }
   f.polyline(seg, { color: TRAIL, width: 1.25 });
@@ -144,14 +144,14 @@ export const lightClocks: Scene<PB, { t: number; n: number }> = {
   },
   readouts: [
     { label: '\\gamma', unit: '', value: (_s, p) => gamma(p.beta) },
-    { label: '\\Delta t_0', unit: 's', value: () => restPeriod(L_CLOCK) },
-    { label: '\\Delta t', unit: 's', value: (_s, p) => movingPeriod(L_CLOCK, p.beta) },
+    { label: '\\Delta t_0', unit: 's', value: () => restPeriod(D_CLOCK) },
+    { label: '\\Delta t', unit: 's', value: (_s, p) => movingPeriod(D_CLOCK, p.beta) },
   ],
   formula: (s, p) => clockLines(s.t, p.beta),
   info: {
     goals: ['ch37.c.goal.dilate', 'ch37.c.goal.mutual'],
     observe: ['ch37.c.obs.zigzag', 'ch37.c.obs.count', 'ch37.c.obs.both', 'ch37.c.obs.beta'],
-    equations: ['\\Delta t = \\gamma\\,\\Delta t_0, \\quad \\gamma = \\frac{1}{\\sqrt{1 - \\beta^2}}', '(c\\Delta t/2)^2 = L^2 + (v\\Delta t/2)^2'],
+    equations: ['\\Delta t = \\gamma\\,\\Delta t_0, \\quad \\gamma = \\frac{1}{\\sqrt{1 - \\beta^2}}', '(c\\Delta t/2)^2 = D^2 + (v\\Delta t/2)^2'],
     assumptions: ['ch37.assume.units', 'ch37.c.assume.clock'],
   },
 };
@@ -234,7 +234,7 @@ const X_HALF = 4;
 const CT_LO = -1;
 const CT_HI = 7;
 /** Proper time of the marked tick: one tick of the light clock of tab 1 (Δt₀ = 2 s). */
-export const TAU_TICK = restPeriod(L_CLOCK);
+export const TAU_TICK = restPeriod(D_CLOCK);
 /** Rod at rest in S' between x' = −3.5 and x' = −0.5 (L₀ = 3 ls), cut at ct' = 2.5. */
 export const ROD_L0 = 3;
 const ROD_FRONT = -0.5;
@@ -518,7 +518,7 @@ export const spacetime: Scene<PD, { t: number }> = {
 
   info: {
     goals: ['ch37.d.goal.axes', 'ch37.d.goal.read', 'ch37.d.goal.order'],
-    observe: ['ch37.d.obs.dilate', 'ch37.d.obs.contract', 'ch37.d.obs.order', 'ch37.d.obs.light'],
+    observe: ['ch37.d.obs.dilate', 'ch37.d.obs.ticks', 'ch37.d.obs.contract', 'ch37.d.obs.order', 'ch37.d.obs.light'],
     equations: [
       "x' = \\gamma(x - \\beta\\,ct), \\quad ct' = \\gamma(ct - \\beta x)",
       '\\Delta t = \\gamma\\,\\Delta t_0, \\quad L = \\frac{L_0}{\\gamma}',
@@ -658,11 +658,11 @@ const gammaLine = (beta: number) => `\\gamma = \\frac{1}{\\sqrt{1 - \\beta^2}} =
 
 /** Light clocks: γ, the two tick periods and the ticks counted so far. */
 export function clockLines(time: number, beta: number): string[] {
-  const P0 = restPeriod(L_CLOCK);
-  const P = movingPeriod(L_CLOCK, beta);
+  const P0 = restPeriod(D_CLOCK);
+  const P = movingPeriod(D_CLOCK, beta);
   return [
     gammaLine(beta),
-    `\\Delta t_0 = \\frac{2L}{c} = \\frac{2 \\times ${L_CLOCK}\\ \\mathrm{ls}}{c} = ${tn(P0)}${u('s')}`,
+    `\\Delta t_0 = \\frac{2D}{c} = \\frac{2 \\times ${D_CLOCK}\\ \\mathrm{ls}}{c} = ${tn(P0)}${u('s')}`,
     `\\Delta t = \\gamma\\,\\Delta t_0 = ${tn(gamma(beta), 4)} \\times ${tn(P0)} = ${tn(P)}${u('s')}`,
     `n_0 = \\lfloor t/\\Delta t_0 \\rfloor = \\lfloor ${tn(time)}/${tn(P0)} \\rfloor = ${ticks(time, P0)}`,
     `n = \\lfloor t/\\Delta t \\rfloor = \\lfloor ${tn(time)}/${tn(P, 4)} \\rfloor = ${ticks(time, P)}`,

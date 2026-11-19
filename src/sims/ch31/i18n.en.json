@@ -16,6 +16,7 @@
   "ch31.f.obs.damp": "5 Ω and 20 Ω: the oscillation decays as $e^{-Rt/2L}$, the total energy $U$ drops, and the period $T' = 2\\pi/\\omega'$ is longer than at $R = 0$",
   "ch31.f.obs.over": "$R \\ge 2\\sqrt{L/C}$: the charge returns to 0 without oscillating (critically damped or overdamped), no period ($T'$ –). Defaults ($L$ = 10 mH, $C$ = 10 μF): $2\\sqrt{L/C}$ = 63.2 Ω, so 100 Ω does not oscillate. With large $L$ and small $C$, 100 Ω still oscillates (20 mH, 5 μF: $2\\sqrt{L/C}$ = 126.5 Ω, $T'$ = 3.24 ms)",
   "ch31.f.assume": "Initial capacitor voltage 10 V, initial current 0. Ideal components (no coil resistance, no radiation). Time runs slowed down, in ms",
+  "ch31.f.assume.phase": "$\\phi_0$: the initial phase of $q(t)$ (not the phase constant of the AC tab). With zero initial current, $\\tan\\phi_0 = -R/2L\\omega'$ and $Q\\cos\\phi_0 = q(0)$; $\\phi_0 = 0$ when $R = 0$",
   "ch31.a.scene": "AC circuit",
   "ch31.a.p.ratio": "Driving $\\omega_d/\\omega_0$",
   "ch31.a.d.ratio": "Angular frequency $\\omega_d$ of the emf as a multiple of the natural frequency $\\omega_0 = 1/\\sqrt{LC}$",
@@ -34,5 +35,6 @@
   "ch31.a.obs.phasor": "Phasors all rotate at the same rate; their projections on the vertical axis (dots) are the instantaneous values. $\\vec V_L$ and $\\vec V_C$ are perpendicular to $\\vec I$ and opposite to each other",
   "ch31.a.obs.res": "Driving ratio 1: $V_L = V_C$ cancel, $\\mathcal{E}$ and $i$ are in phase ($\\phi = 0$); $V_L$ and $V_C$ can exceed $\\mathcal{E}_m$",
   "ch31.a.obs.sweep": "Changing the driving frequency moves the point along the resonance curve on the right. $\\omega_d < \\omega_0$: capacitive ($\\phi < 0$); $\\omega_d > \\omega_0$: inductive ($\\phi > 0$)",
+  "ch31.a.assume.phase": "Phase constant $\\phi$: with $\\mathcal{E} = \\mathcal{E}_m\\sin\\omega_d t$, $i = I\\sin(\\omega_d t - \\phi)$ and $\\tan\\phi = (X_L - X_C)/R$. $\\phi > 0$: the current lags the emf (inductive); $\\phi < 0$: it leads (capacitive)",
   "ch31.a.assume": "Steady state (no transient), $L$ = 10 mH, $C$ = 10 μF ($\\omega_0$ = 3162 rad/s), $\\mathcal{E}_m$ = 10 V. The current phasor shows direction only, not length. One driving period plays in 2.5 s"
 }
