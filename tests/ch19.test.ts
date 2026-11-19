@@ -25,6 +25,7 @@ import ko from '../src/sims/ch19/i18n.ko.json';
 import en from '../src/sims/ch19/i18n.en.json';
 import { binsOf, countTop, gasScene, speedCounts } from '../src/sims/ch19/gas';
 import { defaults } from '../src/core/params';
+import { ProbeDraw } from './stage-probe';
 
 describe('ch19 hard-disk gas', () => {
   it('initial kinetic energy is exactly NkT (2D) in both modes; disks do not overlap', () => {
@@ -246,5 +247,25 @@ describe('ch19 histogram: live molecule counts (user request 2026-11-19)', () =>
         }
     expect(binsOf(20)).toBe(10);
     expect(binsOf(1000)).toBe(24);
+  });
+});
+
+describe('ch19 histogram: no count printed over the bars (user request 2026-11-19)', () => {
+  it('a bar taller than the axis is cut without a number; only axis ticks remain', () => {
+    for (const N of [20, 100, 500, 1000])
+      for (const [w, h] of [[1280, 800], [390, 844]] as const) {
+        const p = { ...defaults(gasScene.params), N, init: 'equal' } as never;
+        const s = gasScene.init(p, new Rng(7));
+        // At t = 0 every molecule is in one bin, far above the axis top.
+        expect(Math.max(...speedCounts(s.gas, (p as { T: number }).T))).toBeGreaterThan(countTop(N, (p as { T: number }).T));
+        // The histogram draws through its own CanvasDraw on the stage context: record fillText there.
+        const g = new ProbeDraw(w, h);
+        const texts: string[] = [];
+        (g.ctx as unknown as Record<string, unknown>).fillText = (t: string) => texts.push(t);
+        g.vp.fit(gasScene.world(p), w, h);
+        gasScene.draw(g, s, p, { t: 0, cursorT: 0, scrubbing: false, lecture: false });
+        expect(texts).toContain('0'); // the axis ticks are recorded
+        expect(texts).not.toContain(String(N));
+      }
   });
 });
