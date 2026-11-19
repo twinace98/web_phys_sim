@@ -6,7 +6,7 @@ import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { drawRich } from '../../draw/text';
 import { ROLE_COLOR, theme } from '../../draw/theme';
-import { chart, inPanel, split, stageRect, TICK, type Rect } from '../ch18/panels';
+import { chart, inPanel, type Chart, split, stageRect, TICK, type Rect } from '../ch18/panels';
 import { J_PER_V, WIN, idealForce, idealPressure, impulseTop, initGas, pCum, pWin, pressureTop, sigmaV, speedPdf, stepGas, type Gas } from './physics';
 
 type P = { N: number; T: number; L: number; init: string; arrows: boolean };
@@ -141,6 +141,27 @@ function drawBox(g: Parameters<Scene['draw']>[0], r: Rect, s: S, p: P): void {
   });
 }
 
+/** Axis-break sign across a cut bar from x0 to x1 [panel px]: a white gap between two wavy lines just below the top. */
+function breakMark(c: Chart, x0: number, x1: number): void {
+  // About two periods across the bar.
+  const lam = Math.max(5, Math.min(14, (x1 - x0) / 2));
+  const a = Math.max(1.2, lam / 6);
+  const wave = (y: number): Vec2[] => {
+    const pts: Vec2[] = [];
+    const n = Math.max(4, Math.ceil((x1 - x0 + 4) / 1.5));
+    for (let i = 0; i <= n; i++) {
+      const x = x0 - 2 + ((x1 - x0 + 4) * i) / n;
+      pts.push({ x, y: y + a * Math.sin((2 * Math.PI * (x - x0)) / lam) });
+    }
+    return pts;
+  };
+  const lo = wave(c.T - 13);
+  const hi = wave(c.T - 7);
+  c.d.polygon([...lo, ...[...hi].reverse()], { fill: '#ffffff', fillAlpha: 1, color: '#ffffff', width: 0.5 });
+  c.d.polyline(lo, { color: ROLE_COLOR.velocity, width: 1.25 });
+  c.d.polyline(hi, { color: ROLE_COLOR.velocity, width: 1.25 });
+}
+
 function drawHist(g: Parameters<Scene['draw']>[0], r: Rect, s: S, p: P): void {
   const vm = vMax(p.T);
   const counts = speedCounts(s.gas, p.T);
@@ -167,6 +188,10 @@ function drawHist(g: Parameters<Scene['draw']>[0], r: Rect, s: S, p: P): void {
         pts.push(c.P(v, p.N * speedPdf(v, p.T) * bw));
       }
       c.d.polyline(pts, { color: '#1a1a1a', width: 1.75, dash: [5, 4] });
+    });
+    // A bar taller than the axis (all molecules at one speed at the start) is cut at the top: wavy break.
+    counts.forEach((n, k) => {
+      if (n > top) breakMark(c, c.X(k * bw), c.X((k + 1) * bw));
     });
   });
 }
