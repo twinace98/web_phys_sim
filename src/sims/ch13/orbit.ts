@@ -1,6 +1,6 @@
 // Ch 13 scene: launch a probe from a given altitude with a speed set as a fraction of the local
 // escape speed, and drag its direction. The sign of E = K + U decides: ellipse, parabola or
-// hyperbola. The dashed circle around the probe is the escape speed at its current distance.
+// hyperbola.
 // Free-body diagram: the one force on the probe, F_g = GMm/r² towards the Earth's centre.
 import { t as tr } from '../../core/i18n';
 import { num, tn, u } from '../../core/tex';
@@ -473,34 +473,6 @@ export const orbitScene: Scene<P, S> = {
     const b = bodyAt(p, s.n);
     const P0 = w(b.x, 0);
     const r = radius(b);
-    // Escape-speed gauge: velocity arrow inside the circle ⇔ bound.
-    const rg = escapeSpeed(r) * k;
-    const ring: Vec2[] = [];
-    for (let i = 0; i <= 72; i++) ring.push({ x: P0.x + rg * Math.cos((i / 72) * 2 * Math.PI), y: P0.y + rg * Math.sin((i / 72) * 2 * Math.PI) });
-    g.polyline(ring, { role: 'velocity', width: 1, dash: [4, 4], alpha: 0.55 });
-    // Gauge label beside the circle, perpendicular to v on the side away from the Earth:
-    // clear of both the velocity arrow and the path, which curves towards the Earth.
-    const sp = speed(b) || 1;
-    let ux = -b.v[1] / sp;
-    let uy = b.v[0] / sp;
-    if (ux * b.x[0] + uy * b.x[1] < 0) {
-      ux = -ux;
-      uy = -uy;
-    }
-    // Near the edge of the stage, use the other side.
-    const [lx, ly] = g.vp.toPx(P0.x + ux * (rg + g.px(10)), P0.y + uy * (rg + g.px(10)));
-    if (lx < 30 || lx > g.vp.w - 30 || ly < 30 || ly > g.vp.h - 12) {
-      ux = -ux;
-      uy = -uy;
-    }
-    // A small circle (far from the Earth on a huge orbit) has no room for a label beside the v label.
-    if (rg > g.px(10)) g.text({ x: P0.x + ux * (rg + g.px(10)), y: P0.y + uy * (rg + g.px(10)) }, '*v*_{esc}', {
-      size: 12,
-      role: 'velocity',
-      align: ux > 0.4 ? 'left' : ux < -0.4 ? 'right' : 'center',
-      baseline: 'middle',
-    });
-
     if (m.crashed && s.n >= m.N) {
       const d = g.px(6);
       g.line({ x: P0.x - d, y: P0.y - d }, { x: P0.x + d, y: P0.y + d }, { color: '#1a1a1a', width: 2.5 });
@@ -580,7 +552,7 @@ export const orbitScene: Scene<P, S> = {
 
   info: {
     goals: ['ch13.o.goal.law', 'ch13.o.goal.E', 'ch13.o.goal.esc'],
-    observe: ['ch13.o.obs.dir', 'ch13.o.obs.circ', 'ch13.o.obs.gauge', 'ch13.o.obs.energy', 'ch13.o.obs.crash', 'ch13.o.obs.kepler'],
+    observe: ['ch13.o.obs.dir', 'ch13.o.obs.circ', 'ch13.o.obs.energy', 'ch13.o.obs.crash', 'ch13.o.obs.kepler'],
     equations: [
       'F = \\frac{GMm}{r^2}, \\quad U = -\\frac{GMm}{r}',
       'E = K + U = \\tfrac{1}{2}mv^2 - \\frac{GMm}{r}',

@@ -3,6 +3,7 @@ import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
 import { GM, R_EARTH, angMom, circularSpeed, classify, elements, energy, escapeSpeed, radius, yoshida, type Body } from '../src/sims/ch13/physics';
 import { model, orbitScene, view, type P } from '../src/sims/ch13/orbit';
+import { probe } from './stage-probe';
 
 const r0 = R_EARTH + 6e6;
 const tangential = (f: number): Body => ({ x: [-r0, 0], v: [0, -f * escapeSpeed(r0)] });
@@ -79,7 +80,19 @@ describe('ch13 gravitation', () => {
     for (const v of Ee) expect(Math.abs(v / Ee[0] - 1)).toBeLessThan(1e-6);
   });
 
-  it('regression: the probe, its escape-speed circle and the predicted path stay in view for every direction', () => {
+  it('no escape-speed gauge around the probe (user request 2026-11-19): no v_esc label on the stage', () => {
+    const base = defaults(orbitScene.params) as P;
+    for (const speed of [0.3, 0.85, 1, 1.4])
+      for (const [w, h] of [
+        [1280, 704],
+        [390, 680],
+      ]) {
+        const g = probe(orbitScene, orbitScene.init({ ...base, speed }, null as never), { ...base, speed }, w, h);
+        expect(g.marks.some((m) => m.text?.includes('esc'))).toBe(false);
+      }
+  });
+
+  it('regression: the probe and the predicted path stay in view for every direction', () => {
     const base = defaults(orbitScene.params) as P;
     const bad: string[] = [];
     for (const speed of [0.3, 0.5, 0.71, 0.85, 0.93, 0.98, 0.99, 1, 1.07, 1.2, 1.4]) {

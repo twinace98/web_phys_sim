@@ -21,7 +21,6 @@
   "ch13.o.goal.esc": "Escape speed $v_\\text{esc} = \\sqrt{2GM/r}$ does not depend on the direction: at or above it the probe never comes back, as long as its path does not hit the Earth",
   "ch13.o.obs.dir": "Drag the tip of the velocity arrow: the direction changes the shape of the orbit, but with the same speed $E$ and the semi-major axis stay the same",
   "ch13.o.obs.circ": "0.71 × escape speed, horizontal: a circular orbit ($v_\\text{circ} = v_\\text{esc}/\\sqrt 2$)",
-  "ch13.o.obs.gauge": "The dashed circle is the escape speed at the current position: an arrow inside it means bound, outside means escape. On an ellipse the arrow stays inside all the way round",
   "ch13.o.obs.energy": "Energy graph: $K$ and $U$ trade off while $E$ stays flat; the probe is fastest when closest",
   "ch13.o.obs.crash": "0.5 × escape speed: the closest approach is inside the Earth, so the probe hits the surface",
   "ch13.o.obs.kepler": "Kepler's second law (settings): equal areas in equal times, a consequence of angular momentum conservation (Ch 11)",
