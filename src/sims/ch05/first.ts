@@ -1,10 +1,11 @@
 // Ch 5 scene: first law. A puck slides off with an initial velocity. Friction (the only horizontal
 // force) slows it down and stops it; with no friction, or with a push that cancels the friction,
 // the net force is zero and the velocity stays constant.
-import { tn, tp, u } from '../../core/tex';
+import { paren, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
-import { sigToMatch } from '../ch02/sigma';
+import { printed, sigsToMatch } from '../ch02/sigma';
+import { tnFit } from '../ch07/sigfit';
 import { drawPuckFbd, drawTrack, padded, weightPair } from './common';
 
 type P = { v0: number; mu: number; push: boolean; strobe: boolean; fbd: boolean };
@@ -18,6 +19,16 @@ interface S {
   f: number;
   /** Applied push (≥ 0) [N]. */
   F: number;
+  /** Friction coefficient in effect at this state (μ is live: the Σ panel reads it here, not from the slider). */
+  mu: number;
+  /**
+   * Start of the current constant-force segment: the time t₁ and speed v₁ at which the net force
+   * last changed (a live μ or push change, or the stop). t₁ = 0, v₁ = v₀ until then.
+   */
+  t1: number;
+  v1: number;
+  /** Net force of the current segment [N]. */
+  seg: number;
   /** Strobe marks: puck position every STROBE_DT. */
   marks: number[];
 }
@@ -97,6 +108,25 @@ export function firstStep(x: number, v: number, mu: number, push: boolean, h: nu
   return { x: x + v * h + 0.5 * a * h * h, v: v + a * h };
 }
 
+/**
+ * Printed inputs and result for v = f(inputs) in the Σ panel: each input with the fewest digits that
+ * reproduce the result (sigsToMatch), exact values without trailing zeros (tnFit). With μ = 0.3 the
+ * speed often lands on an exact tie (2.02 − 2.94 × 0.0833… = 1.775) that rounds either way; then the
+ * side the printed inputs reach with fewer digits is printed.
+ */
+export function fitSpeed(v: number, xs: number[], f: (...x: number[]) => number): { xs: string[]; v: string } {
+  const at = (sig: number[]) => f(...xs.map((x, i) => printed(x, sig[i])));
+  let best: { sig: number[]; v: string } | undefined;
+  for (const w of [v, v * (1 + 1e-9), v * (1 - 1e-9)]) {
+    const sig = sigsToMatch(w, xs, f);
+    const sum = sig.reduce((a, b) => a + b, 0);
+    if (tn(at(sig)) === tn(w) && (!best || sum < best.sig.reduce((a, b) => a + b, 0))) best = { sig, v: tn(w) };
+  }
+  // Nothing fits (not expected): print the arithmetic of the printed inputs, so the line still adds up.
+  const sig = best?.sig ?? sigsToMatch(v, xs, f);
+  return { xs: xs.map((x, i) => tnFit(x, sig[i])), v: best?.v ?? tn(at(sig)) };
+}
+
 export const first: Scene<P, S> = {
   id: 'first',
   title: 'ch05.l1.scene',
@@ -110,9 +140,17 @@ export const first: Scene<P, S> = {
     return { x: [lo - pad, hi + pad], y: [-1, 1], aspect: 'fit-x', padPx: 28 };
   },
 
-  init: (p) => ({ t: 0, n: 0, x: 0, v: p.v0, ...firstForces(p.v0, p.mu, p.push), marks: [0] }),
+  init: (p) => {
+    const k = firstForces(p.v0, p.mu, p.push);
+    return { t: 0, n: 0, x: 0, v: p.v0, ...k, mu: p.mu, t1: 0, v1: p.v0, seg: k.f + k.F, marks: [0] };
+  },
 
   step: (s, _h, p) => {
+    // A new net force from here on (μ or push changed mid-run, or the puck stopped): a new segment
+    // of constant acceleration starts at this time and speed.
+    const k = firstForces(s.v, p.mu, p.push);
+    if (k.f + k.F !== s.seg) Object.assign(s, { t1: s.t, v1: s.v, seg: k.f + k.F });
+    s.mu = p.mu;
     s.n += 1;
     s.t = Math.min(s.n / RATE, T_END);
     Object.assign(s, firstStep(s.x, s.v, p.mu, p.push, 1 / RATE));
@@ -182,8 +220,10 @@ export const first: Scene<P, S> = {
     { label: 'v', unit: 'm/s', value: (s) => s.v },
   ],
 
-  // Σ panel: friction and the net force on the sliding puck; zero net force keeps v = v_0 (first
-  // law), friction alone slows it at a = F_net/m. At rest there is no friction at all.
+  // Σ panel: friction and the net force on the sliding puck; zero net force keeps v constant (first
+  // law), friction alone slows it at a = F_net/m. At rest there is no friction at all. μ and push are
+  // live, so every value comes from the state (the one on the stage, also when scrubbing back), and
+  // the speed is written from the start (t₁, v₁) of the current constant-force segment.
   formula: (s, p) => {
     const Fnet = s.f + s.F;
     // Free-body diagram: the vertical pair cancels (no vertical motion).
@@ -191,18 +231,25 @@ export const first: Scene<P, S> = {
     const vert = p.fbd ? [`\\Sigma F_y = N - mg = ${tn(W)} - ${tn(W)} = 0`] : [];
     if (s.v <= 0) return [`f = ${tn(-s.f)}${u('N')}`, `F_\\text{net} = 0 \\;\\Rightarrow\\; v = ${tn(s.v)}${u('m/s')}`, ...vert];
     const lines = [
-      `f_k = \\mu_k m g = ${p.mu.toFixed(2)} \\times ${FIRST_M} \\times ${FIRST_G} = ${tn(-s.f)}${u('N')}`,
-      p.push ? `F_\\text{net} = F - f_k = ${tn(s.F)} - ${tn(-s.f)} = ${tn(Fnet)}${u('N')}` : `F_\\text{net} = -f_k = ${tn(Fnet)}${u('N')}`,
+      `f_k = \\mu_k m g = ${s.mu.toFixed(2)} \\times ${FIRST_M} \\times ${FIRST_G} = ${tn(-s.f)}${u('N')}`,
+      s.F > 0 ? `F_\\text{net} = F - f_k = ${tn(s.F)} - ${tn(-s.f)} = ${tn(Fnet)}${u('N')}` : `F_\\text{net} = -f_k = ${tn(Fnet)}${u('N')}`,
     ];
     lines.push(...vert);
+    const fromStart = s.t1 === 0;
     if (Fnet === 0) {
-      lines.push(`F_\\text{net} = 0 \\;\\Rightarrow\\; v = v_0 = ${tn(s.v)}${u('m/s')}`);
+      lines.push(`F_\\text{net} = 0 \\;\\Rightarrow\\; v = ${fromStart ? 'v_0' : 'v_1'} = ${tn(s.v)}${u('m/s')}`);
       return lines;
     }
     const a = Fnet / FIRST_M;
-    const sig = sigToMatch(s.v, [a, s.t], (aa, t) => p.v0 + aa * t);
     lines.push(`a = \\frac{F_\\text{net}}{m} = \\frac{${tn(Fnet)}}{${FIRST_M}} = ${tn(a)}${u('m/s^2')}`);
-    lines.push(`v = v_0 + at = ${p.v0.toFixed(1)} + ${tp(a, sig)} \\times ${tn(s.t, sig)} = ${tn(s.v)}${u('m/s')}`);
+    if (fromStart) {
+      const k = fitSpeed(s.v, [a, s.t], (aa, t) => p.v0 + aa * t);
+      lines.push(`v = v_0 + at = ${p.v0.toFixed(1)} + ${paren(k.xs[0])} \\times ${k.xs[1]} = ${k.v}${u('m/s')}`);
+    } else {
+      const k = fitSpeed(s.v, [s.v1, a, s.t, s.t1], (v1, aa, t, t1) => v1 + aa * (t - t1));
+      // Two lines, as the work lines of Ch 8: one line would shrink below the panel's reading size.
+      lines.push(`v = v_1 + a(t - t_1)`, `= ${k.xs[0]} + ${paren(k.xs[1])} \\times (${k.xs[2]} - ${k.xs[3]}) = ${k.v}${u('m/s')}`);
+    }
     return lines;
   },
 
@@ -210,6 +257,6 @@ export const first: Scene<P, S> = {
     goals: ['ch05.l1.goal'],
     observe: ['ch05.l1.obs.free', 'ch05.l1.obs.mu', 'ch05.l1.obs.push', 'ch05.l1.obs.live'],
     equations: ['\\vec F_\\text{net} = 0 \\;\\Leftrightarrow\\; \\vec v = \\text{const}', 'f_k = \\mu_k m g'],
-    assumptions: ['ch05.l1.assume'],
+    assumptions: ['ch05.l1.assume', 'ch05.l1.assume.sym'],
   },
 };
