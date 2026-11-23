@@ -1,6 +1,6 @@
 // Ch 22 scene: draggable point charges, their field (grid arrows or field lines) and the
 // Coulomb forces on a test charge.
-import { CONST, tn, tp, u } from '../../core/tex';
+import { CONST, RESIDUE, tn, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { BOX, E, POINT_POOL, layoutParam, pointCoords, pointSources, pointWorld, presetParam, presetTag, clearOf } from '../field/charges';
@@ -115,10 +115,12 @@ export function formulaLines(p: P): string[] {
   const F1 = Math.hypot(parts[i1][0], parts[i1][1]) * 1e9;
   const [ex, ey] = fieldAtTest(p);
   const Em = Math.hypot(ex, ey);
+  // A component that vanishes by symmetry (below 10⁻⁶ of E) is an exact 0 (policy D, R7a).
+  const comp = (c: number) => (Math.abs(c) < RESIDUE * Em ? '0' : tp(c));
   return [
     `F_1 = k\\,\\frac{\\lvert q_1\\rvert q_0}{r_1^2} = \\frac{(${CONST.k.tex})(${Math.abs(src[i1].s)})(1)\\times 10^{-18}}{(${tn(dist(i1))})^2}\\ \\mathrm{N} = ${tn(F1)}${u('nN')}`,
-    `\\vec E = \\sum_i k\\,\\frac{q_i}{r_i^2}\\,\\hat r_i = (${tn(ex)},\\ ${tn(ey)})${u('N/C')}`,
-    `E = \\sqrt{E_x^2 + E_y^2} = \\sqrt{${tp(ex)}^2 + ${tp(ey)}^2} = ${tn(Em)}${u('N/C')}`,
+    `\\vec E = \\sum_i k\\,\\frac{q_i}{r_i^2}\\,\\hat r_i = (${comp(ex).replace(/^\((.*)\)$/, '$1')},\\ ${comp(ey).replace(/^\((.*)\)$/, '$1')})${u('N/C')}`,
+    `E = \\sqrt{E_x^2 + E_y^2} = \\sqrt{${comp(ex)}^2 + ${comp(ey)}^2} = ${tn(Em)}${u('N/C')}`,
     `F = q_0 E = (1\\ \\mathrm{nC})(${tn(Em)}\\ \\mathrm{N/C}) = ${tn(forceOnTest(p))}${u('nN')}`,
   ];
 }

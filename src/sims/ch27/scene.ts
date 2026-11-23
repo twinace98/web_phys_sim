@@ -293,7 +293,7 @@ export function formulaLines(s: S, p: P): string[] {
   } else {
     lines.push(`q = q_0\\,e^{-${tt}/\\tau} = (${tz(s.q0 * 1e3)}\\ \\mathrm{mC})\\,${ex} = ${tz(qm)}${u('mC')}`);
   }
-  lines.push(`V_C = \\frac{q}{C} = \\frac{${qm === 0 ? '0' : `${tz(qm)}\\times 10^{-3}`}}{${sl('C')}\\times 10^{-6}}\\ \\mathrm{V} = ${tz(vc)}${u('V')}`);
+  lines.push(`V_C = \\frac{q}{C} = \\frac{${Math.abs(qm) < 1e-3 ? tz(s.q) : `${tz(qm)}\\times 10^{-3}`}}{${sl('C')}\\times 10^{-6}}\\ \\mathrm{V} = ${tz(vc)}${u('V')}`);
   const R = `${sl('R')}\\ \\mathrm{k\\Omega}`;
   const it = tz(i);
   if (p.sw === 'charge' && inSegment(s, p)) {

@@ -72,6 +72,10 @@ describe('policy D, Ch 22-24', () => {
   it('Ch 22: k is the CONST string', () => {
     const lines = run(field).lines();
     expect(lines[0]).toContain(`\\frac{(${CONST.k.tex})(1)(1)\\times 10^{-18}}`);
+    // Parallel plates, test charge on the axis: E_x vanishes by symmetry and prints an exact 0 (R7a).
+    const plates = run(field, { preset: 'plates' }).lines();
+    expect(plates[1]).toMatch(/= \(0,\\ \d+\)\\ \\mathrm\{N\/C\}$/);
+    expect(plates[2]).toContain('\\sqrt{0^2 + ');
     expect(run(field, { test: false }).lines()[0]).toBe(`k = \\frac{1}{4\\pi\\varepsilon_0} = ${CONST.k.tex}\\ \\mathrm{N\\,m^2/C^2}`);
   });
 
