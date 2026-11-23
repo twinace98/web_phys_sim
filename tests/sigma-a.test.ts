@@ -182,7 +182,8 @@ describe('Σ panel agrees with the simulation, Ch 2–6', () => {
       [/^a = \\frac/, ((s: { a: number }) => s.a) as Val],
       [/theta_c = \\tan/, ((_s: unknown, p: { mat: string }) => Math.atan(MATERIALS[p.mat].mus) / DEG) as Val],
     ];
-    for (const over of [{}, { mat: 'steel' }, { mode: 'incline' }, { mode: 'incline', mat: 'ice' }, { mode: 'incline', mat: 'rubber' }]) check(f, over, STEPS, fx, 3);
+    const masses = [{ m: 0.5 }, { m: 3.7, mat: 'rubber' }, { m: 10, mat: 'ice' }, { mode: 'incline', m: 0.5 }, { mode: 'incline', m: 6.4, mat: 'steel' }, { mode: 'incline', m: 10, mat: 'rubber' }];
+    for (const over of [{}, { mat: 'steel' }, { mode: 'incline' }, { mode: 'incline', mat: 'ice' }, { mode: 'incline', mat: 'rubber' }, ...masses]) check(f, over, STEPS, fx, 3);
     const c = scene(ch06, 'circular');
     const cx: Expect[] = [
       [/F_\{\\text\{net\},r\} = (?!.*F_\\text\{cf\} =)/, 'F_{\\text{net},r}'],
