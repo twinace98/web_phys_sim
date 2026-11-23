@@ -1,7 +1,7 @@
 // Ch 6 scene: static and kinetic friction. A pull that grows steadily (or a board that tilts
 // steadily) meets static friction that matches it up to μs N; then the block slips and the
 // friction drops to μk N.
-import { tn, u } from '../../core/tex';
+import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { sigToMatch } from '../ch02/sigma';
 import type { Draw, PlotDraw } from '../../draw/draw';
@@ -9,13 +9,14 @@ import { drawRich } from '../../draw/text';
 import { color, theme } from '../../draw/theme';
 import { G, MATERIALS, pullAt, slideAccel, slipTimePull, slipTimeTilt, tiltAt, type FrictionState, type Pull, type Tilt } from './physics';
 
-type P = { mode: string; mat: string };
+type P = { mode: string; mat: string; m: number };
 type S = FrictionState & { t: number; n: number };
 
 const RATE = 240;
 const DEG = Math.PI / 180;
-const M = 2; // kg
-const K = 4; // N/s, growth rate of the pull
+/** Growth rate of the pull per kg of block [N/s per kg]: 4 N/s at 2 kg. Proportional to m, so the
+ * pull, like every other force, scales with m and the motion (slip time, a, v) does not. */
+const K_PER_KG = 2;
 const W = 6 * DEG; // rad/s, tilting rate
 const AFTER = 1.2; // s of pulling after the slip
 const BOARD = 4.2; // m
@@ -23,12 +24,18 @@ const S0 = 3.5; // m, block position along the board from the hinge
 // m, sliding distance shown on the board: the block stops 1.9 m from the hinge, clear of the θ label
 const SLIDE = 1.6;
 const B = 0.5; // m, block size
-const KF = 0.8 / (M * G); // world m per N: mg is 0.8 m long
+/**
+ * Drawn force scale [world m per N]. mg is 0.8 m long at 2 kg; its length grows as m^{1/8}
+ * (0.67 m at 0.5 kg, 0.98 m at 10 kg) so every arrow stays on the stage over the mass range.
+ * Within one mass all arrows share the scale.
+ */
+export const forceScale = (m: number) => (0.8 * (m / 2) ** (1 / 8)) / (m * G);
 const REF = '#8c8c8c';
 const BODY = '#5c5c5c';
 
-const pullOf = (p: P): Pull => ({ m: M, k: K, mat: MATERIALS[p.mat] ?? MATERIALS.wood });
-const tiltOf = (p: P): Tilt => ({ m: M, w: W, mat: MATERIALS[p.mat] ?? MATERIALS.wood });
+const kOf = (p: P) => K_PER_KG * p.m;
+const pullOf = (p: P): Pull => ({ m: p.m, k: kOf(p), mat: MATERIALS[p.mat] ?? MATERIALS.wood });
+const tiltOf = (p: P): Tilt => ({ m: p.m, w: W, mat: MATERIALS[p.mat] ?? MATERIALS.wood });
 const incline = (p: P) => p.mode === 'incline';
 
 function tEnd(p: P): number {
@@ -68,6 +75,19 @@ const params: ParamSchema<P> = {
       { value: 'ice', label: 'ch06.f.mat.ice' },
     ],
   },
+  m: {
+    kind: 'number',
+    label: 'ch06.f.p.m',
+    desc: 'ch06.f.d.m',
+    group: 'main',
+    live: false,
+    control: 'slider',
+    min: 0.5,
+    max: 10,
+    step: 0.1,
+    default: 2,
+    unit: 'kg',
+  },
 };
 
 const add = (a: Vec2, b: Vec2, k = 1): Vec2 => ({ x: a.x + b.x * k, y: a.y + b.y * k });
@@ -80,12 +100,13 @@ function block(g: Draw, c: Vec2, u: Vec2, n: Vec2): void {
 
 const fLabel = (s: FrictionState) => (s.sliding ? '*f*_{k}' : '*f*_{s}');
 
-function drawPull(g: Draw, s: FrictionState): void {
+function drawPull(g: Draw, s: FrictionState, m: number): void {
+  const KF = forceScale(m);
   g.line({ x: -0.5, y: 0 }, { x: 4.3, y: 0 }, { color: BODY, width: 2 });
   const c: Vec2 = { x: 0.4 + B / 2 + s.x, y: 0 };
   const mid: Vec2 = { x: c.x, y: B / 2 };
   block(g, c, { x: 1, y: 0 }, { x: 0, y: 1 });
-  g.arrow(mid, { x: 0, y: -M * G * KF }, { role: 'force', width: 2, dash: [5, 3], label: '*m**g*' });
+  g.arrow(mid, { x: 0, y: -m * G * KF }, { role: 'force', width: 2, dash: [5, 3], label: '*m**g*' });
   g.arrow(mid, { x: 0, y: s.N * KF }, { role: 'force', width: 2, label: '*N*' });
   if (s.F > 0) g.arrow({ x: c.x + B / 2, y: B / 2 }, { x: s.F * KF, y: 0 }, { role: 'force', width: 2, label: '*F*' });
   if (s.f > 0) {
@@ -95,7 +116,8 @@ function drawPull(g: Draw, s: FrictionState): void {
   }
 }
 
-function drawTilt(g: Draw, s: FrictionState): void {
+function drawTilt(g: Draw, s: FrictionState, m: number): void {
+  const KF = forceScale(m);
   const th = s.theta;
   const u: Vec2 = { x: Math.cos(th), y: Math.sin(th) };
   const n: Vec2 = { x: -Math.sin(th), y: Math.cos(th) };
@@ -113,7 +135,7 @@ function drawTilt(g: Draw, s: FrictionState): void {
   const c = add(O, u, S0 - s.x);
   const mid = add(c, n, B / 2);
   block(g, c, u, n);
-  g.arrow(mid, { x: 0, y: -M * G * KF }, { role: 'force', width: 2, dash: [5, 3], label: '*m**g*' });
+  g.arrow(mid, { x: 0, y: -m * G * KF }, { role: 'force', width: 2, dash: [5, 3], label: '*m**g*' });
   g.arrow(mid, { x: n.x * s.N * KF, y: n.y * s.N * KF }, { role: 'force', width: 2, label: '*N*' });
   if (s.f > 0) {
     // Friction runs along the board: label above the tip, off the board line, growing up the
@@ -152,7 +174,7 @@ export const friction: Scene<P, S> = {
   record: (s) => ({ t: s.t, f: s.f, v: s.v }),
   snapshot: (s) => ({ ...s }),
 
-  draw: (g, s, p) => (incline(p) ? drawTilt(g, s) : drawPull(g, s)),
+  draw: (g, s, p) => (incline(p) ? drawTilt(g, s, p.m) : drawPull(g, s, p.m)),
 
   plots: [
     {
@@ -160,7 +182,7 @@ export const friction: Scene<P, S> = {
       label: 'f\\,(\\mathrm{N})',
       traces: [{ channel: 'f', role: 'force' }],
       yRange: (p) => {
-        const top = incline(p) ? fsMax(p, stateAt(p, 0)) : K * tEnd(p);
+        const top = incline(p) ? fsMax(p, stateAt(p, 0)) : kOf(p) * tEnd(p);
         return [0, top * 1.15];
       },
     },
@@ -192,11 +214,11 @@ export const friction: Scene<P, S> = {
       pd.polyline(
         [
           [0, 0],
-          [T, K * T],
+          [T, kOf(p) * T],
         ],
         { role: 'force', width: 1.5, dash: [6, 4], alpha: 0.7 },
       );
-      plotText(pd, '*F*', 0.95 * T, K * 0.95 * T, -6, -4, color('force'), 'right');
+      plotText(pd, '*F*', 0.95 * T, kOf(p) * 0.95 * T, -6, -4, color('force'), 'right');
     }
   },
 
@@ -220,34 +242,35 @@ export const friction: Scene<P, S> = {
     const N = tn(s.N, sN);
     const limit = `\\mu_s N = ${mus} \\times ${N} = ${tn(fs)}${u('N')}`;
     const kinetic = `f_k = \\mu_k N = ${muk} \\times ${N} = ${tn(s.f)}${u('N')}`;
+    const m = num(p.m);
     if (!incline(p)) {
-      const lines = [`N = mg = ${M} \\times ${G} = ${tn(s.N)}${u('N')}`, limit];
+      const lines = [`N = mg = ${m} \\times ${G} = ${tn(s.N)}${u('N')}`, limit];
       if (!s.sliding) {
         lines.push(`f_s = F = ${tn(s.f)}${u('N')} \\le \\mu_s N`);
         return lines;
       }
-      const sa = sigToMatch(s.a, [s.F, s.f], (F, f) => (F - f) / M);
-      lines.push(kinetic, `a = \\frac{F - f_k}{m} = \\frac{${tn(s.F, sa)} - ${tn(s.f, sa)}}{${M}} = ${tn(s.a)}${u('m/s^2')}`);
+      const sa = sigToMatch(s.a, [s.F, s.f], (F, f) => (F - f) / p.m);
+      lines.push(kinetic, `a = \\frac{F - f_k}{m} = \\frac{${tn(s.F, sa)} - ${tn(s.f, sa)}}{${m}} = ${tn(s.a)}${u('m/s^2')}`);
       return lines;
     }
     const deg = s.theta / DEG;
     const thc = `\\tan^{-1} ${mus} = ${tn(Math.atan(mat.mus) / DEG)}^\\circ`;
     const sT = Math.max(
-      sigToMatch(s.N, [deg], (d) => M * G * Math.cos(d * DEG)),
-      s.sliding ? sigToMatch(s.a, [deg], (d) => G * (Math.sin(d * DEG) - mat.muk * Math.cos(d * DEG))) : sigToMatch(s.f, [deg], (d) => M * G * Math.sin(d * DEG)),
+      sigToMatch(s.N, [deg], (d) => p.m * G * Math.cos(d * DEG)),
+      s.sliding ? sigToMatch(s.a, [deg], (d) => G * (Math.sin(d * DEG) - mat.muk * Math.cos(d * DEG))) : sigToMatch(s.f, [deg], (d) => p.m * G * Math.sin(d * DEG)),
     );
     const th = `${tn(deg, sT)}^\\circ`;
     if (!s.sliding) {
       return [
-        `N = mg\\cos\\theta = ${M} \\times ${G}\\cos ${th} = ${tn(s.N)}${u('N')}`,
-        `f_s = mg\\sin\\theta = ${M} \\times ${G}\\sin ${th} = ${tn(s.f)}${u('N')}`,
+        `N = mg\\cos\\theta = ${m} \\times ${G}\\cos ${th} = ${tn(s.N)}${u('N')}`,
+        `f_s = mg\\sin\\theta = ${m} \\times ${G}\\sin ${th} = ${tn(s.f)}${u('N')}`,
         limit,
         `\\tan\\theta_c = \\mu_s \\;\\Rightarrow\\; \\theta_c = ${thc}`,
       ];
     }
     return [
       `\\theta = \\theta_c = ${thc}`,
-      `N = mg\\cos\\theta = ${M} \\times ${G}\\cos ${th} = ${tn(s.N)}${u('N')}`,
+      `N = mg\\cos\\theta = ${m} \\times ${G}\\cos ${th} = ${tn(s.N)}${u('N')}`,
       limit,
       kinetic,
       `a = g(\\sin\\theta - \\mu_k\\cos\\theta)`,
