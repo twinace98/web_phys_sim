@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { fmt } from '../src/core/format';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
-import { tn } from '../src/core/tex';
+import { readoutText, tn } from '../src/core/tex';
 import type { Params, Scene } from '../src/core/types';
 import { lightClocks, rods, simultaneity, spacetime } from '../src/sims/ch37/scene';
 import { contracted, fromS, gamma, movingPeriod, ticks } from '../src/sims/ch37/physics';
@@ -17,7 +17,7 @@ import { conduction } from '../src/sims/ch41/conduction';
 import { carriersOf, doping } from '../src/sims/ch41/doping';
 import { filling } from '../src/sims/ch41/filling';
 import { decayScene } from '../src/sims/ch42/decay';
-import { agrees, agreesWithin } from './sigma-digits';
+import { agrees } from './sigma-digits';
 
 const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
 const plain = (c: string) => (c === '⁻' ? '-' : String(SUP.indexOf(c)));
@@ -49,7 +49,12 @@ function run(scene: Scene, over: Partial<Params> = {}, steps = 0) {
     const spec = scene.readouts!.find((x) => x.label === label)!;
     return shown(spec.value(s, p), spec.sig ?? 3, spec.zeroTol);
   };
-  return { lines, ro, s: r.state as Record<string, unknown> & { t: number }, p: r.params as Record<string, unknown> };
+  /** The readout text exactly as the shell prints it (custom format, run scale). */
+  const text = (label: string) => {
+    const spec = scene.readouts!.find((x) => x.label === label)!;
+    return readoutText(spec, spec.value(s, p), p);
+  };
+  return { lines, ro, text, s: r.state as Record<string, unknown> & { t: number }, p: r.params as Record<string, unknown> };
 }
 
 /** The line that starts with `head`. */
@@ -97,9 +102,9 @@ describe('Σ group F: Ch 37', () => {
       const { lines, ro } = run(simultaneity as Scene, { beta });
       const l = line(lines, '\\Delta t =');
       expect(result(l)).toBe(ro('\\Delta t'));
-      // A difference (R5) of two 3-figure times; phase 2 writes Δt directly.
-      const [a, b] = l.split(' = ')[2].split(' - ');
-      expect(agreesWithin((x, y) => x - y, [a, b], result(l)), l).toBe(true);
+      // The difference directly (R5): Δt = γβL₀/c, the three printed factors within 1 % (R3).
+      const [g, bb, L0] = [...l.split(' = ')[3].matchAll(/\(([\d.]+)/g)].map((m) => Number(m[1]));
+      expect(agrees(g * bb * L0, result(l)), l).toBe(true);
     }
   });
 });
@@ -141,9 +146,10 @@ describe('Σ group F: Ch 39', () => {
     const h = run(wells as Scene, { pot: 'harmonic', hw: 0.37 });
     expect(result(h.lines[0])).toBe(tn(model(h.p as never).st.E[0]));
     expect(result(h.lines[1])).toBe(tn(model(h.p as never).st.E[1]));
+    // Double well: the splitting directly (R5), in meV below 0.1 eV.
     const d = run(wells as Scene, { pot: 'double', b: 0.5, Ub: 4.5 });
     const Ed = model(d.p as never).st.E;
-    expect(result(d.lines[0])).toBe(tn(Ed[1] - Ed[0]));
+    expect(d.lines[0]).toBe(`\\Delta E_{21} = E_2 - E_1 = ${tn((Ed[1] - Ed[0]) * 1000)}\\ \\mathrm{meV}`);
   });
 
   it('finite well: E₁ of the solver below h²/8mL², and its decay length in the walls', () => {
@@ -172,10 +178,13 @@ describe('Σ group F: Ch 39', () => {
       [{ pot: 'harmonic', pairH: '01', hw: 0.3 }, 1000],
       [{ pot: 'finite', pair: '23' }, 400],
     ] as [Partial<Params>, number][]) {
-      const { lines, ro } = run(superposition as Scene, over, steps);
-      expect(result(line(lines, '\\Delta E'))).toBe(ro('\\Delta E'));
+      const { lines, ro, text } = run(superposition as Scene, over, steps);
+      // ΔE in eV or meV (custom readout text): the Σ line ends with the same value and unit.
+      const [v, unit] = text('\\Delta E').split(' ');
+      expect(line(lines, '\\Delta E').endsWith(`= ${v}\\ \\mathrm{${unit}}`), line(lines, '\\Delta E')).toBe(true);
       expect(result(line(lines, 'T ='))).toBe(ro('T'));
-      expect(result(lines[lines.length - 1])).toBe(ro('\\langle x\\rangle'));
+      // ⟨x⟩ with the run-scale decimals of the readout (R7a).
+      expect(result(lines[lines.length - 1])).toBe(text('\\langle x\\rangle').replace('−', '-'));
     }
   });
 });
@@ -209,7 +218,7 @@ describe('Σ group F: Ch 41', () => {
   it('bands: W₁ and E_g as the readouts', () => {
     for (const over of [{}, { N: 1, b: 0.5 }, { N: 12, b: 0.3 }]) {
       const { lines, ro } = run(bandsScene as Scene, over);
-      expect(result(lines[lines.indexOf(line(lines, 'W_1')) + 1])).toBe(ro('W_1'));
+      expect(result(line(lines, 'W_1'))).toBe(ro('W_1'));
       expect(result(line(lines, 'E_\\text{g}'))).toBe(ro('E_\\text{g}'));
     }
   });

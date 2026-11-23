@@ -4,7 +4,7 @@
 // order of two events are read off; the fourth is the train-flash experiment.
 import { fmt } from '../../core/format';
 import { t } from '../../core/i18n';
-import { INPUT_SIG, num, paren, tn, u } from '../../core/tex';
+import { paren, slider, tn, u } from '../../core/tex';
 import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR, theme } from '../../draw/theme';
@@ -627,7 +627,8 @@ export const simultaneity: Scene<PT, { t: number; n: number }> = {
   readouts: [
     { label: '\\gamma', unit: '', value: (_s, p) => gamma(p.beta) },
     { label: '\\Delta t', unit: 's', value: (_s, p) => trainEvents(L_TRAIN, p.beta).frontS - trainEvents(L_TRAIN, p.beta).rearS },
-    { label: "\\Delta t'", unit: 's', value: () => 0 },
+    // Zero by construction (both flashes reach the ends at L₀/2c in S'): an exact 0 (R7a), as in the Σ panel.
+    { label: "\\Delta t'", unit: 's', value: () => 0, format: () => '0' },
   ],
   formula: (_s, p) => trainLines(p.beta),
   info: {
@@ -640,21 +641,10 @@ export const simultaneity: Scene<PT, { t: number; n: number }> = {
 
 // ------------------------------------------------------------------ formula panel
 
-/** Significant figures for two inputs of a difference: the fewest (≥ 3) that reproduce the printed result, at most INPUT_SIG. */
-export function diffSig(a: number, b: number): number {
-  const r = (v: number, s: number) => Number(v.toPrecision(s));
-  for (let s = 3; s < INPUT_SIG; s++) if (tn(r(a, s) - r(b, s)) === tn(a - b)) return s;
-  return INPUT_SIG;
-}
+/** β as its slider prints it (R1); every β slider of the chapter has step 0.01. */
+const bTex = (beta: number) => slider(betaParam(0, 0, 1), beta);
 
-/** Decimals for two diagram readings whose difference prints with n2 (two decimals). */
-function diffDecimals(a: number, b: number): number {
-  const r = (v: number, d: number) => Number(v.toFixed(d));
-  for (let d = 2; d < 6; d++) if (n2(r(a, d) - r(b, d)) === n2(a - b)) return d;
-  return 6;
-}
-
-const gammaLine = (beta: number) => `\\gamma = \\frac{1}{\\sqrt{1 - \\beta^2}} = \\frac{1}{\\sqrt{1 - (${num(beta)})^2}} = ${tn(gamma(beta))}`;
+const gammaLine = (beta: number) => `\\gamma = \\frac{1}{\\sqrt{1 - \\beta^2}} = \\frac{1}{\\sqrt{1 - (${bTex(beta)})^2}} = ${tn(gamma(beta))}`;
 
 /** Light clocks: γ, the two tick periods and the ticks counted so far. */
 export function clockLines(time: number, beta: number): string[] {
@@ -663,9 +653,9 @@ export function clockLines(time: number, beta: number): string[] {
   return [
     gammaLine(beta),
     `\\Delta t_0 = \\frac{2D}{c} = \\frac{2 \\times ${D_CLOCK}\\ \\mathrm{ls}}{c} = ${tn(P0)}${u('s')}`,
-    `\\Delta t = \\gamma\\,\\Delta t_0 = ${tn(gamma(beta), 4)} \\times ${tn(P0)} = ${tn(P)}${u('s')}`,
+    `\\Delta t = \\gamma\\,\\Delta t_0 = ${tn(gamma(beta))} \\times ${tn(P0)} = ${tn(P)}${u('s')}`,
     `n_0 = \\lfloor t/\\Delta t_0 \\rfloor = \\lfloor ${tn(time)}/${tn(P0)} \\rfloor = ${ticks(time, P0)}`,
-    `n = \\lfloor t/\\Delta t \\rfloor = \\lfloor ${tn(time)}/${tn(P, 4)} \\rfloor = ${ticks(time, P)}`,
+    `n = \\lfloor t/\\Delta t \\rfloor = \\lfloor ${tn(time)}/${tn(P)} \\rfloor = ${ticks(time, P)}`,
   ];
 }
 
@@ -673,7 +663,7 @@ export function clockLines(time: number, beta: number): string[] {
 export function rodLines(beta: number): string[] {
   return [
     gammaLine(beta),
-    `L = \\frac{L_0}{\\gamma} = \\frac{${tn(L_ROD)}\\ \\mathrm{ls}}{${tn(gamma(beta), 4)}} = ${tn(contracted(L_ROD, beta))}${u('ls')}`,
+    `L = \\frac{L_0}{\\gamma} = \\frac{${tn(L_ROD)}\\ \\mathrm{ls}}{${tn(gamma(beta))}} = ${tn(contracted(L_ROD, beta))}${u('ls')}`,
   ];
 }
 
@@ -681,13 +671,12 @@ export function rodLines(beta: number): string[] {
 export function diagramLines(p: PD): string[] {
   const b = p.beta;
   const g = gamma(b);
-  const G = tn(g, 4);
-  const B = num(b);
+  const G = tn(g);
+  const B = bTex(b);
   const lines = [gammaLine(b)];
   if (p.mode === 'contract') {
     const r = rodEvents(ROD_L0, ROD_FRONT, ROD_TP, b);
-    const d = diffDecimals(r.F.x, r.R.x);
-    lines.push(`L = x_\\mathrm{F} - x_\\mathrm{R} = ${r.F.x.toFixed(d)} - ${paren(r.R.x.toFixed(d))} = ${n2(r.F.x - r.R.x)}${u('ls')}`);
+    lines.push(`L = x_\\mathrm{F} - x_\\mathrm{R} = ${n2(r.F.x)} - ${paren(n2(r.R.x))} = ${n2(r.F.x - r.R.x)}${u('ls')}`);
     lines.push(`L_0 = x'_\\mathrm{F} - x'_\\mathrm{R'} = ${n2(r.F.xp)} - ${paren(n2(r.Rp.xp))} = ${n2(r.F.xp - r.Rp.xp)}${u('ls')}`);
     lines.push(`L = \\frac{L_0}{\\gamma} = \\frac{${n2(ROD_L0)}}{${G}} = ${n2(ROD_L0 / g)}${u('ls')}`);
     return lines;
@@ -715,14 +704,14 @@ export function trainLines(beta: number): string[] {
   const g = gamma(beta);
   const ev = trainEvents(L_TRAIN, beta);
   const half = L_TRAIN / (2 * g);
-  const B = num(beta);
-  const sig = diffSig(ev.frontS, ev.rearS);
+  const B = bTex(beta);
   return [
     gammaLine(beta),
-    `\\frac{L}{2} = \\frac{L_0}{2\\gamma} = \\frac{${tn(L_TRAIN)}\\ \\mathrm{ls}}{2 \\times ${tn(g, 4)}} = ${tn(half)}${u('ls')}`,
-    `t_\\mathrm{R} = \\frac{L/2}{c + v} = \\frac{${tn(half, 4)}\\ \\mathrm{ls}}{(1 + ${B})\\,c} = ${tn(ev.rearS)}${u('s')}`,
-    `t_\\mathrm{F} = \\frac{L/2}{c - v} = \\frac{${tn(half, 4)}\\ \\mathrm{ls}}{(1 - ${B})\\,c} = ${tn(ev.frontS)}${u('s')}`,
-    `\\Delta t = t_\\mathrm{F} - t_\\mathrm{R} = ${tn(ev.frontS, sig)} - ${tn(ev.rearS, sig)} = ${tn(ev.frontS - ev.rearS)}${u('s')}`,
+    `\\frac{L}{2} = \\frac{L_0}{2\\gamma} = \\frac{${tn(L_TRAIN)}\\ \\mathrm{ls}}{2 \\times ${tn(g)}} = ${tn(half)}${u('ls')}`,
+    `t_\\mathrm{R} = \\frac{L/2}{c + v} = \\frac{${tn(half)}\\ \\mathrm{ls}}{(1 + ${B})\\,c} = ${tn(ev.rearS)}${u('s')}`,
+    `t_\\mathrm{F} = \\frac{L/2}{c - v} = \\frac{${tn(half)}\\ \\mathrm{ls}}{(1 - ${B})\\,c} = ${tn(ev.frontS)}${u('s')}`,
+    // The difference directly (R5): t_F − t_R = γβL₀/c, not a subtraction of two rounded times.
+    `\\Delta t = t_\\mathrm{F} - t_\\mathrm{R} = \\gamma\\beta\\,\\frac{L_0}{c} = (${tn(g)})(${B})(${tn(L_TRAIN)}\\ \\mathrm{s}) = ${tn(ev.frontS - ev.rearS)}${u('s')}`,
     `t'_\\mathrm{R} = t'_\\mathrm{F} = \\frac{L_0}{2c} = ${tn(ev.rearSp)}${u('s')},\\quad \\Delta t' = 0`,
   ];
 }
