@@ -1,12 +1,11 @@
 // Ch 10 scene: parallel-axis theorem. Drag the rotation axis away from the centre of mass;
 // I(d) = I_cm + M d² traces a parabola whose curvature M is the same for every shape.
-import { fmt, fmtTick, niceTicks } from '../../core/format';
-import { num, tn, u } from '../../core/tex';
+import { fmtTick, niceTicks } from '../../core/format';
+import { num, slider, sliderText, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { measureRich } from '../../draw/text';
 import { ROLE_COLOR, theme } from '../../draw/theme';
-import { sigFit, tnFit } from '../ch07/sigfit';
 import { inertiaCm, parallelAxis, type Shape } from './physics';
 
 type P = { shape: string; d: number };
@@ -71,7 +70,8 @@ const D_DY = 30;
  * (a small phone stage), it goes below the body. Returns where it went.
  */
 export function dLabel(g: Draw, shape: Shape, d: number): { x: number; y: number; dy: number; w: number } {
-  const s = `*d* = ${fmt(Math.abs(d), 2)} m`;
+  // The drag resolution (0.01 m), as in the Σ panel (policy D, R1/R8).
+  const s = `*d* = ${sliderText(params.d, Math.abs(d))} m`;
   const w = measureRich(g.ctx, s, { size: 13 }) / theme.scale;
   let at = { x: d / 2, y: 0, dy: D_DY };
   if (shape !== 'rod') {
@@ -190,7 +190,8 @@ export const parallelScene: Scene<P, { t: number }> = {
     { label: 'I', unit: 'kg·m²', value: (_s, p) => parallelAxis(inertiaCm(p.shape as Shape, M, R), M, p.d) },
   ],
 
-  // I_cm of the chosen body in closed form, M d², and their sum (the three readouts).
+  // I_cm of the chosen body in closed form, M d², and their sum (the three readouts). d as dragged
+  // (0.01 m), the terms as their readouts (policy D, R1/R3).
   formula: (_s, p) => {
     const shape = p.shape as Shape;
     const Icm = inertiaCm(shape, M, R);
@@ -199,12 +200,11 @@ export const parallelScene: Scene<P, { t: number }> = {
     const mr = `(${num(M)})(${num(R)})^2`;
     const cm =
       shape === 'ring' ? `MR^2 = ${mr}` : shape === 'disk' ? `\\tfrac12 MR^2 = \\tfrac12${mr}` : `\\tfrac1{12}M(2R)^2 = \\tfrac1{12}(${num(M)})(${num(2 * R)})^2`;
-    const sg = sigFit([Icm, Md2], (a, b) => a + b, I);
     return [
       `I_\\mathrm{cm} = ${cm} = ${tn(Icm)}${u('kg\\,m^2')}`,
-      `Md^2 = (${num(M)})(${num(p.d)})^2 = ${tn(Md2)}${u('kg\\,m^2')}`,
+      `Md^2 = (${num(M)})(${slider(params.d, p.d)})^2 = ${tn(Md2)}${u('kg\\,m^2')}`,
       `I = I_\\mathrm{cm} + Md^2`,
-      `= ${tnFit(Icm, sg)} + ${tnFit(Md2, sg)} = ${tn(I)}${u('kg\\,m^2')}`,
+      `= ${tn(Icm)} + ${tn(Md2)} = ${tn(I)}${u('kg\\,m^2')}`,
     ];
   },
 

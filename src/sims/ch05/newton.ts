@@ -1,9 +1,8 @@
 // Ch 5 scene: second law. A puck on a frictionless surface is pushed from rest by a constant
 // force: a = F/m, so v grows linearly with slope F/m.
-import { tn, u } from '../../core/tex';
+import { slider, sliderText, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
-import { sigToMatch } from '../ch02/sigma';
 import { G5, drawPuckFbd, drawTrack, padded, weightPair } from './common';
 import { netForce, pushState, type Push } from './physics';
 
@@ -160,24 +159,23 @@ export const newton: Scene<P, S> = {
   ],
 
   readouts: [
-    { label: 'F_\\text{net}', unit: 'N', value: (s) => s.F },
+    // The push is the slider value: printed as its label (policy D, R1/R8).
+    { label: 'F_\\text{net}', unit: 'N', value: (s) => s.F, format: (v) => sliderText(params.F, v) },
     { label: 'a', unit: 'm/s²', value: (s) => s.a },
     { label: 'v', unit: 'm/s', value: (s) => s.v },
   ],
 
-  // Σ panel: a = F_net/m, then v and x of uniform acceleration from rest at the current t.
+  // Σ panel: a = F_net/m, then v and x of uniform acceleration from rest at the current t. F and m
+  // as their slider labels, a and t with 3 figures (policy D, R1/R3).
   formula: (s, p) => {
-    const sig = Math.max(
-      sigToMatch(s.v, [s.a, s.t], (a, t) => a * t),
-      sigToMatch(s.x, [s.a, s.t], (a, t) => 0.5 * a * t * t),
-    );
-    const a = tn(s.a, sig);
-    const T = tn(s.t, sig);
+    const a = tn(s.a);
+    const T = tn(s.t);
+    const F = slider(params.F, p.F);
     const W = p.m * G5;
     return [
       // Free-body diagram: N and mg cancel, the push is the net force.
-      ...(p.fbd ? [`\\Sigma F_x = F = ${p.F.toFixed(1)}${u('N')},\\quad \\Sigma F_y = N - mg = ${tn(W)} - ${tn(W)} = 0`] : []),
-      `a = \\frac{F_\\text{net}}{m} = \\frac{${p.F.toFixed(1)}}{${p.m.toFixed(1)}} = ${tn(s.a)}${u('m/s^2')}`,
+      ...(p.fbd ? [`\\Sigma F_x = F = ${F}${u('N')},\\quad \\Sigma F_y = N - mg = ${tn(W)} - ${tn(W)} = 0`] : []),
+      `a = \\frac{F_\\text{net}}{m} = \\frac{${F}}{${slider(params.m, p.m)}} = ${tn(s.a)}${u('m/s^2')}`,
       `v = at = ${a} \\times ${T} = ${tn(s.v)}${u('m/s')}`,
       `x = \\tfrac{1}{2}at^2 = \\tfrac{1}{2} \\times ${a} \\times ${T}^2 = ${tn(s.x)}${u('m')}`,
     ];

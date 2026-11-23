@@ -10,9 +10,8 @@
 // to zero. After the release the object curves outward and backward under the centrifugal and
 // Coriolis forces. Fictitious forces are drawn dashed.
 import { t as tr } from '../../core/i18n';
-import { num, tn, u } from '../../core/tex';
+import { CONST, num, slider, tn, tnScale, tp, u } from '../../core/tex';
 import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
-import { sigToMatch, sigsToMatch } from '../ch02/sigma';
 import type { Viewport } from '../../core/viewport';
 import type { Draw } from '../../draw/draw';
 import { theme } from '../../draw/theme';
@@ -531,6 +530,9 @@ const DEG = Math.PI / 180;
  * from tan θ = v²/(g r) with r = L sin θ) and the real force that supplies it (zero after the release).
  * With the rotating frame shown: ω = v/r and the centrifugal force; on the circle the radial forces
  * in that frame add to zero, after the release the centrifugal and Coriolis forces act on the object.
+ * Policy D: v as its slider label, g from the constant table, derived values with 3 figures; the
+ * banked-curve friction from v² − v_d² computed directly (R5), the radial sum in the rotating frame
+ * an exact 0 (R7a).
  */
 export function circularFormula(p: P, t: number): string[] {
   const pr = presetOf(p);
@@ -541,53 +543,53 @@ export function circularFormula(p: P, t: number): string[] {
   const m = num(st.m);
   const r = num(st.r);
   const mg = st.m * G;
+  const g = CONST.g.tex;
+  const v = slider(params[V_KEY[pr]], st.v);
   const lines: string[] = [];
-  const mv2r = () => `\\frac{mv^2}{r} = \\frac{${m} \\times ${tn(st.v, sigToMatch(need, [st.v], (v) => (st.m * v * v) / st.r))}^2}{${r}} = ${tn(need)}${u('N')}`;
+  const mv2r = () => `\\frac{mv^2}{r} = \\frac{${m} \\times ${v}^2}{${r}} = ${tn(need)}${u('N')}`;
   if (pr === 'banked') {
     const vd = designSpeed(st);
     const th = `${num(st.theta / DEG)}^\\circ`;
-    lines.push(`v_\\text{d} = \\sqrt{g r\\tan\\theta} = \\sqrt{${G} \\times ${r}\\tan ${th}} = ${tn(vd)}${u('m/s')}`);
+    lines.push(`v_\\text{d} = \\sqrt{g r\\tan\\theta} = \\sqrt{${g} \\times ${r}\\tan ${th}} = ${tn(vd)}${u('m/s')}`);
     lines.push(mv2r());
     // f_s = m(v² − v_d²) cos θ / r: positive down the slope (above the design speed), negative up it.
-    const f = (st.m * (st.v * st.v - vd * vd) * Math.cos(st.theta)) / st.r;
-    const [sv, sd] = sigsToMatch(f, [st.v, vd], (a, b) => (st.m * (a * a - b * b) * Math.cos(st.theta)) / st.r);
-    // Numbers only: the symbolic form is in ⓘ (equations); with it the line no longer fits a phone.
-    lines.push(`f_s = \\frac{${m}\\,(${tn(st.v, sv)}^2 - ${tn(vd, sd)}^2)}{${r}}\\cos ${th} = ${tn(f)}${u('N')}`);
+    // v² − v_d² near the design speed is a small difference of two close squares: computed directly
+    // (v² − g r tan θ) and printed as one number, so the line holds at any speed (policy D, R5).
+    const dv2 = st.v * st.v - G * st.r * Math.tan(st.theta);
+    const f = (st.m * dv2 * Math.cos(st.theta)) / st.r;
+    lines.push(`f_s = \\frac{m\\,(v^2 - v_\\text{d}^2)}{r}\\cos\\theta`, `= \\frac{${m} \\times ${tp(dv2)}}{${r}}\\cos ${th} = ${tn(f)}${u('N')}`);
   } else if (pr === 'cone' && !rel) {
     // The angle follows from the speed (string length fixed); after the cut the pendulum falls.
     const thd = st.theta / DEG;
     lines.push(`\\tan\\theta = \\frac{v^2}{g r},\\; r = L\\sin\\theta \\;\\Rightarrow\\; \\theta = ${tn(thd)}^\\circ`);
-    const sr = sigToMatch(st.r, [thd], (a) => L_CONE * Math.sin(a * DEG));
-    lines.push(`r = L\\sin\\theta = ${num(L_CONE)} \\times \\sin ${tn(thd, sr)}^\\circ = ${tn(st.r)}${u('m')}`);
-    const sm = sigToMatch(need, [thd], (a) => mg * Math.tan(a * DEG));
-    lines.push(`\\frac{mv^2}{r} = mg\\tan\\theta = ${m} \\times ${G}\\tan ${tn(thd, sm)}^\\circ = ${tn(need)}${u('N')}`);
+    lines.push(`r = L\\sin\\theta = ${num(L_CONE)} \\times \\sin ${tn(thd)}^\\circ = ${tn(st.r)}${u('m')}`);
+    lines.push(`\\frac{mv^2}{r} = mg\\tan\\theta = ${m} \\times ${g}\\tan ${tn(thd)}^\\circ = ${tn(need)}${u('N')}`);
   } else lines.push(mv2r());
   lines.push(rel ? `${LOST[pr]} = 0 \\;\\Rightarrow\\; F_{\\text{net},r} = ${tn(Fr)}${u('N')}` : `F_{\\text{net},r} = ${SUPPLY[pr]} = \\frac{mv^2}{r} = ${tn(Fr)}${u('N')}`);
   if (pr === 'flat') {
     // The most static friction the road gives: dry, or ice from the quarter lap on.
     const mu = onIce(p, t) ? MU_ICE : MU_DRY;
     const fmax = mu * mg;
-    lines.push(`f_{s,\\text{max}} = \\mu_s mg = ${num(mu)} \\times ${m} \\times ${G} = ${tn(fmax)}${u('N')}${fmax < need ? ' < \\frac{mv^2}{r}' : ' \\ge f_s'}`);
+    lines.push(`f_{s,\\text{max}} = \\mu_s mg = ${num(mu)} \\times ${m} \\times ${g} = ${tn(fmax)}${u('N')}${fmax < need ? ' < \\frac{mv^2}{r}' : ' \\ge f_s'}`);
   }
   if (!p.rot) return lines;
   const w = omega(st);
-  lines.push(`\\omega = \\frac{v}{r} = \\frac{${tn(st.v, sigToMatch(w, [st.v], (v) => v / st.r))}}{${r}} = ${tn(w)}${u('rad/s')}`);
+  lines.push(`\\omega = \\frac{v}{r} = \\frac{${v}}{${r}} = ${tn(w)}${u('rad/s')}`);
   const q = rotatingViewAt(st, t, tRel(p));
   const { cf, cor } = fictitious(st, q);
   const Fcf = Math.hypot(cf.x, cf.y);
   if (!rel) {
     lines.push(`F_\\text{cf} = m\\omega^2 r = \\frac{mv^2}{r} = ${tn(Fcf)}${u('N')}`);
-    lines.push(`\\sum F'_r = F_{\\text{net},r} - F_\\text{cf} = ${tn(Fr)} - ${tn(Fcf)} = ${tn(Fr - Fcf)}${u('N')}`);
+    // Both are mv²/r: the difference is a rounding residue and prints as an exact 0 (R7a).
+    lines.push(`\\sum F'_r = F_{\\text{net},r} - F_\\text{cf} = ${tn(Fr)} - ${tn(Fcf)} = ${tnScale(Fr - Fcf, need)}${u('N')}`);
     return lines;
   }
   const d = Math.hypot(q.x, q.y);
   const vp = Math.hypot(q.vx, q.vy);
   const Fcor = Math.hypot(cor.x, cor.y);
-  const [s1w, s1d] = sigsToMatch(Fcf, [w, d], (a, b) => st.m * a * a * b);
-  const [s2w, s2v] = sigsToMatch(Fcor, [w, vp], (a, b) => 2 * st.m * a * b);
   // r′: the object's distance from the axis now, larger than the circle's r once released.
-  lines.push(`F_\\text{cf} = m\\omega^2 r' = ${m} \\times ${tn(w, s1w)}^2 \\times ${tn(d, s1d)} = ${tn(Fcf)}${u('N')}`);
-  lines.push(`F_\\text{Cor} = 2m\\omega v' = 2 \\times ${m} \\times ${tn(w, s2w)} \\times ${tn(vp, s2v)} = ${tn(Fcor)}${u('N')}`);
+  lines.push(`F_\\text{cf} = m\\omega^2 r' = ${m} \\times ${tn(w)}^2 \\times ${tn(d)} = ${tn(Fcf)}${u('N')}`);
+  lines.push(`F_\\text{Cor} = 2m\\omega v' = 2 \\times ${m} \\times ${tn(w)} \\times ${tn(vp)} = ${tn(Fcor)}${u('N')}`);
   return lines;
 }
 

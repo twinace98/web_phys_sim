@@ -1,11 +1,10 @@
 // Ch 2 scene: free fall. Vertical motion with constant acceleration −g, same slope/area plots.
 import { fmtTick, niceTicks } from '../../core/format';
-import { num, paren, tn, u } from '../../core/tex';
+import { CONST, num, paren, slider, tn, tnScale, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { drawFbd, fbdParam, type FbdForce } from '../../draw/fbd';
 import { kinematicPlots } from './common';
 import { G_EARTH, THROW_V0, fallProfile, ranges, stateAt, type Profile, type Ranges, type Throw } from './physics';
-import { sigToMatch } from './sigma';
 
 type P = {
   throw: string;
@@ -169,30 +168,25 @@ export const freefall: Scene<P, S> = {
   plots: kinematicPlots<P>('y', model),
 
   readouts: [
-    { label: 'y', unit: 'm', value: (s) => s.y },
+    // Fixed decimals from the highest point, so the landing reads an exact 0 (policy D, R7a).
+    { label: 'y', unit: 'm', value: (s) => s.y, scale: top },
     { label: 'v', unit: 'm/s', value: (s) => s.v },
     { label: 'a', unit: 'm/s²', value: (s) => s.a },
   ],
 
-  // Constant acceleration −g: v and y at the current t. t gets the digits that make the shown
-  // arithmetic give the shown v and y.
+  // Constant acceleration −g: v and y at the current t, t with 3 figures (policy D, R3). y prints
+  // with fixed decimals from the run's height, as its readout: at landing it is an exact 0 (R7a).
   formula: (s, p) => {
     const { pr } = model(p);
-    const v0 = pr.v0;
-    const h = pr.x0;
-    const g = G_EARTH;
-    const sig = Math.max(
-      sigToMatch(s.v, [s.t], (t) => v0 - g * t),
-      sigToMatch(s.y, [s.t], (t) => h + v0 * t - 0.5 * g * t * t),
-    );
-    const T = tn(s.t, sig);
+    const v0 = num(pr.v0);
+    const T = tn(s.t);
     return [
       // Free-body diagram: mg is the only force, so ΣF = ma gives a = −g for any mass.
       ...(p.fbd ? [`\\Sigma F_y = -mg = ma \\;\\Rightarrow\\; a = -g`] : []),
       `a = -g = ${tn(s.a)}${u('m/s^2')}`,
-      `v = v_0 - gt = ${num(v0)} - ${num(g)} \\times ${T} = ${tn(s.v)}${u('m/s')}`,
+      `v = v_0 - gt = ${v0} - ${CONST.g.tex} \\times ${T} = ${tn(s.v)}${u('m/s')}`,
       `y = h + v_0 t - \\tfrac{1}{2} g t^2`,
-      `= ${num(h)} + ${paren(num(v0))} \\times ${T} - ${num(g / 2)} \\times ${T}^2 = ${tn(s.y)}${u('m')}`,
+      `= ${slider(params.h, pr.x0)} + ${paren(v0)} \\times ${T} - ${num(CONST.g.value / 2)} \\times ${T}^2 = ${tnScale(s.y, top(p))}${u('m')}`,
     ];
   },
 

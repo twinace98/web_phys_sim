@@ -5,7 +5,6 @@ import type { ParamSchema, Role, Scene, SceneCtx, SelectParam, Vec2, WorldSpec }
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR, theme } from '../../draw/theme';
 import { LabelLayout } from './labels';
-import { sigsToMatch } from '../ch02/sigma';
 import { add, axes, clampWithPartner, components, placeComponentTip, placeTip, setComponent, type V2 } from './physics';
 
 const DEG = Math.PI / 180;
@@ -214,15 +213,11 @@ export const componentsScene: Scene<PC, { t: number }> = {
   formula: (_s, p) => {
     const c = components([p.A[0], p.A[1]], p.phi * DEG);
     if (c.mag < 1e-9) return ['A = 0, \\quad A_x = A_y = 0'];
-    const deg = c.theta / DEG;
-    const [sx, sy] = sigsToMatch(c.mag, [c.ax, c.ay], (x, y) => Math.hypot(x, y));
-    // A and θ appear in both lines: the larger of the digits each line needs.
-    const ca = sigsToMatch(c.ax, [c.mag, deg], (m, d) => m * Math.cos(d * DEG));
-    const sa = sigsToMatch(c.ay, [c.mag, deg], (m, d) => m * Math.sin(d * DEG));
-    const A = tn(c.mag, Math.max(ca[0], sa[0]));
-    const th = `(${tn(deg, Math.max(ca[1], sa[1]))}^\\circ)`;
+    // Inputs with 3 figures; each result prints from the unrounded value, as on the stage (policy D, R3).
+    const A = tn(c.mag);
+    const th = `(${tn(c.theta / DEG)}^\\circ)`;
     return [
-      `A = \\sqrt{A_x^2 + A_y^2} = \\sqrt{${tp(c.ax, sx)}^2 + ${tp(c.ay, sy)}^2} = ${tn(c.mag)}`,
+      `A = \\sqrt{A_x^2 + A_y^2} = \\sqrt{${tp(c.ax)}^2 + ${tp(c.ay)}^2} = ${tn(c.mag)}`,
       `A_x = A\\cos\\theta = ${A}\\cos${th} = ${tn(c.ax)}`,
       `A_y = A\\sin\\theta = ${A}\\sin${th} = ${tn(c.ay)}`,
     ];
@@ -245,8 +240,12 @@ const sumParams: ParamSchema<PS> = {
   B: { kind: 'array', label: 'ch03.p.B', group: 'hidden', live: true, default: [-1, 3], min: -LIM, max: LIM },
 };
 
-/** Two decimals for TeX; negatives in parentheses so each term reads as one number. */
-function num(v: number, paren = false): string {
+/**
+ * A component of A, B or C = A + B: two decimals, the drag resolution of the tips (physics.ts
+ * placeTip), in the stage panel and the Σ panel alike (policy D, R8). Negatives in parentheses
+ * when `paren`, so each term reads as one number.
+ */
+export function comp(v: number, paren = false): string {
   const t = Math.abs(v) < 0.005 ? '0.00' : v.toFixed(2);
   return paren && t.startsWith('-') ? `(${t})` : t;
 }
@@ -260,7 +259,7 @@ export function componentPanel(a: V2, b: V2): string {
   const A = (x: string) => `\\textcolor{${ROLE_COLOR.position}}{${x}}`;
   const B = (x: string) => `\\textcolor{${ROLE_COLOR.energyU}}{${x}}`;
   const row = (c: 'x' | 'y', i: 0 | 1) =>
-    `${A(`A_${c}`)} + ${B(`B_${c}`)} = C_${c} & \\quad ${A(num(a[i]))} + ${B(num(b[i], true))} = ${num(s[i])}`;
+    `${A(`A_${c}`)} + ${B(`B_${c}`)} = C_${c} & \\quad ${A(comp(a[i]))} + ${B(comp(b[i], true))} = ${comp(s[i])}`;
   return `\\begin{array}{ll} ${row('x', 0)} \\\\ ${row('y', 1)} \\end{array}`;
 }
 
@@ -335,15 +334,16 @@ export const sumScene: Scene<PS, { t: number }> = {
     { pos: (_s, p) => P([p.B[0], p.B[1]]), radiusPx: 18, onDrag: (ctx, _s, w) => dragOne(ctx, 'B', w) },
   ],
 
-  // Σ panel: componentwise sum, then the magnitude of C (as labelled on the stage).
+  // Σ panel: componentwise sum with the components as the stage panel prints them, then the
+  // magnitude of C (as labelled on the stage).
   formula: (_s, p) => {
     const a: V2 = [p.A[0], p.A[1]];
     const b: V2 = [p.B[0], p.B[1]];
     const c = add(a, b);
     return [
-      `C_x = A_x + B_x = ${tn(a[0])} + ${tp(b[0])} = ${tn(c[0])}`,
-      `C_y = A_y + B_y = ${tn(a[1])} + ${tp(b[1])} = ${tn(c[1])}`,
-      `C = \\sqrt{C_x^2 + C_y^2} = \\sqrt{${tp(c[0])}^2 + ${tp(c[1])}^2} = ${tn(Math.hypot(c[0], c[1]))}`,
+      `C_x = A_x + B_x = ${comp(a[0])} + ${comp(b[0], true)} = ${comp(c[0])}`,
+      `C_y = A_y + B_y = ${comp(a[1])} + ${comp(b[1], true)} = ${comp(c[1])}`,
+      `C = \\sqrt{C_x^2 + C_y^2} = \\sqrt{${comp(c[0], true)}^2 + ${comp(c[1], true)}^2} = ${tn(Math.hypot(c[0], c[1]))}`,
     ];
   },
 

@@ -1,9 +1,9 @@
 // Ch 6 scene: static and kinetic friction. A pull that grows steadily (or a board that tilts
 // steadily) meets static friction that matches it up to μs N; then the block slips and the
 // friction drops to μk N.
-import { num, tn, u } from '../../core/tex';
+import { fmt } from '../../core/format';
+import { CONST, slider, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
-import { sigToMatch } from '../ch02/sigma';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { drawRich } from '../../draw/text';
 import { color, theme } from '../../draw/theme';
@@ -130,7 +130,8 @@ function drawTilt(g: Draw, s: FrictionState, m: number): void {
   // Angle arc at the hinge; its label just left of the hinge, above the ground, where neither
   // the block nor its force arrows ever go (they stay right of the hinge).
   if (th > 0.5 * DEG) g.arc(O, 44, 0, th, { color: BODY, width: 1.25 });
-  g.text(O, `*θ* = ${(th / DEG).toFixed(1)}°`, { size: 13, color: BODY, align: 'right', baseline: 'middle', dx: -10, dy: -13 });
+  // The same string as the Σ panel (policy D, R8).
+  g.text(O, `*θ* = ${fmt(th / DEG)}°`, { size: 13, color: BODY, align: 'right', baseline: 'middle', dx: -10, dy: -13 });
 
   const c = add(O, u, S0 - s.x);
   const mid = add(c, n, B / 2);
@@ -229,52 +230,45 @@ export const friction: Scene<P, S> = {
   ],
 
   // Σ panel: N, the static limit μs N and the friction now: f_s = (what is needed) ≤ μs N while at
-  // rest, f_k = μk N once sliding. Incline: the slip angle tan θc = μs.
+  // rest, f_k = μk N once sliding. Incline: the slip angle tan θc = μs. m as its slider label, μ as
+  // in the material list, g from the constant table, state values with 3 figures (policy D).
   formula: (s, p) => {
     const mat = MATERIALS[p.mat] ?? MATERIALS.wood;
     const mus = mat.mus.toFixed(2);
     const muk = mat.muk.toFixed(2);
     const fs = fsMax(p, s);
-    const sN = Math.max(
-      sigToMatch(fs, [s.N], (n) => mat.mus * n),
-      s.sliding ? sigToMatch(s.f, [s.N], (n) => mat.muk * n) : 3,
-    );
-    const N = tn(s.N, sN);
+    const N = tn(s.N);
+    const g = CONST.g.tex;
     const limit = `\\mu_s N = ${mus} \\times ${N} = ${tn(fs)}${u('N')}`;
     const kinetic = `f_k = \\mu_k N = ${muk} \\times ${N} = ${tn(s.f)}${u('N')}`;
-    const m = num(p.m);
+    const m = slider(params.m, p.m);
     if (!incline(p)) {
-      const lines = [`N = mg = ${m} \\times ${G} = ${tn(s.N)}${u('N')}`, limit];
+      const lines = [`N = mg = ${m} \\times ${g} = ${tn(s.N)}${u('N')}`, limit];
       if (!s.sliding) {
         lines.push(`f_s = F = ${tn(s.f)}${u('N')} \\le \\mu_s N`);
         return lines;
       }
-      const sa = sigToMatch(s.a, [s.F, s.f], (F, f) => (F - f) / p.m);
-      lines.push(kinetic, `a = \\frac{F - f_k}{m} = \\frac{${tn(s.F, sa)} - ${tn(s.f, sa)}}{${m}} = ${tn(s.a)}${u('m/s^2')}`);
+      lines.push(kinetic, `a = \\frac{F - f_k}{m} = \\frac{${tn(s.F)} - ${tn(s.f)}}{${m}} = ${tn(s.a)}${u('m/s^2')}`);
       return lines;
     }
     const deg = s.theta / DEG;
     const thc = `\\tan^{-1} ${mus} = ${tn(Math.atan(mat.mus) / DEG)}^\\circ`;
-    const sT = Math.max(
-      sigToMatch(s.N, [deg], (d) => p.m * G * Math.cos(d * DEG)),
-      s.sliding ? sigToMatch(s.a, [deg], (d) => G * (Math.sin(d * DEG) - mat.muk * Math.cos(d * DEG))) : sigToMatch(s.f, [deg], (d) => p.m * G * Math.sin(d * DEG)),
-    );
-    const th = `${tn(deg, sT)}^\\circ`;
+    const th = `${tn(deg)}^\\circ`;
     if (!s.sliding) {
       return [
-        `N = mg\\cos\\theta = ${m} \\times ${G}\\cos ${th} = ${tn(s.N)}${u('N')}`,
-        `f_s = mg\\sin\\theta = ${m} \\times ${G}\\sin ${th} = ${tn(s.f)}${u('N')}`,
+        `N = mg\\cos\\theta = ${m} \\times ${g}\\cos ${th} = ${tn(s.N)}${u('N')}`,
+        `f_s = mg\\sin\\theta = ${m} \\times ${g}\\sin ${th} = ${tn(s.f)}${u('N')}`,
         limit,
         `\\tan\\theta_c = \\mu_s \\;\\Rightarrow\\; \\theta_c = ${thc}`,
       ];
     }
     return [
       `\\theta = \\theta_c = ${thc}`,
-      `N = mg\\cos\\theta = ${m} \\times ${G}\\cos ${th} = ${tn(s.N)}${u('N')}`,
+      `N = mg\\cos\\theta = ${m} \\times ${g}\\cos ${th} = ${tn(s.N)}${u('N')}`,
       limit,
       kinetic,
       `a = g(\\sin\\theta - \\mu_k\\cos\\theta)`,
-      `= ${G}(\\sin ${th} - ${muk}\\cos ${th}) = ${tn(s.a)}${u('m/s^2')}`,
+      `= ${g}(\\sin ${th} - ${muk}\\cos ${th}) = ${tn(s.a)}${u('m/s^2')}`,
     ];
   },
 
