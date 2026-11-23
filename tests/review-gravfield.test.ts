@@ -1,6 +1,7 @@
 // Addition under review #/ch/106: gravitational field and potential of point masses.
 import { describe, expect, it } from 'vitest';
 import { probe as probe_ } from './stage-probe';
+import { t } from '../src/core/i18n';
 import ko from '../src/sims/review/gravfield/i18n.ko.json';
 import en from '../src/sims/review/gravfield/i18n.en.json';
 import { defaults } from '../src/core/params';
@@ -319,6 +320,7 @@ describe('gravfield tray', () => {
 });
 
 describe('gravfield legend: g = 0 only at the × (user 2026-11-23)', () => {
+  const CRIT = t('gravfield.leg.crit');
   const texts = (p: P) => {
     const g = probe_(gravfield, { t: 0 } as never, p, 1280, 800);
     return g.marks.filter((m) => m.kind === 'text').map((m) => ({ text: m.text!, y: m.y }));
@@ -328,18 +330,24 @@ describe('gravfield legend: g = 0 only at the × (user 2026-11-23)', () => {
     // One mass: no g = 0 point, neither row.
     let t = texts(c.params);
     expect(t.some((m) => m.text === '*g* = 0')).toBe(false);
-    expect(t.some((m) => m.text === '*Φ* = *Φ*(×)')).toBe(false);
+    expect(t.some((m) => m.text === CRIT)).toBe(false);
     add(c, 1.5, 0);
     t = texts(c.params);
     const nul = t.find((m) => m.text === '*g* = 0');
-    const crit = t.find((m) => m.text === '*Φ* = *Φ*(×)');
+    const crit = t.find((m) => m.text === CRIT);
     expect(nul).toBeDefined();
     expect(crit).toBeDefined();
     expect(Math.abs(nul!.y - crit!.y)).toBeGreaterThan(10);
     // Equipotentials off: the thick line is gone, the × row stays.
     t = texts({ ...c.params, eq: false });
     expect(t.some((m) => m.text === '*g* = 0')).toBe(true);
-    expect(t.some((m) => m.text === '*Φ* = *Φ*(×)')).toBe(false);
+    expect(t.some((m) => m.text === CRIT)).toBe(false);
+  });
+  it('the thick-line label is words in both languages, not Φ = Φ(×)', () => {
+    expect(ko['gravfield.leg.crit']).toBe('×를 지나는 등퍼텐셜선');
+    expect(en['gravfield.leg.crit']).toBe('equipotential through ×');
+    expect(ko['gravfield.obs.lines']).not.toContain('\\Phi(\\times)');
+    expect(en['gravfield.obs.lines']).not.toContain('\\Phi(\\times)');
   });
   it('ⓘ says g is not zero along the thick line (ko, en)', () => {
     expect(ko['gravfield.obs.lines']).toContain('$g = 0$은 × 점뿐');
