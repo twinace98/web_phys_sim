@@ -21,8 +21,6 @@ interface S {
   qSmooth: number;
   /** Heat arrow: +1 A → B, −1 B → A, 0 none (see nextFlow). */
   flow: number;
-  /** Time of the last arrow change [s]. */
-  flowT: number;
 }
 
 const A_COL = ROLE_COLOR.position;
@@ -41,12 +39,13 @@ const ent = (p: P, qA: number) => {
 
 /** Smoothing time of q_A for the temperature readouts and the Q arrow [s] (a thermometer's response). */
 const FLOW_TAU = 1.5;
-/** The arrow appears when the displayed temperatures differ by more than this fraction of the larger… */
-const FLOW_ON = 0.3;
-/** …and disappears when they differ by less than this. */
-const FLOW_OFF = 0.15;
-/** Minimum time between arrow changes [s], unless the temperature order reverses. */
-const FLOW_DWELL = 1;
+/**
+ * The arrow appears when the smoothed q_A lies so far from equilibrium that the equilibrium
+ * fluctuations reach that far (on that side) with probability below FLOW_ON…
+ */
+export const FLOW_ON = 0.005;
+/** …and disappears once they reach it with probability above FLOW_OFF (hysteresis: no flicker). */
+export const FLOW_OFF = 0.02;
 
 /** Displayed temperatures kT/ε of A and B: from q_A smoothed over FLOW_TAU. */
 export function temps(p: P, qSmooth: number): [number, number] {
@@ -54,20 +53,53 @@ export function temps(p: P, qSmooth: number): [number, number] {
   return [kTeps(NA, qSmooth), kTeps(NB, p.q - qSmooth)];
 }
 
-/** Signed relative temperature difference (T_A − T_B) / max(T_A, T_B). */
-export const relDiff = ([tA, tB]: [number, number]) => (tA - tB) / Math.max(tA, tB, 1e-12);
+let tailKey = '';
+let tailMemo: { lo: number[]; hi: number[] } = { lo: [], hi: [] };
+/**
+ * Tails of the exact equilibrium distribution P(q_A) ∝ Ω_A(q_A) Ω_B(q − q_A): lo[a] = P(q_A ≤ a),
+ * hi[a] = P(q_A ≥ a). Its mean is q N_A / N, where the displayed temperatures are equal.
+ */
+export function eqTails(p: P): { lo: number[]; hi: number[] } {
+  const key = `${p.na}|${p.q}`;
+  if (key === tailKey) return tailMemo;
+  const lw: number[] = [];
+  for (let qa = 0; qa <= p.q; qa++) lw.push(ent(p, qa).tot);
+  const top = Math.max(...lw);
+  const w = lw.map((l) => Math.exp(l - top));
+  const z = w.reduce((a, b) => a + b, 0);
+  const lo: number[] = [];
+  const hi: number[] = new Array(p.q + 1);
+  let c = 0;
+  for (let a = 0; a <= p.q; a++) lo.push((c += w[a] / z));
+  c = 0;
+  for (let a = p.q; a >= 0; a--) hi[a] = c += w[a] / z;
+  tailKey = key;
+  tailMemo = { lo, hi };
+  return tailMemo;
+}
 
 /**
- * Heat arrow from the displayed temperatures: +1 A → B (A hotter), −1 B → A, 0 none. Hysteresis
- * (FLOW_ON / FLOW_OFF) and a minimum dwell keep it from flickering; it never points from the colder
- * to the hotter solid, because a sign change of r hides it at once.
+ * Side of a significant departure from equilibrium at the smoothed q̄_A: +1 when q_A ≥ q̄_A has
+ * equilibrium probability below `prob` (A holds too much: heat flows A → B), −1 when q_A ≤ q̄_A
+ * does (B → A), else 0. Exact tails, so the skewed distribution of a small solid is no bias.
  */
-export function nextFlow(flow: number, r: number, sinceChange: number): number {
-  if (flow !== 0 && Math.sign(r) !== flow) return 0;
-  let next = flow;
-  if (Math.abs(r) > FLOW_ON) next = Math.sign(r);
-  else if (Math.abs(r) < FLOW_OFF) next = 0;
-  return next !== flow && sinceChange < FLOW_DWELL ? flow : next;
+export function departure(p: P, qSmooth: number, prob: number): number {
+  const { lo, hi } = eqTails(p);
+  if (hi[Math.ceil(qSmooth - 1e-9)] < prob) return 1;
+  if (lo[Math.floor(qSmooth + 1e-9)] < prob) return -1;
+  return 0;
+}
+
+/**
+ * Heat arrow: +1 A → B, −1 B → A, 0 none. Shown only for a net flow that the equilibrium
+ * fluctuations cannot explain: the smoothed q_A is beyond the FLOW_ON tail of its equilibrium
+ * distribution; hidden again inside the FLOW_OFF tail. The net flow then runs towards equilibrium,
+ * which is from the hotter to the colder displayed temperature.
+ */
+export function nextFlow(flow: number, p: P, qSmooth: number): number {
+  const on = departure(p, qSmooth, FLOW_ON);
+  if (on) return on;
+  return flow !== 0 && departure(p, qSmooth, FLOW_OFF) === flow ? flow : 0;
 }
 
 let memoKey = '';
@@ -309,18 +341,14 @@ export const heatScene: Scene<P, S> = {
     if (p.start === 'B') fillUniform(osc, NA, NA + NB, p.q, rng);
     else fillUniform(osc, 0, NA, p.q, rng);
     const qA = sumRange(osc, 0, NA);
-    return { t: 0, osc, qA, rng, qSmooth: qA, flow: nextFlow(0, relDiff(temps(p, qA)), Infinity), flowT: 0 };
+    return { t: 0, osc, qA, rng, qSmooth: qA, flow: nextFlow(0, p, qA) };
   },
   step: (s, h, p) => {
     s.t += h;
     for (let k = 0; k < MOVES; k++) exchange(s.osc, s.rng);
     s.qA = sumRange(s.osc, 0, sizes(p)[0]);
     s.qSmooth += (s.qA - s.qSmooth) * Math.min(1, h / FLOW_TAU);
-    const f = nextFlow(s.flow, relDiff(temps(p, s.qSmooth)), s.t - s.flowT);
-    if (f !== s.flow) {
-      s.flow = f;
-      s.flowT = s.t;
-    }
+    s.flow = nextFlow(s.flow, p, s.qSmooth);
   },
   record: (s, p) => {
     const e = ent(p, s.qA);

@@ -16,7 +16,9 @@ import {
   mostProbable,
   sumRange,
 } from '../src/sims/ch20/physics';
-import { heatScene, relDiff, tangentSlopes, temps } from '../src/sims/ch20/heat';
+import { FLOW_OFF, FLOW_ON, departure, eqTails, heatScene, tangentSlopes, temps } from '../src/sims/ch20/heat';
+import en20 from '../src/sims/ch20/i18n.en.json';
+import ko20 from '../src/sims/ch20/i18n.ko.json';
 import { BAR_TITLE, barItems, carnotScene, heatsAt } from '../src/sims/ch20/carnot';
 import { dofOf } from '../src/sims/ch18/process';
 import { expansionScene } from '../src/sims/ch20/expansion';
@@ -116,66 +118,118 @@ describe('ch20 dynamics', () => {
     expect(run()).toBe(run());
   });
 
-  it('heat scene: the Q arrow agrees with the displayed temperatures and does not flicker', () => {
-    for (const [na, q] of [
-      [30, 20],
-      [10, 20],
-      [90, 20],
-      [50, 30],
-      [90, 100],
-      [10, 100],
-    ]) {
-      let flips = 0;
-      let oldFlips = 0;
-      let shortest = Infinity;
-      for (let seed = 1; seed <= 4; seed++) {
-        const p = { ...defaults(heatScene.params), na, q };
+  // Review 2026-11-20 P2: after equilibrium the arrow still showed 30–44 % of the time at N_A = 10,
+  // biased B → A. Cause: the 30 % rule on the displayed temperatures; kT/ε = 1/ln(1 + N/q̄) bends
+  // down at small q̄ and the rule divides by the larger temperature, so a small, cold-side
+  // fluctuation of A passes it more often (the exchange itself is unbiased: ⟨q_A⟩ = q N_A/N).
+  it('regression: N_A = 10, q = 100 at equilibrium: arrow absent nearly always, no B → A bias', () => {
+    const p = { ...defaults(heatScene.params), na: 10, q: 100 };
+    let n = 0;
+    let ab = 0;
+    let ba = 0;
+    let oldOn = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      const r = new Runner(heatScene, p, seed);
+      r.play();
+      let of = 0;
+      for (let i = 0; i < 180 * 30; i++) {
+        r.advance(1 / 30);
+        // The former rule, replayed on the same q̄_A (without its 1 s dwell): ≥ 30 % apart → shown.
+        const [tA, tB] = temps(p, r.state.qSmooth);
+        const rd = (tA - tB) / Math.max(tA, tB);
+        if (Math.abs(rd) > 0.3) of = Math.sign(rd);
+        else if (Math.abs(rd) < 0.15 || Math.sign(rd) !== of) of = 0;
+        if (r.state.t < 60) continue;
+        n++;
+        if (r.state.flow > 0) ab++;
+        if (r.state.flow < 0) ba++;
+        if (of) oldOn++;
+      }
+    }
+    expect(oldOn / n).toBeGreaterThan(0.2);
+    expect((ab + ba) / n).toBeLessThan(0.01);
+    expect(ba / n).toBeLessThan(0.005);
+  });
+
+  it('heat scene: defaults, all quanta in A or in B: the real initial flow shows from t = 0, hot → cold, then goes', () => {
+    for (const start of ['A', 'B']) {
+      const p = { ...defaults(heatScene.params), start };
+      const dir = start === 'A' ? 1 : -1;
+      let late = 0;
+      let n = 0;
+      for (let seed = 1; seed <= 8; seed++) {
         const r = new Runner(heatScene, p, seed);
-        // All quanta start in A: A is hotter, so the arrow points A → B from the start.
-        expect(r.state.flow).toBe(1);
+        expect(r.state.flow).toBe(dir);
         r.play();
-        let prev = r.state.flow;
-        let since = 0;
-        let prevOld = true;
-        for (let i = 0; i < 60 * 30; i++) {
+        for (let i = 0; i < 120 * 30; i++) {
           r.advance(1 / 30);
-          const [tA, tB] = temps(p, r.state.qSmooth);
-          const rd = relDiff([tA, tB]);
-          // Never from the colder to the hotter solid; always shown for a clear difference.
-          if (r.state.flow !== 0) expect(Math.sign(tA - tB)).toBe(r.state.flow);
-          if (Math.abs(rd) > 0.3 && i * (1 / 30) - since > 1.05) expect(r.state.flow).toBe(Math.sign(rd));
-          if (r.state.flow !== prev) {
-            flips++;
-            // An arrow change other than a forced hide (order reversed) comes at least 1 s after the last.
-            if (prev === 0 || Math.sign(rd) === prev) shortest = Math.min(shortest, i / 30 - since);
-            since = i / 30;
+          // Shown for at least the first second, never the wrong way while the solids relax.
+          if (r.state.t <= 1) expect(r.state.flow).toBe(dir);
+          if (r.state.t < 20) expect(r.state.flow).not.toBe(-dir);
+          if (r.state.t > 30) {
+            n++;
+            if (r.state.flow) late++;
           }
-          prev = r.state.flow;
-          // The former instantaneous rule: arrow shown whenever the difference exceeds 12 %.
-          const iA = kTeps(na, r.state.qA);
-          const iB = kTeps(100 - na, q - r.state.qA);
-          const on = Math.abs(iA - iB) > 0.12 * Math.max(iA, iB);
-          if (on !== prevOld) oldFlips++;
-          prevOld = on;
         }
       }
-      // 4 runs of 60 s: the instantaneous rule switched hundreds of times; now at most ~10 per minute.
-      expect(flips).toBeLessThan(50);
-      expect(flips).toBeLessThan(oldFlips / 5);
-      expect(shortest).toBeGreaterThanOrEqual(0.99);
+      expect(late / n).toBeLessThan(0.01);
     }
   });
 
-  it('heat scene: at N_A = 90, all quanta in A, the arrow is shown at 1.2 s (kT_A > kT_B)', () => {
-    for (let seed = 1; seed <= 8; seed++) {
-      const p = { ...defaults(heatScene.params), na: 90, q: 100 };
-      const r = new Runner(heatScene, p, seed);
-      r.play();
-      for (let i = 0; i < 36; i++) r.advance(1 / 30);
-      const [tA, tB] = temps(p, r.state.qSmooth);
-      expect(tA).toBeGreaterThan(tB);
-      expect(r.state.flow).toBe(1);
+  it('sweep: N_A 10–90 × q 20–200 × start A/B: arrow only hot → cold, shown at t = 0 iff the start is a rare fluctuation', () => {
+    for (const na of [10, 11, 30, 50, 89, 90])
+      for (const q of [20, 100, 200])
+        for (const start of ['A', 'B']) {
+          const p = { ...defaults(heatScene.params), na, q, start };
+          const { lo, hi } = eqTails(p);
+          // Exact tails: complete, and the mean is q N_A / N.
+          expect(lo[q]).toBeCloseTo(1, 12);
+          expect(hi[0]).toBeCloseTo(1, 12);
+          let mean = 0;
+          for (let a = 0; a <= q; a++) mean += a * (lo[a] - (a ? lo[a - 1] : 0));
+          expect(mean).toBeCloseTo((q * na) / 100, 9);
+          for (let seed = 1; seed <= 2; seed++) {
+            const r = new Runner(heatScene, p, seed);
+            const q0 = r.state.qA;
+            const rare = start === 'A' ? hi[q0] < FLOW_ON : lo[q0] < FLOW_ON;
+            expect(r.state.flow).toBe(rare ? (start === 'A' ? 1 : -1) : 0);
+            r.play();
+            let flips = 0;
+            let prev = r.state.flow;
+            for (let i = 0; i < 40 * 30; i++) {
+              r.advance(1 / 30);
+              const f = r.state.flow;
+              if (f) {
+                const [tA, tB] = temps(p, r.state.qSmooth);
+                expect(Math.sign(tA - tB)).toBe(f);
+                expect(Math.sign(r.state.qSmooth - (q * na) / 100)).toBe(f);
+                // Still beyond the FLOW_OFF tail on its side.
+                expect(departure(p, r.state.qSmooth, FLOW_OFF)).toBe(f);
+              }
+              if (f !== prev) flips++;
+              prev = f;
+            }
+            expect(flips).toBeLessThan(8);
+          }
+        }
+  });
+
+  it('ⓘ: net flow from the solid that starts with the quanta (not always A → B); the arrow rule as coded', () => {
+    expect(ko20['ch20.h.obs.flow']).not.toContain('A에서 B로');
+    expect(en20['ch20.h.obs.flow']).not.toContain('from A to B');
+    for (const [lang, word] of [
+      [ko20, '처음 양자를 모두 가진 고체'],
+      [en20, 'starts with all the quanta'],
+    ] as const)
+      expect(lang['ch20.h.obs.flow']).toContain(word);
+    for (const lang of [ko20, en20] as Record<string, string>[]) {
+      const s = lang['ch20.h.assume.arrow'];
+      expect(s).toContain(`${100 * FLOW_ON} %`);
+      expect(s).toContain(`${100 * FLOW_OFF} %`);
+      expect(s).toContain('15 %');
     }
+    // The quoted case: N_A = 10, q = 20, all in B: q_A = 0 is 15 % of equilibrium.
+    expect(eqTails({ ...defaults(heatScene.params), na: 10, q: 20 }).lo[0]).toBeCloseTo(0.146, 3);
   });
 
   it('heat scene: displayed temperatures are equal at the mean equilibrium share q_A = N_A q / N', () => {

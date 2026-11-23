@@ -61,6 +61,23 @@ const params: ParamSchema<P> = {
   parts: { kind: 'toggle', label: 'ch16.p.parts', desc: 'ch16.d.parts', group: 'advanced', live: true, default: true },
 };
 
+/**
+ * Standing wave of the continuous mode where the reflected wave has arrived (t ≥ (2L − x)/v). The
+ * incident wave y₁ = y_m sin(ωt − kx) starts at x = 0 at t = 0, so it reaches the end with phase kL;
+ * with x' = L − x the sum is [2y_m sin kx'] cos(ωt − kL) (fixed) or [2y_m cos kx'] sin(ωt − kL) (free).
+ */
+export const STANDING_FIXED = "y = [2y_m \\sin kx']\\cos(\\omega t - kL)";
+export const STANDING_FREE = "y = [2y_m \\cos kx']\\sin(\\omega t - kL)";
+
+/** The standing-wave formulas above, evaluated (y_m = A of cfg): checked against reflectAt in the tests. */
+export function standingAt(r: Reflect, x: number, t: number): number {
+  const k = (2 * Math.PI) / r.lambda;
+  const w = k * r.v;
+  const xp = r.L - x;
+  const ph = w * t - k * r.L;
+  return r.end === 'fixed' ? 2 * r.A * Math.sin(k * xp) * Math.cos(ph) : 2 * r.A * Math.cos(k * xp) * Math.sin(ph);
+}
+
 /** Opacity of the incident and reflected dashed waves under the string (user request 2026-11-19). */
 export const PARTS_ALPHA = 0.4;
 
@@ -136,10 +153,12 @@ export const reflect: Scene<P, { t: number }> = {
     observe: ['ch16.obs.fixed', 'ch16.obs.free', 'ch16.obs.sum', 'ch16.obs.wave', 'ch16.obs.waveEnd'],
     equations: [
       "y = h(t - x/v) \\mp h\\big(t - (2L - x)/v\\big)",
-      "y = [2y_m \\sin kx']\\cos\\omega t, \\quad x' = L - x",
+      // Continuous wave, where both waves are present: fixed end (sin kx', y(L) = 0), then free end (cos kx').
+      STANDING_FIXED,
+      STANDING_FREE,
       'v = f\\lambda',
     ],
-    assumptions: ['ch16.assume.ideal', 'ch16.assume.left', 'ch16.assume.h'],
+    assumptions: ['ch16.assume.ideal', 'ch16.assume.left', 'ch16.assume.h', 'ch16.assume.standing', 'ch16.assume.tL'],
   },
 };
 

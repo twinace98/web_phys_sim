@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
-import { tn, u } from '../src/core/tex';
+import { num, tn, u } from '../src/core/tex';
 import type { Params, Scene } from '../src/core/types';
 import { reflectAt } from '../src/sims/ch16/physics';
 import { cfg as reflectCfg, reflect } from '../src/sims/ch16/reflect';
@@ -72,7 +72,9 @@ describe('Σ panel agrees with the simulation (Ch 16–20)', () => {
     for (const over of [{}, { f1: 440, df: 3.9 }, { f1: 137, df: 1.3 }]) {
       for (const steps of [0, 300]) {
         const { lines, ro, s, p } = run(beats, over, steps);
-        ends(lines, 0, ro[0], 'Hz');
+        // f₂ = f₁ + Δf is exact: printed as typed (443.9, not 444), as in its readout.
+        expect(lines[0].endsWith(`= ${num(ro[0])}${u('Hz')}`), lines[0]).toBe(true);
+        expect(beats.readouts![0].format!(ro[0])).toBe(num(ro[0]));
         ends(lines, 1, ro[1], 'Hz');
         ends(lines, 2, ro[2], 's');
         const pp = p as { f1: number; df: number };
