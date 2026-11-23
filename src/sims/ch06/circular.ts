@@ -10,7 +10,7 @@
 // to zero. After the release the object curves outward and backward under the centrifugal and
 // Coriolis forces. Fictitious forces are drawn dashed.
 import { t as tr } from '../../core/i18n';
-import { CONST, num, slider, tn, tnScale, tp, u } from '../../core/tex';
+import { CONST, fmtStep, num, slider, tn, tnScale, tp, u } from '../../core/tex';
 import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Viewport } from '../../core/viewport';
 import type { Draw } from '../../draw/draw';
@@ -641,7 +641,8 @@ export const circular: Scene<P, { t: number; n: number }> = {
   },
 
   readouts: [
-    { label: 'v', unit: 'm/s', value: (s, p) => speedAt(presetOf(p), s.t, tRel(p), setupOf(p)) },
+    // Two decimals, as the speed slider (0.01 m/s): 10.00, not 10.0 (policy D, R8).
+    { label: 'v', unit: 'm/s', value: (s, p) => speedAt(presetOf(p), s.t, tRel(p), setupOf(p)), format: (v) => fmtStep(v, 0.01) },
     { label: 'F_{\\text{net},r}', unit: 'N', value: (s, p) => netForce(presetOf(p), s.t >= tRel(p), setupOf(p)).r },
     { label: 'mv^2/r', unit: 'N', value: (_s, p) => required(setupOf(p)) },
   ],

@@ -147,6 +147,8 @@ describe('Ch 6 (PENDING: m label; banked friction as a direct difference, R5)', 
     }
     // v = 8.50 m/s: (8.50² − 9.8 × 20 tan 20°) = 0.912 m²/s².
     expect(at(sc, { preset: 'banked', vBanked: 8.5 }, 0).lines).toContain('= \\frac{1000 \\times 0.912}{20}\\cos 20^\\circ = 42.8\\ \\mathrm{N}');
+    // The speed readout at the slider's resolution: 10.00, as the slider label.
+    expect(at(sc, { preset: 'flat', vFlat: 10 }, 0).ro('v')).toBe('10.00');
     expect(at(sc, { rot: true }, 100).lines).toContain("\\sum F'_r = F_{\\text{net},r} - F_\\text{cf} = 4.50 - 4.50 = 0\\ \\mathrm{N}");
   });
 });
