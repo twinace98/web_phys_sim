@@ -3,6 +3,7 @@
 // own mass slider. Field as grid arrows and/or field lines, equipotentials (dashed, equal ΔΦ),
 // every point where g = 0 (×) with the equipotential through it (thick), and a draggable test
 // mass with its field vectors. Reuses the 2D field engine and the charge tray of Ch 22/24.
+import { t } from '../../../core/i18n';
 import type { Handle, ParamSchema, Params, Scene, SceneCtx, UiState, Vec2 } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
 import { theme } from '../../../draw/theme';
@@ -207,7 +208,7 @@ function scaleBar(g: Draw): void {
 
 /**
  * Legend at the top left: a dashed sample "ΔΦ = …" (equal steps) and, when there is a g = 0
- * point, the × alone "g = 0" and a thick sample "Φ = Φ(×)": the equipotential through that point.
+ * point, the × alone "g = 0" and a thick sample "equipotential through ×".
  * The two are separate rows: g = 0 only at the ×, not along the thick line.
  */
 type Row = 'dash' | 'null' | 'crit';
@@ -223,7 +224,7 @@ function legend(g: Draw, ms: readonly Mass[], hasNull: boolean, eq: boolean): vo
   const step = phiStep(ms);
   // ΔΦ is a 1-2-5 number: one significant figure.
   const dTxt = step >= 1e5 ? `${+(step / 1e6).toPrecision(1)} MJ/kg` : `${+(step / 1e3).toPrecision(1)} kJ/kg`;
-  const label = (r: Row) => (r === 'dash' ? `Δ*Φ* = ${dTxt}` : r === 'null' ? '*g* = 0' : '*Φ* = *Φ*(×)');
+  const label = (r: Row) => (r === 'dash' ? `Δ*Φ* = ${dTxt}` : r === 'null' ? '*g* = 0' : t('gravfield.leg.crit'));
   const x0 = 10 * k;
   const y0 = 10 * k;
   const rowH = 20 * k;
