@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
-import { INPUT_SIG, tn, u } from '../src/core/tex';
+import { INPUT_SIG, readoutText, texOf, tn, u } from '../src/core/tex';
 import type { Params, Scene } from '../src/core/types';
 import { CHAPTERS } from '../src/sims/registry';
 import { kinetic } from '../src/sims/ch07/physics';
@@ -29,8 +29,25 @@ function run(sc: Scene, over: Params, steps: number) {
   }
   const lines = sc.formula!(r.state as never, r.params as never);
   const ro = (label: string) => sc.readouts!.find((q) => q.label === label)!.value(r.state as never, r.params as never);
-  return { s: r.state as never as Record<string, number>, p: r.params as never as Params, lines, ro };
+  // The readout's string as TeX (policy D: a Σ result prints its readout's string, R3/R7a/R8).
+  const roText = (label: string) => {
+    const spec = sc.readouts!.find((q) => q.label === label)!;
+    return texOf(readoutText(spec as never, spec.value(r.state as never, r.params as never), r.params as never));
+  };
+  return { s: r.state as never as Record<string, number>, p: r.params as never as Params, lines, ro, roText };
 }
+
+/** Some line ends in "= text unit". */
+function showsText(lines: string[], text: string, unit: string): void {
+  const tail = `= ${text}${unit ? u(unit) : ''}`;
+  expect(lines.some((l) => l.endsWith(tail)), `${tail}\n${lines.join('\n')}`).toBe(true);
+}
+
+/** The result of the first line matching `re`: the number after its last "= " (unit dropped). */
+const resultOf = (lines: string[], re: RegExp) => {
+  const l = lines.find((x) => re.test(x))!;
+  return l.slice(l.lastIndexOf('= ') + 2).replace(/\\ \\mathrm\{.*$/, '');
+};
 
 /** Some line ends in "= value unit" (tn with the readout's three figures). */
 function shows(lines: string[], v: number, unit: string, sig = 3): void {
@@ -66,14 +83,16 @@ describe('Σ panel agrees with the simulation (group B)', () => {
       [{ preset: 'custom', custom: [2, -0.5, 1.5, -2] }, 900],
       [{ preset: 'const' }, 500],
     ] as [Params, number][]) {
-      const { s, lines, ro } = run(sc, over, steps);
-      shows(lines, ro('K'), 'J');
+      const { s, lines, roText } = run(sc, over, steps);
+      showsText(lines, roText('K'), 'J');
       const m = 2;
       const v0 = over.preset === 'spring' ? 0 : 1;
       const dK = kinetic(m, s.v) - kinetic(m, v0);
-      shows(lines, dK, 'J');
+      // ΔK (the last line) with fixed decimals from the run scale (R7a), within its last digit of ΔK.
+      const dKt = resultOf(lines.slice(-1), /./);
+      expect(Math.abs(Number(dKt) - dK)).toBeLessThanOrEqual(0.5 * 10 ** -(dKt.split('.')[1]?.length ?? 0) + 1e-12);
       // W_net (the W line) prints the same number as ΔK.
-      expect(lines.filter((l) => l.endsWith(`= ${tn(dK)}${u('J')}`)).length).toBeGreaterThanOrEqual(2);
+      expect(lines.filter((l) => l.endsWith(`= ${dKt}${u('J')}`)).length).toBeGreaterThanOrEqual(2);
     }
   });
 
@@ -85,10 +104,10 @@ describe('Σ panel agrees with the simulation (group B)', () => {
       [{ pot: 'hill', friction: true }, 600],
       [{ x0s: [-2.05, 2.9] }, 300],
     ] as [Params, number][]) {
-      const { s, p, lines, ro } = run(sc, over, steps);
-      shows(lines, ro('K'), 'J');
-      shows(lines, ro('U'), 'J');
-      shows(lines, ro('E'), 'J');
+      const { s, p, lines, roText } = run(sc, over, steps);
+      showsText(lines, roText('K'), 'J');
+      showsText(lines, roText('U'), 'J');
+      showsText(lines, roText('E'), 'J');
       shows(lines, -POTENTIALS[p.pot as 'double' | 'hill'].dU(s.x), 'N');
     }
   });
@@ -103,9 +122,15 @@ describe('Σ panel agrees with the simulation (group B)', () => {
       [{ force: 'friction', closed: true }, 800],
       [{ force: 'spring', closed: true }, 300],
     ] as [Params, number][]) {
-      const { p, lines, ro } = run(sc, over, steps);
-      shows(lines, ro('W'), 'J');
-      if (p.force !== 'friction') shows(lines, p.closed ? 0 : wab[p.force as string], 'J');
+      const { p, lines, roText } = run(sc, over, steps);
+      showsText(lines, roText('W'), 'J');
+      // Around a closed path the sum is an exact 0 (R7a); W_AB to its last printed digit.
+      if (p.force !== 'friction') {
+        const end = lines[lines.findIndex((l) => /^(W_\{AB\}|\\oint)/.test(l)) + (p.closed ? 0 : 1)];
+        const t = end.slice(end.lastIndexOf('= ') + 2).replace(/\\ \\mathrm\{.*$/, '');
+        if (p.closed) expect(t).toBe('0');
+        else expect(Math.abs(Number(t) - wab[p.force as string])).toBeLessThanOrEqual(0.5 * 10 ** -(t.split('.')[1]?.length ?? 0) + 1e-12);
+      }
     }
   });
 
@@ -117,11 +142,12 @@ describe('Σ panel agrees with the simulation (group B)', () => {
       [{ kind: 'inelastic', m1: 1.3, m2: 2.7, v2: -0.7, e: 0.35 }, 800],
       [{ kind: 'explode', m2: 3.1, E: 4.2 }, 600],
     ] as [Params, number][]) {
-      const { p, lines, ro } = run(sc, over, steps);
-      shows(lines, ro('p_\\mathrm{tot}'), 'kg\\,m/s');
-      shows(lines, ro('K_\\mathrm{tot}'), 'J');
-      shows(lines, ro('v_\\mathrm{cm}'), 'm/s');
-      if (steps > 0 && p.kind === 'inelastic') shows(lines, 0.35, '');
+      const { p, lines, roText } = run(sc, over, steps);
+      showsText(lines, roText('p_\\mathrm{tot}'), 'kg\\,m/s');
+      showsText(lines, roText('K_\\mathrm{tot}'), 'J');
+      showsText(lines, roText('v_\\mathrm{cm}'), 'm/s');
+      // e is the slider value, as its label (R1).
+      if (steps > 0 && p.kind === 'inelastic') showsText(lines, '0.35', '');
     }
   });
 
@@ -132,10 +158,10 @@ describe('Σ panel agrees with the simulation (group B)', () => {
       [{}, 1000],
       [{ kind: 'inelastic', m2: 0.5, b: 0.29, v1: 1.7 }, 1000],
     ] as [Params, number][]) {
-      const { lines, ro } = run(sc, over, steps);
-      shows(lines, ro('p_{\\mathrm{tot},x}'), 'kg\\,m/s');
-      shows(lines, ro('p_{\\mathrm{tot},y}'), 'kg\\,m/s');
-      shows(lines, ro('K_\\mathrm{tot}'), 'J');
+      const { lines, roText } = run(sc, over, steps);
+      showsText(lines, roText('p_{\\mathrm{tot},x}'), 'kg\\,m/s');
+      showsText(lines, roText('p_{\\mathrm{tot},y}'), 'kg\\,m/s');
+      showsText(lines, roText('K_\\mathrm{tot}'), 'J');
     }
   });
 

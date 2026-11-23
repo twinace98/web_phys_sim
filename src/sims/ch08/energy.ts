@@ -3,10 +3,9 @@
 // constant (velocity Verlet); with friction E falls and the turning points close in.
 import { t as tr } from '../../core/i18n';
 import { fmtTick, niceTicks } from '../../core/format';
-import { num, tn, u } from '../../core/tex';
+import { num, paren, tn, tnScale, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { sigFit } from '../ch07/sigfit';
 import { POTENTIALS, equilibria, forbidden, stepParticle, turningPoints, type PotKind, type Potential } from './physics';
 
 type P = { pot: string; friction: boolean; x0s: number[] };
@@ -114,6 +113,12 @@ export function energyRange(p: P): [number, number] {
   const top = Math.max(E0, E0 - reachMinU(pot, x0Of(p)));
   return [Math.max(lo, Y_LO) - 0.3, top + 0.25 * Math.max(top - lo, 1)];
 }
+
+/**
+ * Run scale of K, U and E: the start energy U(x₀) (the particle starts at rest and E never grows).
+ * Fixed decimals from it, so K at a turning point reads 0.00, not a sampling residue (policy D, R7a).
+ */
+const eScale = (p: P) => Math.abs(potOf(p).U(x0Of(p)));
 
 const energies = (s: S, p: P) => {
   const U = potOf(p).U(s.x);
@@ -292,34 +297,35 @@ export const energyScene: Scene<P, S> = {
   ],
 
   readouts: [
-    { label: 'K', unit: 'J', value: (s, p) => energies(s, p).K },
-    { label: 'U', unit: 'J', value: (s, p) => energies(s, p).U },
-    { label: 'E', unit: 'J', value: (s, p) => energies(s, p).E },
+    { label: 'K', unit: 'J', value: (s, p) => energies(s, p).K, scale: eScale },
+    { label: 'U', unit: 'J', value: (s, p) => energies(s, p).U, scale: eScale },
+    { label: 'E', unit: 'J', value: (s, p) => energies(s, p).E, scale: eScale },
   ],
 
-  // U(x) and F = −dU/dx in closed form at the particle, K from its speed, and E = K + U.
+  // U(x) and F = −dU/dx in closed form at the particle, K from its speed, and E = K + U. x and v with
+  // 3 figures, K, U and E with fixed decimals from the start energy, as the readouts (policy D).
   formula: (s, p) => {
     const pot = potOf(p);
-    const { K, U, E } = energies(s, p);
+    const e = energies(s, p);
+    const sc = eScale(p);
+    const [K, U, E] = [e.K, e.U, e.E].map((v) => tnScale(v, sc));
     const F = -pot.dU(s.x);
-    // x with enough digits that U and F follow from it as printed (near x = ±2, U is a small difference).
-    const x = tn(s.x, Math.max(sigFit([s.x], (q) => pot.U(q), U), sigFit([s.x], (q) => -pot.dU(q), F)));
+    const x = tn(s.x);
     const lines =
       KINDS[idx(p)] === 'double'
         ? [
-            `U = \\tfrac18(x^2 - 4)^2 = \\tfrac18[(${x})^2 - 4]^2 = ${tn(U)}${u('J')}`,
+            `U = \\tfrac18(x^2 - 4)^2 = \\tfrac18[(${x})^2 - 4]^2 = ${U}${u('J')}`,
             `F = -\\frac{dU}{dx} = -\\tfrac12 x(x^2 - 4)`,
             `= -\\tfrac12(${x})[(${x})^2 - 4] = ${tn(F)}${u('N')}`,
           ]
         : [
             `U = 1.2 + \\tfrac49\\left(\\tfrac13 x^3 - 2.25x\\right)`,
-            `= 1.2 + \\tfrac49\\left[\\tfrac13(${x})^3 - 2.25(${x})\\right] = ${tn(U)}${u('J')}`,
+            `= 1.2 + \\tfrac49\\left[\\tfrac13(${x})^3 - 2.25(${x})\\right] = ${U}${u('J')}`,
             `F = -\\frac{dU}{dx} = -\\tfrac49(x^2 - 2.25)`,
             `= -\\tfrac49[(${x})^2 - 2.25] = ${tn(F)}${u('N')}`,
           ];
-    lines.push(`K = \\tfrac12 mv^2 = \\tfrac12(${num(M)})(${tn(s.v)})^2 = ${tn(K)}${u('J')}`);
-    const sg = sigFit([K, U], (k, uu) => k + uu, E);
-    lines.push(`E = K + U = ${tn(K, sg)} + ${tn(U, sg).startsWith('-') ? `(${tn(U, sg)})` : tn(U, sg)} = ${tn(E)}${u('J')}`);
+    lines.push(`K = \\tfrac12 mv^2 = \\tfrac12(${num(M)})(${tn(s.v)})^2 = ${K}${u('J')}`);
+    lines.push(`E = K + U = ${K} + ${paren(U)} = ${E}${u('J')}`);
     return lines;
   },
 

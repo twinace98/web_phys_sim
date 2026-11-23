@@ -1,13 +1,12 @@
 // Ch 4 scene: relative motion. A boat crosses a river: v_BG = v_BW + v_WG.
 // The same crossing is drawn at once from the ground frame (top) and from the water frame (bottom).
 import { t } from '../../core/i18n';
-import { num as numTex, tn, tp, u } from '../../core/tex';
+import { paren, slider, tn, tp, u } from '../../core/tex';
 import type { ParamSchema, Role, Scene, Vec2 } from '../../core/types';
 import type { Viewport } from '../../core/viewport';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR, theme } from '../../draw/theme';
 import { PX_WORLD } from '../modern/frame';
-import { sigToMatch } from '../ch02/sigma';
 import { crossingTime, vBG, vBW, vWG, type River } from './physics';
 
 type P = { heading: number; vb: number; u: number };
@@ -85,21 +84,20 @@ const params: ParamSchema<P> = {
   },
 };
 
-/** Two decimals for TeX; negatives in parentheses. */
-const num = (v: number, paren = false) => {
-  const t = Math.abs(v) < 0.005 ? '0.00' : v.toFixed(2);
-  return paren && t.startsWith('-') ? `(${t})` : t;
-};
 
-/** Panel: v_BG = v_BW + v_WG, then the x and y components with values. Colours as in Ch 3. */
+/**
+ * Panel: v_BG = v_BW + v_WG, then the x and y components with values. Colours as in Ch 3. The
+ * components print as in the Σ panel: 3 figures, v_WG as its slider label (policy D, R1/R3/R8).
+ */
 export function velocityPanel(p: P): string {
   const r = riverOf(p);
   const a = vBW(r);
-  const b = vWG(r);
   const c = vBG(r);
   const A = (x: string) => `\\textcolor{${ROLE_COLOR.position}}{${x}}`;
   const B = (x: string) => `\\textcolor{${ROLE_COLOR.energyU}}{${x}}`;
-  const row = (k: 'x' | 'y', i: 0 | 1) => `${k}: & \\quad ${num(c[i])} = ${A(num(a[i], true))} + ${B(num(b[i], true))}`;
+  // v_WG = (u, 0): u is the slider value.
+  const wg = [paren(slider(params.u, p.u)), '0'];
+  const row = (k: 'x' | 'y', i: 0 | 1) => `${k}: & \\quad ${tn(c[i])} = ${A(tp(a[i]))} + ${B(wg[i])}`;
   const eq = `\\vec v_{BG} = ${A('\\vec v_{BW}')} + ${B('\\vec v_{WG}')}`;
   return `\\begin{array}{l} ${eq} \\\\ \\begin{array}{ll} ${row('x', 0)} \\\\ ${row('y', 1)} \\end{array} \\end{array}`;
 }
@@ -323,25 +321,19 @@ export const relative: Scene<P, { t: number; n: number }> = {
   ],
 
   // Σ panel: components of v_BG, the ground-frame position at the current t, and the crossing time
-  // (the t at which y reaches W).
+  // (the t at which y reaches W). Slider values as their labels, the rest with 3 figures (policy D).
   formula: (s, p) => {
     const r = riverOf(p);
     const bg = vBG(r);
-    const vb = p.vb.toFixed(1);
-    const th = numTex(p.heading);
-    const x = bg[0] * s.t;
-    const y = bg[1] * s.t;
-    const sig = Math.max(
-      sigToMatch(x, [bg[0], s.t], (a, b) => a * b),
-      sigToMatch(y, [bg[1], s.t], (a, b) => a * b),
-    );
-    const T = tn(s.t, sig);
+    const vb = slider(params.vb, p.vb);
+    const th = slider(params.heading, p.heading);
+    const T = tn(s.t);
     return [
       `v_{BG,x} = -v_{BW}\\sin\\theta + v_{WG}`,
-      `= -${vb}\\sin ${th}^\\circ + ${p.u.toFixed(1)} = ${tn(bg[0])}${u('m/s')}`,
+      `= -${vb}\\sin ${th}^\\circ + ${slider(params.u, p.u)} = ${tn(bg[0])}${u('m/s')}`,
       `v_{BG,y} = v_{BW}\\cos\\theta = ${vb}\\cos ${th}^\\circ = ${tn(bg[1])}${u('m/s')}`,
-      `x_{BG} = v_{BG,x}\\,t = ${tp(bg[0], sig)} \\times ${T} = ${tn(x)}${u('m')}`,
-      `y = v_{BG,y}\\,t = ${tn(bg[1], sig)} \\times ${T} = ${tn(y)}${u('m')}`,
+      `x_{BG} = v_{BG,x}\\,t = ${tp(bg[0])} \\times ${T} = ${tn(bg[0] * s.t)}${u('m')}`,
+      `y = v_{BG,y}\\,t = ${tn(bg[1])} \\times ${T} = ${tn(bg[1] * s.t)}${u('m')}`,
       `y = W:\\ t = \\frac{W}{v_{BW}\\cos\\theta} = \\frac{${W}}{${vb}\\cos ${th}^\\circ} = ${tn(crossingTime(r))}${u('s')}`,
     ];
   },

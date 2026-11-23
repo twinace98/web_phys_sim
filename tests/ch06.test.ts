@@ -30,7 +30,8 @@ import {
   topViewAt,
   type Preset,
 } from '../src/sims/ch06/physics';
-import { NUM, agrees, agreesWithin, grab, val } from './sigma-digits';
+import { tn } from '../src/core/tex';
+import { NUM, agrees, grab, val } from './sigma-digits';
 import { ProbeDraw, probe } from './stage-probe';
 
 const PRESETS: Preset[] = ['string', 'flat', 'banked', 'cone'];
@@ -522,7 +523,8 @@ describe('ch06 circular: speed slider', () => {
       const on = circularFormula({ ...base, rot: true }, 0.1);
       const sum = on.find((l) => l.startsWith("\\sum F'_r = F_{\\text{net},r} - F_\\text{cf} = "));
       expect(sum, pr).toBeTruthy();
-      expect(sum).toMatch(/= 0\.00\\ \\mathrm\{N\}$/);
+      // Both are mv²/r: the rounding residue prints as an exact 0 (policy D, R7a).
+      expect(sum).toMatch(/= 0\\ \\mathrm\{N\}$/);
     }
   });
 
@@ -559,10 +561,15 @@ describe('ch06 circular: Σ arithmetic on the printed numbers gives the printed 
           expect(agrees((val(m) * val(vv) ** 2) / val(r), res), `${tag} mv²/r`).toBe(true);
         }
         if (pr === 'banked') {
-          const re = new RegExp(`\\\\frac\\{(${N})\\\\,\\((${N})\\^2 - (${N})\\^2\\)\\}\\{(${N})\\}\\\\cos (${N})\\^\\\\circ = (${N})`);
-          const [m, a, b, r, th, res] = grab(find(lines, 'f_s = '), re);
-          // v² − v_d² is a difference (R5): allow the rounding of the 3-figure speeds.
-          expect(agreesWithin((mm, aa, bb, rr, tt) => ((mm * (aa ** 2 - bb ** 2)) / rr) * Math.cos(tt * DEG), [m, a, b, r, th], res), `${tag} f_s`).toBe(true);
+          // v² − v_d² is a small difference near the design speed: printed as one number computed
+          // directly (policy D, R5), so the line recomputes within R3's tolerance at every speed.
+          const i = lines.indexOf('f_s = \\frac{m\\,(v^2 - v_\\text{d}^2)}{r}\\cos\\theta');
+          expect(i, tag).toBeGreaterThanOrEqual(0);
+          const re = new RegExp(`^= \\\\frac\\{(${N}) \\\\times \\(?(${N})\\)?\\}\\{(${N})\\}\\\\cos (${N})\\^\\\\circ = (${N})`);
+          const [m, d, r, th, res] = grab(lines[i + 1], re);
+          const st = setupOf(p);
+          expect(d, tag).toBe(tn(st.v * st.v - G * st.r * Math.tan(st.theta)));
+          expect(agrees(((val(m) * val(d)) / val(r)) * Math.cos(val(th) * DEG), res), `${tag} f_s`).toBe(true);
         }
         if (pr === 'cone') {
           const [L, th, r] = grab(find(lines, 'r = L'), new RegExp(`= (${N}) \\\\times \\\\sin (${N})\\^\\\\circ = (${N})`));

@@ -2,11 +2,10 @@
 // cumulative work of gravity or a spring ends at the same value on every path (zero around a
 // closed path), while the work of kinetic friction grows with the path length.
 import { fmtTick, niceTicks } from '../../core/format';
-import { num, tn, u } from '../../core/tex';
+import { CONST, num, tn, tnScale, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { sigFit } from '../ch07/sigfit';
-import { A, ANCHOR, B, G, K_SPRING, MASS, MU_K, along, forceAt, pathPoints, pathWork, pieceWork, type ForceKind, type PathKind, type PathWork, type V2 } from './physics';
+import { A, ANCHOR, B, K_SPRING, MASS, MU_K, along, forceAt, pathPoints, pathWork, pieceWork, type ForceKind, type PathKind, type PathWork, type V2 } from './physics';
 
 type P = { path: string; force: string; closed: boolean; via: number[] };
 
@@ -61,6 +60,9 @@ function model(p: P) {
 
 const current = (p: P) => model(p).all[kindOf(p)];
 const tEnd = (p: P) => current(p).L / SPEED;
+/** Run scale of W: the largest |W| along the path. Back at A on a closed path W is a sum residue
+ * and prints as an exact 0 (policy D, R7a). */
+const wScale = (p: P) => Math.max(...current(p).W.map(Math.abs));
 
 const params: ParamSchema<P> = {
   path: {
@@ -164,42 +166,43 @@ const rel = (q: V2): V2 => [q[0] - ANCHOR[0], q[1] - ANCHOR[1]];
 /**
  * Σ panel: the work so far from the force's closed form (gravity: height; spring: stretch; friction:
  * path length), then the work over the whole path: W_AB for a conservative force (the same on every
- * path), zero around a closed path, −μ_k m g L for friction.
+ * path), zero around a closed path, −μ_k m g L for friction. Fixed values as set, g from the constant
+ * table, state values with 3 figures; W with fixed decimals from its run scale, as the readout.
  */
 export function formulaLines(st: S, p: P): string[] {
   const pw = current(p);
   const f = forceOf(p);
   const s = Math.min(st.t * SPEED, pw.L);
   const here = along(pw, f, s);
-  const W = here.W;
-  const mg = `(${num(MASS)})(${num(G)})`;
-  const end = pw.W[pw.W.length - 1];
+  const sc = wScale(p);
+  const W = tnScale(here.W, sc);
+  const mg = `(${num(MASS)})(${CONST.g.tex})`;
+  const end = tnScale(pw.W[pw.W.length - 1], sc);
   if (f === 'gravity') {
     const dy = here.p[1] - A[1];
     return [
       `W_g = -mg\\,\\Delta y`,
-      `= -${mg}(${tn(dy, sigFit([dy], (d) => -MASS * G * d, W))}) = ${tn(W)}${u('J')}`,
-      ...(p.closed ? [`\\oint \\vec F_g\\cdot d\\vec r = ${tn(end)}${u('J')}`] : [`W_{AB} = -mg(y_B - y_A)`, `= -${mg}(${num(B[1] - A[1])}) = ${tn(end)}${u('J')}`]),
+      `= -${mg}(${tn(dy)}) = ${W}${u('J')}`,
+      ...(p.closed ? [`\\oint \\vec F_g\\cdot d\\vec r = ${end}${u('J')}`] : [`W_{AB} = -mg(y_B - y_A)`, `= -${mg}(${num(B[1] - A[1])}) = ${end}${u('J')}`]),
     ];
   }
   if (f === 'spring') {
-    const r2 = sq(rel(here.p));
     const rA2 = sq(rel(A));
     const k = `\\tfrac12(${num(K_SPRING)})`;
     return [
       `W_s = -\\tfrac12 k(r^2 - r_A^2)`,
-      `= -${k}(${tn(r2, sigFit([r2], (q) => -0.5 * K_SPRING * (q - rA2), W))} - ${num(rA2)}) = ${tn(W)}${u('J')}`,
+      `= -${k}(${tn(sq(rel(here.p)))} - ${num(rA2)}) = ${W}${u('J')}`,
       ...(p.closed
-        ? [`\\oint \\vec F_s\\cdot d\\vec r = ${tn(end)}${u('J')}`]
-        : [`W_{AB} = -\\tfrac12 k(r_B^2 - r_A^2)`, `= -${k}(${num(sq(rel(B)))} - ${num(rA2)}) = ${tn(end)}${u('J')}`]),
+        ? [`\\oint \\vec F_s\\cdot d\\vec r = ${end}${u('J')}`]
+        : [`W_{AB} = -\\tfrac12 k(r_B^2 - r_A^2)`, `= -${k}(${num(sq(rel(B)))} - ${num(rA2)}) = ${end}${u('J')}`]),
     ];
   }
   const fk = `(${num(MU_K)})${mg}`;
   return [
     `W_f = -\\mu_k mg\\,s`,
-    `= -${fk}(${tn(s, sigFit([s], (q) => -MU_K * MASS * G * q, W))}) = ${tn(W)}${u('J')}`,
+    `= -${fk}(${tn(s)}) = ${W}${u('J')}`,
     `${p.closed ? '\\oint \\vec f_k\\cdot d\\vec r' : 'W_{AB}'} = -\\mu_k mg\\,L`,
-    `= -${fk}(${tn(pw.L, sigFit([pw.L], (q) => -MU_K * MASS * G * q, end))}) = ${tn(end)}${u('J')}`,
+    `= -${fk}(${tn(pw.L)}) = ${end}${u('J')}`,
   ];
 }
 
@@ -283,7 +286,7 @@ export const pathScene: Scene<P, S> = {
 
   readouts: [
     { label: 's', unit: 'm', value: (st, p) => Math.min(st.t * SPEED, current(p).L) },
-    { label: 'W', unit: 'J', value: (st, p) => along(current(p), forceOf(p), st.t * SPEED).W },
+    { label: 'W', unit: 'J', value: (st, p) => along(current(p), forceOf(p), st.t * SPEED).W, scale: wScale },
   ],
 
   formula: (st, p) => formulaLines(st, p),

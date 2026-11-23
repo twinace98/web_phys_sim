@@ -89,7 +89,8 @@ describe('ch06 friction mass slider (review 2026-11-20)', () => {
             const p = { mode, mat, m };
             const s = runTo(p, t);
             const lines = friction.formula!(s as never, p as never);
-            const mStr = String(m);
+            // The slider label (policy D, R1): 2.0, not 2.
+            const mStr = m.toFixed(1);
             const nLine = lines.find((l) => l.startsWith('N = mg'))!;
             expect(nLine).toContain(` = ${mStr} \\times 9.8`);
             if (mode === 'pull') {

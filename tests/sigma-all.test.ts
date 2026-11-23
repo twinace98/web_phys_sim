@@ -23,19 +23,6 @@ const STEPS = 600;
  * Not covered by a check (see the audit §5): R2 integers, R7a residues, CONST values such as 107 g.
  */
 const PENDING: Record<string, Partial<Record<Check, string>>> = {
-  // Ch 2–6
-  '2/freefall': { recompute: 'R7a: landing line "20 + (-10) × 1.24 - 4.9 × 1.24² = 0.00 m" (y = 0 by definition)' },
-  '4/projectile': {
-    slider: 'R1: v0 "20.0" printed "20" (num)',
-    inputSig: 'g = mars: ½g = 1.855 (4 figures)',
-    recompute: 'R7a: landing line "0 + 10 sin 45° × 1.44 - 4.9 × 1.44² = 0.00 m"',
-  },
-  '6/friction': { slider: 'R1: m "2.0" printed "2"' },
-  // Ch 9–11
-  '9/track': { slider: 'R1: m1, m2, v1 "1.0" printed "1"' },
-  '9/puck': { slider: 'R1: m2 "1.0" printed "1"' },
-  '10/rotor': { slider: 'R1: rA, rB, m, tau "0.50" printed "0.5"' },
-  '11/spin': { slider: 'R1: m, mDb "0.20" printed "0.2"' },
 };
 
 function cases(scene: Scene): { name: string; p: Params }[] {
