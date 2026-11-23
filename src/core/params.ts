@@ -30,7 +30,8 @@ const stopCache = new WeakMap<NumberParam, number[]>();
 /**
  * Values a log slider takes, one per track position k = 0 … LOG_STEPS: the grid point
  * 10^(lo + k·(hi − lo)/LOG_STEPS) rounded to `sig` figures, except that each of `marks` replaces
- * the grid point nearest to it, so that named values (water 1000, ice 917) are reachable exactly.
+ * the grid point nearest to it, so that named values (water 1000, ice 917) and the default are
+ * reachable exactly.
  */
 export function logStops(spec: NumberParam): number[] {
   const hit = stopCache.get(spec);
@@ -42,7 +43,8 @@ export function logStops(spec: NumberParam): number[] {
   const st = (Math.log10(max) - lo) / LOG_STEPS;
   const out: number[] = [];
   for (let k = 0; k <= LOG_STEPS; k++) out.push(Math.min(max, Math.max(min, Number((10 ** (lo + k * st)).toPrecision(sig)))));
-  for (const m of spec.marks ?? []) {
+  // The default is reachable too: a reset slider shows exactly the value the scene starts from.
+  for (const m of [...(spec.marks ?? []), spec.default]) {
     if (m >= min && m <= max) out[Math.round((Math.log10(m) - lo) / st)] = m;
   }
   stopCache.set(spec, out);
@@ -82,7 +84,7 @@ export function snapNumber(spec: NumberParam, v: number): number {
 export function urlNumber(spec: NumberParam, v: number): number {
   if (spec.control === 'select') return v;
   if (spec.log) {
-    if (spec.marks?.includes(v)) return v;
+    if (v === spec.default || spec.marks?.includes(v)) return v;
     return Math.min(spec.max ?? Infinity, Math.max(spec.min ?? 0, Number(v.toPrecision(spec.sig ?? 2))));
   }
   return spec.control === 'stepper' || Number.isInteger(stepOf(spec)) ? snapNumber(spec, v) : v;

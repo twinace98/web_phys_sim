@@ -150,7 +150,7 @@ describe('URL numbers on the control grid (review 2026-11-20: nClosed=2 gave an 
 describe('log slider track', () => {
   const num = (o: Partial<NumberParam>): NumberParam => ({ kind: 'number', label: 'x', group: 'main', live: true, control: 'slider', log: true, default: 1, ...o });
 
-  it('without marks: the old grid, 10^x rounded to `sig` figures', () => {
+  it('without marks: the old grid, 10^x rounded to `sig` figures, except the point taken by the default', () => {
     for (const [min, max, sig] of [
       [50, 20000, 3],
       [0.01, 10, 3],
@@ -160,9 +160,10 @@ describe('log slider track', () => {
       const sp = num({ min, max, sig });
       const lo = Math.log10(min);
       const st = (Math.log10(max) - lo) / LOG_STEPS;
+      const kd = sp.default >= min && sp.default <= max ? logIndex(sp, sp.default) : -1;
       for (let k = 0; k <= LOG_STEPS; k++) {
         const x = lo + k * st;
-        expect(logValue(sp, x)).toBe(Math.min(max, Math.max(min, Number((10 ** x).toPrecision(sig)))));
+        expect(logValue(sp, x)).toBe(k === kd ? sp.default : Math.min(max, Math.max(min, Number((10 ** x).toPrecision(sig)))));
       }
     }
   });
