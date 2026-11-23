@@ -31,7 +31,7 @@
   "ch39.w.obs.inf": "Infinite well: $E_n \\propto n^2$; a narrower well spreads the levels apart ($\\propto 1/L^2$)",
   "ch39.w.obs.fin": "Finite well: the wave function leaks past the walls and decays exponentially (classically forbidden region, dotted); there are finitely many bound states, more for a deeper well",
   "ch39.w.obs.harm": "Harmonic: all levels are spaced by $\\hbar\\omega$, and the lowest energy is $\\hbar\\omega/2$, not 0 (compare Ch 15)",
-  "ch39.w.obs.double": "Double well: levels come in close pairs (symmetric and antisymmetric states); a thinner or lower barrier splits each pair more, the starting point of bands in Ch 41",
+  "ch39.w.obs.double": "Double well: levels come in close pairs (symmetric and antisymmetric states); a thinner or lower barrier splits each pair more (the Σ panel gives each splitting $\\Delta E$ directly), the starting point of bands in Ch 41",
   "ch39.w.obs.nodes": "State $n$ has $n - 1$ nodes; higher energy means shorter wavelength",
   "ch39.s.goal.osc": "Mixing two stationary states of different energy makes the probability density oscillate",
   "ch39.s.goal.period": "The period is $T = h/(E_b - E_a)$: a larger energy difference oscillates faster",

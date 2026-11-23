@@ -27,8 +27,7 @@ import {
   type SlitState,
 } from '../wave2d/slits';
 import { drawWave } from '../wave2d/view';
-import { num, tn } from '../../core/tex';
-import { fitSig } from '../ch31/fit';
+import { num, slider, tn } from '../../core/tex';
 import { brightAt, fringeSpacing, pathDiff } from './physics';
 
 type P = { d: number; lambda: number; D: number; yp: number };
@@ -111,10 +110,9 @@ export function formulaLines(p: P): string[] {
   const lam = p.lambda / 1000;
   const dL = pathDiff(p.d, p.D, p.yp);
   const n = dL / lam;
-  const sl = fitSig((r) => tn(r(dL) / lam), tn(n));
   return [
-    `\\frac{\\Delta L}{\\lambda} = \\frac{${tn(dL, sl)}${UM}}{${num(lam)}${UM}} = ${tn(n)}`,
-    `\\Delta y \\approx \\frac{\\lambda D}{d} = \\frac{(${num(lam)})(${num(p.D)})}{${num(p.d)}}${UM} = ${tn(fringeSpacing(lam, p.D, p.d))}${UM}`,
+    `\\frac{\\Delta L}{\\lambda} = \\frac{${tn(dL)}${UM}}{${num(lam)}${UM}} = ${tn(n)}`,
+    `\\Delta y \\approx \\frac{\\lambda D}{d} = \\frac{(${num(lam)})(${slider(params.D, p.D)})}{${slider(params.d, p.d)}}${UM} = ${tn(fringeSpacing(lam, p.D, p.d))}${UM}`,
     `\\Delta L = \\lambda:\\ \\Delta y = ${tn(firstBright(p))}${UM}`,
   ];
 }

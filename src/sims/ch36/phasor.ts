@@ -4,8 +4,8 @@ import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
 import { Inset, Obstacles, TICK } from '../inset/inset';
-import { num, tn } from '../../core/tex';
-import { fitSig } from '../ch31/fit';
+import { fmt } from '../../core/format';
+import { num, slider, texOf, tn, tnCmp } from '../../core/tex';
 import { edgePhase, firstMin, phasorChain, singleSlit, sourcesIntensity } from './physics';
 
 type P = { theta: number; a: number; lambda: number; N: number };
@@ -263,25 +263,53 @@ export function formulaLines(p: P): string[] {
   const lines: string[] = [];
   const t1 = firstMin(lam, p.a);
   const ratio = lam / p.a;
-  if (Number.isNaN(t1)) lines.push(`\\sin\\theta_1 = \\frac{\\lambda}{a} = \\frac{${num(lam)}}{${num(p.a)}} = ${tn(ratio)} \\ge 1`);
-  else lines.push(`\\theta_1 = \\sin^{-1}\\frac{\\lambda}{a} = \\sin^{-1}\\frac{${num(lam)}}{${num(p.a)}} = ${tn(t1 / DEG)}^\\circ`);
+  const aa = slider(params.a, p.a);
+  if (Number.isNaN(t1)) lines.push(`\\sin\\theta_1 = \\frac{\\lambda}{a} = \\frac{${num(lam)}}{${aa}} = ${tnCmp(ratio, 1)} \\ge 1`);
+  else lines.push(`\\theta_1 = \\sin^{-1}\\frac{\\lambda}{a} = \\sin^{-1}\\frac{${num(lam)}}{${aa}} = ${tn(t1 / DEG)}^\\circ`);
   const phi = phiOf(p) / DEG;
-  lines.push(`\\phi = \\frac{2\\pi}{\\lambda}\\,a\\sin\\theta = \\frac{360^\\circ}{${num(lam)}}(${num(p.a)})\\sin(${num(p.theta)}^\\circ) = ${tn(phi)}^\\circ`);
+  lines.push(`\\phi = \\frac{2\\pi}{\\lambda}\\,a\\sin\\theta = \\frac{360^\\circ}{${num(lam)}}(${aa})\\sin(${slider(params.theta, p.theta)}^\\circ) = ${tn(phi)}^\\circ`);
   const I = intensity(p);
-  // φ/2 and φ/2N with enough figures that the shown sines give the printed I/I_m (steep near a zero).
   const h = phi / 2;
   if (Math.abs(h) < 1e-9) {
-    lines.push(`\\phi = 0:\\ \\frac{I}{I_m} = ${tn(I)}`);
+    lines.push(`\\phi = 0:\\ \\frac{I}{I_m} = ${iTex(I)}`);
     return lines;
   }
-  const sh = fitSig((r) => tn((Math.sin(r(h) * DEG) / (p.N * Math.sin(r(h / p.N) * DEG))) ** 2), tn(I));
-  lines.push(
-    `\\frac{I}{I_m} = \\left[\\frac{\\sin(\\phi/2)}{N\\sin(\\phi/2N)}\\right]^2`,
-    `=\\left[\\frac{\\sin(${tn(h, sh)}^\\circ)}{${p.N}\\sin(${tn(h / p.N, sh)}^\\circ)}\\right]^2 = ${tn(I)}`,
-  );
-  lines.push(`N \\to \\infty:\\ \\left(\\frac{\\sin\\alpha}{\\alpha}\\right)^2 = ${tn(singleSlit(p.a, lam, p.theta * DEG))},\\quad \\alpha = \\frac{\\phi}{2}`);
+  // The chain's resultant E_θ/E_m (the drawn arrow), then I/I_m = (E_θ/E_m)². |sin(φ/2)| = |sin x|
+  // with x = |φ/2| − m·180° (|x| ≤ 90°): near a minimum x is small and printed to 3 figures, so the
+  // shown sine is not lost in the rounding of φ/2 (180.27° → 180° + 0.274°, R5).
+  const H = Math.abs(h);
+  const m = Math.round(H / 180);
+  const x = Math.abs(H - 180 * m);
+  const head = `\\frac{E_\\theta}{E_m} = \\left\\lvert\\frac{\\sin(\\phi/2)}{N\\sin(\\phi/2N)}\\right\\rvert`;
+  // A closed chain (I an exact 0): φ/2 is a whole number of 180°, and E_θ = 0.
+  const closed = iText(I) === '0';
+  const E = closed ? 0 : Math.sqrt(I);
+  const xs = closed ? '0' : tn(x);
+  // sin(φ/2N) alike: past 90° (large φ, few sources) as sin(180° − φ/2N), so 145.3° is not printed as 145°.
+  const y = H / p.N;
+  const yr = y > 90 ? 180 - y : y;
+  const sub = `= \\frac{\\sin(${xs}^\\circ)}{${p.N}\\sin(${tn(yr)}^\\circ)} = ${closed ? '0' : texOf(fmt(E, 3, 0))}`;
+  const red: string[] = [];
+  if (m > 0) {
+    const turns = m === 1 ? '180^\\circ' : `${m} \\times 180^\\circ`;
+    const lhs = h < 0 ? '\\frac{\\lvert\\phi\\rvert}{2}' : '\\frac{\\phi}{2}';
+    red.push(`${lhs} = ${turns}${closed ? '' : ` ${H - 180 * m < 0 ? '-' : '+'} ${xs}^\\circ`}`);
+  }
+  if (y > 90) red.push(`${h < 0 ? '\\frac{\\lvert\\phi\\rvert}{2N}' : '\\frac{\\phi}{2N}'} = 180^\\circ - ${tn(yr)}^\\circ`);
+  if (red.length === 1) lines.push(`${head},\\quad ${red[0]}`, sub);
+  else lines.push(head, ...(red.length ? [red.join(',\\quad ')] : []), sub);
+  // Squared without substituting the rounded E_θ/E_m: squaring doubles its rounding (up to 1 %).
+  lines.push(`\\frac{I}{I_m} = \\left(\\frac{E_\\theta}{E_m}\\right)^2 = ${iTex(I)}`);
+  lines.push(`N \\to \\infty:\\ \\left(\\frac{\\sin\\alpha}{\\alpha}\\right)^2 = ${iTex(singleSlit(p.a, lam, p.theta * DEG))},\\quad \\alpha = \\frac{\\phi}{2}`);
   return lines;
 }
+
+/**
+ * I/I_m as printed (readout and Σ): 3 figures, a small value near a minimum in ×10ⁿ, never 0.00
+ * (R7b). A closed chain (sin(φ/2) = 0 up to rounding, e.g. a = 1.0 μm, θ = 30.0°) is an exact 0.
+ */
+export const iText = (I: number) => (Math.abs(I) < 1e-20 ? '0' : fmt(I, 3, 0));
+const iTex = (I: number) => texOf(iText(I));
 
 export const phasor: Scene<P, { t: number }> = {
   id: 'phasor',
@@ -316,7 +344,7 @@ export const phasor: Scene<P, { t: number }> = {
 
   readouts: [
     { label: '\\phi', unit: '°', value: (_s, p) => phiOf(p) / DEG },
-    { label: 'I/I_m', unit: '', value: (_s, p) => intensity(p) },
+    { label: 'I/I_m', unit: '', value: (_s, p) => intensity(p), zeroTol: 0, format: (v) => (iText(v) === '0' ? '0' : undefined) },
   ],
 
   formula: (_s, p) => formulaLines(p),

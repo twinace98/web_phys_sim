@@ -4,8 +4,7 @@ import { t } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { TICK } from '../inset/inset';
-import { num, tn } from '../../core/tex';
-import { fitSig } from '../ch31/fit';
+import { slider, tn, tnCmp } from '../../core/tex';
 import { MEDIA, acceptance, coreAngle, criticalAngle, reflectance, snell, wallIncidence, type Fibre } from './physics';
 
 const DEG = Math.PI / 180;
@@ -113,13 +112,15 @@ export function formulaRefraction(p: PR): string[] {
   const th2 = snell(n1, n2, th1);
   const tc = criticalAngle(n1, n2);
   const lines: string[] = [];
-  const head = `\\sin\\theta_2 = \\frac{n_1}{n_2}\\sin\\theta_1 = \\frac{${nTex(n1)}}{${nTex(n2)}}\\sin ${num(p.theta)}^\\circ`;
+  const head = `\\sin\\theta_2 = \\frac{n_1}{n_2}\\sin\\theta_1 = \\frac{${nTex(n1)}}{${nTex(n2)}}\\sin ${slider(refrParams.theta, p.theta)}^\\circ`;
+  // sin θ₂ against 1 is the point of the line (R6): as many figures as keep it on its side of 1
+  // (1.0018 → "1.002 > 1", 0.99977 → "0.9998"), 3 figures otherwise (0.860). At the critical
+  // angle itself (where the drag snaps) sin θ₂ is 1 up to rounding: the grazing ray, 1.00.
+  const s2 = Math.abs(sin2 - 1) < 1e-9 ? tn(1) : tnCmp(sin2, 1);
   if (Number.isNaN(th2)) {
-    lines.push(`${head} = ${tn(sin2)} > 1`);
+    lines.push(`${head} = ${s2} > 1`);
   } else {
-    // sin θ₂ with enough figures that its arcsine reproduces the printed θ₂ (steep near 90°).
-    const ss = fitSig((r) => tn(Math.asin(Math.min(1, r(sin2))) / DEG), tn(th2 / DEG));
-    lines.push(`${head} = ${tn(sin2, ss)}`, `\\theta_2 = \\sin^{-1}(${tn(sin2, ss)}) = ${tn(th2 / DEG)}^\\circ`);
+    lines.push(`${head} = ${s2}`, `\\theta_2 = \\sin^{-1}(${s2}) = ${tn(th2 / DEG)}^\\circ`);
   }
   if (Number.isFinite(tc)) lines.push(`\\theta_c = \\sin^{-1}\\frac{n_2}{n_1} = \\sin^{-1}\\frac{${nTex(n2)}}{${nTex(n1)}} = ${tn(tc / DEG)}^\\circ`);
   if (Number.isNaN(th2)) lines.push(`\\theta_1 > \\theta_c:\\ R = ${tn(100 * reflectance(n1, n2, th1))}\\ \\%`);
@@ -384,14 +385,12 @@ export function formulaFibre(p: PF): string[] {
   const n1 = nTex(f.n1);
   const n2 = nTex(f.n2);
   const lines = [
-    `\\theta = \\cos^{-1}\\frac{\\sin\\alpha}{n_1} = \\cos^{-1}\\frac{\\sin ${num(p.alpha)}^\\circ}{${n1}} = ${tn(th)}^\\circ`,
-    `\\theta_c = \\sin^{-1}\\frac{n_2}{n_1} = \\sin^{-1}\\frac{${n2}}{${n1}} = ${tn(tc)}^\\circ ${th >= tc ? '\\le' : '>'} \\theta`,
+    `\\theta = \\cos^{-1}\\frac{\\sin\\alpha}{n_1} = \\cos^{-1}\\frac{\\sin ${slider(fibreParams.alpha, p.alpha)}^\\circ}{${n1}} = ${tn(th)}^\\circ`,
+    // At the acceptance angle (where the drag snaps) θ = θc up to rounding: guided, so ≤.
+    `\\theta_c = \\sin^{-1}\\frac{n_2}{n_1} = \\sin^{-1}\\frac{${n2}}{${n1}} = ${tn(tc)}^\\circ ${th >= tc - 1e-9 ? '\\le' : '>'} \\theta`,
   ];
-  if (na >= 1) lines.push(`\\sin\\alpha_\\text{max} = \\sqrt{n_1^2 - n_2^2} = \\sqrt{${n1}^2 - ${n2}^2} = ${tn(na)} \\ge 1`, `\\alpha_\\text{max} = ${tn(am)}^\\circ`);
-  else {
-    const sn = fitSig((r) => tn(Math.asin(r(na)) / DEG), tn(am));
-    lines.push(`\\sin\\alpha_\\text{max} = \\sqrt{n_1^2 - n_2^2} = \\sqrt{${n1}^2 - ${n2}^2} = ${tn(na, sn)}`, `\\alpha_\\text{max} = \\sin^{-1}(${tn(na, sn)}) = ${tn(am)}^\\circ`);
-  }
+  if (na >= 1) lines.push(`\\sin\\alpha_\\text{max} = \\sqrt{n_1^2 - n_2^2} = \\sqrt{${n1}^2 - ${n2}^2} = ${tnCmp(na, 1)} \\ge 1`, `\\alpha_\\text{max} = ${tn(am)}^\\circ`);
+  else lines.push(`\\sin\\alpha_\\text{max} = \\sqrt{n_1^2 - n_2^2} = \\sqrt{${n1}^2 - ${n2}^2} = ${tn(na)}`, `\\alpha_\\text{max} = \\sin^{-1}(${tn(na)}) = ${tn(am)}^\\circ`);
   return lines;
 }
 

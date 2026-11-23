@@ -6,7 +6,7 @@ import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { ROLE_COLOR } from '../../draw/theme';
 import { Frame, PX_WORLD, TICK, canvasBox, linePx, pow10, split, textPx } from '../modern/frame';
-import { ELECTRON, HOLE, bandBox, edgeSlots, electron, hole, sumSig, tz } from './common';
+import { ELECTRON, HOLE, bandBox, edgeSlots, electron, hole, tz } from './common';
 import { EA, ED, KB, Nc, Nv, SI, carriers, ni, type Carriers } from './physics';
 
 type P = { type: string; T: number; conc: number };
@@ -102,22 +102,20 @@ export function dopingLines(p: P): string[] {
   const lines: string[] = [];
   if (p.type === 'i') lines.push(`n = p = n_i = ${tz(q.n)}${CM3}`);
   else if (p.type === 'n') {
-    const s = sumSig(q.p, q.Dp, 1);
     // Charge neutrality over two lines: one line shrank to 0.68 × in the docked panel.
-    lines.push(`n = p + N_\\text{D}^+`, `= ${tz(q.p, s)} + ${tz(q.Dp, s)} = ${tz(q.n)}${CM3}`);
-    lines.push(`p = \\frac{n_i^2}{n} = \\frac{(${tz(n2, 4)})^2}{${tz(q.n, 4)}} = ${tz(q.p)}${CM3}`);
+    lines.push(`n = p + N_\\text{D}^+`, `= ${tz(q.p)} + ${tz(q.Dp)} = ${tz(q.n)}${CM3}`);
+    lines.push(`p = \\frac{n_i^2}{n} = \\frac{(${tz(n2)})^2}{${tz(q.n)}} = ${tz(q.p)}${CM3}`);
   } else {
-    const s = sumSig(q.n, q.Am, 1);
-    lines.push(`p = n + N_\\text{A}^-`, `= ${tz(q.n, s)} + ${tz(q.Am, s)} = ${tz(q.p)}${CM3}`);
-    lines.push(`n = \\frac{n_i^2}{p} = \\frac{(${tz(n2, 4)})^2}{${tz(q.p, 4)}} = ${tz(q.n)}${CM3}`);
+    lines.push(`p = n + N_\\text{A}^-`, `= ${tz(q.n)} + ${tz(q.Am)} = ${tz(q.p)}${CM3}`);
+    lines.push(`n = \\frac{n_i^2}{p} = \\frac{(${tz(n2)})^2}{${tz(q.p)}} = ${tz(q.n)}${CM3}`);
   }
   // Fermi level: the majority density in Boltzmann statistics, n = N_c e^{−(E_c − E_F)/kT}.
   // Each over two lines: one line would shrink to about 0.7 × in the docked panel.
   if (p.type === 'p') {
-    lines.push(`E_\\text{F} - E_\\text{v} = kT\\ln(N_\\text{v}/p)`, `= ${tn(kT, 5)}\\ln\\frac{${tz(Nv(SI, p.T), 4)}}{${tz(q.p, 4)}} = ${tn(q.mu)}${u('eV')}`);
+    lines.push(`E_\\text{F} - E_\\text{v} = kT\\ln(N_\\text{v}/p)`, `= ${tn(kT)}\\ln\\frac{${tz(Nv(SI, p.T))}}{${tz(q.p)}} = ${tn(q.mu)}${u('eV')}`);
   } else {
     const d = SI.Eg - q.mu;
-    lines.push(`E_\\text{c} - E_\\text{F} = kT\\ln(N_\\text{c}/n)`, `= ${tn(kT, 5)}\\ln\\frac{${tz(Nc(SI, p.T), 4)}}{${tz(q.n, 4)}} = ${tn(d)}${u('eV')}`);
+    lines.push(`E_\\text{c} - E_\\text{F} = kT\\ln(N_\\text{c}/n)`, `= ${tn(kT)}\\ln\\frac{${tz(Nc(SI, p.T))}}{${tz(q.n)}} = ${tn(d)}${u('eV')}`);
     lines.push(`E_\\text{F} - E_\\text{v} = ${num(SI.Eg)} - ${tn(d)} = ${tn(q.mu)}${u('eV')}`);
   }
   return lines;

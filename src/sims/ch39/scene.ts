@@ -1,7 +1,7 @@
 // Ch 39 scenes: bound states of 1D wells drawn as an energy diagram (U(x), levels, ψ or |ψ|²),
 // and the time evolution of a two-state superposition.
 import { fmt } from '../../core/format';
-import { INPUT_SIG, num, tn, u } from '../../core/tex';
+import { CONST, slider, texOf, tn, tnCmp, tnScale, u } from '../../core/tex';
 import type { ParamSchema, ParamSpec, Scene } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
@@ -210,63 +210,95 @@ export function amplitude(Es: number[], span: number, pxPerEV: number, below = I
 }
 
 /**
- * Level value with enough figures to stay below `top` (a finite well's U0): a level bound by
- * 0.4 meV prints 3.3996, not 3.40, which would read as E = U0.
+ * Most decimals a level prints with [eV]. The finite-difference grid puts the levels within
+ * 2×10⁻⁵ (low levels) to 1.5×10⁻⁴ eV (top levels at the largest ħω) of their converged values, so
+ * a fifth decimal would show grid error (R5).
  */
-export function levelText(E: number, top = Infinity): string {
-  let sig = 3;
-  while (sig < 6 && Number(fmt(E, sig).replace('−', '-')) >= top) sig++;
-  return fmt(E, sig);
+export const LEVEL_DEC = 4;
+
+/** Decimals of v at 3 significant figures. */
+const dec3 = (v: number) => Math.max(0, 2 - Math.floor(Math.log10(Math.abs(v)) + 1e-12));
+
+/**
+ * The level labels: 3 figures, more decimals (at most LEVEL_DEC) only where a level would print
+ * the same as a neighbour (a tunnelling pair of the double well: 0.1481 and 0.1484 eV, not 0.148
+ * twice) or reach `top` (a finite well's U0: a level bound by 0.4 meV prints 3.3996, not 3.40,
+ * which would read as E = U0). The splitting itself is in the Σ panel (ΔE₂₁).
+ */
+export function levelTexts(Es: number[], top = Infinity): string[] {
+  return Es.map((E, k) => {
+    const clash = (d: number) => {
+      const t = E.toFixed(d);
+      return Number(t) >= top || (k > 0 && Es[k - 1].toFixed(d) === t) || (k + 1 < Es.length && Es[k + 1].toFixed(d) === t);
+    };
+    let d = dec3(E);
+    while (d < LEVEL_DEC && clash(d)) d++;
+    return E.toFixed(d).replace('-', '−');
+  });
 }
 
-const label = (n: number, E: number, narrow: boolean, top = Infinity) => (narrow ? `${levelText(E, top)} eV` : `*E*_{${n}} = ${levelText(E, top)} eV`);
+/** One level alone (no neighbours): 3 figures, more only to stay below `top`. */
+export const levelText = (E: number, top = Infinity): string => levelTexts([E], top)[0];
+
+const label = (n: number, text: string, narrow: boolean) => (narrow ? `${text} eV` : `*E*_{${n}} = ${text} eV`);
+
+/**
+ * An energy difference: 3 figures, in meV below 0.1 eV (a tunnelling splitting of 0.3–10 meV).
+ * The splitting converges far better than the levels (both partners shift alike on the grid:
+ * 1.0797, 1.0800, 1.0802 meV at 1500, 3000, 6000 points for Ub = 4.5 eV, b = 0.5 nm), so 3 figures hold.
+ */
+export const eText = (dE: number): string => (Math.abs(dE) >= 0.1 ? `${fmt(dE, 3)} eV` : `${fmt(dE * 1000, 3)} meV`);
+const eTex = (dE: number): string => {
+  const [v, unit] = eText(dE).split(' ');
+  return `${texOf(v)}${u(unit)}`;
+};
 
 // ------------------------------------------------------------------ formula panel
 
 /** h²/8m for the electron [eV nm²] = π² ħ²/2m. */
 const H2_8M = HB2M * Math.PI ** 2;
 
-/** Significant figures for two inputs of a difference: the fewest (≥ 3) that reproduce the printed result, at most INPUT_SIG. */
-export function diffSig(a: number, b: number): number {
-  const r = (v: number, s: number) => Number(v.toPrecision(s));
-  for (let s = 3; s < INPUT_SIG; s++) if (tn(r(a, s) - r(b, s)) === tn(a - b)) return s;
-  return INPUT_SIG;
-}
+/** A level difference computed directly (R5): the pair's splitting is not lost in rounded levels. */
+const levelDiff = (E: number[], hi: number, lo: number, n0: number) =>
+  `\\Delta E_{${hi + n0}${lo + n0}} = E_${hi + n0} - E_${lo + n0} = ${eTex(E[hi] - E[lo])}`;
 
-const levelDiff = (E: number[], hi: number, lo: number, n0: number) => {
-  const s = diffSig(E[hi], E[lo]);
-  return `E_${hi + n0} - E_${lo + n0} = ${tn(E[hi], s)} - ${tn(E[lo], s)} = ${tn(E[hi] - E[lo])}${u('eV')}`;
-};
+/** The control strings (R1): the wells scene and the superposition scene share them. */
+const SPEC = common(true);
+const LTex = (L: number) => slider(SPEC.L, L);
+const U0Tex = (U0: number) => slider(SPEC.U0, U0);
 
 /** Wells: the levels of the solver (as labelled on the diagram) against the textbook relations. */
 export function wellLines(p: Common): string[] {
   const m = model(p);
   const E = m.st.E;
-  const e1 = `\\frac{h^2}{8mL^2} = \\frac{${tn(H2_8M, 4)}\\ \\mathrm{eV\\,nm^2}}{(${num(p.L)}\\ \\mathrm{nm})^2}`;
+  const e1 = `\\frac{h^2}{8mL^2} = \\frac{${tn(H2_8M)}\\ \\mathrm{eV\\,nm^2}}{(${LTex(p.L)}\\ \\mathrm{nm})^2}`;
   if (p.pot === 'infinite') {
     const lines = [`E_1 = ${e1} = ${tn(E[0])}${u('eV')}`];
-    for (let n = 2; n <= Math.min(3, E.length); n++) lines.push(`E_${n} = ${n}^2 E_1 = ${n * n} \\times ${tn(E[0], 4)} = ${tn(E[n - 1])}${u('eV')}`);
+    for (let n = 2; n <= Math.min(3, E.length); n++) lines.push(`E_${n} = ${n}^2 E_1 = ${n * n} \\times ${tn(E[0])} = ${tn(E[n - 1])}${u('eV')}`);
     return lines;
   }
   if (p.pot === 'finite') {
     // Leaking into the walls lowers E₁ below the infinite-well value; δ is the decay length there.
     const inf = tn(H2_8M / p.L ** 2);
+    const z0 = z0Of(p.L, p.U0);
+    const nz = (2 * z0) / Math.PI;
     return [
       `${e1} = ${inf}${u('eV')}`,
       `E_1 = ${tn(E[0])}${u('eV')} < ${inf}${u('eV')}`,
       `\\delta = \\frac{\\hbar}{\\sqrt{2m(U_0 - E_1)}}`,
-      `= \\sqrt{\\frac{${tn(HB2M, 4)}\\ \\mathrm{eV\\,nm^2}}{(${num(p.U0)} - ${tn(E[0], 4)})\\ \\mathrm{eV}}} = ${tn(Math.sqrt(HB2M / (p.U0 - E[0])))}${u('nm')}`,
+      `= \\sqrt{\\frac{${tn(HB2M)}\\ \\mathrm{eV\\,nm^2}}{(${U0Tex(p.U0)} - ${tn(E[0])})\\ \\mathrm{eV}}} = ${tn(Math.sqrt(HB2M / (p.U0 - E[0])))}${u('nm')}`,
       // Bound-state count from z0 = (L/2)√(2mU0)/ħ; the diagram shows exactly this many levels.
-      `z_0 = \\frac{L}{2}\\frac{\\sqrt{2mU_0}}{\\hbar} = \\frac{${num(p.L)}}{2}\\sqrt{\\frac{${num(p.U0)}}{${tn(HB2M, 4)}}} = ${tn(z0Of(p.L, p.U0), 4)}`,
-      `N = \\left\\lceil \\frac{2 z_0}{\\pi} \\right\\rceil = \\lceil ${tn((2 * z0Of(p.L, p.U0)) / Math.PI, 4)} \\rceil = ${finiteWellCount(p.L, p.U0)}`,
+      `z_0 = \\frac{L}{2}\\frac{\\sqrt{2mU_0}}{\\hbar} = \\frac{${LTex(p.L)}}{2}\\sqrt{\\frac{${U0Tex(p.U0)}}{${tn(HB2M)}}} = ${tn(z0)}`,
+      // 2z₀/π against the next integer decides the count (R6): as many figures as keep its side.
+      `N = \\left\\lceil \\frac{2 z_0}{\\pi} \\right\\rceil = \\lceil ${tnCmp(nz, Math.round(nz))} \\rceil = ${finiteWellCount(p.L, p.U0)}`,
     ];
   }
   if (p.pot === 'harmonic') {
-    const hw = num(p.hw);
+    const hw = slider(SPEC.hw, p.hw);
     return [
       `E_0 = \\tfrac12\\hbar\\omega = \\tfrac12 \\times ${hw}\\ \\mathrm{eV} = ${tn(E[0])}${u('eV')}`,
       `E_1 = \\tfrac32\\hbar\\omega = \\tfrac32 \\times ${hw}\\ \\mathrm{eV} = ${tn(E[1])}${u('eV')}`,
-      `${levelDiff(E, 1, 0, 0)} = \\hbar\\omega`,
+      `E_1 - E_0 = ${tn(E[1])} - ${tn(E[0])} = ${tn(E[1] - E[0])}${u('eV')} = \\hbar\\omega`,
     ];
   }
   // Double well: each level of a single well splits into a close pair.
@@ -353,9 +385,10 @@ export const wells: Scene<PW, { t: number }> = {
     // ground pair (double well) dips across it.
     f.axes({ yLabel: '*E* (eV)' });
     textPx(g, f.box.r, f.box.b + 30, '*x* (nm)', { size: 12, color: TICK, align: 'right' });
+    const texts = levelTexts(st.E, p.pot === 'finite' ? p.U0 : Infinity);
     levelLabels(
       f,
-      st.E.map((E, k) => ({ E, text: label(k + m.n0, E, narrow, p.pot === 'finite' ? p.U0 : Infinity) })),
+      st.E.map((E, k) => ({ E, text: label(k + m.n0, texts[k], narrow) })),
     );
   },
 
@@ -478,34 +511,34 @@ const periodOr = (p: PS, fallback: number) => (Number.isFinite(supPeriod(p)) ? s
  */
 export const supDt = (p: PS) => Math.max(H_SUP, periodOr(p, 0) / STEPS_PER_T);
 
+/** Run scale of ⟨x⟩ (R7a): the largest |⟨x⟩| it reaches, |x̄| + |A|; 0.1 nm when both vanish. */
+export const supScale = (p: PS): number => {
+  const q = supOf(p);
+  return Math.abs(q.xm) + Math.abs(q.xc) || 0.1;
+};
+
 /** Superposition: ΔE of the pair, the period h/ΔE and ⟨x⟩(t) = x̄ + A cos(2πt/T) (the readouts' calls). */
 export function supLines(time: number, p: PS): string[] {
-  const m = model(p);
   const q = supOf(p);
   const pair = pairOf(p);
-  const Ea = m.st.E[q.a];
-  const Eb = m.st.E[q.b];
   const dE = supGap(p);
-  const s = diffSig(Eb, Ea);
-  const lines = [`\\Delta E = E_${pair[1]} - E_${pair[0]} = ${tn(Eb, s)} - ${tn(Ea, s)} = ${tn(dE)}${u('eV')}`];
+  const lines = [`\\Delta E = E_${pair[1]} - E_${pair[0]} = ${eTex(dE)}`];
   const T = supPeriod(p);
   if (!Number.isFinite(T)) return lines;
-  // t/T to as many decimals as the shown ⟨x⟩ arithmetic needs (near a zero crossing it is steep).
-  const xmT = tn(q.xm);
-  const aT = tn(Math.abs(q.xc));
-  const target = tn(q.xm + q.xc * Math.cos(q.w * time));
-  const val = (s: string) => Number(s.replace('\\times 10^{', 'e').replace('}', ''));
-  let dec = 3;
-  while (dec < 6 && tn(val(xmT) + Math.sign(q.xc) * val(aT) * Math.cos(2 * Math.PI * Number((time / T).toFixed(dec)))) !== target) dec++;
-  const ph = (time / T).toFixed(dec);
-  const sigT = Math.max(4, dec + 2);
+  const ph = time / T;
   const xm = q.xm + q.xc * Math.cos(q.w * time);
-  lines.push(`T = \\frac{h}{\\Delta E} = \\frac{${tn(2 * Math.PI * HBAR_EVFS, 4)}\\ \\mathrm{eV\\,fs}}{${tn(dE, 4)}\\ \\mathrm{eV}} = ${tn(T)}${u('fs')}`);
-  lines.push(`\\frac{t}{T} = \\frac{${tn(time, sigT)}\\ \\mathrm{fs}}{${tn(T, sigT)}\\ \\mathrm{fs}} = ${ph}`);
+  const sc = supScale(p);
+  // h in eV·fs from the constant table (4.14×10⁻¹⁵ eV s).
+  lines.push(`T = \\frac{h}{\\Delta E} = \\frac{${tn(CONST.hEV.value * 1e15)}\\ \\mathrm{eV\\,fs}}{${eTex(dE)}} = ${tn(T)}${u('fs')}`);
+  lines.push(`\\frac{t}{T} = \\frac{${tn(time)}\\ \\mathrm{fs}}{${tn(T)}\\ \\mathrm{fs}} = ${tn(ph)}`);
   // Pairs of the same parity: ⟨x⟩ stays at x̄.
-  if (Math.abs(q.xc) < 1e-9) lines.push(`A = 0 \\;\\Rightarrow\\; \\langle x\\rangle = \\bar x = ${tn(xm)}${u('nm')}`);
+  if (Math.abs(q.xc) < 1e-9) lines.push(`A = 0 \\;\\Rightarrow\\; \\langle x\\rangle = \\bar x = ${tnScale(xm, sc)}${u('nm')}`);
   // Split over two lines: one line would shrink to about 0.63 × in the docked panel.
-  else lines.push(`\\langle x\\rangle = \\bar x + A\\cos(2\\pi t/T)`, `= ${xmT} ${q.xc < 0 ? '-' : '+'} ${aT}\\cos(2\\pi \\times ${ph}) = ${tn(xm)}${u('nm')}`);
+  else
+    lines.push(
+      `\\langle x\\rangle = \\bar x + A\\cos(2\\pi t/T)`,
+      `= ${tnScale(q.xm, sc)} ${q.xc < 0 ? '-' : '+'} ${tn(Math.abs(q.xc))}\\cos(2\\pi \\times ${tn(ph)}) = ${tnScale(xm, sc)}${u('nm')}`,
+    );
   return lines;
 }
 
@@ -578,9 +611,10 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
     });
     f.axes({ xLabel: '*x* (nm)', yLabel: '*E* (eV)' });
     const items = st.E.map((E, k) => ({ E, k })).filter(({ k }) => k === q.a || k === q.b);
+    const texts = levelTexts(st.E, p.pot === 'finite' ? p.U0 : Infinity);
     levelLabels(
       f,
-      items.map(({ E, k }) => ({ E, text: label(k + m.n0, E, narrow, p.pot === 'finite' ? p.U0 : Infinity) })),
+      items.map(({ E, k }) => ({ E, text: label(k + m.n0, texts[k], narrow) })),
     );
   },
 
@@ -599,10 +633,12 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
   ],
 
   readouts: [
-    // ΔE: in the double well E₁ and E₂ round to the same printed value (0.148 eV both by default).
-    { label: '\\Delta E', unit: 'eV', value: (_s, p) => supGap(p) },
+    // ΔE: in the double well E₁ and E₂ lie close (0.1481 and 0.1484 eV at L = 1.5 nm, Ub = 4.5 eV,
+    // b = 0.5 nm); the splitting in meV below 0.1 eV, as in the Σ panel.
+    { label: '\\Delta E', unit: '', value: (_s, p) => supGap(p), format: (v) => (Number.isFinite(v) ? eText(v) : undefined) },
     { label: 'T', unit: 'fs', value: (_s, p) => supPeriod(p) },
-    { label: '\\langle x\\rangle', unit: 'nm', value: (s, p) => supOf(p).xm + supOf(p).xc * Math.cos(supOf(p).w * s.t) },
+    // Time-varying: fixed decimals from |x̄| + |A| (R7a), as in the Σ panel.
+    { label: '\\langle x\\rangle', unit: 'nm', value: (s, p) => supOf(p).xm + supOf(p).xc * Math.cos(supOf(p).w * s.t), scale: (p) => supScale(p as PS) },
   ],
 
   formula: (s, p) => supLines(s.t, p),

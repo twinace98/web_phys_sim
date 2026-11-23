@@ -70,32 +70,6 @@ const PENDING: Record<string, Partial<Record<Check, string>>> = {
   '30/maxwell': { slider: 'R1: dBdt "1.0" printed "1"', inputSig: 'A = 0.1942 m² (4 figures)' },
   '31/ac': { slider: 'R1: ratio "0.80" printed "0.8"' },
   '32/materials': { slider: 'R1: T "0.50" printed "0.5"', inputSig: 'Onsager T_c = 2.269 (4 figures)' },
-  // Ch 33–36
-  '33/refraction': { slider: 'R1: theta "35.0" printed "35"' },
-  '33/fibre': { slider: 'R1: alpha "15.0" printed "15"' },
-  '34/lens': { slider: 'R1: p "18.0" printed "18"' },
-  '34/mirror': { slider: 'R1: p "18.0" printed "18"' },
-  '35/double': { slider: 'R1: d "3.0" printed "3"' },
-  '36/single': { slider: 'R1: a "2.0" printed "2"' },
-  '36/phasor': { slider: 'R1: a "2.0" printed "2", theta "40.0" printed "40"', recompute: 'R7b near the minimum: sin(180°) on a rounded phase gives 0, result 2.38×10⁻⁶' },
-  // Ch 37–39
-  '37/clocks': { slider: 'R1: beta "0.80" printed "0.8"', inputSig: 'γ = 1.667 (tn(…, 4))' },
-  '37/rods': { slider: 'R1: beta "0.80" printed "0.8"', inputSig: 'γ = 1.667 (tn(…, 4))' },
-  '37/spacetime': { slider: 'R1: beta "0.60" printed "0.6"', inputSig: 'γ = 1.250 (tn(…, 4))' },
-  '37/simultaneity': { slider: 'R1: beta "0.60" printed "0.6"', inputSig: 'γ, L/2 with 4 figures (tn(…, 4)); Δt is R5' },
-  '38/packet': { slider: 'R1: k0 "10.0" printed "10"', inputSig: 'ħ/m = 0.1158, Δx, Δk with 4 figures' },
-  '38/debroglie': { result: 'R8: λ in nm against the readout in m; Δy in cm against m', inputSig: 'h = 6.626×10⁻³⁴: CONST.h' },
-  '39/wells': {
-    slider: 'R1: L, U0, hw "1.00" printed "1"',
-    inputSig: 'h²/8m = 0.3760 and E₁ with 4 figures (tn(…, 4))',
-    recompute: 'R5: E₄ - E₃ = 1.27 - 1.01 = 0.265 (diffSig capped); write ΔE directly',
-  },
-  '39/superposition': { slider: 'R1: hw "0.20" printed "0.2000"', inputSig: 'R5: t/T loop and h = 4.136 eV fs, ΔE to 4–5 figures' },
-  // Ch 41–42
-  '41/bands': { recompute: 'R5: E_{1,8} - E_{1,1} on 3-figure levels (sumSig capped); write the width directly' },
-  '41/filling': { inputSig: 'k_B = 8.617×10⁻⁵ (CONST.kBeV), kT = 0.025852, N_c, N_v to 4 figures', zero: 'R7b: readout n = 0.00 cm⁻³ (diamond, T = 0)' },
-  '41/doping': { inputSig: 'fixed tn(…, 4): n_i, N_D, kT to 4–5 figures' },
-  '42/decay': { inputSig: 'ln 2 = 0.6931, t/T½ = 12.00 (4 figures)' },
   // Review pages 101–109
   '101/photoelectric': { inputSig: 'h = 4.136×10⁻¹⁵ eV s: CONST.hEV' },
   '102/transitions': { result: 'ΔE 1.8887 against the readout 1.889', inputSig: '13.5983 eV, 1239.84 eV nm: CONST.Ry, CONST.hc' },

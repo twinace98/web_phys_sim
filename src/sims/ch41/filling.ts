@@ -1,6 +1,6 @@
 // Ch 41 scene: filling the bands. Band diagram with electrons and holes beside the Fermi-Dirac
 // occupation f(E); metal, two semiconductors and an insulator, at a chosen temperature.
-import { num, tn, u } from '../../core/tex';
+import { CONST, num, slider, texOf, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { Frame, PX_WORLD, TICK, canvasBox, linePx, pow10, split, textPx } from '../modern/frame';
 import { BAND, ELECTRON, bandBox, electron, hole, scatter, tz } from './common';
@@ -109,8 +109,20 @@ function slots(f: Frame, x0: number, x1: number, e0: number, e1: number, fromTop
 const order = (n: number) =>
   Array.from({ length: n }, (_, i) => i).sort((a, b) => scatter(a + 7) - scatter(b + 7));
 
-/** kT [eV] as printed in the formula panel (5 figures: it sits in exponents of 20 and more). */
-export const kTLine = (T: number) => `kT = (${tn(KB, 4)}\\ \\mathrm{eV/K})(${T}\\ \\mathrm{K}) = ${tn(KB * T, 5)}${u('eV')}`;
+/** kT [eV] with k_B from the constant table and T as its slider prints it (R1): 0.0259 eV at 300 K. */
+export const kTLine = (T: number) => `kT = (${CONST.kBeV.tex}\\ \\mathrm{eV/K})(${slider(params.T, T)}\\ \\mathrm{K}) = ${T === 0 ? '0' : tn(KB * T)}${u('eV')}`;
+
+/**
+ * An exponent x in e^{±x}, to 2 decimals (R5): its absolute error is the relative error of the
+ * exponential, so 21.66 (not 21.7, which is 4 % off in e^{−x}).
+ */
+export const expTex = (x: number) => texOf(x.toFixed(2));
+
+/**
+ * Carrier density readout (R7b): 0 only at T = 0 (exactly none), "< 1" below one carrier per cm³
+ * (diamond at 300 K: 1.13×10⁻²⁷ cm⁻³ in the Σ panel), else 3 figures.
+ */
+export const densityText = (v: number): string | undefined => (v === 0 ? '0' : v < 1 ? '< 1' : undefined);
 
 /**
  * Formula panel: kT, then n_i from √(N_c N_v) e^{−E_g/2kT}, the intrinsic Fermi level and the
@@ -122,7 +134,7 @@ export function fillingLines(p: P): string[] {
   const kT = KB * p.T;
   const lines = [kTLine(p.T)];
   if (mat === 'metal') {
-    lines.push(`n = ${tn(L.n)}${u('cm^{-3}')}`);
+    lines.push(`n = ${tz(L.n)}${u('cm^{-3}')}`);
     if (p.T > 0) lines.push(`f(E_\\text{F} + kT) = \\frac{1}{e^{1} + 1} = ${tn(fermi(L.mu + kT, L.mu, p.T))}`);
     return lines;
   }
@@ -134,12 +146,13 @@ export function fillingLines(p: P): string[] {
   const x = m.Eg / (2 * kT);
   const xc = (L.Ec! - L.mu) / kT;
   lines.push(
-    `\\frac{E_\\text{g}}{2kT} = \\frac{${num(m.Eg)}\\ \\mathrm{eV}}{2 \\times ${tn(kT, 5)}\\ \\mathrm{eV}} = ${tn(x, 5)}`,
-    // n_i over two lines: one line would shrink to about 0.64 × in the docked panel.
+    `\\frac{E_\\text{g}}{2kT} = \\frac{${num(m.Eg)}\\ \\mathrm{eV}}{2 \\times ${tn(kT)}\\ \\mathrm{eV}} = ${expTex(x)}`,
+    // n_i over two lines: one line would shrink to about 0.64 × in the docked panel. Diamond: no
+    // 0.00 for 1.13×10⁻²⁷ cm⁻³ (R7b).
     `n_i = \\sqrt{N_\\text{c}N_\\text{v}}\\,e^{-E_\\text{g}/2kT}`,
-    `= (${tn(Math.sqrt(Nc(m, p.T) * Nv(m, p.T)), 4)}\\ \\mathrm{cm^{-3}})\\,e^{-${tn(x, 5)}} = ${tn(L.n)}${u('cm^{-3}')}`,
-    `E_\\text{F} = \\tfrac12 kT\\ln(N_\\text{v}/N_\\text{c}) = ${tn(L.mu)}${u('eV')}`,
-    `f(E_\\text{c}) = \\frac{1}{e^{(E_\\text{c} - E_\\text{F})/kT} + 1} = \\frac{1}{e^{${tn(xc, 5)}} + 1} = ${tz(fermi(L.Ec!, L.mu, p.T))}`,
+    `= (${tz(Math.sqrt(Nc(m, p.T) * Nv(m, p.T)))}\\ \\mathrm{cm^{-3}})\\,e^{-${expTex(x)}} = ${tz(L.n)}${u('cm^{-3}')}`,
+    `E_\\text{F} = \\tfrac12 kT\\ln(N_\\text{v}/N_\\text{c}) = ${Math.abs(L.mu) < 1e-12 ? '0' : tn(L.mu)}${u('eV')}`,
+    `f(E_\\text{c}) = \\frac{1}{e^{(E_\\text{c} - E_\\text{F})/kT} + 1} = \\frac{1}{e^{${expTex(xc)}} + 1} = ${tz(fermi(L.Ec!, L.mu, p.T))}`,
   );
   return lines;
 }
@@ -242,7 +255,7 @@ export const filling: Scene<P, { t: number }> = {
 
   readouts: [
     { label: 'E_\\text{g}', unit: 'eV', value: (_s, p) => (p.mat === 'metal' ? NaN : MATERIALS[p.mat as Exclude<MaterialId, 'metal'>].Eg) },
-    { label: 'n', unit: 'cm⁻³', value: (_s, p) => layout(p.mat as MaterialId, p.T).n },
+    { label: 'n', unit: 'cm⁻³', value: (_s, p) => layout(p.mat as MaterialId, p.T).n, zeroTol: 0, format: densityText },
   ],
 
   formula: (_s, p) => fillingLines(p),

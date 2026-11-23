@@ -7,8 +7,7 @@ import type { Draw } from '../../draw/draw';
 import { measureRich } from '../../draw/text';
 import { ROLE_COLOR, theme } from '../../draw/theme';
 import { Obstacles, TICK, boxText } from '../inset/inset';
-import { num, paren, tn, tp, u } from '../../core/tex';
-import { fitSig } from '../ch31/fit';
+import { num, paren, slider, tn, tp, u } from '../../core/tex';
 import { imageDistance, magnification, principalRays, type Ray } from './physics';
 
 type P = { kind: string; f: number; p: number; h: number };
@@ -123,8 +122,13 @@ function params(el: Element): ParamSchema<P> {
 const SIG = 3;
 /** TeX number: the readout formatting (true minus → ASCII for TeX). */
 const tex = (v: number) => fmt(v, SIG).replace('−', '-');
-/** Inputs p and f (0.5 cm steps): one decimal; f = ∞ for the plane mirror. */
-const tin = (v: number) => (Number.isFinite(v) ? v.toFixed(1) : '\\infty');
+/** The p and f controls (the same for lens and mirror), for their label strings (R1). */
+const SPEC = params('lens');
+const pTex = (v: number) => slider(SPEC.p, v);
+/** f as its slider prints it, signed for a diverging lens or convex mirror; ∞ for the plane mirror. */
+const fTex = (v: number) => (Number.isFinite(v) ? slider(SPEC.f, v) : '\\infty');
+/** Inputs in the stage panel: the slider strings. */
+const tin = (v: number, which: 'p' | 'f') => (which === 'p' ? pTex(v) : fTex(v));
 
 /**
  * Formula panel. At p = f there is no image (i → ∞): the readouts print "–", so the panel
@@ -135,7 +139,7 @@ export function panel(p: P): string {
   const i = imageDistance(p.p, f);
   const m = magnification(p.p, i);
   const inv = Number.isFinite(i) ? `\\dfrac{1}{${tex(i)}}` : '0';
-  const row = `\\dfrac{1}{${tin(p.p)}} + ${inv} = \\dfrac{1}{${tin(f)}}`;
+  const row = `\\dfrac{1}{${tin(p.p, 'p')}} + ${inv} = \\dfrac{1}{${tin(f, 'f')}}`;
   const mm = Number.isFinite(m) ? tex(m) : '\\text{–}';
   return `\\begin{array}{l} \\dfrac{1}{p} + \\dfrac{1}{i} = \\dfrac{1}{f} \\\\[8pt] ${row} \\\\[8pt] m = -\\dfrac{i}{p} = ${mm} \\end{array}`;
 }
@@ -148,12 +152,12 @@ export function formulaLines(el: Element, p: P): string[] {
   const f = fOf(p);
   const i = imageDistance(p.p, f);
   const m = magnification(p.p, i);
-  const pp = num(p.p);
+  const pp = pTex(p.p);
   const lines: string[] = [];
   if (!Number.isFinite(f)) {
     lines.push(`f = \\infty:\\ i = -p = ${tn(i, SIG)}${u('cm')}`);
   } else {
-    const ff = num(f);
+    const ff = fTex(f);
     if (el === 'mirror') lines.push(`f = \\frac{r}{2} = \\frac{${num(2 * f)}}{2} = ${ff}${u('cm')}`);
     const inv = `\\frac{1}{i} = \\frac{1}{f} - \\frac{1}{p} = \\frac{1}{${ff}} - \\frac{1}{${pp}}`;
     if (!Number.isFinite(i)) {
@@ -162,9 +166,7 @@ export function formulaLines(el: Element, p: P): string[] {
     }
     lines.push(inv, `i = \\frac{pf}{p - f} = \\frac{(${pp})(${ff})}{${pp} - ${paren(ff)}} = ${tn(i, SIG)}${u('cm')}`);
   }
-  // i with enough figures that −i/p reproduces the printed m.
-  const si = fitSig((r) => tn(-r(i) / p.p, SIG), tn(m, SIG), SIG);
-  lines.push(`m = -\\frac{i}{p} = -\\frac{${tp(i, si)}}{${pp}} = ${tn(m, SIG)}`);
+  lines.push(`m = -\\frac{i}{p} = -\\frac{${tp(i, SIG)}}{${pp}} = ${tn(m, SIG)}`);
   return lines;
 }
 

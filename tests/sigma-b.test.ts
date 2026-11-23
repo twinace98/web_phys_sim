@@ -10,9 +10,6 @@ import { CHAPTERS } from '../src/sims/registry';
 import { kinetic } from '../src/sims/ch07/physics';
 import { sigFit, tnFit } from '../src/sims/ch07/sigfit';
 import { fitSig } from '../src/sims/ch31/fit';
-import { sumSig } from '../src/sims/ch41/common';
-import { diffSig as diffSig37 } from '../src/sims/ch37/scene';
-import { diffSig as diffSig39 } from '../src/sims/ch39/scene';
 import { POTENTIALS } from '../src/sims/ch08/physics';
 import { inertiaCm } from '../src/sims/ch10/physics';
 import { BETA, G, rollAccel } from '../src/sims/ch11/physics';
@@ -51,13 +48,10 @@ describe('digit-fitting helpers (policy D: at most 3 figures)', () => {
     expect(tnFit(0.44183, 5)).toBe('0.442');
     expect(tnFit(0.5, 2)).toBe('0.50');
   });
-  it('fitSig, sumSig and diffSig: 3 figures at most; fitSig keeps 2 when allowed and enough', () => {
+  it('fitSig: 3 figures at most; fitSig keeps 2 when allowed and enough', () => {
     expect(fitSig((r) => tn(r(1 / 6) + r(0.4418)), tn(1 / 6 + 0.4418), 3, 8)).toBe(3);
     expect(fitSig((r) => tn(r(2.4) * 2, 2), tn(4.8, 2), 2)).toBe(2);
     expect(fitSig((r) => tn(r(1 / 6) + r(0.4418)), tn(1 / 6 + 0.4418), 5, 8)).toBe(3);
-    expect(sumSig(15.0024, 15.0019)).toBe(3);
-    expect(diffSig39(1.218544, 1.172093)).toBe(3);
-    expect(diffSig37(2.032713, 1.172093)).toBe(3);
     expect(INPUT_SIG).toBe(3);
   });
 });
