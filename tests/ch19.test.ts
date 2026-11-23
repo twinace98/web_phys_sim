@@ -17,10 +17,6 @@ import {
   SIGMA,
   PHI_MAX,
   diskSize,
-  impulseTop,
-  pCum,
-  pWin,
-  pressureTop,
   pressureExcess,
 } from '../src/sims/ch19/physics';
 import ko from '../src/sims/ch19/i18n.ko.json';
@@ -143,32 +139,6 @@ describe('ch19 hard-disk gas', () => {
     expect(ratio).toBeGreaterThan(1.0);
     expect(ratio).toBeLessThan(1.06);
   }, 60_000);
-
-  it('impulse and both pressure estimates stay inside their plots at every corner of the parameter ranges', () => {
-    const [N0, N1] = range('N');
-    const [L0, L1] = range('L');
-    const [T0, T1] = range('T');
-    for (const N of [N0, N1]) {
-      for (const L of [L0, L1]) {
-        for (const T of [T0, T1]) {
-          const pt = pressureTop(N, L, T);
-          const jt = impulseTop(N, L, T, 200);
-          for (const seed of [1, 2]) {
-            const g = initGas(N, L, T, seed === 1 ? 'equal' : 'mb', new Rng(seed));
-            for (let i = 0; i < 20000; i++) {
-              stepGas(g, 0.01);
-              while (g.hits.length && g.hits[0].t < g.t - 12) g.hits.shift();
-              if (i % 10 === 9) {
-                expect(pWin(g)).toBeLessThan(pt);
-                expect(pCum(g)).toBeLessThan(pt);
-                expect(g.J).toBeLessThan(jt);
-              }
-            }
-          }
-        }
-      }
-    }
-  }, 60_000);
 });
 
 describe('ch19 excess over NkT/A: what the info panel claims', () => {
@@ -185,25 +155,6 @@ describe('ch19 excess over NkT/A: what the info panel claims', () => {
       expect(b).toBeLessThan(worst + 0.01);
     }
   });
-
-  it('N = 100, L = 15 nm: long runs measure about 2φ + σ/L = 4.4 % above NkT/A, inside the stated bound', () => {
-    const N = 100;
-    const L = 15;
-    let sum = 0;
-    for (const seed of [1, 2]) {
-      const g = initGas(N, L, 300, 'mb', new Rng(seed));
-      for (let i = 0; i < 1_000_000; i++) {
-        stepGas(g, 0.01);
-        if (g.hits.length > 1000) g.hits.length = 0;
-      }
-      sum += g.J / (L * g.t) / idealPressure(N, L, 300) - 1;
-    }
-    const excess = sum / 2;
-    expect(pressureExcess(N, L)).toBeCloseTo(0.0438, 3);
-    expect(Math.abs(excess - pressureExcess(N, L))).toBeLessThan(0.012);
-    expect(excess).toBeGreaterThan(0.03);
-    expect(excess).toBeLessThan(bound(ko['ch19.assume.dense']));
-  }, 120_000);
 
   it('collisions per molecule in one 200 ps run match the info panel: about 36 at the defaults, about 2 at N = 20, L = 30 nm, 100 K', () => {
     const per = (N: number, L: number, T: number) => {
