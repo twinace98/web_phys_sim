@@ -207,19 +207,23 @@ function scaleBar(g: Draw): void {
 
 /**
  * Legend at the top left: a dashed sample "ΔΦ = …" (equal steps) and, when there is a g = 0
- * point, a thick sample through a × "g = 0" (the equipotential through that point).
+ * point, the × alone "g = 0" and a thick sample "Φ = Φ(×)": the equipotential through that point.
+ * The two are separate rows: g = 0 only at the ×, not along the thick line.
  */
+type Row = 'dash' | 'null' | 'crit';
+
 function legend(g: Draw, ms: readonly Mass[], hasNull: boolean, eq: boolean): void {
   if (!eq && !hasNull) return;
   const k = theme.scale;
   const { ctx } = g;
-  const rows: ('dash' | 'crit')[] = [];
+  const rows: Row[] = [];
   if (eq) rows.push('dash');
-  if (hasNull) rows.push('crit');
+  if (hasNull) rows.push('null');
+  if (hasNull && eq) rows.push('crit');
   const step = phiStep(ms);
   // ΔΦ is a 1-2-5 number: one significant figure.
   const dTxt = step >= 1e5 ? `${+(step / 1e6).toPrecision(1)} MJ/kg` : `${+(step / 1e3).toPrecision(1)} kJ/kg`;
-  const label = (r: 'dash' | 'crit') => (r === 'dash' ? `Δ*Φ* = ${dTxt}` : '*g* = 0');
+  const label = (r: Row) => (r === 'dash' ? `Δ*Φ* = ${dTxt}` : r === 'null' ? '*g* = 0' : '*Φ* = *Φ*(×)');
   const x0 = 10 * k;
   const y0 = 10 * k;
   const rowH = 20 * k;
@@ -246,10 +250,8 @@ function legend(g: Draw, ms: readonly Mass[], hasNull: boolean, eq: boolean): vo
     const a = x0 + 8 * k;
     const b = a + sample;
     if (r === 'dash') g.line(W(a, y), W(b, y), { color: EQ, width: 1.1, dash: [5, 4] });
-    else {
-      if (eq) g.line(W(a, y), W(b, y), { color: EQ, width: 2.25 });
-      nullMark(g, W((a + b) / 2, y));
-    }
+    else if (r === 'crit') g.line(W(a, y), W(b, y), { color: EQ, width: 2.25 });
+    else nullMark(g, W((a + b) / 2, y));
     g.text(W(b + 8 * k, y), label(r), { size: 13, color: INK, align: 'left', baseline: 'middle' });
   });
 }
