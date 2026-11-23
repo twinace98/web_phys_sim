@@ -18,6 +18,7 @@ import {
   particleX,
   type PipeType,
 } from './physics';
+import { slider } from '../../../core/tex';
 import { tn, u } from './tex';
 
 type P = { type: PipeType; nOpen: number; nClosed: number; L: number; sound: boolean };
@@ -240,13 +241,14 @@ export const pipesScene: Scene<P, S> = {
   },
 
   readouts: [
-    { label: 'f_n', unit: 'Hz', sig: 4, value: (_s, p) => frequency(p.type, p.L, harmonicOf(p)) },
+    // 3 figures (R3): v = 343 m/s has 3, so f_1 = 172 Hz, not 171.5.
+    { label: 'f_n', unit: 'Hz', value: (_s, p) => frequency(p.type, p.L, harmonicOf(p)) },
     { label: '\\lambda_n', unit: 'm', value: (_s, p) => wavelength(p.type, p.L, harmonicOf(p)) },
   ],
 
   formula: (_s, p) => {
     const n = harmonicOf(p);
-    const L = p.L.toFixed(2);
+    const L = slider(params.L, p.L);
     const lam = wavelength(p.type, p.L, n);
     const f = frequency(p.type, p.L, n);
     const f1 = frequency(p.type, p.L, 1);
@@ -254,8 +256,8 @@ export const pipesScene: Scene<P, S> = {
     const c = open ? 2 : 4;
     return [
       `\\lambda_n = \\frac{${c}L}{n} = \\frac{${c} \\times ${L}}{${n}} = ${tn(lam)}${u('m')}`,
-      `f_n = \\frac{v}{\\lambda_n} = \\frac{nv}{${c}L} = \\frac{${n} \\times ${V_SOUND}}{${c} \\times ${L}} = ${tn(f, 4)}${u('Hz')}`,
-      `n = ${open ? '1, 2, 3' : '1, 3, 5'}, \\dots,\\quad f_n = n f_1,\\ f_1 = ${tn(f1, 4)}${u('Hz')}`,
+      `f_n = \\frac{v}{\\lambda_n} = \\frac{nv}{${c}L} = \\frac{${n} \\times ${V_SOUND}}{${c} \\times ${L}} = ${tn(f)}${u('Hz')}`,
+      `n = ${open ? '1, 2, 3' : '1, 3, 5'}, \\dots,\\quad f_n = n f_1,\\ f_1 = ${tn(f1)}${u('Hz')}`,
     ];
   },
 

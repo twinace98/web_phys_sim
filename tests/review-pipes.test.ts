@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaults, fromQuery, toQuery } from '../src/core/params';
 import { register } from '../src/core/i18n';
+import { readoutText } from '../src/core/precision';
 import type { NumberParam, Scene } from '../src/core/types';
 import page from '../src/sims/review/pipes';
 import en from '../src/sims/review/pipes/i18n.en.json';
@@ -179,11 +180,26 @@ describe('pipes: page', () => {
   it('formula lines carry the numbers', () => {
     const p = defaults(pipesScene.params);
     const lines = pipesScene.formula!({ t: 0 }, p).join(' ');
-    expect(lines).toContain('171.5');
+    // Policy D: f at 3 figures (v = 343 m/s has 3), L as its slider label.
+    expect(lines).toContain('\\frac{1 \\times 343}{2 \\times 1.00} = 172\\ \\mathrm{Hz}');
     expect(lines).toContain('2.00');
+    expect(lines).not.toContain('171.5');
     const c = pipesScene.formula!({ t: 0 }, { ...p, type: 'closed', nClosed: 3 }).join(' ');
-    expect(c).toContain('257.3');
+    expect(c).toContain('= 257\\ \\mathrm{Hz}');
+    expect(c).toContain('f_1 = 85.8\\ \\mathrm{Hz}');
     expect(c).toContain('1, 3, 5');
+    // The f_n readout prints the same string as Σ (R8), across the L slider and the harmonics.
+    const spec = pipesScene.readouts!.find((r) => r.label === 'f_n')!;
+    for (const L of [0.25, 0.37, 1, 1.99, 2])
+      for (const q of [{ ...p, L, nOpen: 8 }, { ...p, L, type: 'closed', nClosed: 15 }]) {
+        const want = readoutText(spec as never, spec.value({ t: 0 }, q as never), q as never);
+        expect(pipesScene.formula!({ t: 0 }, q as never)[1]).toMatch(new RegExp(`= ${want}\\\\ \\\\mathrm\\{Hz\\}$`));
+        expect(pipesScene.formula!({ t: 0 }, q as never)[1]).toContain(`\\times ${L.toFixed(2)}}`);
+      }
+    for (const dict of [ko, en] as Record<string, string>[]) {
+      expect(dict['pipes.obs.open1']).toContain('172 Hz');
+      expect(dict['pipes.obs.closed']).toContain('85.8 Hz');
+    }
   });
 
   it('i18n: every key in both languages, no em-dash, no `$` right after a letter or digit', () => {

@@ -3,6 +3,7 @@
 // curve with its cutoff at −V_stop.
 import { fmt } from '../../../core/format';
 import type { Rng } from '../../../core/rng';
+import { CONST, slider, tn } from '../../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
 import { measureRich } from '../../../draw/text';
@@ -10,7 +11,6 @@ import { Frame, PX_WORLD, W, canvasBox, linePx, rectPx, split, textPx, type Box 
 import { wavelengthRGB } from '../../wave2d/field';
 import {
   F_RANGE,
-  H_OVER_E,
   METALS,
   QE,
   classicalDelay,
@@ -409,9 +409,6 @@ function drawIv(g: Draw, R: Box, p: P): void {
 
 // ------------------------------------------------------------------ TeX helpers
 
-/** TeX number: fixed decimals, ASCII minus. */
-const tf = (v: number, d: number) => (Math.abs(v) < 0.5 * 10 ** -d ? 0 : v).toFixed(d);
-
 /** TeX scientific notation with `sig` significant figures. */
 export function tsci(v: number, sig: number): string {
   if (v === 0 || !Number.isFinite(v)) return '0';
@@ -428,11 +425,14 @@ export function formulaLines(p: P): string[] {
   const phi = phiOf(p);
   const E = photonEnergy(p.f);
   const km = kMax(p.f, phi);
+  // Policy D: h as Halliday quotes it (CONST), f as its slider label, hf and K_max (= e V_stop) as
+  // their readouts. Near the threshold K_max = hf − Φ is a small difference (R5): it comes from the
+  // unrounded hf, so the printed subtraction may miss it by more than the last digit.
   const lines = [
-    `hf = (${tsci(H_OVER_E, 4)}\\ \\mathrm{eV\\,s})(${tf(p.f, 1)}\\times10^{14}\\ \\mathrm{Hz}) = ${tf(E, 2)}\\ \\mathrm{eV}`,
-    `\\lambda = c/f = ${Math.round(wavelength(p.f))}\\ \\mathrm{nm},\\quad f_0 = \\Phi/h = ${tf(thresholdF(phi), 2)}\\times10^{14}\\ \\mathrm{Hz}`,
+    `hf = (${CONST.hEV.tex}\\ \\mathrm{eV\\,s})(${slider(params.f, p.f)}\\times10^{14}\\ \\mathrm{Hz}) = ${tn(E)}\\ \\mathrm{eV}`,
+    `\\lambda = c/f = ${tn(wavelength(p.f))}\\ \\mathrm{nm},\\quad f_0 = \\Phi/h = ${tn(thresholdF(phi))}\\times10^{14}\\ \\mathrm{Hz}`,
     km > 0
-      ? `e\\,V_\\text{stop} = K_\\text{max} = hf - \\Phi = ${tf(E, 2)} - ${tf(phi, 2)} = ${tf(km, 2)}\\ \\mathrm{eV}`
+      ? `e\\,V_\\text{stop} = K_\\text{max} = hf - \\Phi = ${tn(E)} - ${phi.toFixed(2)} = ${tn(km)}\\ \\mathrm{eV}`
       : `e\\,V_\\text{stop} = K_\\text{max} = 0\\ \\ (f < f_0)`,
   ];
   if (p.classical) lines.push(`t_\\text{cl} = \\Phi/(S A) = ${tsci(classicalDelay(p.power, phi), 2)}\\ \\mathrm{s}`);

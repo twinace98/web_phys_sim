@@ -131,6 +131,19 @@ describe('buoyancy physics', () => {
     expect(bobPeriod({ a: 0.2, rho: 600 }, water)).toBeCloseTo(0.673, 3);
   });
 
+  it("g = 9.8 m/s², Halliday's value as on every other page (was 9.81); ⓘ numbers unchanged", () => {
+    expect(GRAV).toBe(9.8);
+    expect(weight({ a: 0.2, rho: 600 })).toBeCloseTo(47.04, 9);
+    for (const dict of [ko, en] as Record<string, string>[]) {
+      expect(dict['buoyancy.as.fluid']).toContain('$g = 9.8\\ \\mathrm{m/s^2}$');
+      expect(dict['buoyancy.as.fluid']).not.toContain('9.81');
+      expect(dict['buoyancy.obs.period']).toContain('0.67 s');
+    }
+    expect(bobPeriod({ a: 0.2, rho: 600 }, water).toFixed(2)).toBe('0.67');
+    // Terminal speed of the lightest, largest block: about 2.7 m/s.
+    expect(Math.sqrt((2 * (1 - 50 / 1000) * 0.4 * GRAV) / 1.05).toFixed(1)).toBe('2.7');
+  });
+
   it('the level rises by V_sub / A_t', () => {
     const b: Block = { a: 0.2, rho: 600 };
     const m = settle(b, water, 60);
@@ -214,8 +227,10 @@ describe('buoyancy scene', () => {
     expect(Fb / Fg).toBeCloseTo(1, 4);
     expect(Math.abs(net)).toBeLessThan(1e-3);
     const lines = formulaLines(s, p);
-    expect(lines.length).toBe(5);
-    expect(lines[3]).toContain('0.600');
+    expect(lines.length).toBe(6);
+    expect(lines[4]).toContain('0.600');
+    // At rest the net force has decayed below 1 mN and prints from the unrounded forces.
+    expect(lines[5]).toMatch(/^F_\\text\{net\} = F_b - F_g \+ F_d = 47\.0 - 47\.0 [-+] /);
     for (const l of lines) expect(l).not.toMatch(/NaN|Infinity|undefined/);
   });
 
@@ -265,40 +280,70 @@ describe('buoyancy Σ: units, the hand while held, printed inputs reproduce the 
       const [rho, V, g, F] = grab(f[i], R(String.raw`= \(N#\)\(N#\)\(N#\) = N#\\ \\mathrm\{N\}$`));
       if (!agrees(val(rho) * val(V) * val(g), F)) bad.push(`${tag} ${f[i]}`);
     }
-    const [pb, pt, A, F] = grab(f[2], R(String.raw`= \(N# - N#\)\\ \\mathrm\{Pa\} \\times N#\\ \\mathrm\{m\^2\} = N#\\ \\mathrm\{N\}$`));
-    if (!agrees((val(pb) - val(pt)) * val(A), F)) bad.push(`${tag} ${f[2]}`);
-    const [ro, rf, r] = grab(f[3], R(String.raw`= \\frac\{N#\}\{N#\} = N#`));
-    if (!agrees(val(ro) / val(rf), r)) bad.push(`${tag} ${f[3]}`);
-    const [expr, net] = grab(f[4], R(String.raw`= ([-+() \d.\\a-z^{}]+) = N#\\ \\mathrm\{N\}$`));
+    // Face pressures, then F_b from their difference computed directly (R5): the printed difference
+    // is the difference of the printed pressures up to their rounding.
+    const [pb, pt] = grab(f[2], R(String.raw`^p_\\text\{bot\} = N#\\ \\mathrm\{Pa\},\\ p_\\text\{top\} = N#\\ \\mathrm\{Pa\}$`));
+    const [dp, A, F] = grab(f[3], R(String.raw`= \(N#\\ \\mathrm\{Pa\}\)\(N#\\ \\mathrm\{m\^2\}\) = N#\\ \\mathrm\{N\}$`));
+    if (!agreesWithin((b, t) => b - t, [pb, pt], dp)) bad.push(`${tag} Δp ${f[2]} ${f[3]}`);
+    if (!agrees(val(dp) * val(A), F)) bad.push(`${tag} ${f[3]}`);
+    if (F !== grab(f[0], R(String.raw`= N#\\ \\mathrm\{N\}$`))[0]) bad.push(`${tag} F_b differs between lines`);
+    const [ro, rf, r] = grab(f[4], R(String.raw`= \\frac\{N#\}\{N#\} = N#`));
+    if (!agrees(val(ro) / val(rf), r)) bad.push(`${tag} ${f[4]}`);
+    const [expr, net] = grab(f[5], R(String.raw`= ([-+() \d.\\a-z^{}]+) = N#\\ \\mathrm\{N\}$`));
     // F_net is a small difference of large forces (R5): allow the rounding of the 3-figure terms.
     // Tokens of "78.5 - 47.1 + (-31.4)"; a 1.23\\times 10^{-5} term stays one token.
     const toks = expr.replace(/[()]/g, '').replace(/\\times 10/g, '\\times~10').split(' ').map((x) => x.replace('~', ' '));
     const terms = toks.filter((x) => x !== '+' && x !== '-');
     const signs = toks.flatMap((x, i) => (x === '+' || x === '-' ? [] : [toks[i - 1] === '-' ? -1 : 1]));
-    if (!agreesWithin((...x) => x.reduce((acc, xi, i) => acc + signs[i] * xi, 0), terms, net)) bad.push(`${tag} ${f[4]}`);
-    if (s.held && net !== '0') bad.push(`${tag} held but F_net ≠ 0: ${f[4]}`);
+    if (!agreesWithin((...x) => x.reduce((acc, xi, i) => acc + signs[i] * xi, 0), terms, net)) bad.push(`${tag} ${f[5]}`);
+    if (s.held && net !== '0') bad.push(`${tag} held but F_net ≠ 0: ${f[5]}`);
+    // Every decimal input has at most 3 figures (policy D; pressures and forces ≥ 1000 keep their
+    // integer digits, as fmt prints them).
+    for (const l of f) for (const m of l.matchAll(/(?<![\d.])\d+\.\d+/g)) if (m[0].replace('.', '').replace(/^0+/, '').length > 3) bad.push(`${tag} ${m[0]} in ${l}`);
     return bad;
   }
 
   it('review case: the default block held under water shows F_net = 0 with the hand force (was 31.4 N)', () => {
     const s = { y: 0.1, v: 0, held: true };
     const f = formulaLines(s, p0);
-    expect(f[4]).toMatch(/\+ F_\\text\{[^}]+\}/);
-    expect(f[4]).toContain('+ (-31.4)');
-    expect(f[4]).toMatch(/= 0\\ \\mathrm\{N\}$/);
+    expect(f[5]).toMatch(/\+ F_\\text\{[^}]+\}/);
+    expect(f[5]).toContain('+ (-31.4)');
+    expect(f[5]).toMatch(/= 0\\ \\mathrm\{N\}$/);
     expect(check(s, p0, 'held')).toEqual([]);
     // Released at the same place: the net force is the unbalanced 31.4 N, no hand term.
-    const free = formulaLines({ ...s, held: false }, p0)[4];
+    const free = formulaLines({ ...s, held: false }, p0)[5];
     expect(free).not.toMatch(/\+ F_\\text\{/);
     expect(free).toMatch(/= 31\.4\\ \\mathrm\{N\}$/);
   });
 
-  it('pressures in Pa, so Pa × m² = N (no kPa × m² written as N)', () => {
+  it('pressures in Pa, so Pa × m² = N (no kPa × m² written as N); the face is 0.0400 m² (policy D)', () => {
     const f = formulaLines({ y: 0.1, v: 0, held: false }, p0);
     expect(f[2]).not.toContain('kPa');
-    expect(f[2]).toContain('\\ \\mathrm{Pa} \\times');
-    // Was (3.07 - 1.10) kPa × 0.0400 m² = 78.5 N.
-    expect(f[2]).toMatch(/= \(3066 - 1104\)\\ \\mathrm\{Pa\} \\times 0\.0400\\ \\mathrm\{m\^2\} = 78\.5\\ \\mathrm\{N\}$/);
+    // g = 9.8: p_bot = 1000 × 9.8 × 0.3128 m; was (3066 - 1104) Pa × 0.040000 m² with g = 9.81.
+    expect(f[2]).toBe('p_\\text{bot} = 3063\\ \\mathrm{Pa},\\ p_\\text{top} = 1103\\ \\mathrm{Pa}');
+    expect(f[3]).toBe('F_b = (p_\\text{bot} - p_\\text{top})A = (1960\\ \\mathrm{Pa})(0.0400\\ \\mathrm{m^2}) = 78.4\\ \\mathrm{N}');
+    expect(f[0]).toBe('F_b = \\rho_f V_\\text{sub}\\, g = (1000)(0.00800)(9.8) = 78.4\\ \\mathrm{N}');
+    expect(f[1]).toBe('F_g = \\rho_\\text{obj} V g = (600)(0.00800)(9.8) = 47.0\\ \\mathrm{N}');
+    // The face of the default 0.20 m cube prints 0.0400 m² at every position and speed.
+    for (const y of [0, 0.1, 0.25, 0.38, 0.5])
+      for (const v of [0, 1.3, -0.7]) expect(formulaLines({ y, v, held: false }, p0)[3]).toContain('(0.0400\\ \\mathrm{m^2})');
+  });
+
+  it('R6: ρ_obj/ρ_f next to 1 keeps the figures that show it, = 1 when equal', () => {
+    const r = (rhoO: number, rhoF: number) => formulaLines({ y: 0.2, v: 0, held: false }, { ...p0, rhoO, rhoF })[4];
+    expect(r(1000, 1000)).toMatch(/= 1 = 1$/);
+    expect(r(7870, 13600)).toMatch(/= 0\.579$/);
+    expect(r(20000, 15000)).toMatch(/= 1\.33 > 1$/);
+  });
+
+  it('F_net at rest on the floor is an exact 0 (R7a), and a residue never prints as 0.00', () => {
+    const p = { ...p0, rhoO: 20000 };
+    const r = new Runner(buoyancyScene, p, 1);
+    r.play();
+    for (let i = 0; i < 600; i++) r.advance(0.0005);
+    const f = formulaLines(r.state, p);
+    expect(f[5]).toMatch(/^F_\\text\{net\} = F_b - F_g \+ N = 78\.4 - 1568 \+ 1490 = 0\\ \\mathrm\{N\}$/);
+    expect(f.join(' ')).not.toMatch(/= 0\.00\\/);
   });
 
   it('every line over densities, sizes, positions, speeds, held or free', () => {
@@ -392,7 +437,7 @@ describe('buoyancy sliders reach the named densities (review 2026-11-20: 600 →
 
   it('ⓘ numbers at the reached values: wood 0.600, ice 0.917 in water and 0.895 in sea water, iron 0.579 in mercury', () => {
     const p0 = defaults(buoyancyScene.params);
-    const ratio = (rhoO: number, rhoF: number) => formulaLines({ y: 0.2, v: 0 }, { ...p0, rhoO, rhoF })[3];
+    const ratio = (rhoO: number, rhoF: number) => formulaLines({ y: 0.2, v: 0 }, { ...p0, rhoO, rhoF })[4];
     expect(ratio(600, 1000)).toMatch(/= 0\.600$/);
     expect(ratio(917, 1000)).toMatch(/\\frac\{917\}\{1000\} = 0\.917$/);
     expect(ratio(917, 1025)).toMatch(/\\frac\{917\}\{1025\} = 0\.895$/);

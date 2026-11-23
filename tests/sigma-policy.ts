@@ -346,7 +346,13 @@ const CONST_TOKS = new Set(Object.values(CONST).flatMap((c) => toks(texClean(c.t
  * whose recomputation may differ by more than 1 %: scene key "ch/id", a pattern for the line's
  * left-hand side, the checks it is exempt from, and why. Phase 2 adds a line only with its reason.
  */
-export const ALLOW: { scene: string; lhs: RegExp; checks: Check[]; why: string }[] = [];
+export const ALLOW: { scene: string; lhs: RegExp; checks: Check[]; why: string }[] = [
+  // Review pages 101–109
+  { scene: '101/photoelectric', lhs: /V_\\text\{stop\}/, checks: ['recompute'], why: 'R5: K_max = hf − Φ near the threshold (2.32 − 2.28 = 0.0360 eV), from the unrounded hf' },
+  { scene: '107/buoyancy', lhs: /^F_\\text\{net\}$/, checks: ['recompute'], why: 'R5: F_b − F_g + F_d nearly cancel while bobbing; F_net from the unrounded forces' },
+  { scene: '108/free', lhs: /^\\Sigma F$/, checks: ['recompute'], why: 'R5: F_s ≈ mg near equilibrium; ΣF from the unrounded forces' },
+  { scene: '108/driven', lhs: /^\\Sigma F$/, checks: ['recompute'], why: 'R5: F_s ≈ mg near equilibrium; ΣF from the unrounded forces' },
+];
 
 /** Physical small values (R7b): their readout and Σ result never print as 0.00. Scene key → labels. */
 export const PHYSICAL_SMALL: Record<string, string[]> = {

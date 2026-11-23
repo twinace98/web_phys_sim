@@ -10,7 +10,7 @@ import type { ParamSchema, Scene } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
 import { Frame, W, textPx } from '../../modern/frame';
 import { fbdParam, type FbdForce } from '../../../draw/fbd';
-import { sigFit } from '../../ch07/sigfit';
+import { slider } from '../../../core/tex';
 import { DAMPED_G, drawColumns, drawMech, mechLayout } from './mech';
 import { drivenAmp, drivenLag, gamma, omega0, peakAmp, peakOmega, rk4, type Osc } from './physics';
 import { tn, tp, u } from './tex';
@@ -242,20 +242,20 @@ export const drivenScene: Scene<P, S> = {
     const lag = (drivenLag(o, { d: D, wd }) * 180) / Math.PI;
     const wr = peakOmega(o);
     const den = Math.hypot(p.k - p.m * wd * wd, p.b * wd);
-    // Inputs of x_m and tan φ with the figures their arithmetic needs; at ω_d = ω_0 the denominator
-    // k − mω_d² is 0 (rounding noise only), so φ = 90° is stated instead of a fraction.
-    const sx = sigFit([Fm, den], (a, c) => a / c, xm);
+    // Policy D: ratio, k, m as their slider labels (R1), derived values at 3 figures (R3), x_m as its
+    // readout. k − mω_d² is computed directly (R5); at ω_d = ω_0 it is 0 (rounding noise only), so
+    // φ = 90° is stated instead of a fraction.
     const bw = p.b * wd;
     const kw = p.k - p.m * wd * wd;
     const resonant = Math.abs(kw) < 1e-9 * p.k;
-    const sp = sigFit([bw, kw], (a, c) => (Math.atan2(a, c) * 180) / Math.PI, lag);
+    const kS = slider(params.k, p.k);
     const lines = [
-      `\\omega_d = ${p.ratio.toFixed(2)}\\,\\omega_0 = ${p.ratio.toFixed(2)}\\sqrt{${p.k}/${p.m.toFixed(1)}} = ${tn(wd)}${u('rad/s')}`,
-      `F_m = kd = ${p.k} \\times ${D.toFixed(3)} = ${tn(Fm)}${u('N')}`,
-      `x_m = \\frac{F_m}{\\sqrt{(k - m\\omega_d^2)^2 + (b\\omega_d)^2}} = \\frac{${tn(Fm, sx)}}{${tn(den, sx)}} = ${tn(xm)}${u('m')}`,
+      `\\omega_d = ${slider(params.ratio, p.ratio)}\\,\\omega_0 = ${slider(params.ratio, p.ratio)}\\sqrt{${kS}/${slider(params.m, p.m)}} = ${tn(wd)}${u('rad/s')}`,
+      `F_m = kd = ${kS} \\times ${D.toFixed(3)} = ${tn(Fm)}${u('N')}`,
+      `x_m = \\frac{F_m}{\\sqrt{(k - m\\omega_d^2)^2 + (b\\omega_d)^2}} = \\frac{${tn(Fm)}}{${tn(den)}} = ${tn(xm)}${u('m')}`,
       resonant
         ? `\\omega_d = \\omega_0:\\ k - m\\omega_d^2 = 0,\\quad \\phi = 90^\\circ`
-        : `\\tan\\phi = \\frac{b\\omega_d}{k - m\\omega_d^2} = \\frac{${tn(bw, sp)}}{${tn(kw, sp)}},\\quad \\phi = ${tn(lag, 3)}^\\circ`,
+        : `\\tan\\phi = \\frac{b\\omega_d}{k - m\\omega_d^2} = \\frac{${tn(bw)}}{${tn(kw)}},\\quad \\phi = ${tn(lag, 3)}^\\circ`,
       Number.isFinite(wr)
         ? `\\omega_\\text{peak} = \\sqrt{\\omega_0^2 - 2\\gamma^2} = ${tn(wr)}${u('rad/s')} = ${tn(wr / w0)}\\,\\omega_0`
         : `\\gamma = ${tn(gamma(o))}${u('s^{-1}')} \\ge \\omega_0/\\sqrt{2}:\\ \\text{${tr('damped.nopeak')}}`,
@@ -264,9 +264,10 @@ export const drivenScene: Scene<P, S> = {
       // Net force from the drawn forces (y up): F_s − mg + F_d + F = ma.
       const [Fs, , Fd, Fdr] = fbdForces(s, p).map((f) => f.F.y);
       const mg = p.m * DAMPED_G;
+      // ΣF is a small difference of F_s ≈ mg (R5): 3 figures from the unrounded forces, so the
+      // printed 3-figure terms may miss it by more than the last digit.
       const net = Fs - mg + Fd + Fdr;
-      const sf = sigFit([Fs, mg, Fd, Fdr], (a, b, c, e) => a - b + c + e, net);
-      lines.push(`\\Sigma F = F_s - mg + F_d + F = ${tn(Fs, sf)} - ${tn(mg, sf)} + ${tp(Fd, sf)} + ${tp(Fdr, sf)} = ${tn(net)}${u('N')} = ma`);
+      lines.push(`\\Sigma F = F_s - mg + F_d + F = ${tn(Fs)} - ${tn(mg)} + ${tp(Fd)} + ${tp(Fdr)} = ${tn(net)}${u('N')} = ma`);
     }
     return lines;
   },

@@ -96,13 +96,6 @@ const PENDING: Record<string, Partial<Record<Check, string>>> = {
   '41/filling': { inputSig: 'k_B = 8.617×10⁻⁵ (CONST.kBeV), kT = 0.025852, N_c, N_v to 4 figures', zero: 'R7b: readout n = 0.00 cm⁻³ (diamond, T = 0)' },
   '41/doping': { inputSig: 'fixed tn(…, 4): n_i, N_D, kT to 4–5 figures' },
   '42/decay': { inputSig: 'ln 2 = 0.6931, t/T½ = 12.00 (4 figures)' },
-  // Review pages 101–109
-  '101/photoelectric': { inputSig: 'h = 4.136×10⁻¹⁵ eV s: CONST.hEV' },
-  '102/transitions': { result: 'ΔE 1.8887 against the readout 1.889', inputSig: '13.5983 eV, 1239.84 eV nm: CONST.Ry, CONST.hc' },
-  '103/welljump': { result: 'ΔE 1.8802, λ 659.4 against readouts 1.88, 659', inputSig: 'hc = 1239.84 (CONST.hc), mc² = 511.0; inline sD loop' },
-  '105/ladder': { slider: 'R1: v, mu "1.00" printed "1.0"' },
-  '106/gravfield': { inputSig: 'G = 6.674×10⁻¹¹: CONST.G' },
-  '107/buoyancy': { recompute: 'R5: F_net = 52.5 - 47.1 - 2.83 = 2.61 N on 3-figure forces' },
 };
 
 function cases(scene: Scene): { name: string; p: Params }[] {

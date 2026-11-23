@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
+import { readoutText } from '../src/core/precision';
 import { wellModel } from '../src/sims/ch39/physics';
 import { HB2M, infiniteLevel, infiniteWell, solve } from '../src/sims/modern/eigen';
 import { region } from '../src/sims/review/hydrogen/spectrum';
@@ -110,15 +111,37 @@ describe('welljump stage', () => {
     const p = defaults(welljump.params);
     const f = welljump.formula!(welljump.init(p, null as never), p).join(' ');
     // E₁ = 0.376 eV, 3 figures (policy D).
-    expect(f).toContain('= 0.376\\ \\text{eV}');
-    expect(f).toContain('3.384');
-    expect(f).toContain('1.504');
-    expect(f).toContain('1.880');
-    expect(f).toContain('659.4');
+    // Policy D: hc = 1240 eV·nm, mₑc² = 511 keV, L as its slider label, results as the readouts.
+    expect(f).toContain('\\frac{(1240\\ \\text{eV}\\cdot\\text{nm})^2}{8\\,(511\\ \\text{keV})\\,(1.0\\ \\text{nm})^2} = 0.376\\ \\text{eV}');
+    expect(f).toContain('E_{3} = 3.38\\ \\text{eV},\\quad E_{2} = 1.50\\ \\text{eV}');
+    expect(f).toContain('(3^2 - 2^2)(0.376\\ \\text{eV}) = 1.88\\ \\text{eV}');
+    expect(f).toContain('\\frac{1240\\ \\text{eV}\\cdot\\text{nm}}{1.88\\ \\text{eV}} = 659\\ \\text{nm}');
     const f2 = welljump.formula!(welljump.init(p, null as never), { ...p, L: 0.2, ni: 1, nf: 2 }).join(' ');
-    expect(f2).toContain('9.401');
-    expect(f2).toContain('43.96');
-    expect(f2).toContain('(0.200\\ \\text{nm})^2');
+    expect(f2).toContain('= 9.40\\ \\text{eV}');
+    expect(f2).toContain('= 44.0\\ \\text{nm}');
+    expect(f2).toContain('(0.20\\ \\text{nm})^2');
+  });
+
+  it('policy D: Σ results are the readout strings at every slider stop and pair; no fitted constants', () => {
+    const p = defaults(welljump.params);
+    const s = welljump.init(p, null as never);
+    const text = (label: string, q: typeof p) => {
+      const spec = welljump.readouts!.find((r) => r.label === label)!;
+      return readoutText(spec as never, spec.value(s, q), q);
+    };
+    const bad: string[] = [];
+    for (const L of [0.2, 0.25, 0.5, 1, 1.5, 2])
+      for (let ni = 1; ni <= 5; ni++)
+        for (let nf = 1; nf <= 5; nf++) {
+          const q = { ...p, L, ni, nf };
+          const f = welljump.formula!(s, q);
+          if (!f[0].endsWith(`= ${text('E_1', q)}\\ \\text{eV}`)) bad.push(`E1 ${L} ${f[0]}`);
+          if (!f[0].includes('(1240\\ \\text{eV}\\cdot\\text{nm})^2') || !f[0].includes('(511\\ \\text{keV})')) bad.push(`const ${f[0]}`);
+          if (ni === nf) continue;
+          if (!f[2].endsWith(`= ${text('\\Delta E', q)}\\ \\text{eV}`)) bad.push(`dE ${L} ${ni}${nf} ${f[2]}`);
+          if (!f[3].endsWith(`= ${text('\\lambda', q)}\\ \\text{nm}`)) bad.push(`lam ${L} ${ni}${nf} ${f[3]}`);
+        }
+    expect(bad).toEqual([]);
   });
 });
 
@@ -178,9 +201,9 @@ describe('welljump Σ: the printed inputs reproduce the printed results', () => 
     return bad;
   }
 
-  it('review case L = 1 nm, 3 → 2: the λ line gives 659.4 nm from the printed ΔE', () => {
+  it('review case L = 1 nm, 3 → 2: the λ line gives the readout 659 nm (policy D, was 659.4)', () => {
     expect(check(1, 3, 2)).toEqual([]);
-    expect(welljump.formula!(welljump.init(p0, null as never), p0)[3]).toMatch(/= 659\.4\\ \\text\{nm\}$/);
+    expect(welljump.formula!(welljump.init(p0, null as never), p0)[3]).toMatch(/= 659\\ \\text\{nm\}$/);
   });
 
   it('every slider stop of L and every pair of levels', () => {

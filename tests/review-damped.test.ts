@@ -291,6 +291,45 @@ describe('driven Σ: printed inputs reproduce the results, no zero denominator',
   });
 });
 
+describe('damped Σ: policy D (slider labels, 3-figure inputs, R5 net force, R6 b against b_c)', () => {
+  const pf = defaults(freeScene.params);
+  const pd = defaults(drivenScene.params);
+  const free = (q: typeof pf) => freeScene.formula!(freeScene.init(q, undefined as never), q);
+  const driven = (q: typeof pd) => drivenScene.formula!(drivenScene.init(q, undefined as never), q);
+
+  it('slider values as their labels: m = 2.0, k = 40, b = 0.0, ω_d/ω_0 = 0.99', () => {
+    const f = free({ ...pf, m: 2, k: 40, b: 0 });
+    expect(f[0]).toBe('\\omega_0 = \\sqrt{k/m} = \\sqrt{40/2.0} = 4.47\\ \\mathrm{rad/s}');
+    expect(f[1]).toBe('b = 0.0 < b_c = 2\\sqrt{km} = 17.9\\ \\mathrm{kg/s}');
+    const d = driven({ ...pd, ratio: 0.99 });
+    expect(d[0]).toBe('\\omega_d = 0.99\\,\\omega_0 = 0.99\\sqrt{16/1.0} = 3.96\\ \\mathrm{rad/s}');
+    // k − mω_d² computed directly (R5): 16 − 15.68 = 0.318, not 16.0 − 15.7.
+    expect(d[3]).toBe('\\tan\\phi = \\frac{b\\omega_d}{k - m\\omega_d^2} = \\frac{3.96}{0.318},\\quad \\phi = 85.4^\\circ');
+    expect(d[2]).toBe('x_m = \\frac{F_m}{\\sqrt{(k - m\\omega_d^2)^2 + (b\\omega_d)^2}} = \\frac{0.320}{3.97} = 0.0805\\ \\mathrm{m}');
+  });
+
+  it('R6: b just below b_c keeps the figures that show b < b_c; b = b_c prints =', () => {
+    // Defaults k = 16, m = 1.0: b_c = 8.00.
+    expect(free({ ...pf, b: 7.9 })[1]).toBe('b = 7.9 < b_c = 2\\sqrt{km} = 8.00\\ \\mathrm{kg/s}');
+    expect(free({ ...pf, b: 8 })[1]).toBe('b = 8.0 = b_c = 2\\sqrt{km} = 8.00\\ \\mathrm{kg/s}');
+    // k = 17, m = 0.9: b_c = 2√15.3 = 7.8230… > b = 7.8 shows as 7.82.
+    expect(free({ ...pf, b: 7.8, k: 17, m: 0.9 })[1]).toMatch(/^b = 7\.8 < b_c = 2\\sqrt\{km\} = 7\.82\\ /);
+  });
+
+  it('ΣF: 3-figure forces, the net force from the unrounded ones (R5); no fitted 4-figure terms', () => {
+    for (const [sc, q] of [
+      [freeScene, { ...pf, fbd: true }],
+      [drivenScene, { ...pd, fbd: true }],
+    ] as const) {
+      const s = sc.init(q as never, undefined as never) as { t: number };
+      for (let i = 0; i < 300; i++) sc.step!(s as never, sc.time!.h, q as never);
+      const l = sc.formula!(s as never, q as never).find((x) => x.startsWith('\\Sigma F'))!;
+      for (const m of l.matchAll(/(?<![\d.])\d+\.\d+/g)) expect(m[0].replace('.', '').replace(/^0+/, '').length, l).toBeLessThanOrEqual(3);
+      expect(l).toMatch(/ - 9\.80 /);
+    }
+  });
+});
+
 describe('damped: page', () => {
   const scenes = page.scenes as Scene[];
   it('every scene has a formula with finite numbers in each regime', () => {
