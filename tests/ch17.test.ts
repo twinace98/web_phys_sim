@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
+import { fmt } from '../src/core/format';
+import { u } from '../src/core/tex';
 import { beats } from '../src/sims/ch17/beats';
+import { NUM, agrees, grab, val } from './sigma-digits';
 import { doppler, setup } from '../src/sims/ch17/doppler';
 import { arrival, arrivalAt, flashing, heardAt, beatEnvelope, beatFrequency, fronts, heard, machAngle, wave, wavelengths, type Doppler } from '../src/sims/ch17/physics';
 
@@ -189,5 +192,57 @@ describe('ch17 Doppler: readouts and flashes agree with the arriving fronts', ()
       // One run lasts at most 12 s at 1×.
       expect(run / scale).toBeLessThanOrEqual(12 + 1e-9);
     }
+  });
+});
+
+// Review 2026-11-20 P2: 440 + 1.5 printed "442 Hz" (3 figures) next to f_beat = 1.50 Hz.
+describe('ch17 beats: f₂ and every Σ line reproduce from what is printed', () => {
+  const sigma = (p: Record<string, unknown>, steps: number) => {
+    const r = new Runner(beats, { ...(defaults(beats.params) as object), ...p } as never, 1);
+    r.play();
+    for (let i = 0; i < steps && r.playing; i++) r.advance(beats.time!.h);
+    const lines = beats.formula!(r.state as never, r.params as never);
+    const ro = beats.readouts!.map((x) => x.format?.(x.value(r.state as never, r.params as never)) ?? fmt(x.value(r.state as never, r.params as never), x.sig ?? 3));
+    return { lines, ro, t: r.state.t, p: r.params as { f1: number; df: number } };
+  };
+
+  it('regression: f₁ = 440 Hz, Δf = 1.5 Hz shows f₂ = 441.5 Hz (Σ and readout), mean 440.75 Hz', () => {
+    const { lines, ro } = sigma({ f1: 440, df: 1.5 }, 0);
+    expect(lines[0]).toBe(`f_2 = 440 + 1.5 = 441.5${u('Hz')}`);
+    expect(lines[1]).toContain('\\lvert 440 - 441.5 \\rvert = 1.50');
+    expect(lines[3]).toBe(`\\tfrac{f_1 + f_2}{2} = (440 + 441.5)/2 = 440.75${u('Hz')}`);
+    expect(ro[0]).toBe('441.5');
+    expect(ro[1]).toBe('1.50');
+    expect(lines.join(' ')).not.toContain('442');
+  });
+
+  it('sweep: f₁ 20–440 Hz × Δf 1–4 Hz, at the start and mid-run: each line agrees with its printed inputs', () => {
+    const bad: string[] = [];
+    for (const f1 of [20, 21, 137, 230, 439, 440])
+      for (const df of [1, 1.1, 1.3, 1.5, 2, 2.7, 3.9, 4])
+        for (const steps of [0, 37, 1111, 2 * 4440 + 5]) {
+          const { lines, ro, t, p } = sigma({ f1, df }, steps);
+          const tag = `f1=${f1} df=${df} t=${t.toFixed(4)}`;
+          const [a, b, f2] = grab(lines[0], new RegExp(`= (${NUM}) \\+ (${NUM}) = (${NUM})`));
+          if (val(f2) !== val(a) + val(b) && Math.abs(val(f2) - (val(a) + val(b))) > 1e-9) bad.push(`${tag}: ${lines[0]}`);
+          if (ro[0] !== f2) bad.push(`${tag}: readout f2 ${ro[0]} vs ${f2}`);
+          const [x1, x2, fb] = grab(lines[1], new RegExp(`\\\\lvert (${NUM}) - (${NUM}) \\\\rvert = (${NUM})`));
+          if (!agrees(Math.abs(val(x1) - val(x2)), fb) || x2 !== f2) bad.push(`${tag}: ${lines[1]}`);
+          if (ro[1] !== fb) bad.push(`${tag}: readout f_beat ${ro[1]} vs ${fb}`);
+          const [fbIn, Tb] = grab(lines[2], new RegExp(`= 1/(${NUM}) = (${NUM})`));
+          if (!agrees(1 / val(fbIn), Tb)) bad.push(`${tag}: ${lines[2]}`);
+          const [m1, m2, mean] = grab(lines[3], new RegExp(`\\((${NUM}) \\+ (${NUM})\\)/2 = (${NUM})`));
+          if (!agrees((val(m1) + val(m2)) / 2, mean) || Math.abs(val(mean) - (p.f1 + p.f1 + p.df) / 2) > 1e-9) bad.push(`${tag}: ${lines[3]}`);
+          const [dfIn, tIn, env] = grab(lines[5], new RegExp(`\\\\pi \\\\times (${NUM}) \\\\times (${NUM})\\) \\\\rvert = (${NUM})A`));
+          if (!agrees(2 * Math.abs(Math.cos(Math.PI * val(dfIn) * val(tIn))), env)) bad.push(`${tag}: ${lines[5]}`);
+        }
+    expect(bad).toEqual([]);
+  });
+
+  it('the sound toggle (live) changes no number', () => {
+    const a = sigma({ f1: 440, df: 1.5, sound: false }, 500);
+    const b = sigma({ f1: 440, df: 1.5, sound: true }, 500);
+    expect(b.lines).toEqual(a.lines);
+    expect(b.ro).toEqual(a.ro);
   });
 });

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { envelope, harmonic, nodes, reflectAt, resonance, steadyAmp, stringAdvance, stringInit, stringStep, type Driven, type Reflect } from '../src/sims/ch16/physics';
 import { defaults } from '../src/core/params';
-import { PARTS_ALPHA, reflect } from '../src/sims/ch16/reflect';
+import { PARTS_ALPHA, STANDING_FIXED, STANDING_FREE, cfg, reflect, standingAt } from '../src/sims/ch16/reflect';
+import en from '../src/sims/ch16/i18n.en.json';
+import ko from '../src/sims/ch16/i18n.ko.json';
 import { STR, resonanceScene } from '../src/sims/ch16/resonance';
 import { ProbeDraw } from './stage-probe';
 
@@ -175,5 +177,63 @@ describe('ch16 reflection: the dashed parts stay faint under the solid string (u
   it('incident and reflected waves are drawn at reduced opacity, the string at full', () => {
     expect(PARTS_ALPHA).toBeGreaterThan(0.2);
     expect(PARTS_ALPHA).toBeLessThanOrEqual(0.5);
+  });
+});
+
+// Review 2026-11-20 P2: the ⓘ standing wave was the fixed-end y = [2y_m sin kx'] cos ωt for both ends,
+// without the phase kL (kL = 5π at the default λ = 1.6 m: opposite sign), and y_m was undefined.
+describe('ch16 reflection: standing-wave formulas for each end, phase kL from the code\'s source at x = 0', () => {
+  const at = (end: string, lambda: number) => cfg({ ...(defaults(reflect.params) as object), mode: 'wave', end, lambda } as never);
+
+  it('regression: at the default λ = 1.6 m the former formula has the wrong sign; the new one matches the string', () => {
+    const r = at('fixed', 1.6);
+    const k = (2 * Math.PI) / 1.6;
+    const w = k * r.v;
+    // x = 1 m, t = 4.3 s (both waves present: t ≥ (2L − x)/v = 3.5 s).
+    const y = reflectAt(r, 1, 4.3).y;
+    const old = 2 * r.A * Math.sin(k * (r.L - 1)) * Math.cos(w * 4.3);
+    expect(Math.abs(y)).toBeGreaterThan(0.05);
+    expect(old).toBeCloseTo(-y, 12);
+    expect(standingAt(r, 1, 4.3)).toBeCloseTo(y, 12);
+    expect(reflect.info.equations).toContain(STANDING_FIXED);
+    expect(reflect.info.equations).toContain(STANDING_FREE);
+    expect(reflect.info.equations!.some((e) => e.includes('\\cos\\omega t,'))).toBe(false);
+    expect(STANDING_FIXED).toContain('\\sin kx');
+    expect(STANDING_FREE).toContain('\\cos kx');
+    for (const e of [STANDING_FIXED, STANDING_FREE]) expect(e).toContain('\\omega t - kL');
+  });
+
+  it('sweep: both ends, λ 0.4–2.4 m, many x and t after the reflected wave arrives: formula = simulated string', () => {
+    let n = 0;
+    for (const end of ['fixed', 'free'])
+      for (const lambda of [0.4, 0.5, 0.9, 1.6, 2.3, 2.4]) {
+        const r = at(end, lambda);
+        for (let i = 0; i <= 20; i++) {
+          const x = (r.L * i) / 20;
+          const tArr = (2 * r.L - x) / r.v;
+          for (const dt of [0, 0.013, 0.37, 1.1, 2.9, 7.77]) {
+            expect(standingAt(r, x, tArr + dt)).toBeCloseTo(reflectAt(r, x, tArr + dt).y, 12);
+            n++;
+          }
+        }
+      }
+    expect(n).toBe(2 * 6 * 21 * 6);
+    // The other form is wrong at the other end (sin ↔ cos are not interchangeable).
+    const fr = at('free', 1.6);
+    expect(Math.abs(standingAt({ ...fr, end: 'fixed' }, 1, 4.2) - reflectAt(fr, 1, 4.2).y)).toBeGreaterThan(0.05);
+  });
+
+  it('ⓘ defines y_m, x\', k, ω, kL, t_L and x₀ in both languages', () => {
+    expect(reflect.info.assumptions).toEqual(expect.arrayContaining(['ch16.assume.standing', 'ch16.assume.tL']));
+    for (const lang of [ko, en] as Record<string, string>[]) {
+      const s = lang['ch16.assume.standing'];
+      for (const sym of ['$y_m$', "$x' = L - x$", '$k = 2\\pi/\\lambda$', '$\\omega = 2\\pi f$', '$kL$', '(2L - x)/v']) expect(s).toContain(sym);
+      expect(s).toContain('0.2 m');
+      expect(lang['ch16.assume.tL']).toContain('$t_L$');
+      expect(lang['ch16.assume.tL']).toContain('$x_0$');
+      expect(lang['ch16.assume.tL']).toContain('1.2 m');
+    }
+    expect(cfg({ ...(defaults(reflect.params) as object), mode: 'wave' } as never).A).toBe(0.2);
+    expect(cfg(defaults(reflect.params) as never).t0 * 2).toBeCloseTo(1.2, 12);
   });
 });
