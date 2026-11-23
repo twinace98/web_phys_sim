@@ -22,6 +22,8 @@
   "ch16.assume.ideal": "Uniform, inextensible string, no energy loss, $v = 2\\ \\text{m/s}$",
   "ch16.assume.left": "The left side is part of a long string: the reflected wave leaves to the left and does not reflect again",
   "ch16.assume.h": "$h$: shape function of the incident wave (pulse or sine wave). Incident wave $y_1 = h(t - x/v)$, reflected wave $y_2 = \\mp h\\big(t - (2L - x)/v\\big)$, the incident wave mirrored about $x = L$ and travelling back ($-$ fixed end, $+$ free end). At the end $x = L$: $y(L) = h - h = 0$ (fixed) or $h + h = 2h$ (free), with $h = h(t - L/v)$",
+  "ch16.assume.standing": "Standing-wave equations (continuous wave): valid where the reflected wave has arrived, $t \\ge (2L - x)/v$. The $\\sin kx'$ form holds at a fixed end (the end does not move), the $\\cos kx'$ form at a free end. $y_m$ is the amplitude of each travelling wave (incident and reflected, 0.2 m); $2y_m \\sin kx'$ or $2y_m \\cos kx'$ is the amplitude of the standing wave at $x'$. $x' = L - x$ is the distance from the right end, $k = 2\\pi/\\lambda$ the angular wave number, $\\omega = 2\\pi f$ the angular frequency. $kL$ is the phase by which the incident wave $y_1 = y_m \\sin(\\omega t - kx)$, leaving $x = 0$ at $t = 0$, lags when it reaches the end",
+  "ch16.assume.tL": "$t_L$: time at which the front of the incident wave reaches the right end $x = L$. $x_0$: position of the pulse's front at $t = 0$ (1.2 m); the continuous wave's front starts at $x = 0$",
   "ch16.r.scene": "Resonance",
   "ch16.r.p.f": "Driving frequency",
   "ch16.r.d.f": "Frequency $f$ at which the left end is shaken; drag slowly to sweep it",

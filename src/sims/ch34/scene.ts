@@ -190,24 +190,26 @@ export function apertureOf(el: Element, p: P): number {
   return Math.min(yw + 2, Math.max(ap, y + 1));
 }
 
-/** Drawn mirror profile x = −sag y²/2: reduced sag, at most 2.5 u cm at the rim; 0 for a plane mirror. */
-const sagOf = (f: number, ap: number, u: number) => (Number.isFinite(f) ? Math.sign(f) * Math.min(Math.abs(0.4 / f), (5 * u) / (ap * ap)) : 0);
+/** Largest drawn mirror sag at the rim [px]; see sagOf. */
+export const RIM_SAG_PX = 7;
 
 /**
- * Where a ray from the object tip meets the drawn mirror curve (fixed-point iteration; the sag
- * is small). The plane crossing r.y for a lens, a plane mirror or a ray beyond the mirror.
+ * Drawn mirror profile x = −sag y²/2; 0 for a plane mirror. Only a symbol of the curvature: the
+ * rays reflect at the vertex plane (paraxial), so the rim sag is kept to at most rimMax (cm), at
+ * most RIM_SAG_PX on screen. A ray then crosses the drawn curve by at most that much before the
+ * plane, while every principal ray keeps its textbook direction and meets the image exactly.
  */
-export function mirrorHit(el: Element, p: P, r: Ray): Vec2 {
-  const ap = apertureOf(el, p);
-  const sag = el === 'mirror' ? sagOf(fOf(p), ap, geoOf(p, 1).u) : 0;
-  if (sag === 0 || Math.abs(r.y) > ap) return { x: 0, y: r.y };
-  let x = 0;
-  for (let k = 0; k < 12; k++) {
-    const y = p.h + r.sIn * (x + p.p);
-    x = -sag * y * y * 0.5;
-  }
-  return { x, y: p.h + r.sIn * (x + p.p) };
-}
+export const sagOf = (f: number, ap: number, rimMax: number) => (Number.isFinite(f) ? Math.sign(f) * Math.min(Math.abs(0.4 / f), (2 * rimMax) / (ap * ap)) : 0);
+
+/** Rim sag bound [cm]: 2.5 cm, or RIM_SAG_PX on screen when that is less. */
+const rimMaxOf = (g: Draw, G: Geo) => Math.min(2.5 * G.u, g.px(RIM_SAG_PX));
+
+/**
+ * Where a principal ray is refracted (lens) or reflected (mirror): on the element plane x = 0 at
+ * the height r.y, for every element. The paraxial model computes the image there, so a ray
+ * through F leaves exactly parallel to the axis and all rays meet at the image tip.
+ */
+export const rayHit = (r: Ray): Vec2 => ({ x: 0, y: r.y });
 
 /** Visible part of the stage in real-space cm (heights divided by k), inset by m px. */
 function visible(g: Draw, G: Geo, m: number): { x0: number; x1: number; y0: number; y1: number } {
@@ -243,8 +245,8 @@ function drawElement(g: Draw, el: Element, p: P, G: Geo, obs: Obstacles): void {
     g.polygon(pts, { fill: OBJ, fillAlpha: 0.1, color: '#5c5c5c', width: 1.25 });
     obs.seg(D(G, 0, -ap), D(G, 0, ap), 2);
   } else {
-    // Curve drawn with a reduced sag (at most 2.5 u cm at the rim); rays reflect at the vertex plane (paraxial).
-    const sag = sagOf(f, ap, G.u);
+    // Curve drawn with a reduced sag (at most RIM_SAG_PX at the rim); rays reflect at the vertex plane (paraxial).
+    const sag = sagOf(f, ap, rimMaxOf(g, G));
     const pts: Vec2[] = [];
     for (let k = 0; k <= 32; k++) {
       const y = -ap + (2 * ap * k) / 32;
@@ -312,11 +314,10 @@ function drawRays(g: Draw, el: Element, p: P, i: number, G: Geo, obs: Obstacles)
   const img: Vec2 | null = Number.isFinite(i) ? { x: outX(el, i), y: magnification(p.p, i) * p.h } : null;
   rays.forEach((r: Ray, k) => {
     const col = RAY_COLORS[k];
-    // A curved mirror reflects each ray where it meets the drawn curve, aimed at (or away from)
-    // the paraxial image, so the rays still meet there. Lens and plane mirror: the vertex plane.
-    const hit = mirrorHit(el, p, r);
-    let slope = r.sOut;
-    if (img && hit.x !== 0) slope = ((img.y - hit.y) / Math.abs(img.x - hit.x)) * (i > 0 ? 1 : -1);
+    // Every element refracts or reflects at its plane x = 0 (paraxial), with the slope of the
+    // ray-transfer step: the ray through F leaves parallel, and all rays meet at the image.
+    const hit = rayHit(r);
+    const slope = r.sOut;
     const a = D(G, -p.p, p.h);
     const h = D(G, hit.x, hit.y);
     const e = D(G, hit.x + outX(el, far), hit.y + slope * far);

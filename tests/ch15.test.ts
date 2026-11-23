@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
 import { agm, ellipticK, exactPeriod, omega0, oscAt, pendulumStep, period, periodError, smallAnglePeriod, type Oscillator } from '../src/sims/ch15/physics';
-import { ARROW_MAX, ERR_RECT, bobArrows, errPct, pendulum, sigFor, worldTop } from '../src/sims/ch15/pendulum';
+import { ARROW_MAX, ERR_RECT, bobArrows, errPct, pendulum, periodSig, worldTop } from '../src/sims/ch15/pendulum';
 import { shm } from '../src/sims/ch15/shm';
+import { NUM, agrees, grab, val } from './sigma-digits';
 import { offStage, probe, ProbeDraw } from './stage-probe';
 
 const osc = (A: number, k: number, m: number, zeta = 0): Oscillator => ({ A, k, m, zeta });
@@ -292,13 +293,71 @@ describe('ch15 pendulum: one real pendulum against the small-angle model', () =>
     expect(f).toContain('= 18.0\\ \\%');
     expect(f).toContain('-9.8\\sin(90.0^\\circ) = -9.80');
     expect(f).toContain('-g\\theta = -9.8 \\times 1.57 = -15.4');
-    // 10°: enough digits that the shown difference gives the shown error
-    const f10 = pendulum.formula!(pendulum.init({ ...p, theta0: 10 }, null as never), { ...p, theta0: 10 });
-    expect(f10[3]).toContain('\\frac{2.01092 - 2.00709}{2.00709} = 0.191');
-    expect(((2.01092 - 2.00709) / 2.00709) * 100).toBeCloseTo(0.191, 3);
-    expect(sigFor(0.18)).toBe(4);
+  });
+
+  // Review 2026-11-20 P2: at 10° the panel printed K = 1.574 next to T = 2.01092 s, but
+  // 4√(1.0/9.8) × 1.574 = 2.0112 s, and with that T the error comes out 0.205 %, not 0.191 %.
+  it('regression: at 10° every period line follows from its printed inputs (K, T and the error)', () => {
+    const p = { ...defaults(pendulum.params), theta0: 10, L: 1 };
+    const f = pendulum.formula!(pendulum.init(p, null as never), p);
+    expect(f[1]).not.toContain('= 1.574');
+    expect(f[1]).toContain('K(\\sin 5^\\circ) = 1.5738');
+    expect(f[2]).toContain('\\times 1.5738 = 2.0109\\ \\mathrm{s}');
+    expect(f[3]).toContain('\\frac{2.0109 - 2.0071}{2.0071} = 0.19\\ \\%');
+    expect(4 * Math.sqrt(1 / 9.8) * 1.5738).toBeCloseTo(2.0109, 4);
+    expect(periodLineIssues(p)).toEqual([]);
+    // The error's figures follow from the printed periods: 2 here, 3 where T and T₀ give them.
+    expect(periodSig(exactPeriod({ L: 1, g: 9.8 }, 10 * DEG), 2 * Math.PI * Math.sqrt(1 / 9.8))).toEqual({ sT: 5, sE: 2 });
+    expect(periodSig(exactPeriod({ L: 1, g: 9.8 }, 90 * DEG), 2 * Math.PI * Math.sqrt(1 / 9.8))).toEqual({ sT: 4, sE: 3 });
+  });
+
+  it('sweep: θ₀ 5–170° (every degree) × L 0.2–2 m: T₀, K, T and the error reproduce from what is printed', () => {
+    const bad: string[] = [];
+    let maxT = 0;
+    let maxK = 0;
+    for (let th = 5; th <= 170; th++)
+      for (const L of [0.2, 0.3, 0.7, 1, 1.3, 1.9, 2]) {
+        const p = { ...defaults(pendulum.params), theta0: th, L };
+        bad.push(...periodLineIssues(p));
+        const f = pendulum.formula!(pendulum.init(p, null as never), p);
+        maxT = Math.max(maxT, figures(grab(f[2], new RegExp(`= (${NUM})\\\\ \\\\mathrm\\{s\\}`))[0]));
+        maxK = Math.max(maxK, figures(grab(f[1], new RegExp(`= (${NUM})$`))[0]));
+      }
+    expect(bad).toEqual([]);
+    // No more figures than the error needs: at most 7 for T (5° needs 6), K one more at most.
+    expect(maxT).toBeLessThanOrEqual(7);
+    expect(maxK).toBeLessThanOrEqual(8);
+    // Mid-run (θ, ω change; the period lines do not) and with the free-body toggle.
+    const p = { ...defaults(pendulum.params), theta0: 37, L: 0.6, fbd: true };
+    const r = new Runner(pendulum, p);
+    r.play();
+    r.advance(0.77);
+    const f = pendulum.formula!(r.state, p);
+    expect(f.slice(0, 4)).toEqual(pendulum.formula!(pendulum.init(p, null as never), p).slice(0, 4));
   });
 });
+
+/** Significant figures of a printed number. */
+const figures = (t: string) => t.replace(/\\times.*$/, '').replace(/\D/g, '').replace(/^0+/, '').length;
+
+/** The four period lines at p: each result agrees with the arithmetic on the numbers printed before it. */
+function periodLineIssues(p: ReturnType<typeof defaults> & { theta0: number; L: number }): string[] {
+  const f = pendulum.formula!(pendulum.init(p as never, null as never), p as never);
+  const L = p.L;
+  const [T0] = grab(f[0], new RegExp(`= (${NUM})\\\\ \\\\mathrm\\{s\\}`));
+  const [K] = grab(f[1], new RegExp(`= (${NUM})$`));
+  const [Kin, T] = grab(f[2], new RegExp(`\\\\times (${NUM}) = (${NUM})\\\\ \\\\mathrm\\{s\\}`));
+  const [a, b, c, e] = grab(f[3], new RegExp(`\\\\frac\\{(${NUM}) - (${NUM})\\}\\{(${NUM})\\} = (${NUM})\\\\ \\\\%`));
+  const out: string[] = [];
+  const tag = `${p.theta0}° L=${L}`;
+  if (!agrees(2 * Math.PI * Math.sqrt(L / 9.8), T0)) out.push(`${tag}: T0 ${f[0]}`);
+  if (Kin !== K || !agrees(4 * Math.sqrt(L / 9.8) * val(K), T)) out.push(`${tag}: T from K ${f[2]}`);
+  if (a !== T || b !== T0 || c !== T0 || !agrees((100 * (val(a) - val(b))) / val(c), e)) out.push(`${tag}: error ${f[3]}`);
+  // The printed error is also the exact one to its figures.
+  if (!agrees(100 * periodError({ L, g: 9.8 }, p.theta0 * DEG), e)) out.push(`${tag}: exact error ${e}`);
+  if (figures(e) < 2) out.push(`${tag}: error with ${figures(e)} figure`);
+  return out;
+}
 
 describe('ch15 SHM layout without the phase-space panel', () => {
   it('two columns only: no phase-space axes or labels, a narrower world, nothing off stage', () => {

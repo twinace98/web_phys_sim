@@ -29,7 +29,7 @@
   "ch38.df.obs.same": "Electrons or C₆₀ sent through the 1 mm slit pair (Structure in the settings) also give just two shadows: what decides is $\\lambda/d$, not the kind of particle",
   "ch38.df.as.model": "Screen distribution: the Fraunhofer intensity $\\lvert\\psi\\rvert^2$ (interference of $N$ periods × envelope of the opening $a$ × obliquity $\\cos^2\\theta$), shifted over the slit positions and widths. It tends to the Fraunhofer pattern when the fringes are large and to the geometric shadow of the slits when they are tiny",
   "ch38.df.as.struct": "Crystal: nickel surface-row spacing 0.215 nm, 20 point scatterers, screen 5 cm behind (simplified to transmission). Grating: period 100 nm, slit width 50 nm, 20 periods, screen 1.25 m behind. Double slit: spacing 1 mm, width 0.25 mm, screen 1 m behind",
-  "ch38.df.as.res": "Screen resolution $\\delta$ = 1/30 of the screen height. If the first maximum lies closer than $\\delta$ to the centre the fringes are unresolved and the $\\Delta y$ marker is hidden (numbers in the Σ panel)",
+  "ch38.df.as.res": "Fringe resolution criterion $\\delta$ = 1/96 of the screen height (two histogram bins). For $\\Delta y < \\delta$ the central and first-order fringes form one block in the histogram: the fringes count as unresolved and the $\\Delta y$ marker is hidden (numbers in the Σ panel)",
   "ch38.df.as.size": "Particle size ignored: particles larger than the structure (C₆₀ in a crystal, a baseball at 1 mm slits) are assumed to pass",
   "ch38.df.as.beam": "Single speed and a parallel incident beam. In real experiments the speed spread and beam divergence blur the fringes",
   "ch38.df.as.rel": "Relativistic momentum $p = \\gamma m v$ ($\\gamma$ = 1.15 for the fastest electrons, $1.5\\times10^8$ m/s)",

@@ -12,6 +12,7 @@
   "ch05.l1.obs.push": "Push to match friction: two forces act but $F_\\text{net} = 0$, so the puck moves at constant velocity despite the friction",
   "ch05.l1.obs.live": "Lower the friction to 0 while it runs: the puck keeps the velocity it has at that moment",
   "ch05.l1.assume": "Horizontal surface, puck mass 1 kg, $g = 9.8$ m/s², constant kinetic friction $\\mu_k mg$",
+  "ch05.l1.assume.sym": "$t_1$, $v_1$: time at which the net force last changed (friction or push changed while running) and the speed at that moment. After it $a$ is constant, so $v = v_1 + a(t - t_1)$",
   "ch05.f.scene": "Inertial frames",
   "ch05.f.assume": "Frictionless table, ball mass 1 kg, the ball initially moves with the train at 2 m/s",
   "ch05.f.assume.sym": "Primed symbols ($x'$, $v'$, $a'$): position, velocity and acceleration of the ball measured in the train frame (non-inertial, or uniform train); unprimed: measured in the ground frame (inertial). Transformation: $x' = x - x_\\text{train}$, $v' = v - v_\\text{train}$, $a' = a - a_0$ ($x_\\text{train}$, $v_\\text{train}$, $a_0$: position, velocity and acceleration of the train's centre relative to the ground). Arrows, readouts and plots: values in the chosen frame",

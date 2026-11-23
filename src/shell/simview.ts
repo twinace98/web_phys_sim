@@ -2,7 +2,7 @@
 // (docs/design.md §2). Controls are generated from the scene's parameter schema.
 import { clockDecimals, fmt, fmtClock, fmtTick } from '../core/format';
 import { getLang, onLangChange, t } from '../core/i18n';
-import { defaults, fromQuery, toQuery } from '../core/params';
+import { LOG_STEPS, defaults, fromQuery, logIndex, logStops, toQuery } from '../core/params';
 import { Runner } from '../core/runner';
 import { timeUnit, timeWindow, type Params, type ParamSpec, type Scene, type SimPage, type UiState } from '../core/types';
 import { chapterHash } from '../core/url';
@@ -354,22 +354,22 @@ export class SimView {
             input = h('span', { class: 'stepper', title: tip }, dec, out, inc);
           } else if (spec.log) {
             const sig = spec.sig ?? 2;
-            const lo = Math.log10(min);
-            const hi = Math.log10(max);
-            const toV = (x: number) => Math.min(max, Math.max(min, Number((10 ** x).toPrecision(sig))));
+            const stops = logStops(spec);
             const showLog = (v: number) => withUnit(fmt(v, sig), spec.unit);
             out.textContent = showLog(value as number);
+            // Track in whole positions 0 … LOG_STEPS: a fractional log step made the browser drop the
+            // last position (max unreachable).
             const s = h('input', {
               type: 'range',
-              min: String(lo),
-              max: String(hi),
-              step: String((hi - lo) / 400),
-              value: String(Math.log10(value as number)),
+              min: '0',
+              max: String(LOG_STEPS),
+              step: '1',
+              value: String(logIndex(spec, value as number)),
               'aria-label': plain,
               title: tip,
             });
             s.addEventListener('input', () => {
-              const v = toV(Number(s.value));
+              const v = stops[Number(s.value)];
               out.textContent = showLog(v);
               this.setParam(key, v, false);
             });

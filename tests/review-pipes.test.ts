@@ -1,6 +1,6 @@
 // Addition under review: standing sound waves in pipes (#/ch/109).
 import { describe, expect, it } from 'vitest';
-import { defaults } from '../src/core/params';
+import { defaults, fromQuery, toQuery } from '../src/core/params';
 import { register } from '../src/core/i18n';
 import type { NumberParam, Scene } from '../src/core/types';
 import page from '../src/sims/review/pipes';
@@ -53,6 +53,30 @@ describe('pipes: harmonics', () => {
     for (const n of no) expect(allowed('open', n)).toBe(true);
     for (const n of nc) expect(allowed('closed', n)).toBe(true);
     expect(harmonicOf({ ...defaults(pipesScene.params), type: 'closed', nClosed: 5 })).toBe(5);
+  });
+
+  it('URL (review 2026-11-20): nClosed=2 gives an odd mode, never an even one on a closed pipe', () => {
+    const fromUrl = (q: string) => fromQuery(pipesScene.params, new URLSearchParams(q));
+    const p = fromUrl('type=closed&nClosed=2');
+    expect(p.nClosed).toBe(3);
+    expect(harmonicOf(p)).toBe(3);
+    expect(allowed('closed', harmonicOf(p))).toBe(true);
+    // Every number a link might carry, in range or not, gives an allowed harmonic within the stepper.
+    for (let x = -2; x <= 18; x += 0.25)
+      for (const type of ['open', 'closed'] as PipeType[]) {
+        const q = fromUrl(`type=${type}&nOpen=${x}&nClosed=${x}`);
+        const n = harmonicOf(q);
+        expect(allowed(type, n)).toBe(true);
+        expect(n).toBeGreaterThanOrEqual(1);
+        expect(n).toBeLessThanOrEqual(type === 'open' ? 8 : 15);
+        const out = pipesScene.formula!({ t: 0 }, q).join(' ');
+        expect(out).not.toMatch(/NaN|undefined/);
+      }
+    expect(fromUrl('type=open&nOpen=2.6').nOpen).toBe(3);
+    // Garbage and out of range keep the default.
+    for (const v of ['abc', '', '0', '16', '-1']) expect(fromUrl(`type=closed&nClosed=${v}`).nClosed).toBe(1);
+    // Links made by the steppers come back unchanged.
+    for (let n = 1; n <= 15; n += 2) expect(fromUrl(new URLSearchParams(toQuery(pipesScene.params, { ...defaults(pipesScene.params), type: 'closed', nClosed: n })).toString()).nClosed).toBe(n);
   });
 
   it('f_n = nv/2L (open) and nv/4L (closed)', () => {

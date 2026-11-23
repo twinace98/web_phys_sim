@@ -20,7 +20,7 @@
   "ch36.s.obs.build": "Play: the wave spreads out behind the slit and the screen builds up a wide central maximum and weak outer maxima",
   "ch36.s.obs.pair": "Default point (first minimum): the top source (blue) and the source half a slit below it (orange) differ in path by $\\Delta L \\approx 0.5\\lambda$, and so does every other pair",
   "ch36.s.obs.narrow": "Slit width 1 μm: the central maximum spreads wide ($\\sin\\theta_1 = \\lambda/a$)",
-  "ch36.s.obs.wide": "Slit width 6 μm ($a \\gg \\lambda$): the light goes nearly straight through, a bright band about as wide as the slit (the shadow of geometric optics)",
+  "ch36.s.obs.wide": "Slit width 6 μm ($a \\gg \\lambda$): the spread is small ($\\sin\\theta_1 = \\lambda/a \\le 0.12$), and the central bright band is ±1–2 μm wide at half maximum, narrower than the slit (±3 μm). A bright band as wide as the slit (the shadow of geometric optics) needs $a^2/(\\lambda D) \\gg 1$, beyond the settings of this scene",
   "ch36.s.obs.lambda": "Wavelength 400 → 700 nm (settings): the same slit spreads the light wider",
   "ch36.s.obs.two": "Two slits (default $a$ = 2 μm, $d$ = 4 μm, $d/a = 2$): three bright fringes inside the central envelope (grey dashed line); the $m = \\pm2$ fringes fall on the first envelope minimum $y_1$ and are missing. At the default point $\\Delta L \\approx 2\\lambda$ (constructive), yet it is dark",
   "ch36.s.obs.ratio": "Slit width 1.5 μm, separation 4.5 μm in settings ($d/a = 3$): five bright fringes inside the central envelope ($2d/a - 1$), $m = \\pm3$ missing",

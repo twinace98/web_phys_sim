@@ -7,6 +7,7 @@ import { t } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { num, paren, tn, u } from '../../core/tex';
 import { sigFit } from '../ch07/sigfit';
+import { printed } from '../ch02/sigma';
 import type { Draw } from '../../draw/draw';
 import { drawRich, measureRich } from '../../draw/text';
 import { color, theme } from '../../draw/theme';
@@ -203,8 +204,26 @@ export function worldTop(p: P): number {
   return top + 0.12;
 }
 
-/** Significant figures for T and T₀ in the formula panel, so that their difference keeps 3 digits. */
-export const sigFor = (err: number) => Math.min(8, Math.max(4, 3 + Math.ceil(-Math.log10(Math.max(err, 1e-8)))));
+/**
+ * Figures for the period lines of the formula panel. T and T₀ get the fewest figures (4 or more)
+ * whose printed difference, over the printed T₀, gives the error (T − T₀)/T₀ to 2 figures; the
+ * error then prints with 3 figures if the printed T and T₀ reproduce them, else 2. So the error line
+ * follows from the numbers printed on it (10°: (2.0109 − 2.0071)/2.0071 → 0.19 %).
+ */
+export function periodSig(T: number, T0: number): { sT: number; sE: number } {
+  const pct = 100 * (T / T0 - 1);
+  // Both sides of v round alike (as in sigFit), so a reader working by hand gets the same digits.
+  const fits = (v: number, rs: number) => {
+    const want = tn(pct, rs);
+    const d = 1e-7 * Math.max(Math.abs(v), 1e-12);
+    return tn(v - d, rs) === want && tn(v + d, rs) === want;
+  };
+  for (let sT = 4; sT <= 8; sT++) {
+    const v = (100 * (printed(T, sT) - printed(T0, sT))) / printed(T0, sT);
+    if (fits(v, 2)) return { sT, sE: fits(v, 3) ? 3 : 2 };
+  }
+  return { sT: 8, sE: 2 };
+}
 
 export const pendulum: Scene<P, S> = {
   id: 'pendulum',
@@ -329,17 +348,19 @@ export const pendulum: Scene<P, S> = {
     const T0 = smallAnglePeriod(pd);
     const T = exactPeriod(pd, th0);
     const err = periodError(pd, th0);
-    const sig = sigFor(err);
+    const { sT: sig, sE } = periodSig(T, T0);
     const L = p.L.toFixed(1);
     const { at, ar } = pendulumAccel(pd, s.th, s.w);
     const v = p.L * s.w;
     const deg = s.th / DEG;
     const K = ellipticK(Math.sin(th0 / 2));
+    // K with the figures that make 4√(L/9.8) × K print T as shown.
+    const sK = sigFit([K], (k) => 4 * Math.sqrt(p.L / G) * k, T, sig, 4);
     const lines = [
       `T_0 = 2\\pi\\sqrt{L/g} = 2\\pi\\sqrt{${L}/9.8} = ${tn(T0, sig)}${u('s')}`,
-      `K\\!\\left(\\sin\\tfrac{\\theta_0}{2}\\right) = K(\\sin ${num(p.theta0 / 2)}^\\circ) = ${tn(K, 4)}`,
-      `T = 4\\sqrt{L/g}\\,K = 4\\sqrt{${L}/9.8} \\times ${tn(K, 4)} = ${tn(T, sig)}${u('s')}`,
-      `\\frac{T - T_0}{T_0} = \\frac{${tn(T, sig)} - ${tn(T0, sig)}}{${tn(T0, sig)}} = ${tn(100 * err)}\\ \\%`,
+      `K\\!\\left(\\sin\\tfrac{\\theta_0}{2}\\right) = K(\\sin ${num(p.theta0 / 2)}^\\circ) = ${tn(K, sK)}`,
+      `T = 4\\sqrt{L/g}\\,K = 4\\sqrt{${L}/9.8} \\times ${tn(K, sK)} = ${tn(T, sig)}${u('s')}`,
+      `\\frac{T - T_0}{T_0} = \\frac{${tn(T, sig)} - ${tn(T0, sig)}}{${tn(T0, sig)}} = ${tn(100 * err, sE)}\\ \\%`,
       `a_\\mathrm{t} = -g\\sin\\theta = -9.8\\sin(${tn(deg)}^\\circ) = ${tn(at)}${u('m/s^2')}`,
       `a_{\\mathrm{t},0} = -g\\theta = -9.8 \\times ${paren(tn(s.th))} = ${tn(-G * s.th)}${u('m/s^2')}`,
       `a_\\mathrm{r} = v^2/L = (${tn(v)})^2/${L} = ${tn(ar)}${u('m/s^2')}`,

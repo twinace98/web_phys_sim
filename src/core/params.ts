@@ -1,5 +1,5 @@
 // Parameter defaults and URL (de)serialisation, validated against the schema.
-import type { ParamSchema, ParamSpec, ParamValue, Params } from './types';
+import type { NumberParam, ParamSchema, ParamSpec, ParamValue, Params } from './types';
 
 export function defaults<P extends Params>(schema: ParamSchema<P>): P {
   const out: Params = {};
@@ -16,6 +16,80 @@ export function encode(v: ParamValue): string {
   return String(v);
 }
 
+/** Divisions of a log slider's track. */
+export const LOG_STEPS = 400;
+
+/** Step of a linear slider or stepper (the control's default when the spec gives none). */
+export const stepOf = (spec: NumberParam): number => spec.step ?? (spec.control === 'stepper' ? 1 : 0.01);
+
+/** Nearest point min + k·step to v, without float noise (0.1 + 2·0.05 is 0.2, not 0.20000000000000004). */
+export const snapStep = (v: number, min: number, step: number): number => Number((min + Math.round((v - min) / step) * step).toFixed(10));
+
+const stopCache = new WeakMap<NumberParam, number[]>();
+
+/**
+ * Values a log slider takes, one per track position k = 0 … LOG_STEPS: the grid point
+ * 10^(lo + k·(hi − lo)/LOG_STEPS) rounded to `sig` figures, except that each of `marks` replaces
+ * the grid point nearest to it, so that named values (water 1000, ice 917) and the default are
+ * reachable exactly.
+ */
+export function logStops(spec: NumberParam): number[] {
+  const hit = stopCache.get(spec);
+  if (hit) return hit;
+  const min = spec.min ?? 1;
+  const max = spec.max ?? 10;
+  const sig = spec.sig ?? 2;
+  const lo = Math.log10(min);
+  const st = (Math.log10(max) - lo) / LOG_STEPS;
+  const out: number[] = [];
+  for (let k = 0; k <= LOG_STEPS; k++) out.push(Math.min(max, Math.max(min, Number((10 ** (lo + k * st)).toPrecision(sig)))));
+  // The default is reachable too: a reset slider shows exactly the value the scene starts from.
+  for (const m of [...(spec.marks ?? []), spec.default]) {
+    if (m >= min && m <= max) out[Math.round((Math.log10(m) - lo) / st)] = m;
+  }
+  stopCache.set(spec, out);
+  return out;
+}
+
+/** Track position 0 … LOG_STEPS of a log slider nearest to x = log10(value). */
+export function logIndex(spec: NumberParam, v: number): number {
+  const lo = Math.log10(spec.min ?? 1);
+  const st = (Math.log10(spec.max ?? 10) - lo) / LOG_STEPS;
+  return Math.min(LOG_STEPS, Math.max(0, Math.round((Math.log10(v) - lo) / st)));
+}
+
+/** Value of a log slider at track position x = log10(value). */
+export const logValue = (spec: NumberParam, x: number): number => logStops(spec)[logIndex(spec, 10 ** x)];
+
+/** Nearest grid point min + k·step of a linear slider or stepper within [min, max]. */
+export function snapNumber(spec: NumberParam, v: number): number {
+  const min = spec.min ?? 0;
+  const max = spec.max ?? 1;
+  const step = stepOf(spec);
+  let s = snapStep(v, min, step);
+  // A max off the grid: the last grid point below it, as a range input does.
+  if (s > max) s = snapStep(s - step, min, step);
+  return Math.max(min, s);
+}
+
+/**
+ * A number from the URL (within [min, max]) as its control would hold it, so that the control
+ * shows the value the physics uses:
+ * - stepper, or slider with a whole-number step (counts, harmonic numbers, whole degrees):
+ *   the nearest min + k·step (nClosed = 2 on a step-2 stepper from 1 becomes 3, never even);
+ * - log slider: one of its `marks` as it is, any other value rounded to `sig` figures;
+ * - slider with a fractional step: kept, since the step is only the track's resolution of a
+ *   continuous quantity and stage handles set values between its points (θ = θc in Ch 33).
+ */
+export function urlNumber(spec: NumberParam, v: number): number {
+  if (spec.control === 'select') return v;
+  if (spec.log) {
+    if (v === spec.default || spec.marks?.includes(v)) return v;
+    return Math.min(spec.max ?? Infinity, Math.max(spec.min ?? 0, Number(v.toPrecision(spec.sig ?? 2))));
+  }
+  return spec.control === 'stepper' || Number.isInteger(stepOf(spec)) ? snapNumber(spec, v) : v;
+}
+
 /** Parse a URL value; returns undefined if it does not fit the spec. */
 export function decode(spec: ParamSpec, s: string): ParamValue | undefined {
   switch (spec.kind) {
@@ -24,12 +98,13 @@ export function decode(spec: ParamSpec, s: string): ParamValue | undefined {
     case 'toggle':
       return s === '1' ? true : s === '0' ? false : undefined;
     case 'number': {
-      const v = Number(s);
+      // Number('') and Number(' ') are 0: an empty value is not a number.
+      const v = s.trim() === '' ? NaN : Number(s);
       if (!Number.isFinite(v)) return undefined;
       if (spec.choices) return spec.choices.includes(v) ? v : undefined;
       if (spec.min !== undefined && v < spec.min) return undefined;
       if (spec.max !== undefined && v > spec.max) return undefined;
-      return v;
+      return urlNumber(spec, v);
     }
     case 'array': {
       const a = s.split(',').map(Number);

@@ -31,7 +31,7 @@
   "ch11.s.goal.K": "Angular momentum is conserved but kinetic energy is not: the force pulling the string, or the arm muscles, do work",
   "ch11.s.obs.flat": "$L(t)$ stays flat while the radius changes; $I(t)$ and $\\omega(t)$ change in opposite directions",
   "ch11.s.obs.square": "Puck: half the radius gives a quarter of $I$ and four times $\\omega$ ($\\omega \\propto 1/r^2$)",
-  "ch11.s.obs.ratio": "Chair: $\\omega_\\text{in}/\\omega_\\text{out} = I_\\text{out}/I_\\text{in}$, about 2.4 with the defaults (less than 4 because of $I_0$)",
+  "ch11.s.obs.ratio": "Chair: $\\omega_\\text{in}/\\omega_\\text{out} = I_\\text{out}/I_\\text{in}$, about 2.4 with the defaults and 1.4–3.6 over dumbbell masses of 0.5–4 kg. Dumbbells alone would give $(0.8/0.2)^2 = 16$; the body and chair ($I_0$) keep it far smaller",
   "ch11.s.obs.work": "$K = L^2/2I$ rises when the radius shrinks and falls when it grows; the rise equals the work done by the pulling force or the arm muscles",
   "ch11.s.obs.area": "Puck, swept areas: sectors swept in equal times $\\Delta t$ (top left) have equal areas, whether long and thin or short and wide; each sector shows its area (the same principle as Kepler's second law, Ch 13)",
   "ch11.s.obs.mass": "Chair: heavier dumbbells change $I$ more, so $\\omega$ changes more",

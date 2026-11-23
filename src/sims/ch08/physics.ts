@@ -79,6 +79,8 @@ export function pieceWork(f: ForceKind, p: V2, q: V2): number {
       return -0.5 * K_SPRING * (rq[0] ** 2 + rq[1] ** 2 - rp[0] ** 2 - rp[1] ** 2);
     }
     case 'friction':
+      // The friction picture is a horizontal floor seen from above (gravity's is a vertical plane):
+      // N = mg everywhere, so |f_k| = μ_k m g is constant and the work is −μ_k m g × length.
       return -MU_K * MASS * G * len(sub(q, p));
   }
 }
