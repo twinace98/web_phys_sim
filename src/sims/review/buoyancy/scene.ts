@@ -157,7 +157,8 @@ export function formulaLines(s: Motion & { held?: boolean }, p: P): string[] {
   const out = [
     `F_b = \\rho_f V_\\text{sub}\\, g = (${slider(params.rhoF, f.rho)})(${tn(Vsub)})(${CONST.g.tex}) = ${tn(Fb)}\\ \\mathrm{N}`,
     `F_g = \\rho_\\text{obj} V g = (${slider(params.rhoO, b.rho)})(${tn(V)})(${CONST.g.tex}) = ${tn(Fg)}\\ \\mathrm{N}`,
-    `p_\\text{bot} = ${tn(fc.pBot)}\\ \\mathrm{Pa},\\ p_\\text{top} = ${tn(fc.pTop)}\\ \\mathrm{Pa}`,
+    // A face above the surface has gauge pressure exactly 0, printed "0", not "0.00".
+    `p_\\text{bot} = ${fc.pBot === 0 ? '0' : tn(fc.pBot)}\\ \\mathrm{Pa},\\ p_\\text{top} = ${fc.pTop === 0 ? '0' : tn(fc.pTop)}\\ \\mathrm{Pa}`,
     `F_b = (p_\\text{bot} - p_\\text{top})A = (${tn(fc.pBot - fc.pTop)}\\ \\mathrm{Pa})(${tn(A)}\\ \\mathrm{m^2}) = ${tn(Fb)}\\ \\mathrm{N}`,
   ];
   // Float or sink: the ratio against 1 keeps the figures that show the inequality (R6).

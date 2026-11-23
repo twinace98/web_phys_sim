@@ -324,6 +324,8 @@ describe('buoyancy Σ: units, the hand while held, printed inputs reproduce the 
     expect(f[3]).toBe('F_b = (p_\\text{bot} - p_\\text{top})A = (1960\\ \\mathrm{Pa})(0.0400\\ \\mathrm{m^2}) = 78.4\\ \\mathrm{N}');
     expect(f[0]).toBe('F_b = \\rho_f V_\\text{sub}\\, g = (1000)(0.00800)(9.8) = 78.4\\ \\mathrm{N}');
     expect(f[1]).toBe('F_g = \\rho_\\text{obj} V g = (600)(0.00800)(9.8) = 47.0\\ \\mathrm{N}');
+    // Partly submerged: the top face is above the surface, gauge pressure exactly "0" (not 0.00).
+    expect(formulaLines({ y: 0.3, v: 0, held: false }, p0)[2]).toMatch(/p_\\text\{top\} = 0\\ \\mathrm\{Pa\}$/);
     // The face of the default 0.20 m cube prints 0.0400 m² at every position and speed.
     for (const y of [0, 0.1, 0.25, 0.38, 0.5])
       for (const v of [0, 1.3, -0.7]) expect(formulaLines({ y, v, held: false }, p0)[3]).toContain('(0.0400\\ \\mathrm{m^2})');
