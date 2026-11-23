@@ -1,11 +1,9 @@
 // Ch 5 scene: first law. A puck slides off with an initial velocity. Friction (the only horizontal
 // force) slows it down and stops it; with no friction, or with a push that cancels the friction,
 // the net force is zero and the velocity stays constant.
-import { paren, tn, u } from '../../core/tex';
+import { CONST, paren, slider, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
-import { sigsToMatch } from '../ch02/sigma';
-import { tnFit } from '../ch07/sigfit';
 import { drawPuckFbd, drawTrack, padded, weightPair } from './common';
 
 type P = { v0: number; mu: number; push: boolean; strobe: boolean; fbd: boolean };
@@ -106,16 +104,6 @@ export function firstStep(x: number, v: number, mu: number, push: boolean, h: nu
   if (v <= 0) return { x, v: 0 };
   if (a < 0 && v + a * h <= 0) return { x: x + (v * v) / (-2 * a), v: 0 };
   return { x: x + v * h + 0.5 * a * h * h, v: v + a * h };
-}
-
-/**
- * Printed inputs and result for v = f(inputs) in the Σ panel: inputs with at most 3 figures
- * (sigsToMatch), the result as the v readout prints it (policy D, R3). On a tie such as
- * 2.02 − 2.94 × 0.0833… = 1.775 (μ = 0.3) the result follows the unrounded speed, like the readout.
- */
-export function fitSpeed(v: number, xs: number[], f: (...x: number[]) => number): { xs: string[]; v: string } {
-  const sig = sigsToMatch(v, xs, f);
-  return { xs: xs.map((x, i) => tnFit(x, sig[i])), v: tn(v) };
 }
 
 export const first: Scene<P, S> = {
@@ -222,7 +210,7 @@ export const first: Scene<P, S> = {
     const vert = p.fbd ? [`\\Sigma F_y = N - mg = ${tn(W)} - ${tn(W)} = 0`] : [];
     if (s.v <= 0) return [`f = ${tn(-s.f)}${u('N')}`, `F_\\text{net} = 0 \\;\\Rightarrow\\; v = ${tn(s.v)}${u('m/s')}`, ...vert];
     const lines = [
-      `f_k = \\mu_k m g = ${s.mu.toFixed(2)} \\times ${FIRST_M} \\times ${FIRST_G} = ${tn(-s.f)}${u('N')}`,
+      `f_k = \\mu_k m g = ${slider(params.mu, s.mu)} \\times ${FIRST_M} \\times ${CONST.g.tex} = ${tn(-s.f)}${u('N')}`,
       s.F > 0 ? `F_\\text{net} = F - f_k = ${tn(s.F)} - ${tn(-s.f)} = ${tn(Fnet)}${u('N')}` : `F_\\text{net} = -f_k = ${tn(Fnet)}${u('N')}`,
     ];
     lines.push(...vert);
@@ -233,13 +221,13 @@ export const first: Scene<P, S> = {
     }
     const a = Fnet / FIRST_M;
     lines.push(`a = \\frac{F_\\text{net}}{m} = \\frac{${tn(Fnet)}}{${FIRST_M}} = ${tn(a)}${u('m/s^2')}`);
+    // Inputs with 3 figures, the result as the v readout prints it (policy D, R3): on a tie such as
+    // 2.02 − 2.94 × 0.0833… = 1.775 (μ = 0.3) it follows the unrounded speed.
     if (fromStart) {
-      const k = fitSpeed(s.v, [a, s.t], (aa, t) => p.v0 + aa * t);
-      lines.push(`v = v_0 + at = ${p.v0.toFixed(1)} + ${paren(k.xs[0])} \\times ${k.xs[1]} = ${k.v}${u('m/s')}`);
+      lines.push(`v = v_0 + at = ${slider(params.v0, p.v0)} + ${paren(tn(a))} \\times ${tn(s.t)} = ${tn(s.v)}${u('m/s')}`);
     } else {
-      const k = fitSpeed(s.v, [s.v1, a, s.t, s.t1], (v1, aa, t, t1) => v1 + aa * (t - t1));
       // Two lines, as the work lines of Ch 8: one line would shrink below the panel's reading size.
-      lines.push(`v = v_1 + a(t - t_1)`, `= ${k.xs[0]} + ${paren(k.xs[1])} \\times (${k.xs[2]} - ${k.xs[3]}) = ${k.v}${u('m/s')}`);
+      lines.push(`v = v_1 + a(t - t_1)`, `= ${tn(s.v1)} + ${paren(tn(a))} \\times (${tn(s.t)} - ${tn(s.t1)}) = ${tn(s.v)}${u('m/s')}`);
     }
     return lines;
   },

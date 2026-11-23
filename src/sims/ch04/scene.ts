@@ -1,11 +1,10 @@
 // Ch 4 scene: projectile = uniform motion in x + uniformly accelerated motion in y.
 import { fmtTick, niceTicks } from '../../core/format';
-import { num, tn, tp, u } from '../../core/tex';
+import { num, slider, tn, tnScale, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { drawFbd, fbdParam, type FbdForce } from '../../draw/fbd';
 import { theme } from '../../draw/theme';
-import { sigToMatch, sigsToMatch } from '../ch02/sigma';
 import { G, flightTime, maxHeight, range, stateAt, v0x, v0y, type Launch } from './physics';
 
 type P = {
@@ -320,36 +319,34 @@ export const projectile: Scene<P, S> = {
 
   readouts: [
     { label: 'x', unit: 'm', value: (s) => s.x },
-    { label: 'y', unit: 'm', value: (s) => s.y },
+    // 3 figures; the highest point sets the run scale, so the landing reads an exact 0 (policy D, R7a).
+    { label: 'y', unit: 'm', value: (s) => s.y, scale: (p) => model(p).H },
     { label: 'v_x', unit: 'm/s', value: (s) => s.vx },
     { label: 'v_y', unit: 'm/s', value: (s) => s.vy },
     { label: 'v', unit: 'm/s', value: (s) => Math.hypot(s.vx, s.vy) },
   ],
 
-  // Σ panel: v_x constant, v_y and y uniformly accelerated, at the current t. t gets the digits that
-  // make the shown arithmetic give the shown v_y and y.
+  // Σ panel: v_x constant, v_y and y uniformly accelerated, at the current t. Slider values as their
+  // labels, g as its option label, t and the components with 3 figures (policy D, R1/R3); y with
+  // the highest point as its scale, as its readout, so the landing reads an exact 0 (R7a).
   formula: (s, p) => {
-    const { l } = model(p);
-    const g = l.g;
-    const vy0 = v0y(l);
-    const sig = Math.max(
-      sigToMatch(s.vy, [s.t], (t) => vy0 - g * t),
-      sigToMatch(s.y, [s.t], (t) => l.h + vy0 * t - 0.5 * g * t * t),
-    );
-    const T = tn(s.t, sig);
-    const v = Math.hypot(s.vx, s.vy);
-    const [sx, sy] = sigsToMatch(v, [s.vx, s.vy], (a, b) => Math.hypot(a, b));
-    const sin = `${num(p.v0)}\\sin ${num(p.theta)}^\\circ`;
+    const { l, H } = model(p);
+    const gt = num(l.g);
+    // ½g with at most 3 figures, half up: 4.9, 1.86 (Mars, 1.855), 0.81 (R3).
+    const half = String(Number((l.g / 2 + 1e-12).toPrecision(3)));
+    const v0 = slider(params.v0, p.v0);
+    const th = `${slider(params.theta, p.theta)}^\\circ`;
+    const T = tn(s.t);
+    const sin = `${v0}\\sin ${th}`;
     return [
       // Free-body diagram: gravity only, so a_x = 0 (v_x constant) and a_y = -g.
-      ...(p.fbd ? [`\\Sigma \\vec F = m\\vec g \\;\\Rightarrow\\; a_x = 0,\\ a_y = -g = ${tn(-g)}${u('m/s^2')}`] : []),
-      `v_x = v_0\\cos\\theta = ${num(p.v0)}\\cos ${num(p.theta)}^\\circ = ${tn(s.vx)}${u('m/s')}`,
+      ...(p.fbd ? [`\\Sigma \\vec F = m\\vec g \\;\\Rightarrow\\; a_x = 0,\\ a_y = -g = -${gt}${u('m/s^2')}`] : []),
+      `v_x = v_0\\cos\\theta = ${v0}\\cos ${th} = ${tn(s.vx)}${u('m/s')}`,
       `v_y = v_0\\sin\\theta - gt`,
-      `= ${sin} - ${num(g)} \\times ${T} = ${tn(s.vy)}${u('m/s')}`,
+      `= ${sin} - ${gt} \\times ${T} = ${tn(s.vy)}${u('m/s')}`,
       `y = h + v_0\\sin\\theta\\,t - \\tfrac{1}{2}gt^2`,
-      // ½g exactly: 4.9, 1.855, 0.81.
-      `= ${num(l.h)} + ${sin} \\times ${T} - ${String(g / 2)} \\times ${T}^2 = ${tn(s.y)}${u('m')}`,
-      `v = \\sqrt{v_x^2 + v_y^2} = \\sqrt{${tn(s.vx, sx)}^2 + ${tp(s.vy, sy)}^2} = ${tn(v)}${u('m/s')}`,
+      `= ${slider(params.h, l.h)} + ${sin} \\times ${T} - ${half} \\times ${T}^2 = ${tnScale(s.y, H)}${u('m')}`,
+      `v = \\sqrt{v_x^2 + v_y^2} = \\sqrt{${tn(s.vx)}^2 + ${tp(s.vy)}^2} = ${tn(Math.hypot(s.vx, s.vy))}${u('m/s')}`,
     ];
   },
 

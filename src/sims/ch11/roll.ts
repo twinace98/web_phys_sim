@@ -5,7 +5,7 @@
 // or, with the free-body diagram, the forces on it: Mg, N and the static friction f_s up the incline.
 // Each lane is tagged with its body's β and a; numbered badges mark the arrivals at the finish.
 import { t as tr } from '../../core/i18n';
-import { num, tn, u } from '../../core/tex';
+import { CONST, num, slider, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { FBD_MIN_PX, drawFbd, fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
@@ -13,7 +13,6 @@ import { drawRich, measureRich } from '../../draw/text';
 import { ROLE_COLOR, theme } from '../../draw/theme';
 import { fmt } from '../../core/format';
 import { Recorder, textBox } from './place';
-import { sigFit } from '../ch07/sigfit';
 import { BETA, BODIES, G, finishTime, pointVelocity, rollAccel, rollState, type Body, type Incline } from './physics';
 
 type P = { theta: number; focus: string; fbd: boolean };
@@ -420,7 +419,8 @@ export function kRatio(s: S, p: P): number {
 
 /**
  * Σ panel for the chosen body: a and the static friction from Newton's law plus the rolling
- * condition, v_cm = √(2 a s) (from rest), ω = v_cm / R and K_rot / K_trans = β.
+ * condition, v_cm = √(2 a s) (from rest), ω = v_cm / R and K_rot / K_trans = β. θ as its slider
+ * label, g from the constant table, state values with 3 figures (policy D, R1/R3).
  */
 export function formulaLines(s: S, p: P): string[] {
   const b = focusOf(p);
@@ -428,7 +428,7 @@ export function formulaLines(s: S, p: P): string[] {
   const k = rollState(rp, b, s.t);
   const { f } = rollAccel(BETA[b], rp.theta);
   const be = BETA_TEX[b];
-  const gs = `${num(G)}\\sin ${num(p.theta)}^\\circ`;
+  const gs = `${CONST.g.tex}\\sin ${slider(params.theta, p.theta)}^\\circ`;
   // The block slides without friction: a = g sin θ, and no f_s, ω or K_rot.
   const lines =
     b === 'block'
@@ -441,17 +441,15 @@ export function formulaLines(s: S, p: P): string[] {
   if (p.fbd) {
     // Net force along the incline from the drawn forces (N and the perpendicular part of Mg cancel).
     const W = M * G * Math.sin(rp.theta);
-    const sf = sigFit([W, f * M], (x, y) => x - y, W - f * M);
     lines.push(
       b === 'block'
         ? `\\Sigma F = Mg\\sin\\theta = ${tn(W)}${u('N')} = Ma`
-        : `\\Sigma F = Mg\\sin\\theta - f_s = ${tn(W, sf)} - ${tn(f * M, sf)} = ${tn(W - f * M)}${u('N')} = Ma`,
+        : `\\Sigma F = Mg\\sin\\theta - f_s = ${tn(W)} - ${tn(f * M)} = ${tn(W - f * M)}${u('N')} = Ma`,
     );
   }
-  const sv = sigFit([k.a, k.s], (a, d) => Math.sqrt(2 * a * d), k.v);
-  lines.push(`v_\\mathrm{cm} = \\sqrt{2as} = \\sqrt{2(${tn(k.a, sv)})(${tn(k.s, sv)})} = ${tn(k.v)}${u('m/s')}`);
+  lines.push(`v_\\mathrm{cm} = \\sqrt{2as} = \\sqrt{2(${tn(k.a)})(${tn(k.s)})} = ${tn(k.v)}${u('m/s')}`);
   if (b !== 'block') {
-    lines.push(`\\omega = \\frac{v_\\mathrm{cm}}{R} = \\frac{${tn(k.v, sigFit([k.v], (v) => v / R, k.w))}}{${num(R)}} = ${tn(k.w)}${u('rad/s')}`);
+    lines.push(`\\omega = \\frac{v_\\mathrm{cm}}{R} = \\frac{${tn(k.v)}}{${num(R)}} = ${tn(k.w)}${u('rad/s')}`);
     lines.push(`\\frac{K_\\mathrm{rot}}{K_\\mathrm{trans}} = \\frac{I_\\mathrm{cm}}{MR^2} = \\beta = ${be} = ${tn(kRatio(s, p))}`);
   }
   return lines;

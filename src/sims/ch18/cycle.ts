@@ -1,9 +1,9 @@
 // Ch 18 scene: rectangular cyclic process (two isochores, two isobars). Over a full cycle
 // ΔE_int = 0 and the net work = net heat = the area enclosed by the loop (clockwise: engine,
 // W > 0; counter-clockwise: W < 0). The Carnot cycle lives in Ch 20 (carnot.ts).
-import { num, tn, u } from '../../core/tex';
+import { num, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
-import { dELine, e4, qLine } from './formula';
+import { E_SCALE, dELine, pJ, qLine, tJ } from './formula';
 import { split, stageRect } from './panels';
 import { cycle, eint, legWork, pathAt, temp, type Cycle } from './physics';
 import { dofOf } from './process';
@@ -120,9 +120,10 @@ export const cycleScene: Scene<P, S> = {
   },
 
   readouts: [
-    { label: 'W', unit: 'J', value: (s, p) => point(s, p).W },
-    { label: 'Q', unit: 'J', value: (s, p) => point(s, p).Q },
-    { label: '\\Delta E_\\text{int}', unit: 'J', value: (s, p) => point(s, p).dE },
+    // Energies in whole joules, as in the Σ panel and on the bars (policy D, R7a, R8).
+    { label: 'W', unit: 'J', value: (s, p) => point(s, p).W, scale: E_SCALE },
+    { label: 'Q', unit: 'J', value: (s, p) => point(s, p).Q, scale: E_SCALE },
+    { label: '\\Delta E_\\text{int}', unit: 'J', value: (s, p) => point(s, p).dE, scale: E_SCALE },
   ],
 
   formula: (s, p) => formulaLines(s, p),
@@ -143,15 +144,15 @@ export function formulaLines(s: S, p: P): string[] {
   const f = dofOf(p.gas);
   const { c } = model(p);
   const pt = point(s, p);
-  const terms = c.legs.slice(0, pt.leg + 1).map((l, i) => e4(legWork(l, i < pt.leg ? 1 : pt.u)));
+  const terms = c.legs.slice(0, pt.leg + 1).map((l, i) => pJ(legWork(l, i < pt.leg ? 1 : pt.u)));
   const ps = c.corners.map((q) => q.p);
   const Vs = c.corners.map((q) => q.V);
   const area = `(${num(Math.max(...ps))} - ${num(Math.min(...ps))})(${num(Math.max(...Vs))} - ${num(Math.min(...Vs))})`;
   const net = pathAt(c.legs, 1, f).W;
   return [
-    `W = \\textstyle\\sum p\\,\\Delta V = ${terms.join(' + ')} = ${tn(pt.W)}${u('J')}`,
+    `W = \\textstyle\\sum p\\,\\Delta V = ${terms.join(' + ')} = ${tJ(pt.W)}${u('J')}`,
     dELine(pt.st, pt.dE, f),
     qLine(pt.dE, pt.W, pt.Q),
-    `W_\\text{net} = \\oint p\\,dV = ${net < 0 ? '-' : ''}${area} = ${tn(net)}${u('J')}`,
+    `W_\\text{net} = \\oint p\\,dV = ${net < 0 ? '-' : ''}${area} = ${tJ(net)}${u('J')}`,
   ];
 }

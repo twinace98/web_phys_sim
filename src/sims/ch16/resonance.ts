@@ -3,7 +3,7 @@
 // below the string marks the current frequency and the amplitude reached so far.
 import { fmtTick } from '../../core/format';
 import { t } from '../../core/i18n';
-import { num, tn, u } from '../../core/tex';
+import { sliderText, slider, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { drawEnd } from './reflect';
 import { harmonic, resonance, steadyAmp, stringAdvance, stringInit, stringStep, type Driven, type StringState } from './physics';
@@ -123,7 +123,8 @@ export const resonanceScene: Scene<P, StringState> = {
   },
 
   readouts: [
-    { label: 'f', unit: 'Hz', value: (_s, p) => p.f },
+    // The driving frequency as its slider label (policy D, R1, R8): 0.50 Hz, not 0.500 Hz.
+    { label: 'f', unit: 'Hz', value: (_s, p) => p.f, format: (v) => sliderText(params.f, v) },
     { label: '\\lambda', unit: 'm', value: (_s, p) => STR.v / p.f },
     { label: '2L/\\lambda', unit: '', value: (_s, p) => (2 * STR.L * p.f) / STR.v },
   ],
@@ -146,8 +147,8 @@ export function formulaLines(p: P): string[] {
   const { L, v } = STR;
   const n = nearestN(p.f);
   return [
-    `\\lambda = v/f = ${v}/${num(p.f)} = ${tn(v / p.f)}${u('m')}`,
-    `2L/\\lambda = 2Lf/v = 2 \\times ${L} \\times ${num(p.f)}/${v} = ${tn((2 * L * p.f) / v)}`,
+    `\\lambda = v/f = ${v}/${slider(params.f, p.f)} = ${tn(v / p.f)}${u('m')}`,
+    `2L/\\lambda = 2Lf/v = 2 \\times ${L} \\times ${slider(params.f, p.f)}/${v} = ${tn((2 * L * p.f) / v)}`,
     `f_{${n}} = nv/2L = ${n} \\times ${v}/(2 \\times ${L}) = ${tn(harmonic(STR, n))}${u('Hz')}`,
   ];
 }

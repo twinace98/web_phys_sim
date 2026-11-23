@@ -22,7 +22,7 @@ import {
   type RunInput,
   type RunState,
 } from '../src/sims/review/ladder/physics';
-import { H, L, endTime, forcesAt, input, ladderScene, onsetTime, runInput } from '../src/sims/review/ladder/scene';
+import { H, L, cmpPair, endTime, forcesAt, input, ladderScene, onsetTime, runInput } from '../src/sims/review/ladder/scene';
 
 import { NUM, agreesWithin } from './sigma-digits';
 
@@ -399,7 +399,8 @@ describe('ladder: scene', () => {
       ['F_w', R(String.raw`\\frac\{\(N#\)\(N#\) \+ \(N#\)\(N#\)\}\{N#\} = N#\\ \\text\{N\}$`), ([a, b, c, d, e]) => (a * b + c * d) / e],
       ['μs N', R(String.raw`\\mu_s N = \(N#\)\(N#\) = N#\\ \\text\{N\}$`), ([a, b]) => a * b],
       ['θc', R(String.raw`= \\frac\{N#\}\{N#\},\\ \\theta_c = N#\^\\circ$`), ([a, b]) => Math.atan2(a, b) / DEG],
-      ['t_s', R(String.raw`t_s = \\frac\{d_c - d_0\}\{v\} = \\frac\{N# - N#\}\{N#\} = N#\\ \\text\{s\}$`), ([a, b, c]) => (a - b) / c],
+      // d_c − d₀ computed directly (R5), then divided by v.
+      ['t_s', R(String.raw`t_s = \\frac\{d_c - d_0\}\{v\} = \\frac\{N#\\ \\text\{m\}\}\{N#\\ \\text\{m/s\}\} = N#\\ \\text\{s\}$`), ([a, b]) => a / b],
       ['μk N', R(String.raw`\\mu_k N = \(N#\)\(N#\\ \\text\{N\}\) = N#\\ \\text\{N\}$`), ([a, b]) => a * b],
       ['E0 - E', R(String.raw`E_0 - E = N# - \(?N#\)? = N#\\ \\text\{J\}`), ([a, b]) => a - b],
     ];
@@ -440,6 +441,34 @@ describe('ladder: scene', () => {
     }
     expect(bad.length, bad.slice(0, 6).join('\n')).toBe(0);
     for (const [name] of kinds) expect(hits[name], name).toBeGreaterThan(5);
+  });
+
+  it('policy D: μs and v print as their slider labels (1.00, not 1.0); t_s from d_c − d₀ directly (R5)', () => {
+    const s = (p: Params) => formula(ladderScene.init(p as never, new Rng(1)), p);
+    const p = P0();
+    expect(s(p)[2]).toBe('f = F_w = 108\\ \\text{N} \\le \\mu_s N = (0.40)(784) = 314\\ \\text{N}');
+    expect(s(p)[4]).toBe('t_s = \\frac{d_c - d_0}{v} = \\frac{2.60\\ \\text{m}}{0.50\\ \\text{m/s}} = 5.20\\ \\text{s}');
+    expect(s({ ...p, v: 1 })[4]).toBe('t_s = \\frac{d_c - d_0}{v} = \\frac{2.60\\ \\text{m}}{1.00\\ \\text{m/s}} = 2.60\\ \\text{s}');
+    expect(s({ ...p, mu: 1 })[2]).toContain('(1.00)(784)');
+    expect(s({ ...p, mu: 1 })[3]).toMatch(/= 9\.54\\ \\text\{m\} > L$/);
+    // R6: f just above μs N keeps the figures that show it.
+    expect(cmpPair(300.04, 299.96)).toEqual(['300.04', '299.96']);
+    expect(cmpPair(345.2, 313.6)).toEqual(['345', '314']);
+  });
+
+  it('review case μs = 0: the slip ends with E₀ − E = 0 = W_f (was 806.3 − 806.3 = −1.69×10⁻⁹ J), μk N = 0', () => {
+    const q = { ...P0(), mu: 0 };
+    const r = new Runner(ladderScene as unknown as Scene<Params, RunState>, q);
+    r.play();
+    for (let i = 0; i < 4000 && r.playing; i++) r.advance(0.05);
+    const lines = formula(r.state, q);
+    expect(lines[0]).toBe('f = \\mu_k N = 0');
+    expect(lines[3]).toBe('E_0 - E = 0 = W_f');
+    // With friction the energy line prints fixed decimals set by E₀ (R7a), so its arithmetic closes.
+    const d = new Runner(ladderScene as unknown as Scene<Params, RunState>, P0());
+    d.play();
+    for (let i = 0; i < 4000 && d.playing; i++) d.advance(0.05);
+    expect(formula(d.state, P0())[3]).toBe('E_0 - E = 2352 - 2223 = 129\\ \\text{J} = W_f = 129\\ \\text{J}');
   });
 
   it('Σ with μs = 0: no fraction with a zero denominator, θc = 90° stated directly', () => {

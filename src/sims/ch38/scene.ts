@@ -4,7 +4,7 @@ import { t } from '../../core/i18n';
 import type { ParamSchema, Scene } from '../../core/types';
 import { ROLE_COLOR } from '../../draw/theme';
 import { Frame, PX_WORLD, TICK, W, canvasBox, linePx, textPx } from '../modern/frame';
-import { num, tn, u } from '../../core/tex';
+import { num, slider, tn, u } from '../../core/tex';
 import {
   DK,
   HBAR_M,
@@ -89,10 +89,10 @@ export function packetLines(time: number, p: PP): string[] {
   const dk = deltaK(pk);
   const dx = packetWidth(pk, time, vg * time, 600);
   const lines = [
-    // ħ/m = 0.1158 nm²/fs, k₀ in nm⁻¹.
-    `v_\\text{g} = \\frac{\\hbar}{m}\\,k_0 = ${tn(HBAR_M, 4)} \\times ${num(p.k0)} = ${tn(vg)}${u('nm/fs')}`,
+    // ħ/m = 0.116 nm²/fs (ħ/mₑ), k₀ in nm⁻¹.
+    `v_\\text{g} = \\frac{\\hbar}{m}\\,k_0 = ${tn(HBAR_M)} \\times ${slider(packetParams.k0, p.k0)} = ${tn(vg)}${u('nm/fs')}`,
     `v_\\text{p} = \\frac{\\omega_0}{k_0} = \\frac{v_\\text{g}}{2} = ${tn(vPhase(p.k0))}${u('nm/fs')}`,
-    `x = v_\\text{g}\\,t = ${tn(vg, 4)} \\times ${tn(time, 4)} = ${tn(vg * time)}${u('nm')}`,
+    `x = v_\\text{g}\\,t = ${tn(vg)} \\times ${tn(time)} = ${tn(vg * time)}${u('nm')}`,
   ];
   if (!Number.isFinite(dx)) {
     lines.push(`\\Delta k = ${tn(dk)}${u('nm^{-1}')},\\quad \\Delta x > \\frac{2\\pi}{6\\,\\delta k} = \\frac{${num((2 * Math.PI) / DK)}\\ \\mathrm{nm}}{6} = ${tn((2 * Math.PI) / DK / 6)}${u('nm')}`);
@@ -100,7 +100,7 @@ export function packetLines(time: number, p: PP): string[] {
   }
   const prod = dx * dk;
   lines.push(`\\Delta x = ${tn(dx)}${u('nm')},\\quad \\Delta k = ${tn(dk)}${u('nm^{-1}')}`);
-  lines.push(`\\Delta x\\,\\Delta k = ${tn(dx, 4)} \\times ${tn(dk, 4)} = ${tn(prod)} ${Number(tn(prod)) >= 0.5 ? '\\ge' : '<'} \\tfrac12`);
+  lines.push(`\\Delta x\\,\\Delta k = ${tn(dx)} \\times ${tn(dk)} = ${tn(prod)} ${Number(tn(prod)) >= 0.5 ? '\\ge' : '<'} \\tfrac12`);
   return lines;
 }
 

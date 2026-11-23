@@ -117,7 +117,7 @@ describe('ch41 doping', () => {
           for (const r of [rn, rp]) {
             const v = r.value(undefined as never, p);
             expect(Number.isFinite(v)).toBe(true);
-            expect(r.format!(v)).toBe(v < 1 ? '< 1' : undefined);
+            expect(r.format!(v, undefined as never, undefined as never)).toBe(v < 1 ? '< 1' : undefined);
           }
         }
     expect(carriersOf({ ...fromQuery(doping.params, new URLSearchParams()), type: 'n', T: 50, conc: 1e16 } as never).p).toBeLessThan(1);

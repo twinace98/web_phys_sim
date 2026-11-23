@@ -1,11 +1,10 @@
 // Ch 22 scene: draggable point charges, their field (grid arrows or field lines) and the
 // Coulomb forces on a test charge.
-import { tn, tp, u } from '../../core/tex';
+import { CONST, RESIDUE, tn, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { BOX, E, POINT_POOL, layoutParam, pointCoords, pointSources, pointWorld, presetParam, presetTag, clearOf } from '../field/charges';
 import { FieldLayers, palette } from '../field/layers';
-import { K_E } from '../field/physics';
 import { chargeGlyph, freeSpot, type Spot, type Tray } from '../field/render';
 import { slotHandles } from '../field/slots';
 import { coulombForces } from './physics';
@@ -106,7 +105,7 @@ export const forceOnTest = (p: P) => {
 export function formulaLines(p: P): string[] {
   const src = pointSources(p);
   const sum = src.reduce((a, c) => a + c.s, 0);
-  if (!p.test || !src.length) return [`k = \\frac{1}{4\\pi\\varepsilon_0} = ${tn(K_E)}${u('N\\,m^2/C^2')}`, `\\sum_i q_i = ${sum}${u('nC')}`];
+  if (!p.test || !src.length) return [`k = \\frac{1}{4\\pi\\varepsilon_0} = ${CONST.k.tex}${u(CONST.k.unit)}`, `\\sum_i q_i = ${sum}${u('nC')}`];
   const at = testPos(p);
   const { parts } = coulombForces(src, at.x, at.y, 1);
   const dist = (i: number) => Math.hypot(at.x - src[i].x, at.y - src[i].y);
@@ -116,10 +115,12 @@ export function formulaLines(p: P): string[] {
   const F1 = Math.hypot(parts[i1][0], parts[i1][1]) * 1e9;
   const [ex, ey] = fieldAtTest(p);
   const Em = Math.hypot(ex, ey);
+  // A component that vanishes by symmetry (below 10⁻³ of E) is an exact 0 (policy D, R7a).
+  const comp = (c: number) => (Math.abs(c) < RESIDUE * Em ? '0' : tp(c));
   return [
-    `F_1 = k\\,\\frac{\\lvert q_1\\rvert q_0}{r_1^2} = \\frac{(${tn(K_E)})(${Math.abs(src[i1].s)})(1)\\times 10^{-18}}{(${tn(dist(i1))})^2}\\ \\mathrm{N} = ${tn(F1)}${u('nN')}`,
-    `\\vec E = \\sum_i k\\,\\frac{q_i}{r_i^2}\\,\\hat r_i = (${tn(ex)},\\ ${tn(ey)})${u('N/C')}`,
-    `E = \\sqrt{E_x^2 + E_y^2} = \\sqrt{${tp(ex)}^2 + ${tp(ey)}^2} = ${tn(Em)}${u('N/C')}`,
+    `F_1 = k\\,\\frac{\\lvert q_1\\rvert q_0}{r_1^2} = \\frac{(${CONST.k.tex})(${Math.abs(src[i1].s)})(1)\\times 10^{-18}}{(${tn(dist(i1))})^2}\\ \\mathrm{N} = ${tn(F1)}${u('nN')}`,
+    `\\vec E = \\sum_i k\\,\\frac{q_i}{r_i^2}\\,\\hat r_i = (${comp(ex).replace(/^\((.*)\)$/, '$1')},\\ ${comp(ey).replace(/^\((.*)\)$/, '$1')})${u('N/C')}`,
+    `E = \\sqrt{E_x^2 + E_y^2} = \\sqrt{${comp(ex)}^2 + ${comp(ey)}^2} = ${tn(Em)}${u('N/C')}`,
     `F = q_0 E = (1\\ \\mathrm{nC})(${tn(Em)}\\ \\mathrm{N/C}) = ${tn(forceOnTest(p))}${u('nN')}`,
   ];
 }

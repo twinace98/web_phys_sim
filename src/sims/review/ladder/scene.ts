@@ -5,12 +5,11 @@
 // speed v; at d = d_c the friction needed reaches μs N and the ladder slips (one degree of freedom θ,
 // kinetic friction μk N at the foot) until the top leaves the wall or the ladder lies flat.
 import { fmt } from '../../../core/format';
-import { tn, tp } from '../../../core/tex';
+import { fmtScale, paren, slider, tn, tnCmp, tnScale } from '../../../core/tex';
 import type { ParamSchema, Scene, Vec2, WorldSpec } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
 import { theme } from '../../../draw/theme';
 import { LabelLayout } from '../../ch03/labels';
-import { sigFit } from '../../ch07/sigfit';
 import {
   G,
   advanceRun,
@@ -256,6 +255,15 @@ function drawGauge(g: Draw, lay: LabelLayout, ratio: number, peak: boolean): voi
 
 const nf = (v: number, sig = 3) => fmt(v, sig).replace('−', '-');
 
+/**
+ * R6: f and μs N for "f > μs N" with the fewest figures (at least 3) that keep the printed f larger,
+ * so a ladder just past the limit never reads "300 > 300".
+ */
+export function cmpPair(a: number, b: number): [string, string] {
+  for (let s = 3; s <= 8; s++) if (Number(a.toPrecision(s)) > Number(b.toPrecision(s))) return [tn(a, s), tn(b, s)];
+  return [tn(a, 8), tn(b, 8)];
+}
+
 export const ladderScene: Scene<P, S> = {
   id: 'ladder',
   title: 'ladder.scene.ladder',
@@ -461,42 +469,50 @@ export const ladderScene: Scene<P, S> = {
       const thc = criticalAngle(q);
       const dc = criticalPosition({ theta: p.theta * DEG, L, m: p.m, M: p.M, mu: p.mu });
       const ts = onsetTime(p);
-      // Inputs of each line with enough figures that their arithmetic gives the printed result.
+      // Policy D: forces and lever arms at 3 figures (R3), μs, d₀ and v as their slider labels (R1),
+      // results as the readouts. The friction test f ≤ μs N keeps the figures that show it (R6).
       const mg = p.m * G;
       const Mg = p.M * G;
-      const sw = sigFit([mg, e.armMg, Mg, e.armPerson, e.armWall], (a, b, c, d, w) => (a * b + c * d) / w, e.Fw);
-      const sn = sigFit([e.N], (n) => p.mu * n, e.fmax);
+      const [fS, fmaxS] = e.slips ? cmpPair(e.f, e.fmax) : [nf(e.f), nf(e.fmax)];
       const lines = [
         `\\sum\\tau_\\text{foot}:\\ F_w L\\sin\\theta = mg\\tfrac{L}{2}\\cos\\theta + Mg\\,d\\cos\\theta`,
-        `F_w = \\frac{(${tn(mg, sw)})(${tn(e.armMg, sw)}) + (${tn(Mg, sw)})(${tn(e.armPerson, sw)})}{${tn(e.armWall, sw)}} = ${nf(e.Fw)}\\ \\text{N}`,
-        `f = F_w = ${nf(e.f)}\\ \\text{N} ${e.slips ? '>' : '\\le'} \\mu_s N = (${nf(p.mu, 2)})(${tn(e.N, sn)}) = ${nf(e.fmax)}\\ \\text{N}`,
+        `F_w = \\frac{(${tn(mg)})(${tn(e.armMg)}) + (${tn(Mg)})(${tn(e.armPerson)})}{${tn(e.armWall)}} = ${nf(e.Fw)}\\ \\text{N}`,
+        `f = F_w = ${fS}\\ \\text{N} ${e.slips ? '>' : '\\le'} \\mu_s N = (${slider(params.mu, p.mu)})(${tn(e.N)}) = ${fmaxS}\\ \\text{N}`,
       ];
       // μs = 0: no friction holds any lean, so the fraction would have a zero denominator.
       const num = p.m / 2 + (p.M * s.d) / L;
       const den = p.mu * (p.m + p.M);
-      const sc = sigFit([num, den], (a, b) => Math.atan2(a, b) / DEG, thc / DEG);
       const thcLine =
         p.mu > 0
-          ? `\\tan\\theta_c = \\frac{m/2 + Md/L}{\\mu_s(m+M)} = \\frac{${tn(num, sc)}}{${tn(den, sc)}},\\ \\theta_c = ${nf(thc / DEG)}^\\circ`
+          ? `\\tan\\theta_c = \\frac{m/2 + Md/L}{\\mu_s(m+M)} = \\frac{${tn(num)}}{${tn(den)}},\\ \\theta_c = ${nf(thc / DEG)}^\\circ`
           : `\\mu_s = 0:\\ \\mu_s N = 0 < F_w\\ (\\theta < 90^\\circ),\\ \\theta_c = 90^\\circ`;
       if (p.M > 0 && Number.isFinite(dc)) {
-        const st = ts !== null && ts > 0 ? sigFit([dc, p.d], (a, b) => (a - b) / p.v, ts) : 3;
-        lines.push(`d_c = \\frac{L}{M}\\left[\\mu_s(m+M)\\tan\\theta - \\frac{m}{2}\\right] = ${tn(dc, st)}\\ \\text{m}${dc > L ? ' > L' : ''}`);
-        lines.push(ts !== null && ts > 0 ? `t_s = \\frac{d_c - d_0}{v} = \\frac{${tn(dc, st)} - ${tn(p.d, st)}}{${nf(p.v, 2)}} = ${nf(ts)}\\ \\text{s}` : thcLine);
+        // d_c beyond the ladder: the comparison with L keeps its figures (R6).
+        lines.push(`d_c = \\frac{L}{M}\\left[\\mu_s(m+M)\\tan\\theta - \\frac{m}{2}\\right] = ${dc > L ? tnCmp(dc, L) : tn(dc)}\\ \\text{m}${dc > L ? ' > L' : ''}`);
+        // The climb d_c − d₀ is a difference of two close lengths: computed directly (R5).
+        lines.push(
+          ts !== null && ts > 0
+            ? `t_s = \\frac{d_c - d_0}{v} = \\frac{${tn(dc - p.d)}\\ \\text{m}}{${slider(params.v, p.v)}\\ \\text{m/s}} = ${nf(ts)}\\ \\text{s}`
+            : thcLine,
+        );
       } else lines.push(thcLine);
       return lines;
     }
     const b = { L, m: p.m, M: p.M, d: s.d };
     const E = mechEnergy(b, s.th, s.om);
-    // μk = (μk/μs) μs exactly as computed (0.32, 0.3145), N with the figures the product needs.
-    const muk = Number((p.kr * p.mu).toFixed(4));
-    const sk = sigFit([F.N], (n) => muk * n, F.f);
-    const se = sigFit([s.E0, E], (a, c) => a - c, s.E0 - E, 3, 4);
+    // E₀ − E and W_f change during the slip: 3 figures with E₀ as the run scale (R7a);
+    // a residue below 10⁻³ E₀ (μk = 0: no friction, W_f = 0) prints as an exact 0.
+    const dES = fmtScale(s.E0 - E, s.E0);
+    const WS = fmtScale(s.W, s.E0);
+    const sc = (v: number) => tnScale(v, s.E0);
     return [
-      `f = \\mu_k N = (${muk})(${tn(F.N, sk)}\\ \\text{N}) = ${nf(F.f)}\\ \\text{N}`,
+      // μk = 0 (μs = 0 or μk/μs = 0) is an exact 0, not "0.00" (R7a).
+      p.kr * p.mu === 0 ? `f = \\mu_k N = 0` : `f = \\mu_k N = (${tn(p.kr * p.mu)})(${tn(F.N)}\\ \\text{N}) = ${nf(F.f)}\\ \\text{N}`,
       `F_w = ${nf(F.Fw)}\\ \\text{N},\\ \\ddot\\theta = ${nf(F.alpha)}\\ \\text{rad/s}^2`,
       `\\theta = ${nf(s.th / DEG)}^\\circ,\\ \\dot\\theta = ${nf(s.om)}\\ \\text{rad/s},\\ t - t_s = ${nf((s.tStop ?? s.t) - s.tSlip, 3)}\\ \\text{s}`,
-      `E_0 - E = ${tn(s.E0, se)} - ${tp(E, se)} = ${nf(s.E0 - E)}\\ \\text{J} = W_f = ${nf(s.W)}\\ \\text{J}`,
+      dES === '0' && WS === '0'
+        ? `E_0 - E = 0 = W_f`
+        : `E_0 - E = ${sc(s.E0)} - ${paren(sc(E))} = ${sc(s.E0 - E)}\\ \\text{J} = W_f = ${sc(s.W)}\\ \\text{J}`,
     ];
   },
 

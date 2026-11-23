@@ -27,10 +27,11 @@ export function decayLines(time: number, N: number, p: { iso: string; N0: number
   const le = Math.floor(Math.log10(lam));
   const lamTex = lam >= 1e-3 ? tn(lam) : `${tn(lam / 10 ** le)}\\times 10^{${le}}`;
   const ratio = time / iso.half;
-  const r = ratio.toFixed(p.N0 > 1000 ? 5 : 4);
+  // t/T½ as its readout prints it (R8), also in the exponent of 0.5 (last-digit differences, R3).
+  const r = tn(ratio);
   return [
-    `\\lambda = \\frac{\\ln 2}{T_{1/2}} = \\frac{0.6931}{${num(iso.half)}${pow}\\ \\mathrm{${base}}} = ${lamTex}${u(`${base}^{-1}`)}`,
-    `\\frac{t}{T_{1/2}} = \\frac{${tn(time, 4)}}{${num(iso.half)}} = ${tn(ratio)}`,
+    `\\lambda = \\frac{\\ln 2}{T_{1/2}} = \\frac{0.693}{${num(iso.half)}${pow}\\ \\mathrm{${base}}} = ${lamTex}${u(`${base}^{-1}`)}`,
+    `\\frac{t}{T_{1/2}} = \\frac{${tn(time)}}{${num(iso.half)}} = ${r}`,
     `N_0\\,e^{-\\lambda t} = N_0\\,0.5^{t/T_{1/2}} = ${p.N0} \\times 0.5^{${r}} = ${tn(expected(p.N0, iso.half, time))}`,
     `N/N_0 = ${N}/${p.N0} = ${tn(N / p.N0)}`,
   ];

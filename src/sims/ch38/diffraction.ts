@@ -1,7 +1,8 @@
 // Ch 38 tab 2: matter-wave diffraction. Electrons, neutrons, C60 molecules or a baseball pass one at
 // a time through a crystal, a nanofabricated grating or a millimetre slit pair and land on a screen
 // as single dots; the dots build up |ψ|². Fringes show only when λ/d is not tiny.
-import { fmt, niceTicks } from '../../core/format';
+import { fmt, fmtTick, niceTicks } from '../../core/format';
+import { CONST, slider, tnCmp } from '../../core/tex';
 import { t } from '../../core/i18n';
 import type { Rng } from '../../core/rng';
 import type { ParamSchema, Scene } from '../../core/types';
@@ -362,10 +363,15 @@ const trimZeros = (v: string) => (v.includes('.') && !/×|times/.test(v) ? v.rep
 /** Prefix unit for L: the largest with a value ≥ 1 (≥ 0.1 for nm: 0.215 nm, not 215 pm). */
 const lenUnit = (L: number) => LEN_UNITS.find(([f]) => L >= f * (f === 1e-9 ? 0.0995 : 0.9995) && L / f < 1000);
 
-/** Length with a prefix, plain text, trailing zeros dropped: '0.215 nm', '1 mm', '1.14×10⁻³⁴ m'. */
-export function lenText(L: number, sig = 3): string {
+/**
+ * Length with a prefix, plain text: '0.167 nm', '2.50 pm', '1.14×10⁻³⁴ m' (the same string as
+ * lenTex); `exact` drops trailing zeros (apparatus constants: '1 mm', '100 nm').
+ */
+export function lenText(L: number, sig = 3, exact = false): string {
   const u = lenUnit(L);
-  return u ? `${trimZeros(fmt(L / u[0], sig))} ${u[1]}` : `${fmt(L, sig, 0)} m`;
+  if (!u) return `${fmt(L, sig, 0)} m`;
+  const v = fmt(L / u[0], sig, 0);
+  return `${exact ? trimZeros(v) : v} ${u[1]}`;
 }
 
 /** Length with a prefix, TeX; `exact` drops trailing zeros (apparatus constants such as 1 mm). */
@@ -376,6 +382,16 @@ export function lenTex(L: number, sig = 3, exact = false): string {
   const v = texNum(L / u[0], sig, 0);
   return `${exact ? trimZeros(v) : v}\\ ${u[2]}`;
 }
+
+/**
+ * Screen length (Δy, δ) in the unit of the screen axis on the stage (R8): crystal cm, grating μm,
+ * slits mm. Readout and Σ print this string.
+ */
+export function dyText(y: number, s: Structure, sig = 3): string {
+  return Number.isFinite(y) ? `${fmt(y / s.unit, sig, 0)} ${s.unitLabel}` : '–';
+}
+const unitTex = (s: Structure) => (s.unitLabel === 'μm' ? '\\mu\\text{m}' : `\\text{${s.unitLabel}}`);
+const dyTex = (y: number, s: Structure, sig = 3): string => (Number.isFinite(y) ? `${texNum(y / s.unit, sig, 0)}\\ ${unitTex(s)}` : '\\text{–}');
 
 // ------------------------------------------------------------------ params
 
@@ -586,7 +602,7 @@ function drawScene(g: Draw, st: S, p: PD, tNow: number): void {
   const hS = sid === 'slits' ? eB - eT : Math.min(0.5 * (eB - eT), 150);
   drawStructure(g, sid, xs, yc, hS, yPx);
   // d under the structure; for the slit pair (as tall as the screen) left of the wall, between the slits.
-  const dLbl = `*d* = ${lenText(s.d)}`;
+  const dLbl = `*d* = ${lenText(s.d, 3, true)}`;
   if (sid === 'slits') textPx(g, xs - 10, yc, dLbl, { size: 12, color: INK, align: 'right', baseline: 'middle' });
   else textPx(g, xs, yc + hS / 2 + 18, dLbl, { size: 12, color: INK, align: 'center' });
 
@@ -702,7 +718,8 @@ export function formulaLines(p: PD): string[] {
   const s = STRUCTS[structIdOf(p)];
   const fr = fringe(s, lam);
   const K = kineticOf(m, v);
-  const mTex = id === 'ball' ? '0.145\\ \\text{kg}' : `${texNum(m, 4, 0)}\\ \\text{kg}`;
+  // Masses as constants (R1): the electron from CONST, the others to 3 figures; the ball's 0.145 kg exact.
+  const mTex = id === 'ball' ? '0.145\\ \\text{kg}' : id === 'electron' ? `${CONST.me.tex}\\ \\text{kg}` : `${texNum(m, 3, 0)}\\ \\text{kg}`;
   const eV = K / EV;
   const Ktex =
     id === 'ball'
@@ -714,15 +731,17 @@ export function formulaLines(p: PD): string[] {
           : `${texNum(eV, 3)}\\ \\text{eV}`;
   const rel = g - 1 > 1e-3;
   const lines = [
-    `m = ${mTex},\\quad v = ${texNum(v, 3)}\\ \\text{m/s}${rel ? `,\\quad \\gamma = ${texNum(g, 4)}` : ''}`,
+    // γ only where it departs from 1, with the figures that show it does (R6: 1.002, not 1.00).
+    `m = ${mTex},\\quad v = ${slider(params[SPEED_KEY[id]], v)}\\ \\text{m/s}${rel ? `,\\quad \\gamma = ${tnCmp(g, 1)}` : ''}`,
     `p = ${rel ? '\\gamma m v' : 'm v'} = ${texNum(pp, 3, 0)}\\ \\text{kg\\,m/s},\\quad K = ${rel ? '(\\gamma - 1)\\,mc^2' : '\\tfrac12 mv^2'} = ${Ktex}`,
-    `\\lambda = \\frac{h}{p} = \\frac{6.626\\times10^{-34}\\ \\text{J\\,s}}{${texNum(pp, 3, 0)}\\ \\text{kg\\,m/s}} = ${lenTex(lam)}`,
+    `\\lambda = \\frac{h}{p} = \\frac{${CONST.h.tex}\\ \\text{J\\,s}}{${texNum(pp, 3, 0)}\\ \\text{kg\\,m/s}} = ${lenTex(lam)}`,
   ];
   // Apparatus constants exact (0.215 nm, 1 mm, 1.25 m), not padded to three figures.
   const dTex = lenTex(s.d, 3, true);
-  const sinL = `\\sin\\theta_1 = \\frac{\\lambda}{d} = \\frac{${lenTex(lam)}}{${dTex}} = ${texNum(fr.ratio, 3, 0)}`;
+  const sinHead = `\\sin\\theta_1 = \\frac{\\lambda}{d} = \\frac{${lenTex(lam)}}{${dTex}}`;
+  const sinL = `${sinHead} = ${texNum(fr.ratio, 3, 0)}`;
   if (fr.ratio >= 1) {
-    lines.push(`${sinL} > 1\\ \\ (\\text{${t('ch38.df.f.none')}})`);
+    lines.push(`${sinHead} = ${tnCmp(fr.ratio, 1)} > 1\\ \\ (\\text{${t('ch38.df.f.none')}})`);
     return lines;
   }
   const deg = (fr.theta1 * 180) / Math.PI;
@@ -731,21 +750,22 @@ export function formulaLines(p: PD): string[] {
   lines.push(small ? sinL : `${sinL},\\quad \\theta_1 = ${texNum(deg, 3)}^\\circ`);
   lines.push(
     small
-      ? `\\Delta y \\approx \\frac{\\lambda L}{d} = \\frac{(${lenTex(lam)})(${LTex})}{${dTex}} = ${lenTex(fr.dyApprox)}`
-      : `\\Delta y = L\\tan\\theta_1 = (${LTex})\\tan ${texNum(deg, 3)}^\\circ = ${lenTex(fr.y1)}`,
+      ? `\\Delta y \\approx \\frac{\\lambda L}{d} = \\frac{(${lenTex(lam)})(${LTex})}{${dTex}} = ${dyTex(fr.dyApprox, s)}`
+      : `\\Delta y = L\\tan\\theta_1 = (${LTex})\\tan ${texNum(deg, 3)}^\\circ = ${dyTex(fr.y1, s)}`,
   );
   if (!fr.resolvable) {
-    // δ with enough figures that it never prints equal to the Δy above (3 figures). The criterion
-    // uses L tan θ₁, and λL/d = L sin θ₁ is smaller still.
+    // δ with enough figures that it never prints equal to the Δy above (3 figures; R6). The
+    // criterion uses L tan θ₁, and λL/d = L sin θ₁ is smaller still.
     let sig = 3;
-    while (sig < 6 && lenTex(small ? fr.dyApprox : fr.y1) === lenTex(fr.res, sig)) sig++;
-    lines.push(`\\Delta y < \\delta = ${lenTex(fr.res, sig)}\\ \\ (\\text{${t('ch38.df.f.unres')}})`);
+    while (sig < 6 && dyTex(small ? fr.dyApprox : fr.y1, s) === dyTex(fr.res, s, sig)) sig++;
+    lines.push(`\\Delta y < \\delta = ${dyTex(fr.res, s, sig)}\\ \\ (\\text{${t('ch38.df.f.unres')}})`);
   }
-  else if (!fr.onScreen) lines.push(`\\Delta y > Y = ${lenTex(s.Y, 2, true)}\\ \\ (\\text{${t('ch38.df.f.off')}})`);
+  else if (!fr.onScreen) lines.push(`\\Delta y > Y = ${fmtTick(s.Y / s.unit)}\\ ${unitTex(s)}\\ \\ (\\text{${t('ch38.df.f.off')}})`);
   return lines;
 }
 
 // ------------------------------------------------------------------ scene
+
 
 export const diffractionScene: Scene<PD, S> = {
   id: 'debroglie',
@@ -769,8 +789,14 @@ export const diffractionScene: Scene<PD, S> = {
   draw: (g, s, p, ui) => drawScene(g, s, p, ui?.tFrame ?? s.t),
 
   readouts: [
-    { label: '\\lambda', unit: 'm', value: (_s, p) => lambdaP(p), zeroTol: 0 },
-    { label: '\\Delta y', unit: 'm', value: (_s, p) => fringe(STRUCTS[structIdOf(p)], lambdaP(p)).y1, zeroTol: 0 },
+    // With a prefix as in the Σ panel (λ) and in the unit of the screen axis (Δy), R8.
+    { label: '\\lambda', unit: '', value: (_s, p) => lambdaP(p), format: (v) => (Number.isFinite(v) ? lenText(v) : undefined) },
+    {
+      label: '\\Delta y',
+      unit: '',
+      value: (_s, p) => fringe(STRUCTS[structIdOf(p)], lambdaP(p)).y1,
+      format: (v, _s, p) => (Number.isFinite(v) ? dyText(v, STRUCTS[structIdOf(p)]) : undefined),
+    },
     { label: 'N', unit: '', value: (s) => Math.min(s.hits.length, hitsBy(s.t)), sig: 1 },
   ],
 

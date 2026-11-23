@@ -3,9 +3,8 @@
 // compression, so F_AB = −F_BA at every instant, whatever the masses; only the accelerations
 // differ. The free-body diagrams add N and mg on each cart: equal and opposite, but on the same
 // body, so they are not a third-law pair.
-import { tn, u } from '../../core/tex';
+import { CONST, slider, tn, u } from '../../core/tex';
 import type { NumberParam, ParamSchema, Role, Scene } from '../../core/types';
-import { sigToMatch } from '../ch02/sigma';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { drawFbd } from '../../draw/fbd';
 import { drawRich } from '../../draw/text';
@@ -326,20 +325,18 @@ export const third: Scene<P, S> = {
   // acceleration, and with the free-body diagrams the N = mg balance on each cart.
   formula: (s, p) => {
     const { c } = bumperAt(bumperOf(p), s.t);
-    const sc = sigToMatch(s.FB, [c], (x) => p.k * x);
-    const sA = sigToMatch(s.aA, [s.FA], (f) => f / p.mA);
-    const sB = sigToMatch(s.aB, [s.FB], (f) => f / p.mB);
-    const mA = p.mA.toFixed(1);
-    const mB = p.mB.toFixed(1);
+    // Slider values as their labels, c and the forces with 3 figures (policy D, R1/R3).
+    const mA = slider(params.mA, p.mA);
+    const mB = slider(params.mB, p.mB);
     const lines = [
-      `F_{BA} = k\\,c = ${p.k} \\times ${tn(c, sc)} = ${tn(s.FB)}${u('N')}`,
+      `F_{BA} = k\\,c = ${slider(params.k, p.k)} \\times ${tn(c)} = ${tn(s.FB)}${u('N')}`,
       `F_{AB} = -F_{BA} = ${tn(s.FA)}${u('N')}`,
-      `a_A = \\frac{F_{AB}}{m_A} = \\frac{${tn(s.FA, sA)}}{${mA}} = ${tn(s.aA)}${u('m/s^2')}`,
-      `a_B = \\frac{F_{BA}}{m_B} = \\frac{${tn(s.FB, sB)}}{${mB}} = ${tn(s.aB)}${u('m/s^2')}`,
+      `a_A = \\frac{F_{AB}}{m_A} = \\frac{${tn(s.FA)}}{${mA}} = ${tn(s.aA)}${u('m/s^2')}`,
+      `a_B = \\frac{F_{BA}}{m_B} = \\frac{${tn(s.FB)}}{${mB}} = ${tn(s.aB)}${u('m/s^2')}`,
     ];
     if (p.fbd) {
-      lines.push(`N_A = m_A g = ${mA} \\times ${THIRD_G} = ${tn(p.mA * THIRD_G)}${u('N')}`);
-      lines.push(`N_B = m_B g = ${mB} \\times ${THIRD_G} = ${tn(p.mB * THIRD_G)}${u('N')}`);
+      lines.push(`N_A = m_A g = ${mA} \\times ${CONST.g.tex} = ${tn(p.mA * THIRD_G)}${u('N')}`);
+      lines.push(`N_B = m_B g = ${mB} \\times ${CONST.g.tex} = ${tn(p.mB * THIRD_G)}${u('N')}`);
     }
     return lines;
   },

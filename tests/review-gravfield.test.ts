@@ -249,6 +249,23 @@ describe('gravfield tray', () => {
     expect(formulaLines(p).length).toBe(3);
   });
 
+  it("policy D: G prints as Halliday's 6.67×10⁻¹¹ (was 6.674), M⊕ as 5.97×10²⁴ kg, g as its readout", () => {
+    const p = defaults(gravfield.params);
+    const g1 = formulaLines(p)[0];
+    expect(g1).toBe('g_1 = \\frac{GM_1}{r_1^2} = \\frac{(6.67\\times 10^{-11})(5.97\\times 10^{24})}{(1.39\\times 10^{8})^2} = 0.0207\\ \\mathrm{m/s^2}');
+    for (const dict of [ko, en] as Record<string, string>[]) {
+      expect(dict['gravfield.as.units']).toContain('$G = 6.67\\times10^{-11}\\ \\mathrm{N\\,m^2/kg^2}$');
+      expect(dict['gravfield.as.units']).toContain('$M_\\oplus = 5.97\\times10^{24}$ kg');
+    }
+    // Two masses (Earth and Moon, default M2 = 0.0123): both g lines print G the same way.
+    const c = new Ctx(defaults(gravfield.params) as P);
+    add(c, 1.5, 0);
+    const two = formulaLines(c.params).filter((x) => x.startsWith('g_'));
+    expect(two.length).toBe(2);
+    for (const l of two) expect(l).toContain('(6.67\\times 10^{-11})');
+    expect(two[1]).toContain('(7.35\\times 10^{22})');
+  });
+
   it('a chip adds the lowest free mass; sliders follow; removing frees the number', () => {
     const c = new Ctx(defaults(gravfield.params) as P);
     add(c, 1.5, 0);

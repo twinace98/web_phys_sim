@@ -852,7 +852,7 @@ export class SimView {
     (scene.readouts ?? []).forEach((spec, i) => {
       // An undefined value reads "–" alone: no unit after it.
       const v = spec.value(s, p);
-      this.readoutVals[i].textContent = readoutText(spec, v, p);
+      this.readoutVals[i].textContent = readoutText(spec, v, p, s);
       this.readoutUnits[i].hidden = !Number.isFinite(v);
     });
     if (this.playBtn && this.shownPlaying !== r.playing) {

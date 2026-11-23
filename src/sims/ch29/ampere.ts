@@ -1,12 +1,16 @@
 // Ch 29 scene: Ampère's law. Line currents ⊥ page (⊙ / ⊗), a deformable loop, the tangential
 // component of B along it, and ∮ B·dl next to μ0 I_enc.
-import { tn } from '../../core/tex';
+import { CONST } from '../../core/tex';
 import type { Params } from '../../core/types';
 import { pathScene } from '../field/closedpath';
 import { texNum, wireGlyph } from '../field/render';
 import { MU0_UT, WIRE_B, WIRE_POOL, WIRE_PRESETS } from './physics';
 
 const UNIT = '\\ \\mu\\mathrm{T\\,m}';
+/** I_enc [A] in the stage panel and the Σ panel: integers bare (R2), else 3 figures. */
+const encTex = (enc: number) => (Number.isInteger(enc) ? String(enc) : texNum(enc, 3));
+/** ∮ B·dl and μ0 I_enc [μT m] in both panels: 3 figures, below 5×10⁻⁴ an exact 0 (R7a, R8). */
+const circTex = (v: number) => texNum(v, 3, 5e-4);
 
 /** Values the factory last passed to the stage panel: ∮ B·dl, μ0 I_enc [μT m], I_enc [A]. */
 let shown = { circ: 0, rhs: 0, enc: 0 };
@@ -27,7 +31,7 @@ const base = pathScene({
   encScale: MU0_UT,
   overlay: (circ, rhs, enc) => {
     shown = { circ, rhs, enc };
-    return `\\begin{array}{rcl} I_\\text{enc} &=& ${texNum(enc, 3).replace(/\.00$/, '')}\\ \\mathrm{A} \\\\ \\oint \\vec B\\cdot d\\vec l &=& ${texNum(circ, 3, 5e-4)}${UNIT} \\\\ \\mu_0 I_\\text{enc} &=& ${texNum(rhs, 3, 5e-4)}${UNIT} \\end{array}`;
+    return `\\begin{array}{rcl} I_\\text{enc} &=& ${encTex(enc)}\\ \\mathrm{A} \\\\ \\oint \\vec B\\cdot d\\vec l &=& ${circTex(circ)}${UNIT} \\\\ \\mu_0 I_\\text{enc} &=& ${circTex(rhs)}${UNIT} \\end{array}`;
   },
   G0: { single: [0.15, -0.1, 0.4], pair: [-0.35, -0.12, 0.3], solenoid: [0, 0.16, 0.17] },
   box: [-1.15, -0.75, 1.15, 0.75],
@@ -56,11 +60,11 @@ export const ampere: typeof base = {
   ...base,
   formula: (_s, p) => {
     const { circ, rhs, enc } = ampereValues(p);
-    const I = Number.isInteger(enc) ? String(enc) : tn(enc);
+    const I = encTex(enc);
     return [
       `I_\\text{enc} = ${I}\\ \\mathrm{A}`,
-      `\\mu_0 I_\\text{enc} = (4\\pi\\times 10^{-7})(${I})\\ \\mathrm{T\\,m} = ${tn(rhs)}${UNIT}`,
-      `\\oint \\vec B\\cdot d\\vec l = ${tn(circ)}${UNIT}`,
+      `\\mu_0 I_\\text{enc} = (${CONST.mu0.tex})(${I})\\ \\mathrm{T\\,m} = ${circTex(rhs)}${UNIT}`,
+      `\\oint \\vec B\\cdot d\\vec l = ${circTex(circ)}${UNIT}`,
     ];
   },
 };

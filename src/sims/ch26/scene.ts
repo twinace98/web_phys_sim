@@ -2,13 +2,13 @@
 // through a cross-section measures I; the I-V chart below collects the measurements.
 import { fmtTick, niceTicks } from '../../core/format';
 import type { Rng } from '../../core/rng';
-import type { ParamSchema, Scene, Vec2, WorldSpec } from '../../core/types';
+import type { NumberParam, ParamSchema, Scene, Vec2, WorldSpec } from '../../core/types';
 import type { Viewport } from '../../core/viewport';
 import type { Draw } from '../../draw/draw';
 import { t as tr } from '../../core/i18n';
 import { measureRich } from '../../draw/text';
 import { theme } from '../../draw/theme';
-import { num, tn, u } from '../../core/tex';
+import { fmtMeas, slider, texOf, tn, tnScale, u } from '../../core/tex';
 import { DENSITY, H_PER_MM2, Q_E, REF, SAMPLE, TAU_300, V_TH, accelOf, currentOf, driftSpeed, heightOf, makeGas, resistanceOf, stepGas, tauOf, type Gas, type Wire } from './physics';
 
 type P = { V: number; T: number; L: number; A: number };
@@ -65,10 +65,19 @@ const measuredI = (s: S) => runningI(s, READ_AFTER);
  * section in both directions at rate n h ⟨|v_x|⟩, each ±1, treated as independent (back-and-forth
  * crossings of one electron cancel, so the real spread is smaller).
  */
-const noiseI = (p: P, t: number) => {
+export const noiseI = (p: P, t: number) => {
   const rate = DENSITY * SAMPLE * heightOf(p.A) * ((2 * V_TH) / Math.PI);
   return (Q_E * 1e3 * Math.sqrt(rate * t)) / t;
 };
+/**
+ * Scatter (one standard deviation) of Ī [mA] after t seconds of counting, from 40 seeds per wire:
+ * about half the bound at small drift (0.45–0.67 of noiseI at V = 0 and the defaults), growing
+ * with the drift (1.0–1.3 of noiseI at 1.5 V, 200 K, 2 cm, 3 mm², v_d/v_th ≈ 0.85). Ī and V/Ī
+ * print to this scatter (policy D, R4).
+ */
+export const scatterI = (p: P, t: number) => 0.5 * noiseI(p, t) * (1 + (1.5 * driftSpeed(wireOf(p), p.V)) / V_TH);
+/** End of the run [s]: Δt prints with the decimals of this scale (R7a). */
+const RUN_END = 30;
 
 const params: ParamSchema<P> = {
   V: {
@@ -274,30 +283,41 @@ function wireEnd(g: Draw, x: number, bot: number, top: number, cut: boolean, up:
 /** Readouts: measured Ī [mA], V/Ī [Ω] (NaN until there is a reading). */
 export const readI = (s: S) => measuredI(s);
 export const readVI = (s: S, p: P) => (p.V > 0 && measuredI(s) > 0 ? (p.V / measuredI(s)) * 1e3 : NaN);
+/** Scatter of Ī [mA] and of V/Ī [Ω] at the current reading (NaN before it). */
+export const scatterOf = (s: S, p: P) => {
+  const sI = scatterI(p, s.t - s.t0);
+  return { I: sI, VI: (readVI(s, p) * sI) / readI(s) };
+};
+/** Ī and V/Ī as the readouts and the Σ panel print them: to their scatter (R4, R8). */
+export const fmtI = (s: S, p: P) => fmtMeas(readI(s), scatterOf(s, p).I);
+export const fmtVI = (s: S, p: P) => fmtMeas(readVI(s, p), scatterOf(s, p).VI);
 
 /**
- * Σ panel: τ(T), v_d = aτ, R = ρL/A scaled from the reference wire, the predicted I = V/R and,
- * once counted, the measured Ī = ΔQ/Δt and V/Ī. Inputs of products and quotients carry four
- * figures, so the shown arithmetic gives the result.
+ * Σ panel: τ(T), v_d = aτ, R = ρL/A scaled from the reference wire, the predicted V/R and, once
+ * counted, the measured Ī = ΔQ/Δt and V/Ī. Policy D: sliders as their labels, derived values with
+ * 3 figures, the counted ΔQ with 3 figures, Δt with the decimals of the 30 s run (R7a), Ī and V/Ī
+ * to their scatter (R4) as in the readouts.
  */
 export function formulaLines(s: S, p: P): string[] {
   const w = wireOf(p);
   const tau = tauOf(p.T);
   const R = resistanceOf(w);
-  const lines = [`\\tau = \\tau_{300}\\,\\frac{300\\ \\mathrm{K}}{T} = (${TAU_300}\\ \\mathrm{s})\\,\\frac{300}{${num(p.T)}} = ${tn(tau)}${u('s')}`];
+  const sl = (k: 'V' | 'T' | 'L' | 'A') => slider(params[k] as NumberParam, p[k]);
+  const lines = [`\\tau = \\tau_{300}\\,\\frac{300\\ \\mathrm{K}}{T} = (${TAU_300}\\ \\mathrm{s})\\,\\frac{300}{${sl('T')}} = ${tn(tau)}${u('s')}`];
   lines.push(
-    p.V > 0 ? `v_d = a\\tau = (${tn(accelOf(w, p.V), 4)}\\ \\mathrm{cm/s^2})(${tn(tau, 4)}\\ \\mathrm{s}) = ${tn(driftSpeed(w, p.V))}${u('cm/s')}` : `v_d = 0\\ \\ (V = 0)`,
+    p.V > 0 ? `v_d = a\\tau = (${tn(accelOf(w, p.V))}\\ \\mathrm{cm/s^2})(${tn(tau)}\\ \\mathrm{s}) = ${tn(driftSpeed(w, p.V))}${u('cm/s')}` : `v_d = 0\\ \\ (V = 0)`,
   );
   lines.push(
-    `R = \\rho\\,\\frac{L}{A} = (${REF.R}\\ \\Omega)\\,\\frac{${num(p.L)}}{${REF.L}}\\cdot\\frac{${REF.A}}{${num(p.A)}}\\cdot\\frac{${num(p.T)}}{${REF.T}} = ${tn(R)}${u('\\Omega')}`,
+    `R = \\rho\\,\\frac{L}{A} = (${REF.R}\\ \\Omega)\\,\\frac{${sl('L')}}{${REF.L}}\\cdot\\frac{${REF.A}}{${sl('A')}}\\cdot\\frac{${sl('T')}}{${REF.T}} = ${tn(R)}${u('\\Omega')}`,
   );
-  lines.push(`I = \\frac{V}{R} = \\frac{${num(p.V)}\\ \\mathrm{V}}{${tn(R, 4)}\\ \\Omega} = ${tn(currentOf(w, p.V) * 1e3)}${u('mA')}`);
+  // The prediction: not the measured Ī of the readout, so not written as I.
+  lines.push(`\\frac{V}{R} = \\frac{${sl('V')}\\ \\mathrm{V}}{${tn(R)}\\ \\Omega} = ${tn(currentOf(w, p.V) * 1e3)}${u('mA')}`);
   const I = readI(s);
   if (Number.isFinite(I)) {
     const dQ = (s.gas.count - s.c0) * Q_E;
-    lines.push(`\\bar I = \\frac{\\Delta Q}{\\Delta t} = \\frac{${tn(dQ, 4)}\\ \\mathrm{C}}{${tn(s.t - s.t0, 4)}\\ \\mathrm{s}} = ${tn(I)}${u('mA')}`);
-    const vi = readVI(s, p);
-    if (Number.isFinite(vi)) lines.push(`\\frac{V}{\\bar I} = \\frac{${num(p.V)}\\ \\mathrm{V}}{${tn(I, 4)}\\ \\mathrm{mA}} = ${tn(vi)}${u('\\Omega')}`);
+    const It = texOf(fmtI(s, p));
+    lines.push(`\\bar I = \\frac{\\Delta Q}{\\Delta t} = \\frac{${tn(dQ)}\\ \\mathrm{C}}{${tnScale(s.t - s.t0, RUN_END)}\\ \\mathrm{s}} = ${It}${u('mA')}`);
+    if (Number.isFinite(readVI(s, p))) lines.push(`V/\\bar I = \\frac{${sl('V')}\\ \\mathrm{V}}{${It}\\ \\mathrm{mA}} = ${texOf(fmtVI(s, p))}${u('\\Omega')}`);
   }
   return lines;
 }
@@ -306,7 +326,7 @@ export const conduction: Scene<P, S> = {
   id: 'drift',
   title: 'ch26.scene',
   params,
-  time: { h: 1 / RATE, recordEvery: 6, frameStep: 0.1, tEnd: 30 },
+  time: { h: 1 / RATE, recordEvery: 6, frameStep: 0.1, tEnd: RUN_END },
   world: () => WORLD,
 
   init: (p, rng) => ({ t: 0, n: 0, gas: makeGas(wireOf(p), rng), rng, trail: [], c0: NaN, t0: NaN }),
@@ -475,8 +495,8 @@ export const conduction: Scene<P, S> = {
   },
 
   readouts: [
-    { label: 'I', unit: 'mA', value: (s) => readI(s) },
-    { label: 'V/I', unit: 'Ω', value: (s, p) => readVI(s, p) },
+    { label: '\\bar I', unit: 'mA', value: (s) => readI(s), format: (v, s, p) => fmtMeas(v, scatterOf(s, p).I) },
+    { label: 'V/\\bar I', unit: 'Ω', value: (s, p) => readVI(s, p), format: (v, s, p) => fmtMeas(v, scatterOf(s, p).VI) },
     { label: '\\rho L/A', unit: 'Ω', value: (_s, p) => resistanceOf(wireOf(p)) },
   ],
 
@@ -486,6 +506,6 @@ export const conduction: Scene<P, S> = {
     goals: ['ch26.goal.drift', 'ch26.goal.R'],
     observe: ['ch26.obs.zero', 'ch26.obs.drift', 'ch26.obs.count', 'ch26.obs.ohm', 'ch26.obs.LA', 'ch26.obs.T'],
     equations: ['v_d = \\frac{eE}{m}\\tau, \\quad J = n e v_d', 'I = \\frac{V}{R}, \\quad R = \\rho\\frac{L}{A}', '\\rho = \\frac{m}{e^2 n \\tau}'],
-    assumptions: ['ch26.assume.speed', 'ch26.assume.model', 'ch26.assume.units'],
+    assumptions: ['ch26.assume.speed', 'ch26.assume.model', 'ch26.assume.units', 'ch26.assume.digits'],
   },
 };

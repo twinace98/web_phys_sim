@@ -252,9 +252,12 @@ describe('Ch 15 SHM: F_s, mg and F_d on the hanging mass', () => {
 
   it('Σ panel: ΣF = F_s − mg (+ F_d) = ma', () => {
     const s = shm.init(base, undefined as never);
-    // x = A = 0.2 m, k = 20 N/m, m = 1 kg: F_s = 9.8 − 4 = 5.80 N, ΣF = −4.00 N.
-    expect(shm.formula!(s, base).at(-1)).toBe('\\Sigma F = F_s - mg = 5.80 - 9.80 = -4.00\\ \\mathrm{N} = ma');
-    expect(shm.formula!(s, { ...base, zeta: 0.1 }).at(-1)).toMatch(/^\\Sigma F = F_s - mg \+ F_d = /);
+    // x = A = 0.2 m, k = 20 N/m, m = 1 kg: F_s = 9.8 − 4 = 5.80 N, ΣF = −kx = −4.00 N. The sum is
+    // computed as −kx (policy D, R5: F_s and mg nearly cancel near equilibrium).
+    expect(shm.formula!(s, base).slice(-2)).toEqual(['\\Sigma F = F_s - mg = 5.80 - 9.80', '= -kx = -(20)(0.200) = -4.00\\ \\mathrm{N} = ma']);
+    const damped = shm.formula!(s, { ...base, zeta: 0.1 }).slice(-2);
+    expect(damped[0]).toMatch(/^\\Sigma F = F_s - mg \+ F_d = /);
+    expect(damped[1]).toMatch(/^= -kx \+ F_d = -\(20\)\(0\.200\) \+ /);
   });
 });
 

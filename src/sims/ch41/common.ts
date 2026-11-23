@@ -1,18 +1,8 @@
 // Shared drawing for the Ch 41 band diagrams: bands as boxes, electrons and holes as dots.
-import { INPUT_SIG, tn } from '../../core/tex';
+import { tn } from '../../core/tex';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
 import type { Frame } from '../modern/frame';
-
-/**
- * Formula panel: figures for a and b in "a − b" (or "a + b" with sign 1), the fewest (≥ 3) that
- * reproduce the printed result, at most INPUT_SIG (policy D, docs/design.md §3.3).
- */
-export function sumSig(a: number, b: number, sign = -1, res = 3): number {
-  const r = (v: number, s: number) => Number(v.toPrecision(s));
-  for (let s = Math.max(3, res); s < INPUT_SIG; s++) if (tn(r(a, s) + sign * r(b, s), res) === tn(a + sign * b, res)) return s;
-  return INPUT_SIG;
-}
 
 /** tn() without its zero tolerance, for densities and occupations such as 10⁻³⁸ (readouts with zeroTol 0). */
 export function tz(v: number, sig = 3): string {

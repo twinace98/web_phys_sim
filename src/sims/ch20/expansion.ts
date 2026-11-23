@@ -1,9 +1,9 @@
 // Ch 20 scene: free expansion. The gas starts in the left half behind a partition; the user removes
 // it (button under the box, or a tap on the partition). The macrostate n (particles in the left
 // half) then wanders towards N/2, where the number of microstates Ω = C(N, n) is largest.
-import { fmtTick } from '../../core/format';
+import { fmt } from '../../core/format';
 import { t as tr } from '../../core/i18n';
-import { num, tn } from '../../core/tex';
+import { fmtInt, num, texOf, tn } from '../../core/tex';
 import type { Handle, ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { drawRich, measureRich } from '../../draw/text';
@@ -28,6 +28,11 @@ const HL = ROLE_COLOR.velocity;
 const WALL = '#5c5c5c';
 
 const Smax = (N: number) => lnBinom(N, Math.floor(N / 2));
+
+/** Ω = C(N, n): the integer below 10⁵ (R2: 1, 252), 3 figures above (1.01×10²⁹). Bar labels, readout, Σ. */
+export const omegaText = (Om: number) => (Om < 1e5 ? fmtInt(Om) : fmt(Om));
+/** ΔS/k = ln Ω: an exact 0 for the single microstate Ω = 1 (R2); undefined: 3 figures. */
+const dsText = (S: number) => (Math.abs(S) < 1e-9 ? '0' : undefined);
 
 const params: ParamSchema<P> = {
   N: {
@@ -130,7 +135,7 @@ function drawOmega(g: Draw, r: Rect, s: S, p: P): void {
       c.d.polygon(pts, { fill: BLUE, fillAlpha: 0.35 });
     }
     if (small) {
-      for (let n = 0; n <= N; n++) c.d.text(c.P(n, wOf(n)), fmtTick(wOf(n)), { size: 11, color: TICK, align: 'center', dy: -5 });
+      for (let n = 0; n <= N; n++) c.d.text(c.P(n, wOf(n)), omegaText(wOf(n)), { size: 11, color: TICK, align: 'center', dy: -5 });
     }
     // Current macrostate: highlighted bar and a marker on the axis.
     const hn = Math.max(half, 1.5);
@@ -209,9 +214,10 @@ export const expansionScene: Scene<P, S> = {
 
   readouts: [
     { label: 'n', unit: '', value: (s) => s.n, sig: 1 },
-    { label: '\\Omega', unit: '', value: (s, p) => Math.exp(lnBinom(p.N, s.n)) },
-    // Relative to the all-left state (Ω = 1): only the change is physical.
-    { label: '\\Delta S/k', unit: '', value: (s, p) => entropyLR(p.N, s.n) },
+    // Ω a count (R2): an integer below 10⁵, 3 figures above.
+    { label: '\\Omega', unit: '', value: (s, p) => Math.exp(lnBinom(p.N, s.n)), format: (v) => (v < 1e5 ? omegaText(v) : undefined) },
+    // Relative to the all-left state (Ω = 1): only the change is physical; ln 1 = 0 exactly.
+    { label: '\\Delta S/k', unit: '', value: (s, p) => entropyLR(p.N, s.n), format: dsText },
   ],
 
   formula: (s, p) => formulaLines(s.n, p),
@@ -236,12 +242,12 @@ export const expansionScene: Scene<P, S> = {
 export function formulaLines(n: number, p: P): string[] {
   const N = p.N;
   const Om = Math.exp(lnBinom(N, n));
-  // Ω exactly while it prints as an integer, else four figures, so ln Ω reproduces ΔS/k.
-  const OmSub = Om < 1e5 ? String(Math.round(Om)) : tn(Om, 4);
+  // Policy D, R2: Ω a count, ln 1 = 0 exactly; beyond 10⁵ Ω and ln Ω to 3 figures (R3).
+  const Omt = texOf(omegaText(Om));
   const half = Math.floor(N / 2);
   return [
-    `\\Omega(n) = \\binom{N}{n} = \\binom{${N}}{${n}} = ${tn(Om)}`,
-    `\\Delta S/k = \\ln\\Omega(n) = \\ln(${OmSub}) = ${tn(entropyLR(N, n))}`,
+    `\\Omega(n) = \\binom{N}{n} = \\binom{${N}}{${n}} = ${Omt}`,
+    `\\Delta S/k = \\ln\\Omega(n) = \\ln(${Omt}) = ${texOf(dsText(entropyLR(N, n)) ?? fmt(entropyLR(N, n)))}`,
     `\\Delta S_\\text{max}/k = \\ln\\binom{${N}}{${half}} = ${tn(Smax(N))}`,
     `\\approx N\\ln 2 - \\tfrac{1}{2}\\ln\\frac{\\pi N}{2} = ${N}\\ln 2 - \\tfrac{1}{2}\\ln(${num(N / 2)}\\pi) = ${tn(N * Math.LN2 - 0.5 * Math.log((Math.PI * N) / 2))}`,
     `P(n = N) = 1/2^N = 1/2^{${N}} = ${pow2(N)}`,

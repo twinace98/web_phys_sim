@@ -1,8 +1,8 @@
 // Ch 7 scene: work-kinetic energy theorem. The block on the track, the F(x) graph and the K(x)
 // graph share one x axis. The signed area under F(x) from the start to the block (the work, as in
 // the Ch 2 area overlay) always equals the change ΔK on the K(x) graph and in the bars.
-import { fmt, fmtTick, niceTicks } from '../../core/format';
-import { num, tn, u } from '../../core/tex';
+import { fmtTick, niceTicks } from '../../core/format';
+import { fmtScale, num, tn, tnScale, u } from '../../core/tex';
 import { t as tr } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
@@ -10,7 +10,6 @@ import { FBD_MIN_PX, drawFbd, fbdParam, type FbdForce } from '../../draw/fbd';
 import { measureRich } from '../../draw/text';
 import { color, theme, withAlpha } from '../../draw/theme';
 import { LabelLayout } from '../ch03/labels';
-import { sigFit } from './sigfit';
 import { F_MAX, SEG, TRACK, force, kinetic, makeSetup, trajectory, work, type Preset, type Setup, type Trajectory } from './physics';
 
 type P = { preset: string; bars: boolean; fbd: boolean; custom: number[] };
@@ -51,7 +50,9 @@ function barBox(): { x: number; mid: number; half: number } {
 }
 
 let memoKey = '';
-let memo: { su: Setup; tj: Trajectory; F: [number, number]; K: number; B: number; Fmax: number } | null = null;
+/** Run scales (largest magnitude over the run) of the printed values: residues below 10⁻³ print 0 (policy D, R7a). */
+type Scales = { x: number; v: number; K: number; W: number; F: number };
+let memo: { su: Setup; tj: Trajectory; F: [number, number]; K: number; B: number; Fmax: number; sc: Scales } | null = null;
 function model(p: P) {
   const key = `${p.preset}|${p.custom.join(',')}`;
   if (key !== memoKey || !memo) {
@@ -79,8 +80,15 @@ function model(p: P) {
     }
     // Largest |F| the block meets over the run (free-body scale).
     let Fmax = 0;
-    for (let i = 0; i < tj.n; i++) Fmax = Math.max(Fmax, Math.abs(force(su.prof, tj.x[i])));
-    memo = { su, tj, F: [fLo - 0.15 * span, fHi + 0.15 * span], K: Math.max(K, 1) * 1.15, B: Math.max(B, 1) * 1.1, Fmax };
+    let xMax = 0;
+    let vMax = 0;
+    for (let i = 0; i < tj.n; i++) {
+      Fmax = Math.max(Fmax, Math.abs(force(su.prof, tj.x[i])));
+      xMax = Math.max(xMax, Math.abs(tj.x[i]));
+      vMax = Math.max(vMax, Math.abs(tj.v[i]));
+    }
+    const sc = { x: xMax, v: vMax, K, W: B, F: Fmax };
+    memo = { su, tj, F: [fLo - 0.15 * span, fHi + 0.15 * span], K: Math.max(K, 1) * 1.15, B: Math.max(B, 1) * 1.1, Fmax, sc };
     memoKey = key;
   }
   return memo;
@@ -230,25 +238,29 @@ function bandAxis(g: Draw, lo: number, hi: number, y: (v: number) => number, lab
 
 /**
  * Σ panel: F at the block, the work as the area under F(x) (segment by segment, or the spring's
- * closed form), K and ΔK, so that W_net = ΔK can be read off the two results.
+ * closed form), K and ΔK, so that W_net = ΔK can be read off the two results. x, v, K, W and the
+ * spring force print with 3 figures and their run scale, as the readouts: back at the turning
+ * point the spring's v and W read 0.00, not a time-grid residue such as 2.96×10⁻⁴ (policy D, R7a).
+ * Segment forces and the start values as set (R1), segment lengths with 3 figures (R3).
  */
 export function formulaLines(s: S, p: P): string[] {
-  const { su } = model(p);
+  const { su, sc } = model(p);
   const m = su.m;
   const K = kinetic(m, s.v);
   const dK = K - kinetic(m, su.v0);
   const W = work(su.prof, su.x0, s.x);
   const F = force(su.prof, s.x);
+  const x = tnScale(s.x, sc.x);
+  const v = tnScale(s.v, sc.v);
+  const Ft = su.prof.kind === 'spring' ? tnScale(F, sc.F) : num(F);
   const lines: string[] = [];
   if (su.prof.kind === 'spring') {
     const k = su.prof.k;
-    lines.push(`F = -kx = -(${num(k)})(${tn(s.x)}) = ${tn(F)}${u('N')}`);
-    // Two squares subtracted: x with enough digits that the shown arithmetic gives W.
-    const sg = sigFit([s.x], (x) => -0.5 * k * (x * x - su.x0 * su.x0), W);
-    lines.push(`W = \\int_{x_0}^{x} F\\,dx = -\\tfrac12 k(x^2 - x_0^2)`, `= -\\tfrac12(${num(k)})[(${tn(s.x, sg)})^2 - (${num(su.x0)})^2] = ${tn(W)}${u('J')}`);
+    lines.push(`F = -kx = -(${num(k)})(${x}) = ${Ft}${u('N')}`);
+    lines.push(`W = \\int_{x_0}^{x} F\\,dx = -\\tfrac12 k(x^2 - x_0^2)`, `= -\\tfrac12(${num(k)})[(${x})^2 - (${num(su.x0)})^2] = ${tnScale(W, sc.W)}${u('J')}`);
   } else {
     const prof = su.prof;
-    lines.push(`F(${tn(s.x)}${u('m')}) = ${tn(F)}${u('N')}`);
+    lines.push(`F(${x}${u('m')}) = ${Ft}${u('N')}`);
     // Signed area: F_i Δx_i over the segments between x_0 and x (x ≥ x_0 on these tracks).
     const lo = Math.min(su.x0, s.x);
     const hi = Math.max(su.x0, s.x);
@@ -261,24 +273,19 @@ export function formulaLines(s: S, p: P): string[] {
       const r = Math.min(hi, b);
       if (r - l > 1e-9) terms.push({ F: prof.Fs[i], dx: r - l });
     }
-    if (!terms.length) lines.push(`W = \\int_{x_0}^{x} F\\,dx = ${tn(0)}${u('J')}`);
+    if (!terms.length) lines.push(`W = \\int_{x_0}^{x} F\\,dx = ${tnScale(0, sc.W)}${u('J')}`);
     else {
-      const sg = sigFit(
-        terms.map((q) => q.dx),
-        (...d) => d.reduce((acc, dx, i) => acc + terms[i].F * dx, 0),
-        W,
-      );
-      const sum = terms.map((q) => `(${num(q.F)})(${Number.isInteger(q.dx) ? num(q.dx) : tn(q.dx, sg)})`).join(' + ');
-      lines.push(`W = \\int_{x_0}^{x} F\\,dx = \\sum_i F_i\\,\\Delta x_i`, `= ${sum} = ${tn(W)}${u('J')}`);
+      const sum = terms.map((q) => `(${num(q.F)})(${Number.isInteger(q.dx) ? num(q.dx) : tn(q.dx)})`).join(' + ');
+      lines.push(`W = \\int_{x_0}^{x} F\\,dx = \\sum_i F_i\\,\\Delta x_i`, `= ${sum} = ${tnScale(W, sc.W)}${u('J')}`);
     }
   }
   if (p.fbd) {
     // Free-body diagram: N and mg cancel, F is the net force (N and mg do no work on this track).
     const Wt = m * G7;
-    lines.push(`\\Sigma F_x = F = ${tn(F)}${u('N')} = ma,\\quad \\Sigma F_y = N - mg = ${tn(Wt)} - ${tn(Wt)} = 0`);
+    lines.push(`\\Sigma F_x = F = ${Ft}${u('N')} = ma,\\quad \\Sigma F_y = N - mg = ${tn(Wt)} - ${tn(Wt)} = 0`);
   }
-  lines.push(`K = \\tfrac12 mv^2 = \\tfrac12(${num(m)})(${tn(s.v)})^2 = ${tn(K)}${u('J')}`);
-  lines.push(`\\Delta K = \\tfrac12 m(v^2 - v_0^2)`, `= \\tfrac12(${num(m)})[(${tn(s.v, sigFit([s.v], (v) => 0.5 * m * (v * v - su.v0 * su.v0), dK))})^2 - ${num(su.v0)}^2] = ${tn(dK)}${u('J')}`);
+  lines.push(`K = \\tfrac12 mv^2 = \\tfrac12(${num(m)})(${v})^2 = ${tnScale(K, sc.K)}${u('J')}`);
+  lines.push(`\\Delta K = \\tfrac12 m(v^2 - v_0^2)`, `= \\tfrac12(${num(m)})[(${v})^2 - ${num(su.v0)}^2] = ${tnScale(dK, sc.W)}${u('J')}`);
   return lines;
 }
 
@@ -431,7 +438,7 @@ export const workEnergy: Scene<P, S> = {
     for (const y of [gTop - 4 * sc, gTop + 12 * sc, gTop + 26 * sc, gBot - 6 * sc, gBot - 20 * sc]) {
       for (const al of sides) cands.push({ x: gx + (al === 'left' ? 8 : -8) * sc, y, align: al });
     }
-    lay.place(cands, `${tr('plot.area')} = ${fmt(W)} J`, 'force', 12, 500);
+    lay.place(cands, `${tr('plot.area')} = ${fmtScale(W, m.sc.W)} J`, 'force', 12, 500);
 
     // K(x) graph: the path so far, K0 reference and the ΔK bar at the block.
     bandAxis(g, 0, m.K, (v) => yK(m, v), '*K* (J)', K_BAND[1]);
@@ -452,7 +459,7 @@ export const workEnergy: Scene<P, S> = {
     for (const y of [(k0y + k1y) / 2, Math.min(k0y, k1y) - 10 * sc, Math.max(k0y, k1y) + 10 * sc]) {
       for (const al of kSides) kc.push({ x: kx + (al === 'left' ? 9 : -9) * sc, y, align: al });
     }
-    lay.place(kc, `Δ*K* = ${fmt(K - K0)} J`, 'energyK', 12, 500);
+    lay.place(kc, `Δ*K* = ${fmtScale(K - K0, m.sc.W)} J`, 'energyK', 12, 500);
 
     // Bars: W_net and ΔK from a common zero.
     if (p.bars) {
@@ -471,7 +478,7 @@ export const workEnergy: Scene<P, S> = {
           { fill, fillAlpha: 0.85 },
         );
         const up = v >= 0;
-        g.text({ x: x + BAR_W / 2, y: yB(m, v) }, fmt(v), { size: 11, color: TICK, align: 'center', dy: up ? -6 : 14 });
+        g.text({ x: x + BAR_W / 2, y: yB(m, v) }, fmtScale(v, m.sc.W), { size: 11, color: TICK, align: 'center', dy: up ? -6 : 14 });
         g.text({ x: x + BAR_W / 2, y: y0 }, name, { size: 13, color: '#1a1a1a', align: 'center', dy: up ? 18 : -8 });
       };
       bar(BAR_X, W, 'force', '*W*_{net}');
@@ -501,9 +508,10 @@ export const workEnergy: Scene<P, S> = {
   })),
 
   readouts: [
-    { label: 'x', unit: 'm', value: (s) => s.x },
-    { label: 'v', unit: 'm/s', value: (s) => s.v },
-    { label: 'K', unit: 'J', value: (s, p) => kinetic(model(p).su.m, s.v) },
+    // Run scale as in the Σ panel: residues print 0 (policy D, R7a).
+    { label: 'x', unit: 'm', value: (s) => s.x, scale: (p) => model(p).sc.x },
+    { label: 'v', unit: 'm/s', value: (s) => s.v, scale: (p) => model(p).sc.v },
+    { label: 'K', unit: 'J', value: (s, p) => kinetic(model(p).su.m, s.v), scale: (p) => model(p).sc.K },
   ],
 
   formula: (s, p) => formulaLines(s, p),

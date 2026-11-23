@@ -1,9 +1,10 @@
-// Σ formula panel, Ch 2–6: the printed result of the panel lines equals the scene's own readout or
-// physics function (same tn() rounding), at defaults and other settings, at t = 0 and while running.
+// Σ formula panel, Ch 2–6: the printed result of the panel lines is the scene's own readout string
+// (policy D, R3/R8; fixed decimals where the readout has a run scale, R7a) or its physics function
+// with tn() rounding, at defaults and other settings, at t = 0 and while running.
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
-import { tn } from '../src/core/tex';
+import { readoutText, texOf, tn } from '../src/core/tex';
 import type { Params, Scene } from '../src/core/types';
 import { sigToMatch, sigsToMatch } from '../src/sims/ch02/sigma';
 import ch02 from '../src/sims/ch02';
@@ -18,8 +19,11 @@ import { MATERIALS } from '../src/sims/ch06/physics';
 
 const DEG = Math.PI / 180;
 type Val = (s: never, p: never) => number;
-/** A line (first match) and the value its result must print as. A string value names a readout. */
-type Expect = [RegExp, Val | string];
+/**
+ * A line (first match) and the value its result must print as: a string names a readout (its
+ * string), a function gives a value (tn), { text } the exact string.
+ */
+type Expect = [RegExp, Val | string | { text: string }];
 
 /** The printed result: after the last "= ", without the unit, a trailing condition or °. */
 export function result(line: string): string {
@@ -54,8 +58,12 @@ function check(sc: Scene, over: Record<string, unknown>, steps: number[], expect
     for (const [re, v] of expects) {
       const line = lines.find((l) => re.test(l));
       if (!line) continue;
-      const value = typeof v === 'string' ? sc.readouts!.find((ro) => ro.label === v)!.value(s, pp) : v(s, pp);
-      expect(result(line), `${sc.id} ${JSON.stringify(over)} step ${n}: ${line}`).toBe(tn(value));
+      let want: string;
+      if (typeof v === 'string') {
+        const spec = sc.readouts!.find((ro) => ro.label === v)!;
+        want = texOf(readoutText(spec as never, spec.value(s, pp), pp));
+      } else want = typeof v === 'function' ? tn(v(s, pp)) : v.text;
+      expect(result(line), `${sc.id} ${JSON.stringify(over)} step ${n}: ${line}`).toBe(want);
       hits++;
     }
     expect(hits, `${sc.id} ${JSON.stringify(over)} step ${n}: matched lines`).toBeGreaterThanOrEqual(need);
@@ -121,7 +129,7 @@ describe('Σ panel agrees with the simulation, Ch 2–6', () => {
     const ex: Expect[] = [
       [/^v_x = /, 'v_x'],
       [/^= .*\\mathrm\{m\/s\}$/, 'v_y'],
-      [/^= .*\\mathrm\{m\}$/, ((s: { y: number }) => s.y) as Val],
+      [/^= .*\\mathrm\{m\}$/, 'y'],
       [/^v = \\sqrt/, 'v'],
     ];
     for (const over of [{}, { h: 40, theta: 0, g: 'moon' }, { theta: 75, v0: 25, g: 'mars' }]) check(pj, over, STEPS, ex, 4);
@@ -191,7 +199,8 @@ describe('Σ panel agrees with the simulation, Ch 2–6', () => {
     const cx: Expect[] = [
       [/F_\{\\text\{net\},r\} = (?!.*F_\\text\{cf\} =)/, 'F_{\\text{net},r}'],
       [/^\\frac\{mv\^2\}\{r\} = /, 'mv^2/r'],
-      [/^\\sum F'_r = /, (() => 0) as Val],
+      // mv²/r − mv²/r: an exact 0 (R7a).
+      [/^\\sum F'_r = /, { text: '0' }],
     ];
     const steps = [0, 300, 600, 900, 1200, 2000];
     const cases: Record<string, unknown>[] = [{}, { cut: true }, { preset: 'flat' }, { preset: 'flat', ice: true }, { preset: 'banked' }, { preset: 'cone' }, { preset: 'cone', cut: true }];

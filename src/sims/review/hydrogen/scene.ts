@@ -2,18 +2,15 @@
 // Tab 1: pick a transition (stage handles or steppers n_i, n_f); the photon and its line, which
 // accumulates in the spectrum strip. Tab 2: play a whole series converging to its limit.
 // Energy diagram: linear in E, with a magnified inset of the top band (n ≥ 5) so every label reads.
-import { fmtTick } from '../../../core/format';
-import { tn } from '../../../core/tex';
+import { fmtInt } from '../../../core/precision';
+import { CONST, tn, tnInt } from '../../../core/tex';
 import { t } from '../../../core/i18n';
 import type { Handle, ParamSchema, Scene } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
 import { arrowPx } from '../../../draw/draw';
 import { ROLE_COLOR, theme } from '../../../draw/theme';
-import { tnFit } from '../../ch07/sigfit';
-import { fitSig, printed } from '../../ch31/fit';
-import { texNum } from '../../field/render';
 import { Frame, PX_WORLD, TICK, W, linePx, textPx, type Box } from '../../modern/frame';
-import { HC_EVNM, R_H, SERIES, bohrRadius, energy, isEmission, lambdaVac, photonEnergy, seriesLimit, type SeriesId } from './physics';
+import { R_H, SERIES, bohrRadius, energy, isEmission, lambdaVac, photonEnergy, seriesLimit, type SeriesId } from './physics';
 import { MARK_ROOM, drawPhoton, drawSpectrum, photonRow, region, spectrumHeight, type SpecLine } from './spectrum';
 import { KNOB_HIT, OFF, clearLines, drawKnob, hasEarlierLines, knobArrow, knobDx, type StageBtn } from './stage';
 
@@ -53,7 +50,8 @@ function layout(g: Draw, opts: { bohr: boolean; bracket: boolean }): Lay {
   const specH = spectrumHeight(narrow, opts.bracket);
   const t = 26;
   const b = H - specH - (narrow ? 16 : 22);
-  const gutL = narrow ? 46 : 58;
+  // Room for the widest level label, "−13.60" (2 decimals, R8).
+  const gutL = narrow ? 52 : 58;
   const labW = narrow ? 26 : 56;
   const gutZ = narrow ? 46 : 58;
   const right = 10;
@@ -93,8 +91,13 @@ export function zoomLabels(Y: (E: number) => number, selected: number[], nMax = 
   return out.sort((a, b) => a - b);
 }
 
-/** Tick text of a level energy: 3 significant figures, no trailing zeros (−3.4, −0.85). */
-const tickE = (E: number) => (E === 0 ? '0' : fmtTick(Number(E.toPrecision(3))));
+/**
+ * A level energy [eV] as the stage axis and the Σ panel print it (R8): fixed 2 decimals, the
+ * decimals of Halliday's 13.60 eV (−13.60, −3.40, −1.51, −0.85, −0.54); the limit E = 0 is "0".
+ */
+export const fmtLevel = (E: number): string => (E === 0 ? '0' : E.toFixed(2).replace('-', '−'));
+const texLevel = (E: number): string => fmtLevel(E).replace('−', '-');
+const tickE = fmtLevel;
 
 /** Vertical energy axis on the left of a panel with ticks at the given energies. */
 function axisY(f: Frame, ticks: number[], hl: number[]): void {
@@ -200,15 +203,8 @@ export const regionMark = (nm: number): string | undefined => {
   return r === 'vis' ? undefined : t(`hyd.region.${r}`);
 };
 
-/** λ at `sig` figures in nm, one figure fewer in μm (10 μm and longer). */
-const fmtLambda = (nm: number, sig = 4) => (nm >= 1e4 ? `${tn(nm / 1000, sig - 1)}\\ \\mu\\text{m}` : `${tn(nm, sig)}\\ \\text{nm}`);
-
-/** Printed ionization energy R_H hc [eV] and hc [eV·nm]: the short pair first, more digits where needed. */
-const CONSTS = [
-  { ion: '13.5983', hc: '1239.84' },
-  { ion: '13.59829', hc: '1239.842' },
-  { ion: '13.598287', hc: '1239.84198' },
-];
+/** λ in nm as the readout and the spectrum axis print it (3 figures, R3 and R8). */
+const fmtLambda = (nm: number) => `${tn(nm)}\\ \\text{nm}`;
 
 // ------------------------------------------------------------------ tab 1: transitions
 
@@ -409,8 +405,8 @@ export const transitions: Scene<PT, ST> = {
   handles: [levelHandle('ni', 'main'), levelHandle('nf', 'main'), levelHandle('ni', 'zoom'), levelHandle('nf', 'zoom'), clearHandle()],
 
   readouts: [
-    { label: '\\lambda', unit: 'nm', sig: 4, value: (_s, p) => (p.ni === p.nf ? NaN : lambdaVac(p.ni, p.nf)) },
-    { label: '\\Delta E', unit: 'eV', sig: 4, value: (_s, p) => photonEnergy(p.ni, p.nf) },
+    { label: '\\lambda', unit: 'nm', value: (_s, p) => (p.ni === p.nf ? NaN : lambdaVac(p.ni, p.nf)) },
+    { label: '\\Delta E', unit: 'eV', value: (_s, p) => photonEnergy(p.ni, p.nf) },
   ],
 
   formula: (_s, p) => {
@@ -420,35 +416,18 @@ export const transitions: Scene<PT, ST> = {
     const same = ni === nf;
     const dE = photonEnergy(ni, nf);
     const k = 1 / (lo * lo) - 1 / (hi * hi);
-    const lam = HC_EVNM / dE;
-    const En = [tn(energy(ni), 4), tn(energy(nf), 4)];
-    // Figures of ΔE so that hc/ΔE gives the printed λ, and constants (13.5983 eV, hc) with as many
-    // digits as the E_n, ΔE and λ lines need; a λ close to a rounding tie gets one more figure.
-    let plan = { ...CONSTS[0], sL: 4, sD: 5 };
-    search: for (const sL of [4, 5]) {
-      for (const c of CONSTS) {
-        const hc = Number(c.hc);
-        const Ec = Number(c.ion);
-        if (tn(-Ec / (ni * ni), 4) !== En[0] || tn(-Ec / (nf * nf), 4) !== En[1]) continue;
-        if (same) {
-          plan = { ...c, sL, sD: 5 };
-          break search;
-        }
-        const lamS = fmtLambda(lam, sL);
-        for (let sD = fitSig((r) => fmtLambda(hc / r(dE), sL), lamS, 5, 8); sD < 8; sD++) {
-          plan = { ...c, sL, sD };
-          if (fmtLambda(hc / printed(dE, sD), sL) === lamS && tn(Ec * k, sD) === tn(dE, sD)) break search;
-        }
-      }
-    }
-    const { hc, ion, sL, sD } = plan;
-    const lines = [`E_n = -\\frac{${ion}\\ \\text{eV}}{n^2}:\\quad E_{${ni}} = ${En[0]}\\ \\text{eV},\\quad E_{${nf}} = ${En[1]}\\ \\text{eV}`];
+    const lam = lambdaVac(ni, nf);
+    // Policy D: Halliday's 13.60 eV and hc = 1240 eV·nm (CONST), the levels as the stage labels
+    // (2 decimals), ΔE and λ as their readouts. The model uses the reduced-mass 13.598 eV, so the
+    // printed arithmetic may differ from the result in the last digit (R3).
+    const ion = CONST.Ry.tex;
+    const lines = [`E_n = -\\frac{${ion}\\ \\text{eV}}{n^2}:\\quad E_{${ni}} = ${texLevel(energy(ni))}\\ \\text{eV},\\quad E_{${nf}} = ${texLevel(energy(nf))}\\ \\text{eV}`];
     if (same) return [...lines, 'n_i = n_f:\\ \\Delta E = 0'];
     return [
       ...lines,
-      `\\Delta E = E_{${hi}} - E_{${lo}} = ${ion}\\left(\\frac{1}{${lo}^2} - \\frac{1}{${hi}^2}\\right)\\ \\text{eV} = ${tn(dE, sD)}\\ \\text{eV}`,
-      `\\lambda = \\frac{hc}{\\Delta E} = \\frac{${hc}\\ \\text{eV}\\cdot\\text{nm}}{${tn(dE, sD)}\\ \\text{eV}} = ${fmtLambda(lam, sL)}`,
-      `\\frac{1}{\\lambda} = R_\\text{H}\\left(\\frac{1}{${lo}^2} - \\frac{1}{${hi}^2}\\right) = ${texNum(R_H * k, 5)}\\ \\text{m}^{-1}`,
+      `\\Delta E = E_{${hi}} - E_{${lo}} = ${ion}\\left(\\frac{1}{${lo}^2} - \\frac{1}{${hi}^2}\\right)\\ \\text{eV} = ${tn(dE)}\\ \\text{eV}`,
+      `\\lambda = \\frac{hc}{\\Delta E} = \\frac{${CONST.hc.tex}\\ \\text{eV}\\cdot\\text{nm}}{${tn(dE)}\\ \\text{eV}} = ${fmtLambda(lam)}`,
+      `\\frac{1}{\\lambda} = R_\\text{H}\\left(\\frac{1}{${lo}^2} - \\frac{1}{${hi}^2}\\right) = ${tn(R_H * k)}\\ \\text{m}^{-1}`,
     ];
   },
 
@@ -456,7 +435,7 @@ export const transitions: Scene<PT, ST> = {
     goals: ['hyd.t.goal.levels', 'hyd.t.goal.photon'],
     observe: ['hyd.t.obs.crowd', 'hyd.t.obs.balmer', 'hyd.t.obs.lyman', 'hyd.t.obs.abs', 'hyd.t.obs.bohr'],
     equations: [
-      'E_n = -\\frac{m e^4}{8\\varepsilon_0^2 h^2}\\frac{1}{n^2} = -\\frac{13.6\\ \\text{eV}}{n^2}',
+      'E_n = -\\frac{m e^4}{8\\varepsilon_0^2 h^2}\\frac{1}{n^2} = -\\frac{13.60\\ \\text{eV}}{n^2}',
       'hf = \\Delta E = E_\\text{high} - E_\\text{low}, \\quad \\lambda = \\frac{hc}{\\Delta E}',
       '\\frac{1}{\\lambda} = R\\left(\\frac{1}{n_\\text{low}^2} - \\frac{1}{n_\\text{high}^2}\\right)',
       'r_n = n^2 a_0, \\quad a_0 = 52.9\\ \\text{pm}',
@@ -569,9 +548,10 @@ export const series: Scene<PS, SS> = {
   },
 
   readouts: [
-    { label: 'n', unit: '', sig: 1, value: (s, p) => SERIES[p.series as SeriesId] + 1 + seriesIndex(s.t) },
-    { label: '\\lambda', unit: 'nm', sig: 4, value: (s, p) => lambdaVac(SERIES[p.series as SeriesId] + 1 + seriesIndex(s.t), SERIES[p.series as SeriesId]) },
-    { label: '\\lambda_\\infty', unit: 'nm', sig: 4, value: (_s, p) => seriesLimit(SERIES[p.series as SeriesId]) },
+    // n is a count (R2): "16", never 1 figure ("2×10¹").
+    { label: 'n', unit: '', format: fmtInt, value: (s, p) => SERIES[p.series as SeriesId] + 1 + seriesIndex(s.t) },
+    { label: '\\lambda', unit: 'nm', value: (s, p) => lambdaVac(SERIES[p.series as SeriesId] + 1 + seriesIndex(s.t), SERIES[p.series as SeriesId]) },
+    { label: '\\lambda_\\infty', unit: 'nm', value: (_s, p) => seriesLimit(SERIES[p.series as SeriesId]) },
   ],
 
   formula: (s, p) => {
@@ -579,11 +559,11 @@ export const series: Scene<PS, SS> = {
     const nu = nl + 1 + seriesIndex(s.t);
     const k = 1 / (nl * nl) - 1 / (nu * nu);
     const lam = lambdaVac(nu, nl);
-    // R_H and the bracket with enough figures that 1/(R_H × bracket) gives the printed λ.
-    const sf = fitSig((r) => fmtLambda(1e9 / (r(R_H) * r(k))), fmtLambda(lam), 5, 9);
+    // Policy D: R_H and the bracket at 3 figures (R3), λ as its readout; the recomputation may
+    // differ in the last digit.
     return [
       `\\frac{1}{\\lambda} = R_\\text{H}\\left(\\frac{1}{${nl}^2} - \\frac{1}{n^2}\\right),\\quad n = ${nl + 1}, ${nl + 2}, ${nl + 3}, \\dots`,
-      `n = ${nu}:\\quad \\frac{1}{\\lambda} = (${tn(R_H, sf)}\\ \\text{m}^{-1})(${tnFit(k, sf)}),\\quad \\lambda = ${fmtLambda(lam)}`,
+      `n = ${tnInt(nu)}:\\quad \\frac{1}{\\lambda} = (${tn(R_H)}\\ \\text{m}^{-1})(${tn(k)}),\\quad \\lambda = ${fmtLambda(lam)}`,
       `\\lambda_\\infty = \\frac{${nl}^2}{R_\\text{H}} = ${fmtLambda(seriesLimit(nl))}`,
     ];
   },

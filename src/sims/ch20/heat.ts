@@ -2,7 +2,8 @@
 // microstates Ω_A Ω_B grows, so energy flows from the hotter solid to the colder one until
 // ∂S_A/∂E_A = ∂S_B/∂E_B, i.e. equal temperatures (1/T = ∂S/∂E).
 import type { Rng } from '../../core/rng';
-import { tn, tp } from '../../core/tex';
+import { fmt } from '../../core/format';
+import { paren, texOf, tn } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
@@ -30,6 +31,13 @@ const N_TOT = 100;
 const MOVES = 6;
 const ROWS = 5;
 const sizes = (p: P): [number, number] => [p.na, N_TOT - p.na];
+/** S/k = ln Ω to 3 figures; a single microstate (Ω = 1) gives an exact 0 (policy D, R2). */
+const fmtS = (v: number) => (Math.abs(v) < 1e-9 ? '0' : fmt(v));
+const tS = (v: number) => texOf(fmtS(v));
+/** kT/ε to 3 figures; a solid with no quanta is at exactly 0 (R2, R7a). Readout format: only the 0. */
+const zeroText = (v: number) => (v === 0 ? '0' : undefined);
+const tKT = (v: number) => texOf(zeroText(v) ?? fmt(v));
+
 const ent = (p: P, qA: number) => {
   const [NA, NB] = sizes(p);
   const a = lnOmega(NA, qA);
@@ -390,8 +398,8 @@ export const heatScene: Scene<P, S> = {
 
   readouts: [
     { label: 'q_\\text{A}', unit: '', value: (s) => s.qA, sig: 1 },
-    { label: 'kT_\\text{A}/\\varepsilon', unit: '', value: (s, p) => temps(p, s.qSmooth)[0] },
-    { label: 'kT_\\text{B}/\\varepsilon', unit: '', value: (s, p) => temps(p, s.qSmooth)[1] },
+    { label: 'kT_\\text{A}/\\varepsilon', unit: '', value: (s, p) => temps(p, s.qSmooth)[0], format: zeroText },
+    { label: 'kT_\\text{B}/\\varepsilon', unit: '', value: (s, p) => temps(p, s.qSmooth)[1], format: zeroText },
   ],
 
   formula: (s, p) => formulaLines(s, p),
@@ -418,14 +426,16 @@ export function formulaLines(s: S, p: P): string[] {
   const qB = p.q - qA;
   const e = ent(p, qA);
   const [TA, TB] = temps(p, s.qSmooth);
+  // Policy D: entropies and q̄ to 3 figures (R3); ln Ω of a single microstate (q = 0) is an exact 0
+  // (R2). q̄ is the smoothed q, so at the start it is the q slider value and prints as its label.
   const kT = (X: string, N: number, q: number, T: number) =>
     q > 0
-      ? `kT_\\text{${X}}/\\varepsilon = \\frac{1}{\\ln(1 + N_\\text{${X}}/\\bar q_\\text{${X}})} = \\frac{1}{\\ln(1 + ${N}/${tn(q, 4)})} = ${tn(T)}`
-      : `\\bar q_\\text{${X}} = 0 \\;\\Rightarrow\\; kT_\\text{${X}}/\\varepsilon = ${tn(T)}`;
+      ? `kT_\\text{${X}}/\\varepsilon = \\frac{1}{\\ln(1 + N_\\text{${X}}/\\bar q_\\text{${X}})} = \\frac{1}{\\ln(1 + ${N}/${tn(q)})} = ${tKT(T)}`
+      : `\\bar q_\\text{${X}} = 0 \\;\\Rightarrow\\; kT_\\text{${X}}/\\varepsilon = ${tKT(T)}`;
   return [
-    `S_\\text{A}/k = \\ln\\Omega_\\text{A} = \\ln\\binom{${qA + NA - 1}}{${qA}} = ${tn(e.a, 4)}`,
-    `S_\\text{B}/k = \\ln\\Omega_\\text{B} = \\ln\\binom{${qB + NB - 1}}{${qB}} = ${tn(e.b, 4)}`,
-    `S_\\text{tot}/k = ${tp(e.a, 4)} + ${tp(e.b, 4)} = ${tn(e.tot, 4)}`,
+    `S_\\text{A}/k = \\ln\\Omega_\\text{A} = \\ln\\binom{${qA + NA - 1}}{${qA}} = ${tS(e.a)}`,
+    `S_\\text{B}/k = \\ln\\Omega_\\text{B} = \\ln\\binom{${qB + NB - 1}}{${qB}} = ${tS(e.b)}`,
+    `S_\\text{tot}/k = ${paren(tS(e.a))} + ${paren(tS(e.b))} = ${tS(e.tot)}`,
     kT('A', NA, s.qSmooth, TA),
     kT('B', NB, p.q - s.qSmooth, TB),
   ];

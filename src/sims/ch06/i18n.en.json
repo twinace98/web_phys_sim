@@ -10,7 +10,7 @@
   "ch06.f.d.m": "Block mass $m$: $mg$, $N$ and the friction scale with $m$",
   "ch06.f.mat.wood": "Wood on wood (0.50, 0.30)",
   "ch06.f.mat.steel": "Steel on steel (0.74, 0.57)",
-  "ch06.f.mat.rubber": "Rubber on concrete (1.0, 0.80)",
+  "ch06.f.mat.rubber": "Rubber on concrete (1.00, 0.80)",
   "ch06.f.mat.ice": "Ice on ice (0.10, 0.03)",
   "ch06.f.goal.static": "Static friction: only as large as needed, at most $\\mu_s N$",
   "ch06.f.goal.kinetic": "When the block starts to slide, friction drops to $\\mu_k N$ ($\\mu_k < \\mu_s$) and stays there",

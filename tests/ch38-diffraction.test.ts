@@ -205,7 +205,8 @@ describe('ch38 diffraction: scene', () => {
     expect(dg.join(' ')).toContain('0.167\\ \\text{nm}');
     expect(dg.join(' ')).toContain('L\\tan\\theta_1');
     const ball = formulaLines({ ...base, part: 'ball' }).join(' ');
-    expect(ball).toContain('\\Delta y < \\delta = 20.8\\ \\mu\\text{m}');
+    // Δy and δ in the unit of the screen axis (R8): mm for the two slits.
+    expect(ball).toContain('\\Delta y < \\delta = 0.0208\\ \\text{mm}');
     expect(ball).toContain('{1\\ \\text{mm}}');
     expect(ball).toContain('\\tfrac12 mv^2');
     const c60 = formulaLines({ ...base, part: 'c60' }).join(' ');
@@ -219,7 +220,9 @@ describe('ch38 diffraction: scene', () => {
   it('length labels', () => {
     expect(lenText(0.215e-9)).toBe('0.215 nm');
     expect(lenText(100e-9)).toBe('100 nm');
-    expect(lenText(1e-3)).toBe('1 mm');
+    expect(lenText(1e-3)).toBe('1.00 mm');
+    expect(lenText(1e-3, 3, true)).toBe('1 mm');
+    expect(lenText(2.5e-12)).toBe('2.50 pm');
     expect(lenTex(1.142e-34)).toBe('1.14\\times 10^{-34}\\ \\text{m}');
     expect(lenTex(31.5e-6)).toBe('31.5\\ \\mu\\text{m}');
   });
@@ -314,7 +317,7 @@ describe('ch38 diffraction: the resolvability verdict agrees with the drawn scre
     expect(f.resolvable).toBe(false);
     expect(merged(s, lambdaP(below))).toBe(true);
     const tex = formulaLines(below).join(' ');
-    expect(tex).toContain('= 2.08\\ \\text{mm}');
-    expect(tex).toContain('\\Delta y < \\delta = 2.083\\ \\text{mm}');
+    expect(tex).toContain('= 0.208\\ \\text{cm}');
+    expect(tex).toContain('\\Delta y < \\delta = 0.2083\\ \\text{cm}');
   });
 });

@@ -2,11 +2,10 @@
 // with its envelope. The strip above shows the two amplitudes as arrows in a frame turning at
 // the mean frequency: they drift apart at f₂ − f₁, so the sum swells and fades.
 import { t } from '../../core/i18n';
-import { num, tn, u } from '../../core/tex';
+import { num, slider, sliderText, texOf, tn, u } from '../../core/tex';
 import type { ParamSchema, Role, Scene, UiState, Vec2 } from '../../core/types';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { color, withAlpha } from '../../draw/theme';
-import { sigFit } from '../ch07/sigfit';
 import { soundTick } from './audio';
 import { beatEnvelope, beatFrequency, wave } from './physics';
 
@@ -50,6 +49,11 @@ const params: ParamSchema<P> = {
   },
   sound: { kind: 'toggle', label: 'ch17.b.p.sound', desc: 'ch17.b.d.sound', group: 'advanced', live: true, default: false },
 };
+
+/** f₂ = f₁ + Δf: an exact sum of slider values, printed as it is (22, 441.5), never rounded to 3 figures. */
+const f2Text = (v: number) => num(v);
+/** f_beat = Δf: the Δf slider label (R1, R8: 2.0 Hz, not 2.00). */
+const fbText = (v: number) => sliderText(params.df, v);
 
 const sample = (p: P, t: number): S => ({ t, y1: wave(A, p.f1, t), y2: wave(A, f2Of(p), t) });
 
@@ -101,9 +105,9 @@ export const beats: Scene<P, S> = {
   drawPlot: (id, pd, p, ui) => drawWave(id, pd, p, ui),
 
   readouts: [
-    // f₂ = f₁ + Δf exactly, as typed (441.5, not 442 next to f_beat = 1.50).
-    { label: 'f_2', unit: 'Hz', value: (_s, p) => f2Of(p), format: (v) => num(v) },
-    { label: 'f_\\text{beat}', unit: 'Hz', value: (_s, p) => beatFrequency(p.f1, f2Of(p)) },
+    // f₂ = f₁ + Δf exactly, as typed (441.5, not 442 next to f_beat = 1.5); f_beat = Δf as its label.
+    { label: 'f_2', unit: 'Hz', value: (_s, p) => f2Of(p), format: (v) => f2Text(v) },
+    { label: 'f_\\text{beat}', unit: 'Hz', value: (_s, p) => beatFrequency(p.f1, f2Of(p)), format: (v) => fbText(v) },
     { label: 'T_\\text{beat}', unit: 's', value: (_s, p) => 1 / beatFrequency(p.f1, f2Of(p)) },
   ],
 
@@ -124,18 +128,19 @@ export const beats: Scene<P, S> = {
 export function formulaLines(time: number, p: P): string[] {
   const f2 = f2Of(p);
   const fb = beatFrequency(p.f1, f2);
-  const f1s = num(p.f1);
-  const f2s = num(f2);
-  // Sums of slider values are exact: printed as they are (441.5, 440.75), never rounded to 3 figures.
+  const f1s = slider(params.f1, p.f1);
+  const dfs = slider(params.df, p.df);
+  const f2s = texOf(f2Text(f2));
+  // Policy D (R1): slider values as their labels. Sums of slider values are exact: printed as they
+  // are (441.5, 22), never rounded to 3 figures; f_beat = Δf prints as its label (2.0).
   const env = beatEnvelope(A, p.f1, f2, time) / A;
-  const st = sigFit([time], (tt) => 2 * Math.abs(Math.cos(Math.PI * p.df * tt)), env, 3, 4);
   return [
-    `f_2 = ${f1s} + ${num(p.df)} = ${f2s}${u('Hz')}`,
-    `f_\\text{beat} = \\lvert f_1 - f_2 \\rvert = \\lvert ${f1s} - ${f2s} \\rvert = ${tn(fb)}${u('Hz')}`,
-    `T_\\text{beat} = 1/f_\\text{beat} = 1/${num(fb)} = ${tn(1 / fb)}${u('s')}`,
+    `f_2 = ${f1s} + ${dfs} = ${f2s}${u('Hz')}`,
+    `f_\\text{beat} = \\lvert f_1 - f_2 \\rvert = \\lvert ${f1s} - ${f2s} \\rvert = ${texOf(fbText(fb))}${u('Hz')}`,
+    `T_\\text{beat} = 1/f_\\text{beat} = 1/${texOf(fbText(fb))} = ${tn(1 / fb)}${u('s')}`,
     `\\tfrac{f_1 + f_2}{2} = (${f1s} + ${f2s})/2 = ${num((p.f1 + f2) / 2)}${u('Hz')}`,
     `2A\\lvert\\cos \\pi(f_2 - f_1)t \\rvert`,
-    `= 2A\\lvert\\cos(\\pi \\times ${num(p.df)} \\times ${tn(time, st)}) \\rvert = ${tn(env)}A`,
+    `= 2A\\lvert\\cos(\\pi \\times ${dfs} \\times ${tn(time)}) \\rvert = ${tn(env)}A`,
   ];
 }
 

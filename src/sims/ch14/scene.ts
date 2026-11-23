@@ -6,7 +6,6 @@ import { t } from '../../core/i18n';
 import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { sigFit } from '../ch07/sigfit';
 import { G, RHO, TAPS, TUBE, TravelTime, axisY, radiusAt, taps, type Tap, type Venturi } from './physics';
 
 type P = { ratio: number; Q: number; dy: number };
@@ -174,15 +173,13 @@ export function formulaLines(p: P): string[] {
   const Q = tn(p.Q / 1000);
   const dp = (t1.p - t2.p) / 1000;
   const tilt = Math.abs(t2.y) > 1e-12;
-  // v₁ = Q / A₁ and y₂ = Δy / 2 are exact at three figures; v₂ gets the digits the difference needs.
-  const [v1, y2] = [Number(t1.v.toPrecision(3)), Number(t2.y.toPrecision(3))];
-  const sg = sigFit([t2.v], (b) => (0.5 * RHO * (b * b - v1 * v1) + RHO * G * y2) / 1000, dp);
+  // Speeds and heights to 3 figures (policy D, R3); the result prints from the unrounded values.
   const grav = tilt ? ` + (${num(RHO)})(${num(G)})(${tn(t2.y)})` : '';
   return [
     `v_1 = \\frac{Q}{A_1} = \\frac{${Q}\\ \\mathrm{m^3/s}}{${tn(t1.A)}\\ \\mathrm{m^2}} = ${tn(t1.v)}${u('m/s')}`,
     `v_2 = \\frac{Q}{A_2} = \\frac{${Q}\\ \\mathrm{m^3/s}}{${tn(t2.A)}\\ \\mathrm{m^2}} = ${tn(t2.v)}${u('m/s')}`,
     `p_1 - p_2 = \\tfrac12\\rho(v_2^2 - v_1^2)${tilt ? ' + \\rho g y_2' : ''}`,
-    `= \\tfrac12(${num(RHO)})[(${tn(t2.v, sg)})^2 - (${tn(t1.v)})^2]${grav}\\ \\mathrm{Pa}`,
+    `= \\tfrac12(${num(RHO)})[(${tn(t2.v)})^2 - (${tn(t1.v)})^2]${grav}\\ \\mathrm{Pa}`,
     `= ${tn(dp)}${u('kPa')}`,
   ];
 }

@@ -1,12 +1,16 @@
 // Ch 23 scene: Gaussian surface (circle, square, free curve) around line charges; the outward
 // field component along it and ∮ E_n dl next to λ_enc / ε0.
-import { tn, u } from '../../core/tex';
+import { CONST, u } from '../../core/tex';
 import type { Params, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { pathScene } from '../field/closedpath';
-import { EPS0 } from '../field/physics';
 import { chargeGlyph, texNum } from '../field/render';
 import { ENC_FLUX, LINE_E, LINE_LAYOUT, LINE_POOL } from './physics';
+
+/** λ_enc [nC/m] as the stage panel and the Σ panel print it: integers bare (R2), else 3 figures. */
+const lamTex = (enc: number) => (Number.isInteger(enc) ? String(enc) : texNum(enc, 3, 1e-9));
+/** ∮ E_n dl and λ_enc/ε0 [N m/C] in both panels: 3 figures, below 0.05 an exact 0 (R7a, R8). */
+const fluxTex = (v: number) => texNum(v, 3, 0.05);
 
 const UNIT = '\\ \\mathrm{N\\,m/C}';
 
@@ -42,7 +46,7 @@ const base = pathScene({
   encScale: ENC_FLUX,
   overlay: (flux, rhs, enc) => {
     shown = { flux, rhs, enc };
-    return `\\begin{array}{rcl} \\lambda_\\text{enc} &=& ${texNum(enc, 3, 1e-9).replace(/\.00$/, '')}\\ \\mathrm{nC/m} \\\\ \\oint E_n\\,dl &=& ${texNum(flux, 3, 0.05)}${UNIT} \\\\ \\lambda_\\text{enc}/\\varepsilon_0 &=& ${texNum(rhs, 3, 0.05)}${UNIT} \\end{array}`;
+    return `\\begin{array}{rcl} \\lambda_\\text{enc} &=& ${lamTex(enc)}\\ \\mathrm{nC/m} \\\\ \\oint E_n\\,dl &=& ${fluxTex(flux)}${UNIT} \\\\ \\lambda_\\text{enc}/\\varepsilon_0 &=& ${fluxTex(rhs)}${UNIT} \\end{array}`;
   },
   G0: { default: [-0.3, 0, 0.4] },
   box: [-1.15, -0.75, 1.15, 0.75],
@@ -71,11 +75,11 @@ export const gaussScene: typeof base = {
   ...base,
   formula: (_s, p) => {
     const { flux, rhs, enc } = gaussValues(p);
-    const lam = Number.isInteger(enc) ? String(enc) : tn(enc);
+    const lam = lamTex(enc);
     return [
       `\\lambda_\\text{enc} = ${lam}${u('nC/m')}`,
-      `\\frac{\\lambda_\\text{enc}}{\\varepsilon_0} = \\frac{${enc === 0 ? '0' : `${lam}\\times 10^{-9}`}}{${texNum(EPS0, 4, 0)}} = ${tn(rhs)}${UNIT}`,
-      `\\oint E_n\\,dl = ${tn(flux)}${UNIT}`,
+      `\\frac{\\lambda_\\text{enc}}{\\varepsilon_0} = \\frac{${enc === 0 ? '0' : `${lam}\\times 10^{-9}`}}{${CONST.eps0.tex}} = ${fluxTex(rhs)}${UNIT}`,
+      `\\oint E_n\\,dl = ${fluxTex(flux)}${UNIT}`,
     ];
   },
 };

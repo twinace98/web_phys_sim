@@ -1,10 +1,10 @@
 // Ch 31 scene: free LC / RLC oscillation. Energy moves between the capacitor (electric) and
 // the inductor (magnetic); a block on a spring moving with x ∝ q shows the mechanical analogue.
-import type { ParamSchema, Scene, Vec2 } from '../../core/types';
+import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
-import { num, tn, u } from '../../core/tex';
-import { fitSig, tns } from './fit';
+import { slider, tn, u } from '../../core/tex';
+import { tns } from './fit';
 import { energies, freeAt, gamma, omega0, omegaDamped, type RLC } from './physics';
 
 type P = { R: number; L: number; C: number; spring: boolean };
@@ -241,23 +241,25 @@ export function formulaFree(s: S, p: P): string[] {
   const g = gamma(c);
   const wd = omegaDamped(c);
   const Tms = ((2 * Math.PI) / wd) * 1e3;
-  // ω₀ and R/2L with enough figures that √(ω₀² − (R/2L)²) reproduces the printed ω'.
-  const sw = Number.isNaN(wd) ? 3 : fitSig((r) => tn(Math.sqrt(r(w0) ** 2 - r(g) ** 2)), tn(wd));
-  const lines = [`\\omega_0 = \\frac{1}{\\sqrt{LC}} = \\frac{1}{\\sqrt{(${num(p.L)}${u('mH')})(${num(p.C)}${MU_F})}} = ${tn(w0, sw)}${u('rad/s')}`];
-  const r2l = `\\frac{R}{2L} = \\frac{${num(p.R)}${u('\\Omega')}}{2(${num(p.L)}${u('mH')})} = ${tn(g, sw)}${u('s^{-1}')}`;
-  const st = fitSig((r) => tn(((2 * Math.PI) / r(wd)) * 1e3), tn(Tms));
+  // Policy D: ω₀, R/2L and ω' with 3 figures. Near critical damping ω₀² − (R/2L)² cancels, so the
+  // line then multiplies the directly computed ω₀ − R/2L and ω₀ + R/2L instead (R5).
+  const sl = (k: 'R' | 'L' | 'C') => slider(params[k] as NumberParam, p[k]);
+  const lines = [`\\omega_0 = \\frac{1}{\\sqrt{LC}} = \\frac{1}{\\sqrt{(${sl('L')}${u('mH')})(${sl('C')}${MU_F})}} = ${tn(w0)}${u('rad/s')}`];
+  const r2l = `\\frac{R}{2L} = \\frac{${sl('R')}${u('\\Omega')}}{2(${sl('L')}${u('mH')})} = ${tn(g)}${u('s^{-1}')}`;
+  const r3 = (x: number) => Number(x.toPrecision(3));
+  const plain = Math.abs(Math.sqrt(r3(w0) ** 2 - r3(g) ** 2) - wd) <= 0.01 * wd;
   if (Number.isNaN(wd)) lines.push(`${r2l} \\ge \\omega_0`);
-  else if (p.R === 0) lines.push(`R = 0:\\ T' = \\frac{2\\pi}{\\omega_0} = \\frac{2\\pi}{${tn(wd, st)}} = ${tn(Tms)}${u('ms')}`);
+  else if (p.R === 0) lines.push(`R = 0:\\ T' = \\frac{2\\pi}{\\omega_0} = \\frac{2\\pi}{${tn(wd)}} = ${tn(Tms)}${u('ms')}`);
   else {
     lines.push(
       r2l,
-      `\\omega' = \\sqrt{\\omega_0^2 - (R/2L)^2}`,
-      `= \\sqrt{${tn(w0, sw)}^2 - ${tn(g, sw)}^2} = ${tn(wd)}${u('rad/s')}`,
-      `T' = \\frac{2\\pi}{\\omega'} = \\frac{2\\pi}{${tn(wd, st)}} = ${tn(Tms)}${u('ms')}`,
+      plain ? `\\omega' = \\sqrt{\\omega_0^2 - (R/2L)^2}` : `\\omega' = \\sqrt{\\omega_0^2 - (R/2L)^2} = \\sqrt{(\\omega_0 - R/2L)(\\omega_0 + R/2L)}`,
+      plain ? `= \\sqrt{${tn(w0)}^2 - ${tn(g)}^2} = ${tn(wd)}${u('rad/s')}` : `= \\sqrt{(${tn(w0 - g)})(${tn(w0 + g)})} = ${tn(wd)}${u('rad/s')}`,
+      `T' = \\frac{2\\pi}{\\omega'} = \\frac{2\\pi}{${tn(wd)}} = ${tn(Tms)}${u('ms')}`,
     );
   }
   const q0 = q0Of(p);
-  lines.push(`U_0 = \\tfrac12 CV_0^2 = \\tfrac12(${num(p.C)}${MU_F})(${V0}${u('V')})^2 = ${tn(((q0 * q0) / (2 * c.C)) * 1e6)}\\ \\mu\\mathrm{J}`);
+  lines.push(`U_0 = \\tfrac12 CV_0^2 = \\tfrac12(${sl('C')}${MU_F})(${V0}${u('V')})^2 = ${tn(((q0 * q0) / (2 * c.C)) * 1e6)}\\ \\mu\\mathrm{J}`);
   const k = at(p, s.t);
   const e = energies(c, k.q, k.i);
   const UE = e.UE * 1e6;
@@ -266,8 +268,7 @@ export function formulaFree(s: S, p: P): string[] {
   // U below the readout's zero tolerance (10⁻⁹ μJ) prints 0.00 there and here. Above it, the terms
   // keep exponent form (tns), so a decayed U = 1.76×10⁻⁹ μJ is not shown as 0.00 + 0.00.
   const f = Math.abs(U) < 1e-9 ? tn : tns;
-  const su = fitSig((r) => f(r(UE) + r(UB)), f(U));
-  lines.push(`U = \\frac{q^2}{2C} + \\tfrac12 Li^2 = ${f(UE, su)} + ${f(UB, su)} = ${f(U)}\\ \\mu\\mathrm{J}`);
+  lines.push(`U = \\frac{q^2}{2C} + \\tfrac12 Li^2 = ${f(UE)} + ${f(UB)} = ${f(U)}\\ \\mu\\mathrm{J}`);
   return lines;
 }
 

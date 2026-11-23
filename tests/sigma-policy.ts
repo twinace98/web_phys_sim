@@ -346,7 +346,33 @@ const CONST_TOKS = new Set(Object.values(CONST).flatMap((c) => toks(texClean(c.t
  * whose recomputation may differ by more than 1 %: scene key "ch/id", a pattern for the line's
  * left-hand side, the checks it is exempt from, and why. Phase 2 adds a line only with its reason.
  */
-export const ALLOW: { scene: string; lhs: RegExp; checks: Check[]; why: string }[] = [];
+export const ALLOW: { scene: string; lhs: RegExp; checks: Check[]; why: string }[] = [
+  // Ch 2–11
+  { scene: '9/track', lhs: /^$/, checks: ['recompute'], why: 'R5: the p_tot continuation line, m₁v₁ + m₂v₂ nearly cancel after the collision ((1.0)(-2.08) + (1.4)(1.42) = -0.100); p_tot from the unrounded momenta' },
+  // Ch 33–42
+  { scene: '33/refraction', lhs: /^\\theta_2$/, checks: ['inputSig'], why: 'R6: sin θ₂ just below 1 keeps its side of 1 (θ₁ = 41.8°: sin⁻¹(0.9998), not sin⁻¹(1.00))' },
+  { scene: '39/wells', lhs: /^N$/, checks: ['inputSig'], why: 'R6: 2z₀/π next to an integer keeps its side for the ceiling (L = 1.3 nm, U₀ = 2.0 eV: ⌈2.998⌉ = 3)' },
+  // Review pages 101–109
+  { scene: '101/photoelectric', lhs: /V_\\text\{stop\}/, checks: ['recompute'], why: 'R5: K_max = hf − Φ near the threshold (2.32 − 2.28 = 0.0360 eV), from the unrounded hf' },
+  { scene: '107/buoyancy', lhs: /^F_\\text\{net\}$/, checks: ['recompute'], why: 'R5: F_b − F_g + F_d nearly cancel while bobbing; F_net from the unrounded forces' },
+  { scene: '108/free', lhs: /^\\Sigma F$/, checks: ['recompute'], why: 'R5: F_s ≈ mg near equilibrium; ΣF from the unrounded forces' },
+  { scene: '108/driven', lhs: /^\\Sigma F$/, checks: ['recompute'], why: 'R5: F_s ≈ mg near equilibrium; ΣF from the unrounded forces' },
+  // Ch 22–32
+  { scene: '25/capacitor', lhs: /^C$/, checks: ['inputSig'], why: 'R1/R8: κ of air is the table value 1.00054, the string of its dropdown option (a preset, not a slider label)' },
+  // Ch 13–20
+  {
+    scene: '15/shm',
+    lhs: /^x$/,
+    checks: ['recompute'],
+    why: 'x = A cos ωt near a zero crossing: x ≪ A, and the last figure of the 3-figure phase (0.1° at ±90°) moves A cos by up to 2×10⁻³ A',
+  },
+  {
+    scene: '17/beats',
+    lhs: /^(f_\\text\{beat\}|\\tfrac\{f_1 \+ f_2\}\{2\})$/,
+    checks: ['inputSig'],
+    why: 'f₂ = f₁ + Δf is an exact sum of two slider values (R1), printed as typed (441.5), not rounded to 3 figures',
+  },
+];
 
 /** Physical small values (R7b): their readout and Σ result never print as 0.00. Scene key → labels. */
 export const PHYSICAL_SMALL: Record<string, string[]> = {
@@ -425,7 +451,7 @@ export function policyIssues(key: string, scene: Scene): Map<Check, string[]> {
       for (const spec of scene.readouts ?? []) {
         const v = spec.value(s as never, p as never);
         if (!Number.isFinite(v)) continue;
-        ro.set(norm(spec.label), { text: readoutText(spec as never, v, p), custom: spec.format?.(v) !== undefined });
+        ro.set(norm(spec.label), { text: readoutText(spec as never, v, p, s as never), custom: spec.format?.(v, s as never, p as never) !== undefined });
       }
       // Slider labels now, and the positions on the lines that carry a slider's value: the token
       // equals the value here and the other value when the slider is moved.

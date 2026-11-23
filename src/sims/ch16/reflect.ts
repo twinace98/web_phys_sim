@@ -3,7 +3,7 @@
 // markers and the envelope of the standing wave belong to the resonance tab.
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { num, tn, tp, u } from '../../core/tex';
+import { RESIDUE, num, paren, slider, tn, u } from '../../core/tex';
 import { reflectAt, type End, type Mode, type Reflect } from './physics';
 
 type P = { mode: string; end: string; lambda: number; parts: boolean };
@@ -173,13 +173,16 @@ export function formulaLines(t: number, p: P): string[] {
   if (r.mode === 'pulse') lines.push(`t_L = (L - x_0)/v = (${L} - ${num(x0)})/${V} = ${tn((L - x0) / V)}${u('s')}`);
   else {
     lines.push(`t_L = L/v = ${L}/${V} = ${tn(L / V)}${u('s')}`);
-    lines.push(`f = v/\\lambda = ${V}/${num(r.lambda)} = ${tn(V / r.lambda)}${u('Hz')}`);
+    lines.push(`f = v/\\lambda = ${V}/${slider(params.lambda, p.lambda)} = ${tn(V / r.lambda)}${u('Hz')}`);
     const half = `${tn(r.lambda / 2)}${u('m')}`;
     lines.push(r.end === 'fixed' ? `x' = m\\lambda/2 = m \\times ${half}` : `x' = (m + \\tfrac{1}{2})\\lambda/2 = (m + \\tfrac{1}{2}) \\times ${half}`);
   }
+  // Displacements to 3 figures (policy D, R3). Below 10⁻³ of the amplitude a value is a numerical
+  // residue and prints as an exact 0 (R7a): before the wave arrives, and y(L) = h − h at a fixed end.
   const { inc, y } = reflectAt(r, L, t);
-  const h = tp(inc, 4);
-  lines.push(`h(t - L/v) = ${tn(inc, 4)}${u('m')}`);
-  lines.push(r.end === 'fixed' ? `y(L) = h - h = ${h} - ${h} = ${tn(y)}${u('m')}` : `y(L) = h + h = 2 \\times ${h} = ${tn(y)}${u('m')}`);
+  const d = (v: number) => (Math.abs(v) < RESIDUE * r.A ? '0' : tn(v));
+  const h = paren(d(inc));
+  lines.push(`h(t - L/v) = ${d(inc)}${u('m')}`);
+  lines.push(r.end === 'fixed' ? `y(L) = h - h = ${h} - ${h} = ${d(y)}${u('m')}` : `y(L) = h + h = 2 \\times ${h} = ${d(y)}${u('m')}`);
   return lines;
 }

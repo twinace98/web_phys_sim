@@ -5,9 +5,7 @@ import type { ParamSchema, Scene, Vec2 } from '../../../core/types';
 import { t } from '../../../core/i18n';
 import { UI_FONT, theme } from '../../../draw/theme';
 import type { Draw } from '../../../draw/draw';
-import { paren } from '../../../core/tex';
-import { sigFit } from '../../ch07/sigfit';
-import { texNum } from '../../field/render';
+import { CONST, RESIDUE, paren, slider, tn, tnCmp } from '../../../core/tex';
 import {
   GRAV,
   TANK,
@@ -152,45 +150,44 @@ export function formulaLines(s: Motion & { held?: boolean }, p: P): string[] {
   const Vsub = A * sub;
   const { Fb, Fg, Fd, N, net } = forcesOf(s, p);
   const fc = faces(b, f, s.y);
-  const n = (v: number, sig = 3) => texNum(v, sig);
-  // Each line's inputs with the figures its arithmetic needs to give the printed result.
-  const s1 = sigFit([f.rho, Vsub], (r, v) => r * v * GRAV, Fb);
-  const s2 = sigFit([b.rho, V], (r, v) => r * v * GRAV, Fg);
-  // Gauge pressures (p − p0 = ρ_f g d; p0 cancels) on the bottom and top faces, in Pa: Pa·m² = N.
-  const s3 = sigFit([fc.pBot, fc.pTop, A], (pb, pt, a) => (pb - pt) * a, fc.F);
-  const pa = (v: number) => (v === 0 ? '0' : n(v, s3));
+  // Policy D: densities as their slider labels (R1), g = 9.8 (CONST), volumes, areas, pressures and
+  // forces at 3 figures (R3; the 0.20 m cube's face is always 0.0400 m²), F_b and F_g as their
+  // readouts. Gauge pressures (p − p0 = ρ_f g d; p0 cancels) in Pa: Pa·m² = N. Their difference
+  // p_bot − p_top = ρ_f g s is computed directly (R5), not from the two rounded pressures.
   const out = [
-    `F_b = \\rho_f V_\\text{sub}\\, g = (${n(f.rho, s1)})(${n(Vsub, s1)})(${GRAV}) = ${n(Fb)}\\ \\mathrm{N}`,
-    `F_g = \\rho_\\text{obj} V g = (${n(b.rho, s2)})(${n(V, s2)})(${GRAV}) = ${n(Fg)}\\ \\mathrm{N}`,
-    `F_b = (p_\\text{bot} - p_\\text{top})A = (${pa(fc.pBot)} - ${pa(fc.pTop)})\\ \\mathrm{Pa} \\times ${n(A, s3)}\\ \\mathrm{m^2} = ${n(fc.F)}\\ \\mathrm{N}`,
+    `F_b = \\rho_f V_\\text{sub}\\, g = (${slider(params.rhoF, f.rho)})(${tn(Vsub)})(${CONST.g.tex}) = ${tn(Fb)}\\ \\mathrm{N}`,
+    `F_g = \\rho_\\text{obj} V g = (${slider(params.rhoO, b.rho)})(${tn(V)})(${CONST.g.tex}) = ${tn(Fg)}\\ \\mathrm{N}`,
+    // A face above the surface has gauge pressure exactly 0, printed "0", not "0.00".
+    `p_\\text{bot} = ${fc.pBot === 0 ? '0' : tn(fc.pBot)}\\ \\mathrm{Pa},\\ p_\\text{top} = ${fc.pTop === 0 ? '0' : tn(fc.pTop)}\\ \\mathrm{Pa}`,
+    `F_b = (p_\\text{bot} - p_\\text{top})A = (${tn(fc.pBot - fc.pTop)}\\ \\mathrm{Pa})(${tn(A)}\\ \\mathrm{m^2}) = ${tn(Fb)}\\ \\mathrm{N}`,
   ];
+  // Float or sink: the ratio against 1 keeps the figures that show the inequality (R6).
   const ratio = b.rho / f.rho;
-  const sr = sigFit([b.rho, f.rho], (o, fl) => o / fl, ratio);
+  const rS = ratio === 1 ? '1' : tnCmp(ratio, 1);
+  const frac = `\\frac{${slider(params.rhoO, b.rho)}}{${slider(params.rhoF, f.rho)}}`;
   out.push(
     ratio < 1
-      ? `\\frac{V_\\text{sub}}{V}\\Big|_\\text{eq} = \\frac{\\rho_\\text{obj}}{\\rho_f} = \\frac{${n(b.rho, sr)}}{${n(f.rho, sr)}} = ${n(ratio)}`
-      : `\\frac{\\rho_\\text{obj}}{\\rho_f} = \\frac{${n(b.rho, sr)}}{${n(f.rho, sr)}} = ${n(ratio)} ${ratio > 1 ? '> 1' : '= 1'}`,
+      ? `\\frac{V_\\text{sub}}{V}\\Big|_\\text{eq} = \\frac{\\rho_\\text{obj}}{\\rho_f} = ${frac} = ${rS}`
+      : `\\frac{\\rho_\\text{obj}}{\\rho_f} = ${frac} = ${rS} ${ratio > 1 ? '> 1' : '= 1'}`,
   );
   // Held by the pointer: the hand supplies whatever balances the other forces, so F_net = 0.
-  const withHand = !!s.held && Math.abs(net) > 1e-6 * Fg;
+  const scale = Math.max(Fg, Fb);
+  const withHand = !!s.held && Math.abs(net) > RESIDUE * scale;
   const hand = withHand ? -net : 0;
-  // Below 5 mN the net force prints as 0 (the terms then sum to under 0.005 N).
-  const total = withHand || Math.abs(net) < 0.005 ? 0 : net;
+  // F_net is a small difference of large forces near equilibrium (R5): 3 figures from the
+  // unrounded forces, so the printed 3-figure terms may miss it by more than the last digit. A
+  // residue below 10⁻³ of the forces (resting on the floor, held) is an exact 0 (R7a).
+  const total = withHand || Math.abs(net) < RESIDUE * scale ? 0 : net;
   const hasD = Math.abs(Fd) > 1e-9;
   const hasN = N > 0;
-  const xs = [Fb, Fg, Fd, N, hand];
-  const sumOf = (...v: number[]) => v[0] - v[1] + v[2] + v[3] + v[4];
-  // The result prints at 3 figures from the unrounded forces (policy D, R3).
-  const rs = 3;
-  const sn = sigFit(xs, sumOf, total, rs);
   const terms = [`F_b - F_g`, hasD ? '+ F_d' : '', hasN ? '+ N' : '', withHand ? `+ F_\\text{${t('buoyancy.hand')}}` : ''].join(' ');
   const vals = [
-    `${n(Fb, sn)} - ${n(Fg, sn)}`,
-    hasD ? `${Fd < 0 ? '-' : '+'} ${n(Math.abs(Fd), sn)}` : '',
-    hasN ? `+ ${n(N, sn)}` : '',
-    withHand ? `+ ${paren(n(hand, sn))}` : '',
+    `${tn(Fb)} - ${tn(Fg)}`,
+    hasD ? `${Fd < 0 ? '-' : '+'} ${tn(Math.abs(Fd))}` : '',
+    hasN ? `+ ${tn(N)}` : '',
+    withHand ? `+ ${paren(tn(hand))}` : '',
   ].join(' ');
-  out.push(`F_\\text{net} = ${terms.replace(/ +/g, ' ').trim()} = ${vals.replace(/ +/g, ' ').trim()} = ${n(total, rs)}\\ \\mathrm{N}`);
+  out.push(`F_\\text{net} = ${terms.replace(/ +/g, ' ').trim()} = ${vals.replace(/ +/g, ' ').trim()} = ${total === 0 ? '0' : tn(total)}\\ \\mathrm{N}`);
   return out;
 }
 

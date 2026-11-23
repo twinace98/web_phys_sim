@@ -19,7 +19,8 @@ import {
   photonEnergy,
   seriesLimit,
 } from '../src/sims/review/hydrogen/physics';
-import { N_PICK, SERIES_COUNT, SERIES_DT, ZOOM_YR, nearestLevel, series, seriesIndex, transitions, zoomLabels } from '../src/sims/review/hydrogen/scene';
+import { N_PICK, SERIES_COUNT, SERIES_DT, ZOOM_YR, fmtLevel, nearestLevel, series, seriesIndex, transitions, zoomLabels } from '../src/sims/review/hydrogen/scene';
+import { readoutText } from '../src/core/precision';
 import { photonColor, region, NEUTRAL } from '../src/sims/review/hydrogen/spectrum';
 import { KNOB_HIT, hasEarlierLines, knobDx, knobR } from '../src/sims/review/hydrogen/stage';
 import en from '../src/sims/review/hydrogen/i18n.en.json';
@@ -196,15 +197,41 @@ describe('hydrogen stage', () => {
   it('formula panel: substituted values for the default Hα transition', () => {
     const p = defaults(transitions.params);
     const f = transitions.formula!(transitions.init(p, null as never), p).join(' ');
-    expect(f).toContain('-1.511');
-    expect(f).toContain('-3.400');
-    expect(f).toContain('= 1.8887');
-    expect(f).toContain('656.5');
-    expect(f).toContain('1.5233\\times 10^{6}');
+    // Policy D: levels to 2 decimals (as the stage labels), ΔE and λ as their readouts (3 figures).
+    expect(f).toContain('E_{3} = -1.51\\ \\text{eV},\\quad E_{2} = -3.40\\ \\text{eV}');
+    expect(f).toContain('= 1.89\\ \\text{eV}');
+    expect(f).toContain('= 656\\ \\text{nm}');
+    expect(f).toContain('1.52\\times 10^{6}');
     expect(transitions.formula!(transitions.init(p, null as never), { ...p, nf: 3 }).join(' ')).toContain('\\Delta E = 0');
     const fs = series.formula!({ t: 0, n: 0 }, defaults(series.params)).join(' ');
-    expect(fs).toContain('364.7');
-    expect(fs).toContain('656.5');
+    expect(fs).toContain('\\lambda_\\infty = \\frac{2^2}{R_\\text{H}} = 365\\ \\text{nm}');
+    expect(fs).toContain('(1.10\\times 10^{7}\\ \\text{m}^{-1})(0.139),\\quad \\lambda = 656\\ \\text{nm}');
+  });
+
+  it('policy D: level labels to 2 decimals (Halliday 13.60 eV), Σ results equal the readouts', () => {
+    expect([1, 2, 3, 4, 5].map((n) => fmtLevel(energy(n)))).toEqual(['−13.60', '−3.40', '−1.51', '−0.85', '−0.54']);
+    expect(fmtLevel(0)).toBe('0');
+    // The labels from the model's 13.598 eV equal those from the printed 13.60 eV for every labelled level.
+    for (let n = 1; n <= 40; n++) expect(fmtLevel(energy(n)), `n = ${n}`).toBe(fmtLevel(-13.6 / (n * n)));
+    const p = defaults(transitions.params);
+    const s = transitions.init(p, null as never);
+    const text = (label: string, q: typeof p) => {
+      const spec = transitions.readouts!.find((r) => r.label === label)!;
+      return readoutText(spec as never, spec.value(s, q), q);
+    };
+    expect(text('\\Delta E', p)).toBe('1.89');
+    expect(text('\\lambda', p)).toBe('656');
+    // 10 → 9: λ stays in nm, as the readout and the spectrum axis.
+    const far = { ...p, ni: 10, nf: 9 };
+    const f = transitions.formula!(s, far);
+    expect(f[2]).toContain(`= ${text('\\lambda', far)}\\ \\text{nm}`);
+    expect(f[1]).toContain(`= ${text('\\Delta E', far)}\\ \\text{eV}`);
+    // The series tab counts n as an integer (R2): Brackett's 12th line is n = 16, not "2×10¹".
+    const bs = { ...defaults(series.params), series: 'brackett' };
+    const nSpec = series.readouts!.find((r) => r.label === 'n')!;
+    const st = { t: 11.5 * SERIES_DT, n: 0 };
+    expect(readoutText(nSpec as never, nSpec.value(st, bs), bs)).toBe('16');
+    expect(series.formula!(st, bs)[1]).toMatch(/^n = 16:/);
   });
 });
 
@@ -334,16 +361,18 @@ describe('hydrogen Σ: the printed inputs reproduce the printed results', () => 
     return bad;
   }
 
-  it('ⓘ names the constants Σ prints (13.5983 eV, 1239.84 eV·nm), not the old −13.60 eV rounding', () => {
+  it("ⓘ names the constants Σ prints (Halliday's 13.60 eV and hc = 1240 eV·nm, policy D)", () => {
     const f = transitions.formula!(transitions.init(p0, null as never), p0).join(' ');
     for (const dict of [ko, en] as Record<string, string>[]) {
       const s = dict['hyd.assume.reduced'];
-      expect(s).not.toContain('13.60');
-      expect(s).toContain('13.5983');
-      expect(s).toContain('1239.84');
+      expect(s).toContain('13.60');
+      expect(s).toContain('1240');
+      expect(s).not.toContain('13.5983');
+      expect(dict['hyd.t.goal.levels']).toContain('13.60');
     }
-    expect(f).toContain('13.5983');
-    expect(f).toContain('1239.84');
+    expect(f).toContain('-\\frac{13.60\\ \\text{eV}}{n^2}');
+    expect(f).toContain('\\frac{1240\\ \\text{eV}\\cdot\\text{nm}}');
+    expect(f).not.toMatch(/13\.598|1239/);
   });
 
   it('review case: all 90 transitions (n = 1 … 10) and n_i = n_f', () => {

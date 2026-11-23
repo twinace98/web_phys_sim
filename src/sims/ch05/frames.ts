@@ -2,9 +2,8 @@
 // ground or a uniformly moving train it obeys the first law; seen from an accelerating train it
 // accelerates backwards with no force on it, so that frame is not inertial.
 import { t as tr } from '../../core/i18n';
-import { tn, tp, u } from '../../core/tex';
+import { slider, tn, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
-import { sigToMatch } from '../ch02/sigma';
 import type { Draw } from '../../draw/draw';
 import { theme } from '../../draw/theme';
 import { FBD_MIN_PX, drawFbd, fbdParam, type FbdForce } from '../../draw/fbd';
@@ -282,13 +281,14 @@ export const frames: Scene<P, S> = {
     const W = FRAMES_M * G5;
     const vert = p.fbd ? [`\\Sigma F_y = N - mg = ${tn(W)} - ${tn(W)} = 0`] : [];
     if (p.frame !== 'train') return [`${F} \\;\\Rightarrow\\; a = ${tn(b.a)}${u('m/s^2')}`, `v = v_0 = ${tn(b.v)}${u('m/s')}`, ...vert];
-    const sig = sigToMatch(b.v, [b.a, s.t], (a, t) => a * t);
+    // a₀ is the slider value (its label) or exactly 0; a' and t with 3 figures (policy D, R1/R3).
+    const a0 = A0 > 0 ? slider(params.A, A0) : '0';
     const lines = [
       F,
-      `a' = a - a_0 = 0 - ${A0.toFixed(1)} = ${tn(b.a)}${u('m/s^2')}`,
-      `v' = a't = ${tp(b.a, sig)} \\times ${tn(s.t, sig)} = ${tn(b.v)}${u('m/s')}`,
+      `a' = a - a_0 = 0 - ${a0} = ${tn(b.a)}${u('m/s^2')}`,
+      `v' = a't = ${tp(b.a)} \\times ${tn(s.t)} = ${tn(b.v)}${u('m/s')}`,
     ];
-    if (A0 > 0 && p.pseudo) lines.push(`ma' = -ma_0 = -1 \\times ${A0.toFixed(1)} = ${tn(-A0)}${u('N')}`);
+    if (A0 > 0 && p.pseudo) lines.push(`ma' = -ma_0 = -1 \\times ${a0} = ${tn(-A0)}${u('N')}`);
     return [...lines, ...vert];
   },
 

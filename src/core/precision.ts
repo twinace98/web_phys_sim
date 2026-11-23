@@ -6,8 +6,8 @@
 //   R3 state and derived values → tn (3 figures, tex.ts); results equal their readout string
 //   R4 measured / statistical values → tnMeas (to the scatter, optional ±)
 //   R6 inequalities → tnCmp (fewest figures ≥ 3 that keep the inequality visible)
-//   R7a time-varying values → tnScale / ReadoutSpec.scale (fixed decimals from the run scale,
-//       residues below 10⁻⁶ of it print as an exact 0)
+//   R7a time-varying values → tnScale / ReadoutSpec.scale (3 figures; residues below 10⁻³ of the
+//       run scale print as an exact 0)
 // Unicode functions (fmt…) feed readouts and canvas text; tn… are the same strings as TeX.
 import { fmt, fmtTick } from './format';
 import type { ParamSpec, ReadoutSpec, Params } from './types';
@@ -110,6 +110,10 @@ export const CONST = {
   hc: c(1240, '1240', 'eV\\,nm'),
   /** Hydrogen ground-state binding energy, E_n = −(13.60 eV)/n². */
   Ry: c(13.6, '13.60', 'eV'),
+  /** Electron rest energy mₑc² = 0.511 MeV, in keV. */
+  mec2: c(511, '511', 'keV'),
+  /** GM of the Earth as printed (the orbit physics keeps 3.986×10¹⁴). */
+  GME: c(3.99e14, '3.99\\times 10^{14}', 'm^3/s^2'),
 } as const satisfies Record<string, Const>;
 
 // ---------------------------------------------------------------- R3 state and derived inputs
@@ -194,27 +198,19 @@ export const tnCmp = (v: number, bound: number): string => texOf(fmtCmp(v, bound
 // ---------------------------------------------------------------- R7a run scale
 
 /** Below this fraction of the run scale a value is a numerical residue and prints as an exact 0. */
-export const RESIDUE = 1e-6;
+export const RESIDUE = 1e-3;
 
 /**
- * R7a: a value that changes during a run, with fixed decimals set by the run scale (the largest
- * magnitude it reaches): 3 figures at the scale, so v up to 2 m/s always prints two decimals and
- * 2.96×10⁻⁴ m/s reads "0.00". |v| below 10⁻⁶ of the scale is a residue and prints "0". Scales of
- * 10⁵ and more or below 10⁻³ keep one power of ten: "1.23×10⁻⁵", "0.00×10⁻⁵".
+ * R7a: a value that changes during a run prints with 3 significant figures like any other state
+ * value; only a residue below 10⁻³ of the run scale (the largest magnitude it reaches) prints as an
+ * exact 0, so a spring at rest reads "0", not 2.96×10⁻⁴ m/s. The user chose zero handling only
+ * (2026-11-24): fixed decimals from the scale cost figures mid-run (−9.8 × (−0.005) = 0.05).
  */
 export function fmtScale(v: number, scale: number): string {
   if (!Number.isFinite(v)) return '–';
   const S = Math.abs(scale);
-  if (!(S > 0) || !Number.isFinite(S)) return fmt(v, 3);
-  if (Math.abs(v) < RESIDUE * S) return '0';
-  const e = Math.floor(Math.log10(S) + 1e-12);
-  if (S >= 1e5 || S < 1e-3) {
-    const m = (v / 10 ** e).toFixed(2);
-    return `${/^-0\.00$/.test(m) ? '0.00' : m.replace('-', '−')}×10${String(e).replace(/[-0-9]/g, (d) => SUP[d])}`;
-  }
-  const d = Math.max(0, 2 - e);
-  const s = v.toFixed(d);
-  return (/^-0\.?0*$/.test(s) ? s.slice(1) : s).replace('-', '−');
+  if (S > 0 && Number.isFinite(S) && Math.abs(v) < RESIDUE * S) return '0';
+  return fmt(v, 3);
 }
 export const tnScale = (v: number, scale: number): string => texOf(fmtScale(v, scale));
 
@@ -224,8 +220,8 @@ export const tnScale = (v: number, scale: number): string => texOf(fmtScale(v, s
  * The text of a readout value (shell and tests): its own `format`, else the run-scale format when
  * it has a `scale` (R7a), else `sig` figures. A Σ result for the same symbol prints this string.
  */
-export function readoutText<S, P extends Params>(spec: ReadoutSpec<S, P>, v: number, p: P): string {
-  const custom = spec.format?.(v);
+export function readoutText<S, P extends Params>(spec: ReadoutSpec<S, P>, v: number, p: P, s?: S): string {
+  const custom = spec.format?.(v, s as S, p);
   if (custom !== undefined) return custom;
   if (spec.scale !== undefined) return fmtScale(v, typeof spec.scale === 'function' ? spec.scale(p) : spec.scale);
   return fmt(v, spec.sig ?? 3, spec.zeroTol);

@@ -1,8 +1,8 @@
 // Ch 25 scene: parallel-plate capacitor, dielectric, battery connected or disconnected.
 // Static: every quantity follows from the parameters; the panel lists C, Q, V, E, U and X/X0.
 import { fmt } from '../../core/format';
-import { num } from '../../core/tex';
-import type { ParamSchema, Scene, Vec2 } from '../../core/types';
+import { CONST, slider } from '../../core/tex';
+import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { KAPPA, capState, type CapState, type Plates } from './physics';
 
@@ -93,28 +93,32 @@ export function siTex(v: number, unit: string, sig = 3): string {
   return `${fmt(v / f, sig).replace('−', '-')}\\,\\mathrm{${pre}${unit}}`;
 }
 
+/** κ as the dropdown and the Σ panel print it: Halliday's table value (air 1.00054; R1, R8). */
+export const kappaText = (k: number) => String(k);
+
 /**
- * Σ panel: C from the geometry, then Q, V, E and U with the values of the stage table.
- * Inputs of a quotient or product carry four figures, so the shown arithmetic gives the result.
+ * Σ panel: C from the geometry, then Q, V, E and U with the values of the stage table (policy D):
+ * A and d as their sliders, κ as its table value, ε0 from CONST, derived values with the 3 figures
+ * of the stage table. The printed arithmetic may differ from the result in the last digit.
  */
 export function formulaLines(p: P): string[] {
   const c = plates(p);
   const s = stateOf(p);
   const on = p.source === 'on';
-  const A = `${num(p.A)}\\times 10^{-4}`;
-  const d = `${num(p.d)}\\times 10^{-3}`;
-  const lines = [`C = \\frac{\\kappa\\varepsilon_0 A}{d} = \\frac{(${c.kappa})(8.854\\times 10^{-12})(${A})}{${d}}\\ \\mathrm{F} = ${siTex(s.C, 'F')}`];
+  const A = `${slider(params.A as NumberParam, p.A)}\\times 10^{-4}`;
+  const d = `${slider(params.d as NumberParam, p.d)}\\times 10^{-3}`;
+  const lines = [`C = \\frac{\\kappa\\varepsilon_0 A}{d} = \\frac{(${kappaText(c.kappa)})(${CONST.eps0.tex})(${A})}{${d}}\\ \\mathrm{F} = ${siTex(s.C, 'F')}`];
   if (on) {
-    lines.push(`Q = CV_0 = (${siTex(s.C, 'F', 4)})(${V0}\\ \\mathrm{V}) = ${siTex(s.Q, 'C')}`);
+    lines.push(`Q = CV_0 = (${siTex(s.C, 'F')})(${V0}\\ \\mathrm{V}) = ${siTex(s.Q, 'C')}`);
     lines.push(`V = V_0 = ${siTex(s.V, 'V')}`);
   } else {
     const C0 = refState().C;
-    lines.push(`Q = Q_0 = C_0 V_0 = (${siTex(C0, 'F', 4)})(${V0}\\ \\mathrm{V}) = ${siTex(s.Q, 'C')}`);
-    lines.push(`V = \\frac{Q}{C} = \\frac{${siTex(s.Q, 'C', 4)}}{${siTex(s.C, 'F', 4)}} = ${siTex(s.V, 'V')}`);
+    lines.push(`Q = Q_0 = C_0 V_0 = (${siTex(C0, 'F')})(${V0}\\ \\mathrm{V}) = ${siTex(s.Q, 'C')}`);
+    lines.push(`V = \\frac{Q}{C} = \\frac{${siTex(s.Q, 'C')}}{${siTex(s.C, 'F')}} = ${siTex(s.V, 'V')}`);
   }
-  const Vin = on ? `${V0}\\ \\mathrm{V}` : siTex(s.V, 'V', 4);
+  const Vin = on ? `${V0}\\ \\mathrm{V}` : siTex(s.V, 'V');
   lines.push(`E = \\frac{V}{d} = \\frac{${Vin}}{${d}\\ \\mathrm{m}} = ${siTex(s.E, 'V/m')}`);
-  lines.push(`U = \\tfrac{1}{2} C V^2 = \\tfrac{1}{2}(${siTex(s.C, 'F', 4)})(${Vin})^2 = ${siTex(s.U, 'J')}`);
+  lines.push(`U = \\tfrac{1}{2} C V^2 = \\tfrac{1}{2}(${siTex(s.C, 'F')})(${Vin})^2 = ${siTex(s.U, 'J')}`);
   return lines;
 }
 

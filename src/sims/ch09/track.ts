@@ -1,11 +1,10 @@
 // Ch 9 scene: two carts collide on a frictionless track. Momentum is conserved in every
 // collision; kinetic energy only in the elastic one. The explosion adds energy.
 import { fmtTick, niceTicks } from '../../core/format';
-import { num, tn, u } from '../../core/tex';
+import { slider, tn, tnInt, tnScale, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { C1, C2, TICK, cmMark, halo, padded, trioLabel } from './common';
-import { sigFit } from '../ch07/sigfit';
 import { kinetic, motion1D, restitution, state1D, type Kind1D, type Motion1D, type Track } from './physics';
 
 type P = { kind: string; m2: number; m1: number; v1: number; v2: number; e: number; E: number; arrows: boolean };
@@ -205,35 +204,47 @@ function pArrow(g: Draw, from: Vec2, len: number, color: string, label: string, 
 }
 
 /** A substituted velocity: always in parentheses, as it multiplies a mass. */
-const pv = (v: number, sig = 3) => `(${tn(v, sig)})`;
+const pv = (v: number) => `(${tn(v)})`;
+
+/**
+ * Run scales of the totals: the largest single momentum (a sum has the decimals of its largest
+ * term) and the largest K_tot before or after the event. The run scales, so a total that
+ * is zero (an explosion from rest) prints as an exact 0, not a rounding residue (policy D, R7a).
+ */
+function scales(p: P): { p: number; K: number; v: number } {
+  const { tr, mo } = model(p);
+  const vs = [...mo.before, ...mo.after];
+  const pS = Math.max(...vs.map((v, i) => Math.abs(v * (i % 2 ? tr.m2 : tr.m1))));
+  const K = (v: [number, number]) => kinetic(tr.m1, v[0]) + kinetic(tr.m2, v[1]);
+  return { p: pS, K: Math.max(K(mo.before), K(mo.after)), v: pS / (tr.m1 + tr.m2) };
+}
 
 /**
  * Σ panel: p_tot and K_tot from the current velocities, v_cm = p_tot / M, and after the collision
- * the coefficient of restitution from the velocities before and after it.
+ * the coefficient of restitution from the velocities before and after it. Masses and the initial
+ * velocities as their slider labels, velocities with 3 figures, totals as the readouts (policy D).
  */
 export function formulaLines(s: S, p: P): string[] {
   const { tr, mo } = model(p);
   const k = sample(p, s.t);
-  const M = tr.m1 + tr.m2;
-  const m1 = `(${num(tr.m1)})`;
-  const m2 = `(${num(tr.m2)})`;
-  const sp = sigFit([k.v1, k.v2], (a, b) => tr.m1 * a + tr.m2 * b, k.pt);
-  const sk = sigFit([k.v1, k.v2], (a, b) => kinetic(tr.m1, a) + kinetic(tr.m2, b), k.Kt);
-  const vcm = k.pt / M;
+  const sc = scales(p);
+  const m1 = `(${slider(params.m1, tr.m1)})`;
+  const m2 = `(${slider(params.m2, tr.m2)})`;
+  const pt = tnScale(k.pt, sc.p);
   const lines = [
     `p_\\mathrm{tot} = m_1 v_1 + m_2 v_2`,
-    `= ${m1}${pv(k.v1, sp)} + ${m2}${pv(k.v2, sp)} = ${tn(k.pt)}${u('kg\\,m/s')}`,
+    `= ${m1}${pv(k.v1)} + ${m2}${pv(k.v2)} = ${pt}${u('kg\\,m/s')}`,
     `K_\\mathrm{tot} = \\tfrac12 m_1 v_1^2 + \\tfrac12 m_2 v_2^2`,
-    `= \\tfrac12${m1}${pv(k.v1, sk)}^2 + \\tfrac12${m2}${pv(k.v2, sk)}^2 = ${tn(k.Kt)}${u('J')}`,
-    `v_\\mathrm{cm} = \\frac{p_\\mathrm{tot}}{m_1 + m_2} = \\frac{${tn(k.pt, sigFit([k.pt], (q) => q / M, vcm))}}{${num(M)}} = ${tn(vcm)}${u('m/s')}`,
+    `= \\tfrac12${m1}${pv(k.v1)}^2 + \\tfrac12${m2}${pv(k.v2)}^2 = ${tnScale(k.Kt, sc.K)}${u('J')}`,
+    // M = m₁ + m₂ is exact at the sliders' resolution.
+    `v_\\mathrm{cm} = \\frac{p_\\mathrm{tot}}{m_1 + m_2} = \\frac{${pt}}{${slider(params.m1, tr.m1 + tr.m2)}} = ${tnScale(k.pt / (tr.m1 + tr.m2), sc.v)}${u('m/s')}`,
   ];
   // Restitution only once the collision has happened (the explosion has none).
   if (tr.kind !== 'explode' && s.t >= mo.tc) {
-    const [a, b] = mo.before;
     const [c, d] = mo.after;
-    const e = restitution(tr);
-    const se = sigFit([c, d], (x, y) => (y - x) / (a - b), e);
-    lines.push(`e = \\frac{v_{2f} - v_{1f}}{v_{1i} - v_{2i}} = \\frac{${pv(d, se)} - ${pv(c, se)}}{(${num(a)}) - (${num(b)})} = ${tn(e)}`);
+    // e is the slider value (inelastic) or exactly 1 or 0.
+    const e = tr.kind === 'inelastic' ? slider(params.e, tr.e) : tnInt(restitution(tr));
+    lines.push(`e = \\frac{v_{2f} - v_{1f}}{v_{1i} - v_{2i}} = \\frac{${pv(d)} - ${pv(c)}}{(${slider(params.v1, tr.v1)}) - (${slider(params.v2, tr.v2)})} = ${e}`);
   }
   return lines;
 }
@@ -339,9 +350,9 @@ export const track: Scene<P, S> = {
   },
 
   readouts: [
-    { label: 'p_\\mathrm{tot}', unit: 'kg·m/s', value: (s, p) => sample(p, s.t).pt },
-    { label: 'K_\\mathrm{tot}', unit: 'J', value: (s, p) => sample(p, s.t).Kt },
-    { label: 'v_\\mathrm{cm}', unit: 'm/s', value: (s, p) => sample(p, s.t).pt / (p.m1 + p.m2) },
+    { label: 'p_\\mathrm{tot}', unit: 'kg·m/s', value: (s, p) => sample(p, s.t).pt, scale: (p) => scales(p).p },
+    { label: 'K_\\mathrm{tot}', unit: 'J', value: (s, p) => sample(p, s.t).Kt, scale: (p) => scales(p).K },
+    { label: 'v_\\mathrm{cm}', unit: 'm/s', value: (s, p) => sample(p, s.t).pt / (p.m1 + p.m2), scale: (p) => scales(p).v },
   ],
 
   formula: (s, p) => formulaLines(s, p),
