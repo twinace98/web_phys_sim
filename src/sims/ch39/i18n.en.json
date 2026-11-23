@@ -39,7 +39,7 @@
   "ch39.s.obs.parity": "1 + 3 (oscillator: 0 + 2) in a symmetric potential: both states have the same symmetry, so $\\langle x\\rangle$ stays at 0 while the shape breathes",
   "ch39.s.obs.tunnel": "Double well 1 + 2: the particle tunnels back and forth through the barrier; a smaller pair splitting gives a longer period",
   "ch39.assume.electron": "Particle: an electron ($m = m_e$) in one dimension",
-  "ch39.assume.fd": "The Schrödinger equation is solved numerically by finite differences; the finite well has hard walls 2.5 nm beyond each edge",
+  "ch39.assume.fd": "Solution method: the finite well uses the exact solution (roots of the transcendental equations, exponential decay outside). The infinite, harmonic and double wells are solved numerically by finite differences (1500–2400 grid points); the harmonic potential has hard walls at ±7 nm (outside the plotted range), and the outer vertical lines of the double well are hard walls",
   "ch39.assume.amp": "Wave-function heights are in arbitrary units (every state drawn the same height); the baseline sits at the state's energy; the close pairs of the double well overlap on almost the same baseline (upper state dashed)",
   "ch39.assume.supamp": "Density height in arbitrary units; baseline at the mean energy $(E_a + E_b)/2$",
   "ch39.pair.01": "0 + 1",

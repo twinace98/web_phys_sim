@@ -7,6 +7,7 @@ import {
   STRUCTS,
   T_END,
   arrival,
+  HIST_BINS,
   binMasses,
   diffractionScene,
   formulaLines,
@@ -74,7 +75,7 @@ describe('ch38 diffraction: fringe spacing and the resolvability rule', () => {
     expect(ball.dyApprox).toBeLessThan(1e-30);
     expect(ball.resolvable).toBe(false);
     expect(fringe(STRUCTS.slits, lambdaP({ ...base, part: 'c60' })).resolvable).toBe(false);
-    // Even the slowest neutron (4 nm) at the slit pair: Δy = 4 nm ≪ δ = 67 μm.
+    // Even the slowest neutron (λ = 4 nm) at the slit pair: Δy = 4 μm < δ = 20.8 μm.
     expect(fringe(STRUCTS.slits, lambdaOf(PARTICLES.neutron.mass, 100)).resolvable).toBe(false);
     const c = fringe(STRUCTS.crystal, lambdaP({ ...base, part: 'c60' }));
     expect(c.y1).toBeLessThan(c.res);
@@ -92,12 +93,12 @@ describe('ch38 diffraction: fringe spacing and the resolvability rule', () => {
     expect(ng.onScreen).toBe(false);
   });
 
-  it('the resolvability threshold is δ = 2Y/30', () => {
+  it('the resolvability threshold is δ = 2Y/96', () => {
     const s = STRUCTS.grating;
     const lamAt = (y1: number) => (s.d * y1) / Math.hypot(y1, s.L);
     expect(fringe(s, lamAt(0.99 * fringe(s, 1e-12).res)).resolvable).toBe(false);
     expect(fringe(s, lamAt(1.01 * fringe(s, 1e-12).res)).resolvable).toBe(true);
-    expect(fringe(s, 1e-12).res).toBeCloseTo((2 * s.Y) / 30, 15);
+    expect(fringe(s, 1e-12).res).toBeCloseTo((2 * s.Y) / 96, 15);
   });
 });
 
@@ -204,7 +205,7 @@ describe('ch38 diffraction: scene', () => {
     expect(dg.join(' ')).toContain('0.167\\ \\text{nm}');
     expect(dg.join(' ')).toContain('L\\tan\\theta_1');
     const ball = formulaLines({ ...base, part: 'ball' }).join(' ');
-    expect(ball).toContain('\\Delta y \\ll \\delta = 67\\ \\mu\\text{m}');
+    expect(ball).toContain('\\Delta y < \\delta = 20.8\\ \\mu\\text{m}');
     expect(ball).toContain('{1\\ \\text{mm}}');
     expect(ball).toContain('\\tfrac12 mv^2');
     const c60 = formulaLines({ ...base, part: 'c60' }).join(' ');
@@ -221,5 +222,99 @@ describe('ch38 diffraction: scene', () => {
     expect(lenText(1e-3)).toBe('1 mm');
     expect(lenTex(1.142e-34)).toBe('1.14\\times 10^{-34}\\ \\text{m}');
     expect(lenTex(31.5e-6)).toBe('31.5\\ \\mu\\text{m}');
+  });
+});
+
+describe('ch38 diffraction: the resolvability verdict agrees with the drawn screen (review 2026-11-20)', () => {
+  /** Expected histogram as drawn: a nearly empty bin (below a tenth of the smaller peak) between the centre and the first order. */
+  function gap(s: Structure, lam: number): boolean {
+    const bw = (2 * s.Y) / HIST_BINS;
+    const bin = (y: number) => Math.min(HIST_BINS - 1, Math.floor((y + s.Y) / bw));
+    const b0 = bin(0);
+    const b1 = bin(fringe(s, lam).y1);
+    if (b1 - b0 < 2) return false;
+    const P = binMasses(s, lam, HIST_BINS);
+    const pk = (b: number) => Math.max(P[b - 1], P[b], P[b + 1]);
+    let lo = Infinity;
+    for (let k = b0 + 1; k < b1; k++) lo = Math.min(lo, P[k]);
+    return lo < 0.1 * Math.min(pk(b0), pk(b1));
+  }
+  /** The first order in the bin next to the central peak's bins (the screen centre is a bin edge): one block. */
+  const merged = (s: Structure, lam: number) => {
+    const bw = (2 * s.Y) / HIST_BINS;
+    return Math.floor((fringe(s, lam).y1 + s.Y) / bw) - Math.floor(s.Y / bw) < 2;
+  };
+  /** Electron speed whose first order on the crystal screen lies at y1. */
+  const speedFor = (s: Structure, y1: number) => {
+    const lam = (s.d * y1) / Math.hypot(y1, s.L);
+    const mc = ME * 299792458;
+    const pm = 6.62607015e-34 / lam / mc; // γβ
+    return (299792458 * pm) / Math.sqrt(1 + pm * pm);
+  };
+
+  it('electron at 2.82e7 m/s on nickel: Δy = 6.02 mm, fringes at 0, ±6, ±12 mm drawn and called resolved (was "Δy ≪ δ = 6.7 mm")', () => {
+    const p = { ...base, ve: 2.82e7 };
+    const s = STRUCTS.crystal;
+    const f = fringe(s, lambdaP(p));
+    expect(f.y1 * 1e3).toBeCloseTo(6.02, 2);
+    expect(f.res * 1e3).toBeCloseTo(2.083, 3);
+    expect(f.resolvable && f.onScreen).toBe(true);
+    expect(gap(s, lambdaP(p))).toBe(true);
+    const tex = formulaLines(p).join(' ');
+    expect(tex).not.toContain('\\delta');
+    expect(tex).not.toContain('\\ll');
+  });
+
+  it('every particle, structure and speed in range: resolved iff a gap in the drawn histogram; unresolved lines read Δy < δ', () => {
+    const speeds: Record<string, [string, number, number]> = {
+      electron: ['ve', 5e5, 1.5e8],
+      neutron: ['vn', 100, 30000],
+      c60: ['vc', 50, 500],
+      ball: ['vb', 1, 50],
+    };
+    let resolved = 0;
+    let unresolved = 0;
+    for (const [part, [key, lo, hi]] of Object.entries(speeds))
+      for (const st of ['crystal', 'grating', 'slits'])
+        for (let k = 0; k <= 30; k++) {
+          const v = lo * (hi / lo) ** (k / 30);
+          const p = { ...base, part, st, [key]: v };
+          const s = STRUCTS[st as keyof typeof STRUCTS];
+          const lam = lambdaP(p);
+          const f = fringe(s, lam);
+          if (!(f.ratio < 1)) continue;
+          const tex = formulaLines(p).join(' ');
+          const at = `${part} ${st} v=${v}`;
+          if (f.resolvable) {
+            resolved++;
+            // Clear of δ by more than the width of a first-order peak: a nearly empty bin between.
+            if (f.onScreen && f.y1 >= 1.06 * f.res) expect(gap(s, lam), at).toBe(true);
+            expect(tex, at).not.toContain('\\delta');
+          } else {
+            unresolved++;
+            // The printed inequality holds, and the drawn histogram shows one block: no bin between.
+            expect(f.y1, at).toBeLessThan(f.res);
+            expect(merged(s, lam), at).toBe(true);
+            expect(tex, at).toContain('\\Delta y < \\delta');
+          }
+        }
+    expect(resolved).toBeGreaterThan(20);
+    expect(unresolved).toBeGreaterThan(20);
+  });
+
+  it('at the threshold: just above δ resolved with a gap, just below merged; δ never prints equal to Δy', () => {
+    const s = STRUCTS.crystal;
+    const res = fringe(s, 1e-12).res;
+    const above = { ...base, ve: speedFor(s, 1.06 * res) };
+    expect(fringe(s, lambdaP(above)).resolvable).toBe(true);
+    expect(gap(s, lambdaP(above))).toBe(true);
+    expect(fringe(s, lambdaP({ ...base, ve: speedFor(s, 1.001 * res) })).resolvable).toBe(true);
+    const below = { ...base, ve: speedFor(s, 0.999 * res) };
+    const f = fringe(s, lambdaP(below));
+    expect(f.resolvable).toBe(false);
+    expect(merged(s, lambdaP(below))).toBe(true);
+    const tex = formulaLines(below).join(' ');
+    expect(tex).toContain('= 2.08\\ \\text{mm}');
+    expect(tex).toContain('\\Delta y < \\delta = 2.083\\ \\text{mm}');
   });
 });

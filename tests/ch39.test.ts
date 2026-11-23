@@ -6,6 +6,8 @@ import { defaults } from '../src/core/params';
 import type { Vec2 } from '../src/core/types';
 import type { Stroke } from '../src/draw/draw';
 import { ROLE_COLOR } from '../src/draw/theme';
+import ko from '../src/sims/ch39/i18n.ko.json';
+import en from '../src/sims/ch39/i18n.en.json';
 import { ProbeDraw } from './stage-probe';
 
 const base: WellParams = { kind: 'infinite', L: 1, U0: 2, hw: 0.2, Ub: 2, b: 0.2 };
@@ -203,5 +205,43 @@ describe('ch39 wells: every wavefunction stays visible (review 2026-11-17, §0-1
       if (c.pot !== 'double') expect(rank.every((r) => r === 0), JSON.stringify(c)).toBe(true);
       expect(Math.max(...rank), JSON.stringify(c)).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('ch39 ⓘ names the method each potential uses (review 2026-11-20)', () => {
+  const wp = (kind: WellParams['kind'], over: Partial<WellParams> = {}): WellParams => ({ kind, L: 1, U0: 2, hw: 0.2, Ub: 2, b: 0.2, ...over });
+
+  it('finite well: exact roots (z0 from L and U0), not a 2.5 nm box; the others by finite differences on 1500–2400 points', () => {
+    for (const [L, U0] of [
+      [0.5, 0.5],
+      [1, 2],
+      [1.5, 4.5],
+    ]) {
+      const m = wellModel(wp('finite', { L, U0 }));
+      // Exact: the levels solve the even/odd transcendental equations, z = (L/2)√(E/C).
+      for (const [k, E] of m.st.E.entries()) {
+        const z = (L / 2) * Math.sqrt(E / HB2M);
+        const w = Math.sqrt(z0Of(L, U0) ** 2 - z * z);
+        const r = k % 2 === 0 ? z * Math.tan(z) - w : -z / Math.tan(z) - w;
+        expect(Math.abs(r), `L=${L} U0=${U0} n=${k + 1}`).toBeLessThan(1e-9);
+      }
+      expect(m.st.E.length).toBe(finiteWellCount(L, U0));
+    }
+    expect(wellModel(wp('infinite')).st.x.length).toBe(1500);
+    expect(wellModel(wp('double')).st.x.length).toBe(1500);
+    const h = wellModel(wp('harmonic', { hw: 0.1 }));
+    expect(h.st.x.length).toBe(2400);
+    // Hard walls at ±7 nm, outside the plotted ±4 nm.
+    expect([h.pot.x0, h.pot.x1]).toEqual([-7, 7]);
+    expect(h.xr).toEqual([-4, 4]);
+    // The double well's outer hard walls are drawn.
+    const d = wellModel(wp('double'));
+    expect(d.walls).toEqual([d.pot.x0, d.pot.x1]);
+  });
+
+  it('the strings say so in ko and en; no ch39 string describes the old 2.5 nm finite-difference box', () => {
+    expect(ko['ch39.assume.fd']).toContain('유한 우물은 정확한 해');
+    expect(en['ch39.assume.fd']).toContain('the finite well uses the exact solution');
+    for (const dict of [ko, en] as Record<string, string>[]) for (const [k, v] of Object.entries(dict)) expect(v, k).not.toContain('2.5 nm');
   });
 });
