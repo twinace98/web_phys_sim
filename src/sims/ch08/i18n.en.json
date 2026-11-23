@@ -22,6 +22,7 @@
   "ch08.p.obs.fric": "Kinetic friction: $W$ keeps falling in proportion to the path length $s$; the zigzag ends most negative",
   "ch08.p.obs.custom": "Drag a waypoint: drag the orange circle to change the path; the end value for a conservative force stays put",
   "ch08.p.assume": "Mass 1 kg moved at a steady 1.5 m/s (other forces control the motion), A $= (-2, 0)$ m, B $= (2, 1.5)$ m, spring $k = 2$ N/m (natural length 0, fixed end at $(0, -1.5)$ m), $\\mu_k = 0.5$",
+  "ch08.p.assume.plane": "Plane of the picture: vertical for gravity ($y$ up). For kinetic friction, a horizontal floor seen from above, so $N = mg$ and the friction has the constant magnitude $\\mu_k mg$ (on a track in a vertical plane $N$ would change with slope and curvature)",
   "ch08.e.scene": "Energy diagram",
   "ch08.e.p.pot": "Potential",
   "ch08.e.d.pot": "Shape of the potential energy $U(x)$",

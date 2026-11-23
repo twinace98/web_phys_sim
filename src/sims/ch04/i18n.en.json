@@ -50,9 +50,9 @@
   "ch04.r.d.u": "Speed $v_{WG}$ of the water relative to the ground",
   "ch04.r.goal.add": "Velocity depends on the frame: $\\vec v_{BG} = \\vec v_{BW} + \\vec v_{WG}$ (B: boat, W: water, G: ground)",
   "ch04.r.goal.frame": "The same motion traces different paths in different frames",
-  "ch04.r.obs.straight": "Heading 0°: the boat drifts downstream; the crossing time $W/v_{BW}$ does not depend on the current",
+  "ch04.r.obs.straight": "Heading 0°: with any current the boat drifts downstream; the crossing time $W/v_{BW}$ does not depend on the current",
   "ch04.r.obs.cancel": "Heading 30° (default speeds): $v_{BW}\\sin\\theta = v_{WG}$ cancels the current, so the boat lands straight across but takes longer",
   "ch04.r.obs.switch": "Bottom, water frame: the boat goes straight along its heading while the banks move at $-\\vec v_{WG}$",
-  "ch04.r.obs.up": "Heading 60°: the boat lands upstream of its start",
+  "ch04.r.obs.up": "Heading 60°: the boat lands upstream of its start when $v_{BW}\\sin 60^\\circ > v_{WG}$ (default speeds: 1.73 > 1 m/s), downstream otherwise",
   "ch04.r.assume": "River 20 m wide; the current is the same across the river"
 }

@@ -292,7 +292,7 @@ export const pathScene: Scene<P, S> = {
     goals: ['ch08.p.goal.cons', 'ch08.p.goal.fric'],
     observe: ['ch08.p.obs.same', 'ch08.p.obs.closed', 'ch08.p.obs.fric', 'ch08.p.obs.custom'],
     equations: ['W = \\int_A^B \\vec F\\cdot d\\vec r', '\\oint \\vec F_\\text{cons}\\cdot d\\vec r = 0, \\quad W_f = -\\mu_k m g\\, s'],
-    assumptions: ['ch08.p.assume'],
+    assumptions: ['ch08.p.assume', 'ch08.p.assume.plane'],
   },
 };
 
