@@ -13,6 +13,7 @@ import type { ChapterMeta } from '../sims/registry';
 import { h, iconButton, rich, tex } from './dom';
 import { nearestHandle } from './hit';
 import { ICON } from './icons';
+import { controlOwnsKey, describeFocus } from './keys';
 import { isLecture, onLectureChange, setLecture, toggleLang } from './prefs';
 import { StagePanel, resizableSidePanel, restoreSize } from './resize';
 
@@ -93,6 +94,9 @@ export class SimView {
   private stageDrag: { i: number; pointerId: number; x: number; y: number; moved: boolean } | null = null;
   private lastTap: { i: number; t: number } | null = null;
   private off: (() => void)[] = [];
+  /** Last input was a mouse or touch press (vs a key). Latched into `focusByPointer` on focus. */
+  private pointerInput = false;
+  private focusByPointer = false;
 
   constructor(
     private readonly root: HTMLElement,
@@ -106,6 +110,8 @@ export class SimView {
     this.build();
 
     const onKey = (e: KeyboardEvent) => this.onKey(e);
+    const onPointer = () => (this.pointerInput = true);
+    const onFocus = () => (this.focusByPointer = this.pointerInput);
     const onVis = () => {
       if (document.hidden) this.runner.pause();
     };
@@ -113,11 +119,15 @@ export class SimView {
     const phone = window.matchMedia('(max-width: 767px)');
     const onPhone = () => this.dockPanel();
     window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onPointer, true);
+    window.addEventListener('focusin', onFocus, true);
     document.addEventListener('visibilitychange', onVis);
     phone.addEventListener('change', onPhone);
     this.off.push(
       () => window.removeEventListener('keydown', onKey),
       () => phone.removeEventListener('change', onPhone),
+      () => window.removeEventListener('pointerdown', onPointer, true),
+      () => window.removeEventListener('focusin', onFocus, true),
       () => document.removeEventListener('visibilitychange', onVis),
       onLangChange(() => {
         this.build();
@@ -645,14 +655,25 @@ export class SimView {
   }
 
   private onKey(e: KeyboardEvent): void {
-    const tg = e.target as HTMLElement | null;
+    this.pointerInput = false;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if (tg && /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(tg.tagName)) return;
+    // A control keeps only the keys it needs (slider arrows, Space on a Tab-focused button, text
+    // fields). After a mouse/touch click the rest, Space included, are page shortcuts.
+    if (controlOwnsKey(describeFocus(e.target, this.focusByPointer), e.key)) return;
     switch (e.key) {
-      case ' ':
-        if (this.runner.isStatic) return;
+      case ' ': {
+        // Space on a clicked button/checkbox/select would also press or open it on keyup: drop that
+        // focus (a slider keeps it for its arrows). Static scenes have nothing to play.
+        const tg = e.target;
+        const press = tg instanceof HTMLButtonElement || tg instanceof HTMLSelectElement || (tg instanceof HTMLInputElement && tg.type !== 'range');
+        if (press) tg.blur();
+        if (this.runner.isStatic) {
+          if (!press) return;
+          break;
+        }
         this.togglePlay();
         break;
+      }
       case 'ArrowRight':
         if (this.runner.isStatic) return;
         this.scrubT = null;

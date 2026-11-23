@@ -2,13 +2,14 @@
 // through a cross-section measures I; the I-V chart below collects the measurements.
 import { fmtTick, niceTicks } from '../../core/format';
 import type { Rng } from '../../core/rng';
-import type { ParamSchema, Scene, Vec2 } from '../../core/types';
+import type { ParamSchema, Scene, Vec2, WorldSpec } from '../../core/types';
+import type { Viewport } from '../../core/viewport';
 import type { Draw } from '../../draw/draw';
 import { t as tr } from '../../core/i18n';
 import { measureRich } from '../../draw/text';
 import { theme } from '../../draw/theme';
 import { num, tn, u } from '../../core/tex';
-import { DENSITY, Q_E, REF, SAMPLE, TAU_300, V_TH, accelOf, currentOf, driftSpeed, heightOf, makeGas, resistanceOf, stepGas, tauOf, type Gas, type Wire } from './physics';
+import { DENSITY, H_PER_MM2, Q_E, REF, SAMPLE, TAU_300, V_TH, accelOf, currentOf, driftSpeed, heightOf, makeGas, resistanceOf, stepGas, tauOf, type Gas, type Wire } from './physics';
 
 type P = { V: number; T: number; L: number; A: number };
 
@@ -30,8 +31,10 @@ const TRAIL = 2.5 * RATE;
 const ION = '#b9b9b9';
 const WIRE_FILL = '#f6f6f6';
 const TICK = '#6b6b6b';
-// I-V chart, in world units below the wire.
+// I-V chart, in world units below the wire (full layout).
 const CH = { x0: 0.6, x1: 5.9, y0: -5.2, y1: -2.4, vMax: 1.6 };
+/** World of the full layout: wire on top, I-V chart below. */
+const WORLD: WorldSpec = { x: [-0.7, LMAX + 0.5], y: [CH.y0 - 0.9, 2.1], aspect: 'contain', padPx: 14 };
 
 const wireOf = (p: P): Wire => ({ L: p.L, A: p.A, T: p.T });
 /** Drawn v_d arrow length per unit drift speed [cm per cm/s]. */
@@ -122,11 +125,13 @@ const params: ParamSchema<P> = {
   },
 };
 
-function drawChart(g: Draw, p: P, s: S): void {
-  const X = (v: number) => CH.x0 + (v / CH.vMax) * (CH.x1 - CH.x0);
+type Box = { x0: number; x1: number; y0: number; y1: number };
+
+function drawChart(g: Draw, p: P, s: S, box: Box): void {
+  const X = (v: number) => box.x0 + (v / CH.vMax) * (box.x1 - box.x0);
   // Current axis: at least 400 mA, extended in 200 mA steps so the present wire's line fits.
   const iMax = Math.max(400, Math.ceil((currentOf(wireOf(p), CH.vMax) * 1e3 * 1.05) / 200) * 200);
-  const Y = (i: number) => CH.y0 + (i / iMax) * (CH.y1 - CH.y0);
+  const Y = (i: number) => box.y0 + (i / iMax) * (box.y1 - box.y0);
   const axis = { role: 'axis' as const, width: 1.25 };
   g.line({ x: X(0), y: Y(0) }, { x: X(CH.vMax), y: Y(0) }, axis);
   g.line({ x: X(0), y: Y(0) }, { x: X(0), y: Y(iMax) }, axis);
@@ -162,12 +167,12 @@ function drawChart(g: Draw, p: P, s: S): void {
   if (Number.isFinite(measuredI(s))) g.circle({ x: X(p.V), y: Y(Math.max(0, Math.min(measuredI(s), iMax))) }, 5, { fill: 'velocity' });
 }
 
-/** Tiny key at the top right of the stage: grey dot = lattice ion, blue dot = electron. */
-function particleKey(g: Draw, rIon: number, rEl: number): void {
+/** Tiny key at the top right of the stage (of the wire panel when compact): grey dot = lattice ion, blue dot = electron. */
+function particleKey(g: Draw, rIon: number, rEl: number, right: number): void {
   const k = theme.scale;
   const size = 12;
   const y = 14 * k;
-  let x = g.vp.w - 8 * k;
+  let x = right;
   const at = (px: number): Vec2 => {
     const [wx, wy] = g.vp.toWorld(px, y);
     return { x: wx, y: wy };
@@ -182,6 +187,88 @@ function particleKey(g: Draw, rIon: number, rEl: number): void {
     g.circle(at(x), r, { fill });
     x -= (r + 14) * k;
   }
+}
+
+// ------------------------------------------------------------------ stage layout
+
+/** Drawn scale [px per cm] of the full layout on a stage of w × h CSS px (as the shell fits WORLD). */
+export const fullScale = (w: number, h: number): number => {
+  const pad = WORLD.padPx ?? 16;
+  return Math.min((w - 2 * pad) / (WORLD.x[1] - WORLD.x[0]), (h - 2 * pad) / (WORLD.y[1] - WORLD.y[0]));
+};
+/** Desktop scale [px per cm] (768 × 642 stage); dot sizes are set for it. */
+const DESK_SCALE = 75;
+/**
+ * Below this full-layout scale the stage switches to the compact layout: a phone's stage
+ * (390 × 253 at 390 × 844) would draw the wire at 27 px per cm, about 110 × 50 px.
+ */
+export const COMPACT_BELOW = 45;
+/** Smallest drawn electron radius in the compact layout [px]. */
+export const R_EL_COMPACT = 2.2;
+
+export interface Layout {
+  compact: boolean;
+  /** Drawn scale of the wire [px per cm]. */
+  scale: number;
+  /** Compact only: stage px of the wire centre (L/2, 0), half-width of the wire window [px], chart plot box [px], key right edge [px]. */
+  cx: number;
+  cy: number;
+  halfW: number;
+  chart: Box;
+  keyRight: number;
+}
+
+/**
+ * Compact layout (short, wide stages): the wire panel on the left at the largest scale at which
+ * the default 4 cm wire fits whole and the thickest wire (A = 3 mm²) fits with its arrows; a tall,
+ * narrow I-V chart on the right. A longer wire shows the window around the counting section,
+ * with cut (wavy) ends.
+ */
+export function layoutOf(w: number, h: number, k = theme.scale): Layout {
+  const full = fullScale(w, h);
+  if (full >= COMPACT_BELOW) return { compact: false, scale: full, cx: NaN, cy: NaN, halfW: Infinity, chart: CH, keyRight: w - 8 * k };
+  const pad = 8 * k;
+  const chartW = 118 * k;
+  const gap = 8 * k;
+  const term = 22 * k; // room for the + and − signs beside the wire ends
+  const keyRow = 18 * k;
+  const rows = 64 * k; // E arrow above, v_d arrow below, with their labels
+  const panelR = w - pad - chartW - gap;
+  const inner = panelR - pad - 2 * term;
+  const scale = Math.min(DESK_SCALE, inner / REF.L, (h - 2 * pad - keyRow - rows) / (3 * H_PER_MM2));
+  const chartX0 = panelR + gap;
+  return {
+    compact: true,
+    scale,
+    cx: (pad + panelR) / 2,
+    cy: (pad + keyRow + h - pad) / 2,
+    halfW: inner / 2,
+    // Plot box inside the chart column: tick labels on the left, the V ticks and label below.
+    chart: { x0: chartX0 + 30 * k, x1: w - pad - 10 * k, y0: h - pad - 38 * k, y1: pad + 6 * k },
+    keyRight: panelR,
+  };
+}
+
+/** Make the viewport draw world (wx, wy) at stage px (px, py) with `scale` px per world unit. */
+function place(vp: Viewport, scale: number, wx: number, wy: number, px: number, py: number): void {
+  const { w, h } = vp;
+  const xc = wx + (w / 2 - px) / scale;
+  const yc = wy - (h / 2 - py) / scale;
+  vp.fit({ x: [xc - w / (2 * scale), xc + w / (2 * scale)], y: [yc, yc], aspect: 'fit-x', padPx: 0 }, w, h);
+}
+
+/** Wire end from bottom to top at x: straight, or a wavy cut line where the window crops the wire. */
+function wireEnd(g: Draw, x: number, bot: number, top: number, cut: boolean, up: boolean): Vec2[] {
+  if (!cut) return up ? [{ x, y: bot }, { x, y: top }] : [{ x, y: top }, { x, y: bot }];
+  const a = g.px(3);
+  const lam = g.px(14);
+  const n = Math.max(4, Math.ceil((top - bot) / g.px(1.5)));
+  const pts: Vec2[] = [];
+  for (let i = 0; i <= n; i++) {
+    const y = bot + ((top - bot) * i) / n;
+    pts.push({ x: x + a * Math.sin((2 * Math.PI * (y - bot)) / lam), y });
+  }
+  return up ? pts : pts.reverse();
 }
 
 /** Readouts: measured Ī [mA], V/Ī [Ω] (NaN until there is a reading). */
@@ -220,7 +307,7 @@ export const conduction: Scene<P, S> = {
   title: 'ch26.scene',
   params,
   time: { h: 1 / RATE, recordEvery: 6, frameStep: 0.1, tEnd: 30 },
-  world: () => ({ x: [-0.7, LMAX + 0.5], y: [CH.y0 - 0.9, 2.1], aspect: 'contain', padPx: 14 }),
+  world: () => WORLD,
 
   init: (p, rng) => ({ t: 0, n: 0, gas: makeGas(wireOf(p), rng), rng, trail: [], c0: NaN, t0: NaN }),
 
@@ -251,20 +338,36 @@ export const conduction: Scene<P, S> = {
       measured.get(keyOf(p))!.set(p.V, measuredI(s));
     }
 
-    // Dot sizes follow the drawn scale (75 px per cm on a desktop stage): on a phone the lattice is a
-    // third as large, and full-size dots would cover it and spill past the outline.
-    const zoom = Math.min(1, 1 / g.px(1) / 75);
-    const rIon = Math.max(1.2, 3.2 * zoom);
-    const rEl = Math.max(1.1, 2.6 * zoom);
-    g.polygon(
-      [
-        { x: 0, y: bot },
-        { x: w.L, y: bot },
-        { x: w.L, y: top },
-        { x: 0, y: top },
-      ],
-      { fill: WIRE_FILL, color: '#8a8a8a', width: 1.25 },
-    );
+    const lay = layoutOf(g.vp.w, g.vp.h);
+    // Compact: draw the wire at the layout's scale, its centre at the panel centre.
+    if (lay.compact) place(g.vp, lay.scale, w.L / 2, 0, lay.cx, lay.cy);
+    // Visible stretch of the wire: all of it, or the window around the counting section.
+    const half = lay.halfW / g.vp.scale;
+    const x0 = Math.max(0, w.L / 2 - half);
+    const x1 = Math.min(w.L, w.L / 2 + half);
+    const cut = x0 > 0;
+
+    // Dot sizes follow the drawn scale (75 px per cm on a desktop stage); the compact layout keeps
+    // electrons at least R_EL_COMPACT so they read on a phone.
+    const zoom = Math.min(1, g.vp.scale / theme.scale / DESK_SCALE);
+    const rIon = lay.compact ? Math.max((R_EL_COMPACT * 3.2) / 2.6, 3.2 * zoom) : Math.max(1.2, 3.2 * zoom);
+    const rEl = lay.compact ? Math.max(R_EL_COMPACT, 2.6 * zoom) : Math.max(1.1, 2.6 * zoom);
+    const outline = [...wireEnd(g, x0, bot, top, cut, false), ...wireEnd(g, x1, bot, top, cut, true)];
+    g.polygon(outline, { fill: WIRE_FILL, color: '#8a8a8a', width: 1.25 });
+    // A cropped wire clips its contents at the cut ends.
+    if (cut) {
+      const { ctx } = g;
+      ctx.save();
+      ctx.beginPath();
+      outline.forEach((q, i) => {
+        const [px, py] = g.vp.toPx(q.x, q.y);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.closePath();
+      ctx.clip();
+    }
+    const near = (x: number) => x > x0 - g.px(6) && x < x1 + g.px(6);
 
     // Ions vibrate more at higher temperature (drawing only).
     const amp = 0.025 * Math.sqrt(p.T / 300);
@@ -273,6 +376,7 @@ export const conduction: Scene<P, S> = {
     for (let x = d / 2; x < w.L; x += d) {
       for (let y = bot + d / 2; y < top; y += d) {
         k += 1;
+        if (!near(x)) continue;
         const ph = k * 2.399;
         g.circle({ x: x + amp * Math.sin(37 * s.t + ph), y: y + amp * Math.cos(41 * s.t + 1.7 * ph) }, rIon, { fill: ION });
       }
@@ -283,7 +387,7 @@ export const conduction: Scene<P, S> = {
     // Kept inside the outline by the dot radius.
     const inY = (y: number) => Math.min(top - g.px(rEl), Math.max(bot + g.px(rEl), y));
     const inX = (x: number) => Math.min(w.L - g.px(rEl), Math.max(g.px(rEl), x));
-    for (let i = SAMPLE; i < gas.n; i += SAMPLE) g.circle({ x: inX(gas.x[i]), y: inY(gas.y[i]) }, rEl, { fill: 'negative' });
+    for (let i = SAMPLE; i < gas.n; i += SAMPLE) if (near(gas.x[i])) g.circle({ x: inX(gas.x[i]), y: inY(gas.y[i]) }, rEl, { fill: 'negative' });
 
     // Tracer electron and its path: straight-ish arcs between collisions.
     const tr = s.trail;
@@ -295,31 +399,43 @@ export const conduction: Scene<P, S> = {
       } else seg.push({ x: tr[i], y: tr[i + 1] });
     }
     g.polyline(seg, { color: '#1a1a1a', width: 1.1, alpha: 0.6 });
-    g.circle({ x: inX(gas.x[0]), y: inY(gas.y[0]) }, Math.max(3, 4.5 * zoom), { fill: 'negative', color: '#1a1a1a', width: 1.5 });
+    const rTracer = lay.compact ? Math.max(3.5, 4.5 * zoom) : Math.max(3, 4.5 * zoom);
+    g.circle({ x: inX(gas.x[0]), y: inY(gas.y[0]) }, rTracer, { fill: 'negative', color: '#1a1a1a', width: 1.5 });
+    if (cut) g.ctx.restore();
 
     // Cross-section where charge is counted.
     g.line({ x: w.L / 2, y: bot - 0.25 }, { x: w.L / 2, y: top + 0.25 }, { role: 'surface', width: 1.75, dash: [5, 4] });
 
-    // Terminals and the field.
+    // Terminals and the field. Compact: arrows at a fixed px distance from the wire.
+    const off = lay.compact ? g.px(22) : 0.55;
     const lbl = { size: 16, align: 'center' as const, baseline: 'middle' as const, weight: 700 };
-    g.text({ x: 0, y: 0 }, '+', { ...lbl, role: 'positive', dx: -14 });
-    g.text({ x: w.L, y: 0 }, '−', { ...lbl, role: 'negative', dx: 14 });
+    g.text({ x: x0, y: 0 }, '+', { ...lbl, role: 'positive', dx: -14 });
+    g.text({ x: x1, y: 0 }, '−', { ...lbl, role: 'negative', dx: 14 });
     if (p.V > 0) {
-      const ya = top + 0.55;
-      g.arrow({ x: w.L * 0.2, y: ya }, { x: w.L * 0.22, y: 0 }, { role: 'field', width: 2 });
-      g.text({ x: w.L * 0.42, y: ya }, '*E*', { size: 14, role: 'field', align: 'left', baseline: 'middle', dx: 8 });
+      const ya = top + off;
+      const span = x1 - x0;
+      g.arrow({ x: x0 + span * 0.2, y: ya }, { x: span * 0.22, y: 0 }, { role: 'field', width: 2 });
+      g.text({ x: x0 + span * 0.42, y: ya }, '*E*', { size: 14, role: 'field', align: 'left', baseline: 'middle', dx: 8 });
       const vd = driftSpeed(w, p.V);
       // Drift velocity below the wire, pointing against E, centred on the cross-section. Length
       // ∝ v_d: 0.6 cm at the defaults, 2.7 cm at the largest drift (1.5 V, 200 K, 2 cm).
-      const yb = bot - 0.55;
+      const yb = bot - off;
       const len = vd * V_D_DRAW;
       const xa = w.L / 2 + len / 2;
       g.arrow({ x: xa, y: yb }, { x: -len, y: 0 }, { role: 'velocity', width: 2 });
       g.text({ x: xa, y: yb }, '*v*_{d}', { size: 14, role: 'velocity', align: 'left', baseline: 'middle', dx: 8 });
     }
 
-    drawChart(g, p, s);
-    particleKey(g, rIon, rEl);
+    let box: Box = CH;
+    if (lay.compact) {
+      const [bx0, by0] = g.vp.toWorld(lay.chart.x0, lay.chart.y0);
+      const [bx1, by1] = g.vp.toWorld(lay.chart.x1, lay.chart.y1);
+      box = { x0: bx0, x1: bx1, y0: by0, y1: by1 };
+    }
+    drawChart(g, p, s, box);
+    particleKey(g, rIon, rEl, lay.keyRight);
+    // Hand the shell's viewport back as it fitted it.
+    if (lay.compact) g.vp.fit(WORLD, g.vp.w, g.vp.h);
   },
 
   plots: [
