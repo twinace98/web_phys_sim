@@ -78,8 +78,16 @@ export const structIdOf = (p: PD): StructId => (p.st === 'auto' ? AUTO_STRUCT[p.
 /** Half the width of the illuminated aperture [m] (centre of the outer slit plus half a slit). */
 export const apertureHalf = (s: Structure) => ((s.N - 1) * s.d) / 2 + s.a / 2;
 
-/** Screen resolution δ [m]: a thirtieth of the screen height. */
-export const resolution = (s: Structure) => (2 * s.Y) / 30;
+/**
+ * Screen resolution δ [m]: a 96th of the screen height, about 5 px on the dot screen of a phone or a
+ * laptop and two histogram bins (HIST_BINS). Rows of dots δ apart show as separate fringes. Below δ
+ * the first order falls in the histogram bin next to the central peak (one block); from about 1.06 δ
+ * (δ plus the width of a first-order peak) the bin between them is nearly empty.
+ */
+export const RES_DIV = 96;
+export const resolution = (s: Structure) => (2 * s.Y) / RES_DIV;
+/** Histogram bins over the screen: two per δ, so the histogram resolves what the dots resolve. */
+export const HIST_BINS = 2 * RES_DIV;
 
 // ------------------------------------------------------------------ far-field pattern
 
@@ -140,7 +148,7 @@ export interface Fringe {
   dyApprox: number;
   /** Screen resolution δ [m]. */
   res: number;
-  /** First order exists and lies at least δ (and the aperture width) from the centre. */
+  /** First order exists and lies at least δ (and the illuminated width 2·apertureHalf) from the centre. */
   resolvable: boolean;
   /** First maximum on the screen. */
   onScreen: boolean;
@@ -449,7 +457,7 @@ function samplerOf(s: Structure, lam: number): HitSampler {
   return sampMemo;
 }
 
-const NB = 96;
+const NB = HIST_BINS;
 let massKey = '';
 let massMemo: Float64Array = new Float64Array(NB);
 function massesOf(s: Structure, lam: number): Float64Array {
@@ -726,7 +734,13 @@ export function formulaLines(p: PD): string[] {
       ? `\\Delta y \\approx \\frac{\\lambda L}{d} = \\frac{(${lenTex(lam)})(${LTex})}{${dTex}} = ${lenTex(fr.dyApprox)}`
       : `\\Delta y = L\\tan\\theta_1 = (${LTex})\\tan ${texNum(deg, 3)}^\\circ = ${lenTex(fr.y1)}`,
   );
-  if (!fr.resolvable) lines.push(`\\Delta y \\ll \\delta = ${lenTex(fr.res, 2)}\\ \\ (\\text{${t('ch38.df.f.unres')}})`);
+  if (!fr.resolvable) {
+    // δ with enough figures that it never prints equal to the Δy above (3 figures). The criterion
+    // uses L tan θ₁, and λL/d = L sin θ₁ is smaller still.
+    let sig = 3;
+    while (sig < 6 && lenTex(small ? fr.dyApprox : fr.y1) === lenTex(fr.res, sig)) sig++;
+    lines.push(`\\Delta y < \\delta = ${lenTex(fr.res, sig)}\\ \\ (\\text{${t('ch38.df.f.unres')}})`);
+  }
   else if (!fr.onScreen) lines.push(`\\Delta y > Y = ${lenTex(s.Y, 2, true)}\\ \\ (\\text{${t('ch38.df.f.off')}})`);
   return lines;
 }

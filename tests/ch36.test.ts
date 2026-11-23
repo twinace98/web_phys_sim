@@ -4,6 +4,9 @@ import { edgePhase, firstMin, phasorChain, singleSlit, sourcesIntensity, twoSlit
 import { apsOf, envelope, markDiff, pairDiff, sepOf, singleSlit as singleScene } from '../src/sims/ch36/single';
 import { N_MIN, chainOrigin, phasor, slitGeometry } from '../src/sims/ch36/phasor';
 import { WaveField } from '../src/sims/wave2d/field';
+import { SCREEN_N, Y0, Y1, fieldFor } from '../src/sims/wave2d/slits';
+import ko from '../src/sims/ch36/i18n.ko.json';
+import en from '../src/sims/ch36/i18n.en.json';
 
 describe('ch36 phasor chain clears the rays (round 2)', () => {
   it('the chain never reaches back over the ray ends or the wavefront; it stays at 9.2 when far', () => {
@@ -217,5 +220,36 @@ describe('ch36 two slits: single-slit envelope × two-slit fringes', () => {
     expect(vis(p)).toBe(true);
     const q = fromQuery(singleScene.params, new URLSearchParams('slits=three&d=40&a=2.5'));
     expect([q.slits, q.d, q.a]).toEqual(['one', 4, 2.5]);
+  });
+});
+
+describe('ch36 single slit 6 μm: the ⓘ wording matches the drawn screen (review 2026-11-20)', () => {
+  /** Outermost screen point at or above half the maximum [μm]; the pattern is symmetric. */
+  const halfExtent = (a: number, lambda: number, D: number) => {
+    const I = fieldFor(lambda, [{ yc: 0, w: a }], D).screenSteady();
+    let max = 0;
+    for (const v of I) max = Math.max(max, v);
+    let hi = SCREEN_N - 1;
+    while (I[hi] < max / 2) hi--;
+    return Y0 + ((Y1 - Y0) * hi) / (SCREEN_N - 1);
+  };
+
+  it('a = 6 μm, every λ and D in range: bright band ±1–2 μm at half maximum, narrower than the slit (±3 μm)', () => {
+    // Review case: defaults λ = 500 nm, D = 25 μm give ±1.0 μm.
+    expect(halfExtent(6, 500, 25)).toBeCloseTo(1.0, 5);
+    for (const lambda of [400, 550, 700])
+      for (const D of [15, 22, 30]) {
+        const w = halfExtent(6, lambda, D);
+        expect(w).toBeGreaterThanOrEqual(1 - 1e-9);
+        expect(w).toBeLessThanOrEqual(2 + 1e-9);
+        expect((0.001 * lambda) / 6).toBeLessThanOrEqual(0.12);
+      }
+  });
+
+  it('the wording no longer claims a band as wide as the slit, in ko and en', () => {
+    expect(ko['ch36.s.obs.wide']).not.toContain('슬릿 폭 정도의 밝은 띠');
+    expect(ko['ch36.s.obs.wide']).toContain('±1–2 μm');
+    expect(en['ch36.s.obs.wide']).not.toContain('a bright band about as wide as the slit');
+    expect(en['ch36.s.obs.wide']).toContain('±1–2 μm');
   });
 });

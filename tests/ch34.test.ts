@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { imageDistance, magnification, principalRays } from '../src/sims/ch34/physics';
 import { defaults } from '../src/core/params';
 import { fmt } from '../src/core/format';
-import { apertureOf, focal, halfWidth, lensScene, mirrorHit, mirrorScene, panel, stretchOf, worldOf } from '../src/sims/ch34/scene';
+import { RIM_SAG_PX, apertureOf, focal, halfWidth, lensScene, mirrorScene, panel, rayHit, sagOf, stretchOf, worldOf } from '../src/sims/ch34/scene';
+import { ProbeDraw } from './stage-probe';
+import type { Stroke } from '../src/draw/draw';
+import type { Vec2 } from '../src/core/types';
 import { segHitsRect } from '../src/sims/inset/inset';
 import { Viewport } from '../src/core/viewport';
 
@@ -136,12 +139,11 @@ describe('ch34 review fixes', () => {
           for (const r of principalRays(p, h, f)) {
             if (Math.abs(r.y) > yw + 2) continue; // reflects beyond the frame
             expect(Math.abs(r.y)).toBeLessThanOrEqual(ap);
-            // The ray is drawn reflecting where it meets the curve, on the object's line, inside the rim.
-            const hit = mirrorHit('mirror', q, r);
-            expect(hit.x).toBeLessThanOrEqual(0);
-            expect(hit.x).toBeGreaterThanOrEqual(-2.5 - 1e-9);
+            // The ray reflects at the vertex plane, on the object's line, inside the rim.
+            const hit = rayHit(r);
+            expect(hit.x).toBe(0);
             expect(Math.abs(hit.y)).toBeLessThanOrEqual(ap);
-            expect(hit.y).toBeCloseTo(h + r.sIn * (hit.x + p), 9);
+            expect(hit.y).toBeCloseTo(h + r.sIn * p, 9);
           }
         }
     // Object just outside F: the ray toward F meets the vertex plane at 20 cm, beyond the old 13 cm mirror.
@@ -182,5 +184,95 @@ describe('ch34 focal-length slider shows every image type (default object at 18 
     // The virtual image at f = 25 (i = −64.3 cm) and the real one at f = 12 (i = 36 cm) lie on the 70 cm stage.
     expect(Math.abs(img(25).i)).toBeLessThan(halfWidth('converging', 25));
     expect(Math.abs(img(12).i)).toBeLessThan(halfWidth('converging', 12));
+  });
+});
+
+/** ProbeDraw that also records stroked lines, so the drawn rays can be checked. */
+class LineProbe extends ProbeDraw {
+  readonly lines: { a: Vec2; b: Vec2; st: Stroke }[] = [];
+  // Optional parameters: the base ProbeDraw.line takes none.
+  line(a?: Vec2, b?: Vec2, st: Stroke = {}): void {
+    if (a && b) this.lines.push({ a, b, st });
+  }
+}
+
+/** Drawn principal rays: per ray colour, the incoming, outgoing and (virtual image) dashed segments. */
+function drawnRays(scene: typeof mirrorScene, q: { kind: string; f: number; p: number; h: number }, w = 1280, h = 800) {
+  const g = new LineProbe(w, h);
+  g.vp.fit(scene.world(q), w, h);
+  scene.draw(g, { t: 0 }, q, { t: 0, cursorT: 0, scrubbing: false, lecture: false });
+  return ['#009E73', '#CC79A7', '#E69F00'].map((c) => g.lines.filter((l) => l.st.color === c));
+}
+
+describe('ch34 principal rays keep their textbook directions (review 2026-11-20)', () => {
+  const slope = (l: { a: Vec2; b: Vec2 }) => (l.b.y - l.a.y) / (l.b.x - l.a.x);
+  /** Height of the line through segment l at x. */
+  const yAt = (l: { a: Vec2; b: Vec2 }, x: number) => l.a.y + slope(l) * (x - l.a.x);
+
+  it('concave mirror f = 10, p = 7 and f = 5, p = 2: the ray through F leaves parallel (was −6.0° and −14°)', () => {
+    for (const [f, p] of [
+      [10, 7],
+      [5, 2],
+    ]) {
+      const q = { ...defaults(mirrorScene.params), kind: 'concave', f, p };
+      const [, , orange] = drawnRays(mirrorScene, q);
+      expect(orange.length).toBeGreaterThanOrEqual(2);
+      expect(slope(orange[1])).toBeCloseTo(0, 12);
+    }
+  });
+
+  it('every element, f, p: rays reflect or refract at x = 0 and meet at the image tip; the F ray leaves parallel', () => {
+    for (const scene of [lensScene, mirrorScene])
+      for (const kind of (scene.params.kind as { options: { value: string }[] }).options.map((o) => o.value))
+        for (const f of [5, 10, 17, 30])
+          for (const p of [2, 4.5, 7, 9.5, 15, 29.5, 55])
+            for (const h of [2, 5, 8]) {
+              const q = { kind, f, p, h };
+              const ff = focal(kind, f);
+              const i = imageDistance(p, ff);
+              if (!Number.isFinite(i)) continue;
+              const xi = scene === lensScene ? i : -i;
+              const yi = magnification(p, i) * h;
+              const rays = drawnRays(scene, q);
+              expect(rays[2].length > 0).toBe(Number.isFinite(ff));
+              for (const segs of rays) {
+                if (segs.length === 0) continue;
+                const [inc, out] = segs;
+                // Incoming from the object tip to the element plane, outgoing from the same point.
+                expect(inc.a.x).toBeCloseTo(-p, 9);
+                expect(inc.a.y).toBeCloseTo(h, 9);
+                expect(inc.b.x).toBe(0);
+                expect(out.a).toEqual(inc.b);
+                // The outgoing line (or its backward extension) passes through the image tip.
+                expect(yAt(out, xi)).toBeCloseTo(yi, 6);
+                if (i < 0) {
+                  const dash = segs[2];
+                  expect(dash.st.dash).toBeDefined();
+                  expect(dash.b.x).toBeCloseTo(xi, 9);
+                  expect(dash.b.y).toBeCloseTo(yi, 9);
+                }
+              }
+              // Through (or toward) F, then parallel to the axis.
+              if (Number.isFinite(ff)) {
+                expect(slope(rays[2][1])).toBeCloseTo(0, 9);
+                expect(yAt(rays[2][0], -ff)).toBeCloseTo(0, 6);
+              }
+              // Parallel to the axis in, then through (or away from) F.
+              expect(slope(rays[0][0])).toBeCloseTo(0, 12);
+              if (Number.isFinite(ff)) expect(yAt(rays[0][1], scene === lensScene ? ff : -ff)).toBeCloseTo(0, 6);
+            }
+  });
+
+  it('the drawn mirror bows at most RIM_SAG_PX at the rim, so a ray crosses the curve by at most that much', () => {
+    for (const f of [5, 15, 30])
+      for (const ap of [8, 15.2, 25.3]) {
+        for (const rimMax of [0.8, 2.5]) {
+          const sag = sagOf(f, ap, rimMax);
+          expect((sag * ap * ap) / 2).toBeLessThanOrEqual(rimMax + 1e-12);
+          expect(sagOf(-f, ap, rimMax)).toBeCloseTo(-sag, 15);
+        }
+      }
+    expect(sagOf(Infinity, 15, 2.5)).toBe(0);
+    expect(RIM_SAG_PX).toBeLessThanOrEqual(8);
   });
 });
