@@ -1,6 +1,6 @@
 // Ch 24 scene: equipotential lines (or a potential map) over the charges of Ch 22, and the
 // work done by the field on a test charge dragged along any path.
-import { paren, tn, u } from '../../core/tex';
+import { RESIDUE, paren, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { BOX, KQ, POINT_POOL, V, clearOf, layoutParam, pointCoords, pointSources, pointWorld, presetParam, presetTag } from '../field/charges';
 import { FieldLayers, palette } from '../field/layers';
@@ -47,27 +47,36 @@ export const VA = (s: S, p: P) => V(pointSources(p), s.A.x, s.A.y);
 export const workNJ = (s: S, p: P) => W(s, p);
 
 /**
- * Decimals for the two terms of a difference: one more than the 3-figure result shows, so the
- * printed subtraction reproduces it.
+ * ΔV = V − V_A [V], with the test charge back on A (the same point, or a closed path) as an exact 0:
+ * a difference below 10⁻⁶ of the potentials is a residue (R7a).
  */
-export const diffDecimals = (r: number) => {
-  const a = Math.abs(Number(r.toPrecision(3)));
-  return a < 1e-9 ? 3 : Math.min(8, Math.max(0, 2 - Math.floor(Math.log10(a))) + 1);
+export const deltaV = (s: S, p: P) => {
+  const v = Vq(s, p);
+  const a = VA(s, p);
+  return Math.abs(v - a) < RESIDUE * Math.max(Math.abs(v), Math.abs(a)) ? 0 : v - a;
 };
-/** Fixed decimals, TeX minus. */
-const fixed = (v: number, d: number) => (Math.abs(v) < 0.5 * 10 ** -d ? 0 : v).toFixed(d);
+/** ΔV and W as the readouts and the Σ panel print them: an exact 0 as "0", else 3 figures (R7a, R8). */
+const fmtZero = (v: number) => (v === 0 ? '0' : undefined);
+const tz = (v: number) => (v === 0 ? '0' : tn(v));
 
-/** Σ panel: V at the test charge and at A, ΔV, the path integral W and −q0 ΔV. */
+/**
+ * Σ panel: V at the test charge and at A, ΔV, the path integral W and −q0 ΔV. The subtraction is
+ * shown with the 3-figure potentials when they give the 3-figure ΔV; for two nearly equal
+ * potentials (R5) ΔV is computed directly from the unrounded values and the terms are not printed.
+ */
 export function formulaLines(s: S, p: P): string[] {
   const v = Vq(s, p);
   const a = VA(s, p);
-  const dV = v - a;
-  const d = diffDecimals(dV);
+  const dV = deltaV(s, p);
+  const r3 = (x: number) => Number(x.toPrecision(3));
+  const shown = Math.abs(r3(v) - r3(a) - dV) <= 0.01 * Math.abs(dV);
   return [
-    `V = \\sum_i k\\,\\frac{q_i}{r_i} = ${tn(v)}${u('V')}`,
-    `\\Delta V = V - V_A = ${fixed(v, d)} - ${paren(fixed(a, d))} = ${tn(dV)}${u('V')}`,
-    `W = q_0\\!\\int_A^B \\vec E\\cdot d\\vec s = ${tn(workNJ(s, p))}${u('nJ')}`,
-    `-q_0\\,\\Delta V = -(1\\ \\mathrm{nC})(${tn(dV)}\\ \\mathrm{V}) = ${tn(-dV)}${u('nJ')}`,
+    `V = \\sum_i k\\,\\frac{q_i}{r_i} = ${tn(v)}${u('V')},\\quad V_A = ${tn(a)}${u('V')}`,
+    dV === 0
+      ? `\\Delta V = V - V_A = 0`
+      : `\\Delta V = V - V_A = ${shown ? `${tn(v)} - ${paren(tn(a))} = ` : ''}${tn(dV)}${u('V')}`,
+    `W = q_0\\!\\int_A^B \\vec E\\cdot d\\vec s = ${tz(workNJ(s, p))}${u('nJ')}`,
+    `-q_0\\,\\Delta V = -(1\\ \\mathrm{nC})(${tz(dV)}${u('V')}) = ${tz(-dV)}${u('nJ')}`,
   ];
 }
 
@@ -137,8 +146,8 @@ export const potential: Scene<P, S> = {
 
   readouts: [
     { label: 'V', unit: 'V', value: (s, p) => Vq(s, p) },
-    { label: '\\Delta V', unit: 'V', value: (s, p) => Vq(s, p) - VA(s, p) },
-    { label: 'W', unit: 'nJ', value: (s, p) => W(s, p) },
+    { label: '\\Delta V', unit: 'V', value: (s, p) => deltaV(s, p), format: fmtZero },
+    { label: 'W', unit: 'nJ', value: (s, p) => W(s, p), format: fmtZero },
   ],
 
   formula: (s, p) => formulaLines(s, p),

@@ -2,7 +2,7 @@
   "ch25.scene": "평행판 축전기",
   "ch25.p.diel": "유전체",
   "ch25.d.diel": "두 판 사이를 채우는 물질과 유전상수 $\\kappa$",
-  "ch25.diel.air": "공기 (κ = 1.00)",
+  "ch25.diel.air": "공기 (κ = 1.00054)",
   "ch25.diel.paper": "종이 (κ = 3.5)",
   "ch25.diel.glass": "유리 (κ = 4.7)",
   "ch25.diel.water": "물 (κ = 80.4)",

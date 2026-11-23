@@ -346,7 +346,9 @@ const CONST_TOKS = new Set(Object.values(CONST).flatMap((c) => toks(texClean(c.t
  * whose recomputation may differ by more than 1 %: scene key "ch/id", a pattern for the line's
  * left-hand side, the checks it is exempt from, and why. Phase 2 adds a line only with its reason.
  */
-export const ALLOW: { scene: string; lhs: RegExp; checks: Check[]; why: string }[] = [];
+export const ALLOW: { scene: string; lhs: RegExp; checks: Check[]; why: string }[] = [
+  { scene: '25/capacitor', lhs: /^C$/, checks: ['inputSig'], why: 'R1/R8: κ of air is the table value 1.00054, the string of its dropdown option (a preset, not a slider label)' },
+];
 
 /** Physical small values (R7b): their readout and Σ result never print as 0.00. Scene key → labels. */
 export const PHYSICAL_SMALL: Record<string, string[]> = {

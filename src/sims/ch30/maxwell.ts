@@ -3,11 +3,11 @@
 //   gaussB   bar magnet (bound surface currents) and a circle: net flux 0
 //   faraday  growing uniform B in a disc: circulating E, ∮E·ds = −dΦ_B/dt
 //   ampere   charging capacitor: flat or bulging surface on the same loop
-import type { ParamSchema, Scene, Vec2 } from '../../core/types';
+import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { WIRE_B } from '../ch29/physics';
 import { FieldLayers } from '../field/layers';
-import { num, tn, u } from '../../core/tex';
+import { CONST, slider, tn, u } from '../../core/tex';
 import { MU0, circlePoly, closedCirc, discOverlap, edgeIntegrals, fieldAt, fieldFn, perimeter, resample, type Src, type V2 } from '../field/physics';
 import { IN, Memo, OUT, componentArrows, drawSurface, drawVectorGrid, knob, texNum, vectorGrid, vpKey, wireGlyph } from '../field/render';
 import { freeDefault, knobs, surfaceHandles } from '../field/surface';
@@ -216,29 +216,37 @@ export function faradayValues(p: P): { circ: number; rhs: number } {
   return { circ: closedCirc((x, y) => inducedE(x, y, p.dBdt), poly(p)), rhs: faradayRhs(G[0], G[1], G[2], p.dBdt) };
 }
 
-/** Below the stage panel's zero tolerance a value prints as 0, as there. */
-const z = (v: number, tol: number) => (Math.abs(v) < tol ? 0 : v);
 const UT = '\\ \\mu\\mathrm{T\\,m}';
-const MU0_TEX = '4\\pi\\times 10^{-7}';
+// One string per quantity in the stage panel and the Σ panel (policy D, R8): 3 figures; below the
+// panel's tolerance an exact 0 (zero by Gauss's law or symmetry, R7a); currents that are integers
+// (0 or 2 A) as integers (R2).
+/** Φ_out, Φ_in [μT m] (tolerance 10⁻⁴). */
+const fluxPart = (v: number) => texNum(v, 3, 1e-4);
+/** ∮ B_n dl [μT m] (tolerance 5×10⁻³). */
+const fluxNet = (v: number) => texNum(v, 3, 5e-3);
+/** ∮ E·ds and −dΦ_B/dt [V] (tolerance 10⁻⁵). */
+const emfTex = (v: number) => texNum(v, 3, 1e-5);
+/** i_enc, i_d [A]. */
+const ampTex = (v: number) => (Number.isInteger(v) ? String(v) : texNum(v, 3, 1e-9));
 
 /** Σ panel: the numbers of the stage panel with the relation that gives them. */
 export function formulaLines(p: P): string[] {
   switch (p.eq) {
     case 'gaussB': {
       const b = gaussB(p);
-      const out = tn(z(b.out, 1e-4));
-      const inn = tn(z(b.inn, 1e-4));
+      const out = fluxPart(b.out);
+      const inn = fluxPart(b.inn);
       return [
         `\\Phi_\\text{out} = ${out}${UT},\\quad \\Phi_\\text{in} = ${inn}${UT}`,
-        `\\oint B_n\\,dl = \\Phi_\\text{out} + \\Phi_\\text{in} = ${out} + (${inn}) = ${tn(z(b.flux, 5e-3))}${UT}`,
+        `\\oint B_n\\,dl = \\Phi_\\text{out} + \\Phi_\\text{in} = ${out} + (${inn}) = ${fluxNet(b.flux)}${UT}`,
       ];
     }
     case 'ampere': {
       const a = ampereMaxwell(p.X[0], p.surf === 'bulge' ? 'bulge' : 'flat');
       return [
-        `i_\\text{enc} = ${num(a.ic)}\\ \\mathrm{A},\\quad i_d = \\varepsilon_0\\,\\frac{d\\Phi_E}{dt} = ${num(a.id)}\\ \\mathrm{A}`,
-        `\\oint \\vec B\\cdot d\\vec s = \\mu_0(i_\\text{enc} + i_d) = (${MU0_TEX})(${num(a.ic)} + ${num(a.id)})\\ \\mathrm{T\\,m} = ${tn(a.circ * 1e6)}${UT}`,
-        `B = \\frac{\\mu_0 i}{2\\pi r} = \\frac{(${MU0_TEX})(${I_CAP})}{2\\pi(${R_AMP})}\\ \\mathrm{T} = ${tn(((MU0 * I_CAP) / (2 * Math.PI * R_AMP)) * 1e6)}${u('\\mu T')}`,
+        `i_\\text{enc} = ${ampTex(a.ic)}\\ \\mathrm{A},\\quad i_d = \\varepsilon_0\\,\\frac{d\\Phi_E}{dt} = ${ampTex(a.id)}\\ \\mathrm{A}`,
+        `\\oint \\vec B\\cdot d\\vec s = \\mu_0(i_\\text{enc} + i_d) = (${CONST.mu0.tex})(${ampTex(a.ic)} + ${ampTex(a.id)})\\ \\mathrm{T\\,m} = ${tn(a.circ * 1e6)}${UT}`,
+        `B = \\frac{\\mu_0 i}{2\\pi r} = \\frac{(${CONST.mu0.tex})(${I_CAP})}{2\\pi(${R_AMP})}\\ \\mathrm{T} = ${tn(((MU0 * I_CAP) / (2 * Math.PI * R_AMP)) * 1e6)}${u('\\mu T')}`,
       ];
     }
     default: {
@@ -246,8 +254,8 @@ export function formulaLines(p: P): string[] {
       const G = Gin(p);
       const A = discOverlap(R_B, G[2], Math.hypot(G[0], G[1]));
       return [
-        `\\oint \\vec E\\cdot d\\vec s = ${tn(z(circ, 1e-5))}${u('V')}`,
-        `-\\frac{d\\Phi_B}{dt} = -\\frac{dB}{dt}\\,A = -(${num(p.dBdt)}\\ \\mathrm{T/s})(${tn(A, 4)}\\ \\mathrm{m^2}) = ${tn(z(rhs, 1e-5))}${u('V')}`,
+        `\\oint \\vec E\\cdot d\\vec s = ${emfTex(circ)}${u('V')}`,
+        `-\\frac{d\\Phi_B}{dt} = -\\frac{dB}{dt}\\,A = -(${slider(params.dBdt as NumberParam, p.dBdt)}\\ \\mathrm{T/s})(${tn(A)}\\ \\mathrm{m^2}) = ${emfTex(rhs)}${u('V')}`,
       ];
     }
   }
@@ -259,25 +267,25 @@ function overlay(p: P): string {
       const b = gaussB(p);
       const u = '\\ \\mu\\mathrm{T\\,m}';
       return `\\oint \\vec B\\cdot d\\vec A = 0 \\\\[4pt] ${arr([
-        row('\\Phi_\\text{out}', `\\textcolor{${OUT}}{${texNum(b.out, 3, 1e-4)}}${u}`),
-        row('\\Phi_\\text{in}', `\\textcolor{${IN}}{${texNum(b.inn, 3, 1e-4)}}${u}`),
-        row('\\oint B_n\\,dl', `${texNum(b.flux, 3, 5e-3)}${u}`),
+        row('\\Phi_\\text{out}', `\\textcolor{${OUT}}{${fluxPart(b.out)}}${u}`),
+        row('\\Phi_\\text{in}', `\\textcolor{${IN}}{${fluxPart(b.inn)}}${u}`),
+        row('\\oint B_n\\,dl', `${fluxNet(b.flux)}${u}`),
       ])}`;
     }
     case 'ampere': {
       const a = ampereMaxwell(p.X[0], p.surf === 'bulge' ? 'bulge' : 'flat');
       return `\\oint \\vec B\\cdot d\\vec s = \\mu_0 i_\\text{enc} + \\mu_0\\varepsilon_0\\frac{d\\Phi_E}{dt} \\\\[4pt] ${arr([
-        row('i_\\text{enc}', `${texNum(a.ic, 3, 1e-9)}\\ \\mathrm{A}`),
-        row('\\varepsilon_0\\, d\\Phi_E/dt', `${texNum(a.id, 3, 1e-9)}\\ \\mathrm{A}`),
-        row('\\oint \\vec B\\cdot d\\vec s', `${texNum(a.circ * 1e6, 3)}\\ \\mu\\mathrm{T\\,m}`),
+        row('i_\\text{enc}', `${ampTex(a.ic)}\\ \\mathrm{A}`),
+        row('\\varepsilon_0\\, d\\Phi_E/dt', `${ampTex(a.id)}\\ \\mathrm{A}`),
+        row('\\oint \\vec B\\cdot d\\vec s', `${tn(a.circ * 1e6)}\\ \\mu\\mathrm{T\\,m}`),
       ])}`;
     }
     default: {
       // faraday (also any unknown eq value)
       const { circ, rhs } = faradayValues(p);
       return `\\oint \\vec E\\cdot d\\vec s = -\\frac{d\\Phi_B}{dt} \\\\[4pt] ${arr([
-        row('\\oint \\vec E\\cdot d\\vec s', `${texNum(circ, 3, 1e-5)}\\ \\mathrm{V}`),
-        row('-d\\Phi_B/dt', `${texNum(rhs, 3, 1e-5)}\\ \\mathrm{V}`),
+        row('\\oint \\vec E\\cdot d\\vec s', `${emfTex(circ)}\\ \\mathrm{V}`),
+        row('-d\\Phi_B/dt', `${emfTex(rhs)}\\ \\mathrm{V}`),
       ])}`;
     }
   }

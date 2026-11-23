@@ -2,7 +2,7 @@
   "ch25.scene": "Parallel-plate capacitor",
   "ch25.p.diel": "Dielectric",
   "ch25.d.diel": "Material filling the gap and its dielectric constant $\\kappa$",
-  "ch25.diel.air": "Air (κ = 1.00)",
+  "ch25.diel.air": "Air (κ = 1.00054)",
   "ch25.diel.paper": "Paper (κ = 3.5)",
   "ch25.diel.glass": "Glass (κ = 4.7)",
   "ch25.diel.water": "Water (κ = 80.4)",

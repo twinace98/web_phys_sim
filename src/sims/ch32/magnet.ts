@@ -1,13 +1,12 @@
 // Ch 32 scene: a lattice of atomic moments in an external field B. Paramagnet: independent
 // moments, B against thermal agitation. Ferromagnet: neighbours tend to align, domains,
 // hysteresis, remanence, Curie temperature. Diamagnet: small induced moments opposite to B.
-import type { ParamSchema, Scene } from '../../core/types';
+import type { NumberParam, ParamSchema, Scene } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import type { Rng } from '../../core/rng';
 import { color, theme } from '../../draw/theme';
 import { Inset } from '../inset/inset';
-import { num, tn, tp } from '../../core/tex';
-import { fitSig } from '../ch31/fit';
+import { slider, tn, tnInt, tp } from '../../core/tex';
 import { TC, magnetization, onsagerM, paraM, randomLattice, sweep, wolff, type Lattice } from './physics';
 
 type P = { mat: string; T: number; field: string };
@@ -177,30 +176,29 @@ function drawMoments(g: Draw, s: S, p: P): void {
 export function formulaMagnet(s: S, p: P): string[] {
   const b = s.B / B0;
   const lines: string[] = [];
-  if (p.field === 'sweep') lines.push(`\\frac{B}{B_\\text{max}} = \\sin\\frac{2\\pi t}{${PERIOD}} = \\sin\\frac{2\\pi(${num(s.t)})}{${PERIOD}} = ${tn(b, 2)}`);
+  if (p.field === 'sweep') lines.push(`\\frac{B}{B_\\text{max}} = \\sin\\frac{2\\pi t}{${PERIOD}} = \\sin\\frac{2\\pi(${tnInt(s.t)})}{${PERIOD}} = ${tn(b, 2)}`);
   else lines.push(`\\frac{B}{B_\\text{max}} = ${tn(b, 2)}`);
+  // Policy D: B/B_max as its 2-figure readout, T as its slider, k_BT_C and state values with
+  // 3 figures; the printed arithmetic may differ from the result in the last digit.
   if (p.mat === 'dia') {
-    const sb = fitSig((r) => tn(-CHI * r(b), 2), tn(s.M, 2), 2);
-    lines.push(`\\frac{M}{M_\\text{s}} = -\\chi\\frac{B}{B_\\text{max}} = -${CHI} \\times ${tp(b, sb)} = ${tn(s.M, 2)}`);
+    lines.push(`\\frac{M}{M_\\text{s}} = -\\chi\\frac{B}{B_\\text{max}} = -${CHI} \\times ${tp(b, 2)} = ${tn(s.M, 2)}`);
     return lines;
   }
   const N = NX * NY;
   const up = Math.round(((1 + s.M) * N) / 2);
   lines.push(`\\frac{M}{M_\\text{s}} = \\frac{N_\\uparrow - N_\\downarrow}{N} = \\frac{${up} - ${N - up}}{${N}} = ${tn(s.M, 2)}`);
   const kT = p.T * TC;
+  const T = slider(params.T as NumberParam, p.T);
   if (p.mat === 'para') {
-    const m = tn(paraM(s.B, kT), 2);
-    const sx = fitSig((r) => tn(Math.tanh(r(s.B) / r(kT)), 2), m);
-    lines.push(`\\frac{M}{M_\\text{s}} \\approx \\tanh\\frac{\\mu B}{k_BT} = \\tanh\\frac{${tn(s.B, sx)}\\,J}{${tn(kT, sx)}\\,J} = ${m}`);
+    lines.push(`\\frac{M}{M_\\text{s}} \\approx \\tanh\\frac{\\mu B}{k_BT} = \\tanh\\frac{${tn(s.B)}\\,J}{${tn(kT)}\\,J} = ${tn(paraM(s.B, kT), 2)}`);
     return lines;
   }
-  lines.push(`k_BT_C = \\frac{2J}{\\ln(1 + \\sqrt2)} = ${tn(TC, 4)}\\,J`);
-  if (p.T >= 1) lines.push(`T = ${num(p.T)}\\,T_C \\ge T_C:\\ \\lvert M\\rvert_{B=0} = 0`);
+  lines.push(`k_BT_C = \\frac{2J}{\\ln(1 + \\sqrt2)} = ${tn(TC)}\\,J`);
+  if (p.T >= 1) lines.push(`T = ${T}\\,T_C \\ge T_C:\\ \\lvert M\\rvert_{B=0} = 0`);
   else {
     const y = 2 / kT;
-    const sy = fitSig((r) => tn((1 - Math.sinh(r(y)) ** -4) ** 0.125), tn(onsagerM(kT)), 4);
     lines.push(
-      `\\frac{2J}{k_BT} = \\frac{2}{${num(p.T)} \\times ${tn(TC, 4)}} = ${tn(y, sy)}`,
+      `\\frac{2J}{k_BT} = \\frac{2}{${T} \\times ${tn(TC)}} = ${tn(y)}`,
       `\\frac{\\lvert M\\rvert_{B=0}}{M_\\text{s}} = \\left[1 - \\sinh^{-4}\\frac{2J}{k_BT}\\right]^{1/8} = ${tn(onsagerM(kT))}`,
     );
   }

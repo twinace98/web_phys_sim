@@ -2,11 +2,10 @@
 // v_L = L di/dt leads by 90° (slope of i), v_C = q/C lags by 90° (area under i).
 // Stage: rotating phasors (projections = instantaneous values) and the resonance curve.
 import { fmtTick, niceTicks } from '../../core/format';
-import type { Overlay, ParamSchema, Role, Scene, Vec2 } from '../../core/types';
+import type { NumberParam, Overlay, ParamSchema, Role, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
-import { num, tn, tp, u } from '../../core/tex';
-import { fitSig } from './fit';
+import { slider, tn, tp, u } from '../../core/tex';
 import { acAt, currentAmp, impedance, omega0, phase, reactanceC, reactanceL, type Drive, type RLC } from './physics';
 
 type P = { ratio: number; mode: string; R: number };
@@ -244,17 +243,17 @@ export function formulaAC(p: P): string[] {
   const phiDeg = phase(c, wd) * DEG;
   const I = currentAmp(c, driveOf(p)) * 1e3;
   const ohm = u('\\Omega');
-  // X_L − X_C with enough figures for Z and φ; Z with enough for I = ℰm/Z.
-  const sx = fitSig((r) => tn(Math.atan2(r(X), c.R) * DEG) + tn(Math.hypot(c.R, r(X))), tn(phiDeg) + tn(Z));
-  const sz = fitSig((r) => tn((EM / r(Z)) * 1e3), tn(I));
-  const s0 = fitSig((r) => tn(p.ratio * r(W0)), tn(wd));
+  // Policy D: the ratio and R as their sliders, derived values with 3 figures; X_L − X_C is
+  // computed directly, not from the printed X_L and X_C (R5).
+  const ratio = slider(params.ratio as NumberParam, p.ratio);
+  const R = slider(params.R as NumberParam, p.R);
   return [
-    `\\omega_d = ${num(p.ratio)}\\,\\omega_0 = ${num(p.ratio)} \\times ${tn(W0, s0)} = ${tn(wd)}${u('rad/s')}`,
+    `\\omega_d = ${ratio}\\,\\omega_0 = ${ratio} \\times ${tn(W0)} = ${tn(wd)}${u('rad/s')}`,
     `X_L = \\omega_d L = ${tn(XL)}${ohm},\\quad X_C = \\frac{1}{\\omega_d C} = ${tn(XC)}${ohm}`,
     `Z = \\sqrt{R^2 + (X_L - X_C)^2}`,
-    `= \\sqrt{${num(p.R)}^2 + ${tp(X, sx)}^2} = ${tn(Z)}${ohm}`,
-    `\\tan\\phi = \\frac{X_L - X_C}{R} = \\frac{${tn(X, sx)}}{${num(p.R)}},\\quad \\phi = ${tn(phiDeg)}^\\circ`,
-    `I = \\frac{\\mathcal{E}_m}{Z} = \\frac{${EM}${u('V')}}{${tn(Z, sz)}${ohm}} = ${tn(I)}${u('mA')}`,
+    `= \\sqrt{${R}^2 + ${tp(X)}^2} = ${tn(Z)}${ohm}`,
+    `\\tan\\phi = \\frac{X_L - X_C}{R} = \\frac{${tn(X)}}{${R}},\\quad \\phi = ${tn(phiDeg)}^\\circ`,
+    `I = \\frac{\\mathcal{E}_m}{Z} = \\frac{${EM}${u('V')}}{${tn(Z)}${ohm}} = ${tn(I)}${u('mA')}`,
   ];
 }
 

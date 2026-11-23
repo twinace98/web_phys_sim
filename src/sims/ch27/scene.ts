@@ -1,11 +1,11 @@
 // Ch 27 scene: RC circuit. The switch charges the capacitor through R from the battery,
 // or discharges it through R. Plots mark t = τ after the latest switch (63 %, 37 %).
-import { num, tn, u } from '../../core/tex';
-import type { ParamSchema, Scene, Vec2 } from '../../core/types';
+import { slider, tn, u } from '../../core/tex';
+import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { drawRich } from '../../draw/text';
 import { theme } from '../../draw/theme';
-import { ONE_TAU, chargeAt, finalCharge, tau, type RC } from './physics';
+import { ONE_TAU, chargeAt, currentAt, finalCharge, tau, type RC } from './physics';
 
 type P = { sw: string; R: number; C: number };
 
@@ -29,13 +29,19 @@ const WIRE = '#3a3a3a';
 const MARK = '#7a7a7a';
 
 const rcOf = (p: P): RC => ({ R: p.R * 1e3, C: p.C * 1e-6, emf: EMF });
+/** The state still follows the segment of these parameters (no switch or R, C change since). */
+const inSegment = (s: S, p: { sw: string; R: number; C: number }) => s.mode === p.sw && s.rc === `${p.R}|${p.C}`;
+
 /**
- * Loop rule: i = (q_final − q) / τ, valid at any instant whatever the history. Uses the switch
- * position of the parameters, so a switch thrown while paused shows at once.
+ * Current with the switch position `sw`: within the segment the exponential of the segment,
+ * i = (q_final − q0)/τ · e^{−(t − t_s)/τ}, which keeps its digits as i → 0 (policy D, R5, R7b);
+ * after a switch or an R, C change not yet stepped (paused) the loop rule i = (q_final − q)/τ,
+ * valid at any instant, so the change shows at once.
  */
-const currentOf = (c: RC, s: S, sw: string) => {
-  const i = (finalCharge(c, sw === 'charge') - s.q) / tau(c);
-  return Math.abs(i) < 1e-7 * (c.emf / c.R) ? 0 : i; // rounding noise once settled
+const currentOf = (c: RC, s: S, sw: string, p?: P) => {
+  const qf = finalCharge(c, sw === 'charge');
+  if (sw === s.mode && (!p || inSegment(s, p))) return currentAt(c, sw === 'charge', s.q0, s.t - s.ts);
+  return (qf - s.q) / tau(c);
 };
 
 /** Charge at the start of a run: a run that starts in discharge mode starts full, q = Cε. */
@@ -244,6 +250,13 @@ function grow(rec: { vc: number; i: number; q: number }): void {
   }
 }
 
+/**
+ * V_C and i print tiny values in powers of ten (R7b: a settled current is physical, not 0.00); only
+ * an exact 0 (the start, or e^{−t/τ} below the smallest double) prints as 0, in the readouts and Σ.
+ */
+const fmtZero = (v: number) => (v === 0 ? '0' : undefined);
+const tz = (v: number) => (v === 0 ? '0' : tn(v, 3, 0));
+
 /** Readouts: V_C [V] and i [mA] (loop rule with the switch of the parameters). */
 export const readVC = (s: S, p: P) => {
   prepare(s, p);
@@ -251,18 +264,13 @@ export const readVC = (s: S, p: P) => {
 };
 export const readI = (s: S, p: P) => {
   prepare(s, p);
-  return currentOf(rcOf(p), s, p.sw) * 1e3;
-};
-
-/** Decimals for a term subtracted before a 3-figure result: one more than the result shows. */
-const decFor = (r: number) => {
-  const a = Math.abs(Number(r.toPrecision(3)));
-  return a < 1e-9 ? 3 : Math.min(8, Math.max(0, 2 - Math.floor(Math.log10(a))) + 1);
+  return currentOf(rcOf(p), s, p.sw, p) * 1e3;
 };
 
 /**
- * Σ panel: τ = RC, q(t) of the current segment (since the latest switch at t_s), V_C = q/C and
- * the loop rule for i with the switch position of the parameters.
+ * Σ panel: τ = RC, q(t) of the current segment (since the latest switch at t_s), V_C = q/C and i.
+ * Policy D: R and C as their sliders, state values with 3 figures. While charging, i is written as
+ * the exponential of the segment (R5): ℰ − V_C would cancel to a few digits of 12 V once settled.
  */
 export function formulaLines(s: S, p: P): string[] {
   const vc = readVC(s, p);
@@ -275,7 +283,8 @@ export function formulaLines(s: S, p: P): string[] {
   // Elapsed time and τ in the exponent as the readouts show them (t is live).
   const ex = `e^{-${tn(dt)}/${tn(T)}}`;
   const tt = s.ts > 0 ? '(t - t_s)' : 't';
-  const lines = [`\\tau = RC = (${num(p.R)}\\ \\mathrm{k\\Omega})(${num(p.C)}\\ \\mathrm{\\mu F}) = ${tn(T)}${u('s')}`];
+  const sl = (k: 'R' | 'C') => slider(params[k] as NumberParam, p[k]);
+  const lines = [`\\tau = RC = (${sl('R')}\\ \\mathrm{k\\Omega})(${sl('C')}\\ \\mathrm{\\mu F}) = ${tn(T)}${u('s')}`];
   if (s.mode === 'charge' && Math.abs(s.q0) < 1e-12) {
     lines.push(`q = C\\mathcal{E}(1 - e^{-${tt}/\\tau}) = (${tn(CE)}\\ \\mathrm{mC})(1 - ${ex}) = ${tn(qm)}${u('mC')}`);
   } else if (s.mode === 'charge') {
@@ -284,14 +293,20 @@ export function formulaLines(s: S, p: P): string[] {
   } else {
     lines.push(`q = q_0\\,e^{-${tt}/\\tau} = (${tn(s.q0 * 1e3)}\\ \\mathrm{mC})\\,${ex} = ${tn(qm)}${u('mC')}`);
   }
-  lines.push(`V_C = \\frac{q}{C} = \\frac{${tn(qm, 4)}\\times 10^{-3}}{${num(p.C)}\\times 10^{-6}}\\ \\mathrm{V} = ${tn(vc)}${u('V')}`);
-  const R = `${num(p.R)}\\ \\mathrm{k\\Omega}`;
-  if (p.sw === 'charge') {
-    // Once settled the readout prints i = 0 (rounding noise), and V_C = ℰ to its figures.
-    const d = i === 0 ? 2 : decFor(EMF - vc);
-    lines.push(`i = \\frac{\\mathcal{E} - V_C}{R} = \\frac{${EMF} - ${vc.toFixed(d)}}{${R}} = ${tn(i)}${u('mA')}`);
+  lines.push(`V_C = \\frac{q}{C} = \\frac{${qm === 0 ? '0' : `${tz(qm)}\\times 10^{-3}`}}{${sl('C')}\\times 10^{-6}}\\ \\mathrm{V} = ${tz(vc)}${u('V')}`);
+  const R = `${sl('R')}\\ \\mathrm{k\\Omega}`;
+  const it = tz(i);
+  if (p.sw === 'charge' && inSegment(s, p)) {
+    lines.push(
+      Math.abs(s.q0) < 1e-12
+        ? `i = \\frac{\\mathcal{E}}{R}\\,e^{-${tt}/\\tau} = \\frac{${EMF}\\ \\mathrm{V}}{${R}}\\,${ex} = ${it}${u('mA')}`
+        : `i = \\frac{C\\mathcal{E} - q_0}{\\tau}\\,e^{-${tt}/\\tau} = \\frac{${tn(CE - s.q0 * 1e3, 3, 0)}\\ \\mathrm{mC}}{${tn(T)}\\ \\mathrm{s}}\\,${ex} = ${it}${u('mA')}`,
+    );
+  } else if (p.sw === 'charge') {
+    // Switched to charging while paused: the loop rule at this instant.
+    lines.push(`i = \\frac{\\mathcal{E} - V_C}{R} = \\frac{${EMF} - ${tz(vc)}}{${R}} = ${it}${u('mA')}`);
   } else {
-    lines.push(`i = -\\frac{V_C}{R} = -\\frac{${tn(vc, 4)}\\ \\mathrm{V}}{${R}} = ${tn(i)}${u('mA')}`);
+    lines.push(`i = -\\frac{V_C}{R} = -\\frac{${tz(vc)}\\ \\mathrm{V}}{${R}} = ${it}${u('mA')}`);
   }
   return lines;
 }
@@ -402,8 +417,8 @@ export const rcCircuit: Scene<P, S> = {
 
   readouts: [
     { label: '\\tau', unit: 's', value: (_s, p) => tau(rcOf(p)) },
-    { label: 'V_C', unit: 'V', value: (s, p) => readVC(s, p) },
-    { label: 'i', unit: 'mA', value: (s, p) => readI(s, p) },
+    { label: 'V_C', unit: 'V', value: (s, p) => readVC(s, p), zeroTol: 0, format: fmtZero },
+    { label: 'i', unit: 'mA', value: (s, p) => readI(s, p), zeroTol: 0, format: fmtZero },
   ],
 
   formula: (s, p) => formulaLines(s, p),

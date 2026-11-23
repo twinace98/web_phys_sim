@@ -52,24 +52,6 @@ const PENDING: Record<string, Partial<Record<Check, string>>> = {
   '19/pressure': { inputSig: 'fixed tn(…, 4) and k_B, m to 4 figures; R4 for the measured pressure' },
   '20/heat': { slider: 'R1: q "100" printed "100.0"', inputSig: 'fixed tn(…, 4): S/k 66.27, kT/ε lines' },
   '20/carnot': { inputSig: 'fixed tn(…, 4): n = 3.333, Q_H, Q_C, W lines' },
-  // Ch 23–27
-  '23/gauss': { inputSig: 'ε₀ = 8.854×10⁻¹²: CONST.eps0' },
-  '24/potential': { inputSig: 'R7a: ΔV = V - V_A on 4–5 figure equal potentials (15.002 - 15.002); print 0' },
-  '25/capacitor': { inputSig: 'ε₀ 8.854×10⁻¹², κ 1.00054 (one table string), fixed tn(…, 4) in C, Q, U, V, E' },
-  '26/drift': {
-    result: 'R4/R8: I = V/R = 100 mA next to the measured readout 103 mA',
-    slider: 'R1: V, L, A "1.0" printed "1" or "1.000"',
-    inputSig: 'fixed tn(…, 4): 1.500, 0.2500, 10.00 Ω; R4 for Ī',
-  },
-  '27/rc': { slider: 'R1: R "2.0" printed "2"', inputSig: 'R5: i = (12 - 11.9994552)/R; write i = (ℰ/R)e^{-t/τ}. V_C on 4-figure q' },
-  // Ch 28–32
-  '28/lorentz': { slider: 'R1: Bi "1.00" printed "1"', inputSig: 'mₚ, e, mₑ to 4 figures: CONST' },
-  '28/cyclotron': { inputSig: 'e, mₚ to 4 figures (CONST); f, K lines with 4-figure inputs' },
-  '29/biot': { inputSig: 'dB lines with 4-figure inputs (0.09167, 13.99°, 1.241)' },
-  '30/faraday': { slider: 'R1: B, v "0.50" printed "0.5"', inputSig: 'Φ_B, ℰ lines with 4-figure x (0.4000, -1.200)' },
-  '30/maxwell': { slider: 'R1: dBdt "1.0" printed "1"', inputSig: 'A = 0.1942 m² (4 figures)' },
-  '31/ac': { slider: 'R1: ratio "0.80" printed "0.8"' },
-  '32/materials': { slider: 'R1: T "0.50" printed "0.5"', inputSig: 'Onsager T_c = 2.269 (4 figures)' },
   // Ch 33–36
   '33/refraction': { slider: 'R1: theta "35.0" printed "35"' },
   '33/fibre': { slider: 'R1: alpha "15.0" printed "15"' },
