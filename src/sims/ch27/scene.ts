@@ -286,12 +286,12 @@ export function formulaLines(s: S, p: P): string[] {
   const sl = (k: 'R' | 'C') => slider(params[k] as NumberParam, p[k]);
   const lines = [`\\tau = RC = (${sl('R')}\\ \\mathrm{k\\Omega})(${sl('C')}\\ \\mathrm{\\mu F}) = ${tn(T)}${u('s')}`];
   if (s.mode === 'charge' && Math.abs(s.q0) < 1e-12) {
-    lines.push(`q = C\\mathcal{E}(1 - e^{-${tt}/\\tau}) = (${tn(CE)}\\ \\mathrm{mC})(1 - ${ex}) = ${tn(qm)}${u('mC')}`);
+    lines.push(`q = C\\mathcal{E}(1 - e^{-${tt}/\\tau}) = (${tn(CE)}\\ \\mathrm{mC})(1 - ${ex}) = ${tz(qm)}${u('mC')}`);
   } else if (s.mode === 'charge') {
     lines.push(`q = C\\mathcal{E} + (q_0 - C\\mathcal{E})\\,e^{-${tt}/\\tau}`);
-    lines.push(`q = ${tn(CE)} + (${tn(s.q0 * 1e3)} - ${tn(CE)})\\,${ex} = ${tn(qm)}${u('mC')}`);
+    lines.push(`q = ${tn(CE)} + (${tz(s.q0 * 1e3)} - ${tn(CE)})\\,${ex} = ${tz(qm)}${u('mC')}`);
   } else {
-    lines.push(`q = q_0\\,e^{-${tt}/\\tau} = (${tn(s.q0 * 1e3)}\\ \\mathrm{mC})\\,${ex} = ${tn(qm)}${u('mC')}`);
+    lines.push(`q = q_0\\,e^{-${tt}/\\tau} = (${tz(s.q0 * 1e3)}\\ \\mathrm{mC})\\,${ex} = ${tz(qm)}${u('mC')}`);
   }
   lines.push(`V_C = \\frac{q}{C} = \\frac{${qm === 0 ? '0' : `${tz(qm)}\\times 10^{-3}`}}{${sl('C')}\\times 10^{-6}}\\ \\mathrm{V} = ${tz(vc)}${u('V')}`);
   const R = `${sl('R')}\\ \\mathrm{k\\Omega}`;
