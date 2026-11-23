@@ -2,7 +2,7 @@
 // and Q, W, ΔE_int bars that always satisfy ΔE_int = Q − W.
 import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
-import { dELine, qLine, tempLine } from './formula';
+import { dELine, qLine, tJ, tempLine } from './formula';
 import { split, stageRect } from './panels';
 import { A0, eint, legAt, legWork, pathAt, processLeg, temp, type Leg, type Process } from './physics';
 import { barRange, drawBars, drawCylinder, drawPV, gasHeight, initMolecules, isWide, stepMolecules } from './view';
@@ -187,26 +187,26 @@ export function formulaLines(time: number, p: P): string[] {
   const l = legOf(p);
   const pt = pathAt([l], sOf(time), f);
   const { st } = pt;
-  const V = tn(st.V, 4);
+  const V = tn(st.V);
   const a = l.a;
-  const pVa = tn(a.p * a.V, 4);
+  const pVa = tJ(a.p * a.V);
   const J = u('J');
   const lines = [tempLine(st)];
   switch (l.kind) {
     case 'isobaric':
-      lines.push(`W = p(V - V_\\text{A}) = ${num(a.p)} \\times (${V} - ${num(a.V)}) = ${tn(pt.W)}${J}`);
+      lines.push(`W = p(V - V_\\text{A}) = ${num(a.p)} \\times (${V} - ${num(a.V)}) = ${tJ(pt.W)}${J}`);
       break;
     case 'isochoric':
       lines.push(`W = 0 \\quad (V = V_\\text{A})`);
       break;
     case 'isothermal':
       lines.push(`p = \\frac{p_\\text{A}V_\\text{A}}{V} = \\frac{${pVa}}{${V}} = ${tn(st.p)}${u('kPa')}`);
-      lines.push(`W = nRT\\ln\\frac{V}{V_\\text{A}} = ${pVa}\\ln\\frac{${V}}{${num(a.V)}} = ${tn(pt.W)}${J}`);
+      lines.push(`W = nRT\\ln\\frac{V}{V_\\text{A}} = ${pVa}\\ln\\frac{${V}}{${num(a.V)}} = ${tJ(pt.W)}${J}`);
       break;
     case 'adiabatic': {
       const g = f === 5 ? '7/5' : '5/3';
       lines.push(`p = p_\\text{A}\\Big(\\frac{V_\\text{A}}{V}\\Big)^{\\gamma} = ${num(a.p)}\\Big(\\frac{${num(a.V)}}{${V}}\\Big)^{${g}} = ${tn(st.p)}${u('kPa')}`);
-      lines.push(`W = \\frac{p_\\text{A}V_\\text{A} - pV}{\\gamma - 1} = \\frac{${pVa} - ${tn(st.p * st.V, 4)}}{2/${f}} = ${tn(pt.W)}${J}`);
+      lines.push(`W = \\frac{p_\\text{A}V_\\text{A} - pV}{\\gamma - 1} = \\frac{${pVa} - ${tJ(st.p * st.V)}}{2/${f}} = ${tJ(pt.W)}${J}`);
       break;
     }
   }

@@ -1,10 +1,10 @@
 // Ch 20 scene: Carnot cycle on p–V and T–S diagrams. Heat Q_H enters at T_H, Q_C leaves at
 // T_C, with Q_C/Q_H = T_C/T_H because the two isotherms span the same entropy change. The
 // efficiency W/Q_H = 1 − T_C/T_H is the upper limit for any engine between the two reservoirs.
-import { num, tn, u } from '../../core/tex';
+import { num, slider, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { e4 } from '../ch18/formula';
+import { fmtJ, pJ, tJ } from '../ch18/formula';
 import { bar, chart, split, stageRect, type Rect } from '../ch18/panels';
 import { NR, cycle, eint, entropy, heatSplit, legAt, legWork, pathAt, pathPoints, temp, type Cycle, type Leg } from '../ch18/physics';
 import { dofOf } from '../ch18/process';
@@ -168,7 +168,7 @@ function drawHeatBars(g: Draw, r0: Rect, s: number, p: P): void {
   chart(g, r, [-0.6, 3.6], m.yr, { l: 8, r: 8, t: 30, b: 26 }, (ch) => {
     ch.d.line(ch.P(-0.6, 0), ch.P(3.6, 0), { role: 'axis', width: 1.25 });
     const half = Math.min(16, (ch.R - ch.L) * 0.055);
-    barItems(p, s).forEach(([v, col, lbl], k) => bar(ch, k, half, v, col, Math.abs(v) < 0.5 ? '0' : String(Math.round(v)).replace('-', '−'), lbl));
+    barItems(p, s).forEach(([v, col, lbl], k) => bar(ch, k, half, v, col, fmtJ(v), lbl));
     ch.d.text({ x: (ch.L + ch.R) / 2, y: ch.T }, BAR_TITLE, { size: 13, color: '#1a1a1a', align: 'center', dy: -12 });
   });
 }
@@ -234,17 +234,20 @@ export const carnotScene: Scene<P, { t: number }> = {
 export function formulaLines(time: number, p: P): string[] {
   const m = model(p);
   const [A, B, C, D] = m.c.corners;
-  const nR = tn(NR, 4);
-  const qh = tn(m.qin);
-  const qc = tn(m.qout);
+  // Policy D: nR and the volumes to 3 figures (R3), T_C as its slider label (R1), energies in whole
+  // joules as on the bars (R7a, R8; ch18/formula.ts).
+  const nR = tn(NR);
+  const tc = slider(params.tc, p.tc);
+  const qh = tJ(m.qin);
+  const qc = tJ(m.qout);
   const h = heatsAt(m.c.legs, sOf(time), dofOf(p.gas));
   const J = u('J');
   return [
     `Q_\\text{H} = nRT_\\text{H}\\ln\\frac{V_\\text{B}}{V_\\text{A}} = ${nR} \\times ${TH}\\ln\\frac{${num(B.V)}}{${num(A.V)}} = ${qh}${J}`,
-    `Q_\\text{C} = nRT_\\text{C}\\ln\\frac{V_\\text{C}}{V_\\text{D}} = ${nR} \\times ${p.tc}\\ln\\frac{${tn(C.V, 4)}}{${tn(D.V, 4)}} = ${qc}${J}`,
-    `\\frac{Q_\\text{H}}{T_\\text{H}} = \\frac{${qh}}{${TH}} = \\frac{${qc}}{${p.tc}} = \\frac{Q_\\text{C}}{T_\\text{C}} = ${tn(m.qin / TH)}${u('J/K')}`,
+    `Q_\\text{C} = nRT_\\text{C}\\ln\\frac{V_\\text{C}}{V_\\text{D}} = ${nR} \\times ${tc}\\ln\\frac{${tn(C.V)}}{${tn(D.V)}} = ${qc}${J}`,
+    `\\frac{Q_\\text{H}}{T_\\text{H}} = \\frac{${qh}}{${TH}} = \\frac{${qc}}{${tc}} = \\frac{Q_\\text{C}}{T_\\text{C}} = ${tn(m.qin / TH)}${u('J/K')}`,
     `\\frac{W}{Q_\\text{H}} = 1 - \\frac{Q_\\text{C}}{Q_\\text{H}} = 1 - \\frac{${qc}}{${qh}} = ${tn(m.W / m.qin)}`,
-    `1 - \\frac{T_\\text{C}}{T_\\text{H}} = 1 - \\frac{${p.tc}}{${TH}} = ${tn(1 - p.tc / TH)}`,
-    `W = Q_\\text{H} - Q_\\text{C} - \\Delta E_\\text{int} = ${e4(h.qh)} - ${e4(h.qc)} - ${e4(h.dE)} = ${tn(h.W)}${J}`,
+    `1 - \\frac{T_\\text{C}}{T_\\text{H}} = 1 - \\frac{${tc}}{${TH}} = ${tn(1 - p.tc / TH)}`,
+    `W = Q_\\text{H} - Q_\\text{C} - \\Delta E_\\text{int} = ${pJ(h.qh)} - ${pJ(h.qc)} - ${pJ(h.dE)} = ${tJ(h.W)}${J}`,
   ];
 }

@@ -357,6 +357,19 @@ export const ALLOW: { scene: string; lhs: RegExp; checks: Check[]; why: string }
   { scene: '108/driven', lhs: /^\\Sigma F$/, checks: ['recompute'], why: 'R5: F_s ≈ mg near equilibrium; ΣF from the unrounded forces' },
   // Ch 22–32
   { scene: '25/capacitor', lhs: /^C$/, checks: ['inputSig'], why: 'R1/R8: κ of air is the table value 1.00054, the string of its dropdown option (a preset, not a slider label)' },
+  // Ch 13–20
+  {
+    scene: '15/shm',
+    lhs: /^x$/,
+    checks: ['recompute'],
+    why: 'x = A cos ωt near a zero crossing: x ≪ A, and the last figure of the 3-figure phase (0.1° at ±90°) moves A cos by up to 2×10⁻³ A',
+  },
+  {
+    scene: '17/beats',
+    lhs: /^(f_\\text\{beat\}|\\tfrac\{f_1 \+ f_2\}\{2\})$/,
+    checks: ['inputSig'],
+    why: 'f₂ = f₁ + Δf is an exact sum of two slider values (R1), printed as typed (441.5), not rounded to 3 figures',
+  },
 ];
 
 /** Physical small values (R7b): their readout and Σ result never print as 0.00. Scene key → labels. */

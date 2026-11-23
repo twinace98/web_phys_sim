@@ -1,11 +1,10 @@
 // Ch 15 scene: SHM as the projection of uniform circular motion. Reference circle (left) and
 // mass on a spring (right) share one horizontal projection line. Free-body diagram of the hanging
 // mass: spring force F_s = mg − kx (x from equilibrium, up +), weight mg and, with damping, F_d.
-import { num, tn, tp, u } from '../../core/tex';
+import { RESIDUE, slider, tn, tnScale, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { drawFbd, fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
-import { sigFit } from '../ch07/sigfit';
 import { omega0, omegaD, oscAt, period, type OscState, type Oscillator } from './physics';
 
 type P = { A: number; k: number; m: number; zeta: number; vectors: boolean; fbd: boolean };
@@ -129,22 +128,24 @@ function spring(g: Draw, x: number, y0: number, y1: number): void {
 }
 
 /**
- * Σ panel. Undamped: ω, T, the live x = A cos ωt (phase in degrees, reduced to one turn), a = −ω²x
+ * Σ panel. Undamped: ω, T, the live x = A cos ωt (phase in degrees, reduced to (−180°, 180°]), a = −ω²x
  * and E = K + U = ½kA². Damped: ω₀, ω = ω₀√(1 − ζ²), T = 2π/ω, a = −ω₀²x − 2ζω₀v and E = K + U
  * (which decays, so no ½kA²).
  */
 export function formulaLines(s: S, p: P): string[] {
   const lines = oscLines(s, p);
   if (p.fbd) {
-    // Net force from the drawn forces (y up): F_s − mg (+ F_d) = −kx (− bv) = ma.
+    // Net force from the drawn forces (y up): F_s − mg (+ F_d) = −kx (− bv) = ma. F_s and mg nearly
+    // cancel near equilibrium, so the sum is computed without the cancellation (policy D, R5): −kx.
     const [Fs, mg, Fd] = fbdForces(s, p).map((f, i) => (i === 1 ? -f.F.y : f.F.y));
     const net = Fs - mg + (Fd ?? 0);
-    const sf = sigFit(Fd === undefined ? [Fs, mg] : [Fs, mg, Fd], (a, b, c = 0) => a - b + c, net);
-    lines.push(
-      Fd === undefined
-        ? `\\Sigma F = F_s - mg = ${tn(Fs, sf)} - ${tn(mg, sf)} = ${tn(net)}${u('N')} = ma`
-        : `\\Sigma F = F_s - mg + F_d = ${tn(Fs, sf)} - ${tn(mg, sf)} + ${tp(Fd, sf)} = ${tn(net)}${u('N')} = ma`,
-    );
+    const kx = `-(${slider(params.k, p.k)})(${tn(s.x)})`;
+    if (Fd === undefined) lines.push(`\\Sigma F = F_s - mg = ${tn(Fs)} - ${tn(mg)}`, `= -kx = ${kx} = ${tn(net)}${u('N')} = ma`);
+    else {
+      // At rest (a turning point) the damping force is an exact 0 (R7a).
+      const fd = Math.abs(Fd) < RESIDUE * p.k * p.A ? '0' : tp(Fd);
+      lines.push(`\\Sigma F = F_s - mg + F_d = ${tn(Fs)} - ${tn(mg)} + ${fd}`, `= -kx + F_d = ${kx} + ${fd} = ${tn(net)}${u('N')} = ma`);
+    }
   }
   return lines;
 }
@@ -154,29 +155,34 @@ function oscLines(s: S, p: P): string[] {
   const w0 = omega0(o);
   const w = omegaD(o);
   const T = period(o);
-  const km = `\\sqrt{${num(p.k)}/${num(p.m)}}`;
-  const se = sigFit([s.K, s.U], (a, b) => a + b, s.E);
-  const energy = `E = K + U = ${tn(s.K, se)} + ${tn(s.U, se)} = ${tn(s.E)}${u('J')}`;
+  // Policy D: slider values as their labels (R1), state values to 3 figures (R3); a numerical residue
+  // of the run scale prints as an exact 0 (R7a: v at a turning point). K and U share the decimals of
+  // the current E (R7a), so K = 0 at a turning point and the sum reads 0.161 + 0.000 = 0.161.
+  const [A, k, m, z] = [slider(params.A, p.A), slider(params.k, p.k), slider(params.m, p.m), slider(params.zeta, p.zeta)];
+  const km = `\\sqrt{${k}/${m}}`;
+  const E0 = 0.5 * p.k * p.A * p.A;
+  const t0 = (v: number, scale: number) => (Math.abs(v) < RESIDUE * scale ? '0' : tn(v));
+  const energy = `E = K + U = ${tnScale(s.K, s.E)} + ${tnScale(s.U, s.E)} = ${tn(s.E)}${u('J')}`;
   if (p.zeta === 0) {
-    const ph = (((w * s.t) / Math.PI) * 180) % 360;
-    const sa = sigFit([w, s.x], (a, x) => -a * a * x, s.a);
+    // Phase in (−180°, 180°], 3 figures: 0.1° near the zero crossings at ±90°. Where x is small, the
+    // last figure of the phase still moves x by up to 2×10⁻³ A (tests/sigma-policy.ts ALLOW).
+    const turns = (w * s.t) / (2 * Math.PI);
+    const ph = 360 * (turns - Math.round(turns));
     return [
       `\\omega = \\sqrt{k/m} = ${km} = ${tn(w)}${u('rad/s')}`,
-      `T = 2\\pi\\sqrt{m/k} = 2\\pi\\sqrt{${num(p.m)}/${num(p.k)}} = ${tn(T)}${u('s')}`,
-      `x = A\\cos\\omega t = (${num(p.A)})\\cos ${tn(ph, Math.max(4, sigFit([ph], (d) => p.A * Math.cos((d * Math.PI) / 180), s.x)))}^\\circ = ${tn(s.x)}${u('m')}`,
-      `a = -\\omega^2 x = -(${tn(w, sa)})^2(${tn(s.x, sa)}) = ${tn(s.a)}${u('m/s^2')}`,
+      `T = 2\\pi\\sqrt{m/k} = 2\\pi\\sqrt{${m}/${k}} = ${tn(T)}${u('s')}`,
+      `x = A\\cos\\omega t = (${A})\\cos(${ph === 0 ? 0 : tn(ph)}^\\circ) = ${tn(s.x)}${u('m')}`,
+      `a = -\\omega^2 x = -(${tn(w)})^2(${tn(s.x)}) = ${tn(s.a)}${u('m/s^2')}`,
       energy,
-      `= \\tfrac12 kA^2 = \\tfrac12(${num(p.k)})(${num(p.A)})^2 = ${tn(0.5 * p.k * p.A * p.A)}${u('J')}`,
+      `= \\tfrac12 kA^2 = \\tfrac12(${k})(${A})^2 = ${tn(E0)}${u('J')}`,
     ];
   }
-  const sw = sigFit([w0], (a) => a * Math.sqrt(1 - p.zeta * p.zeta), w);
-  const sa = sigFit([w0, s.x, s.v], (a, x, v) => -a * a * x - 2 * p.zeta * a * v, s.a);
   return [
     `\\omega_0 = \\sqrt{k/m} = ${km} = ${tn(w0)}${u('rad/s')}`,
-    `\\omega = \\omega_0\\sqrt{1 - \\zeta^2} = (${tn(w0, sw)})\\sqrt{1 - (${num(p.zeta)})^2} = ${tn(w)}${u('rad/s')}`,
-    `T = \\frac{2\\pi}{\\omega} = \\frac{2\\pi}{${tn(w, sigFit([w], (a) => (2 * Math.PI) / a, T))}} = ${tn(T)}${u('s')}`,
+    `\\omega = \\omega_0\\sqrt{1 - \\zeta^2} = (${tn(w0)})\\sqrt{1 - (${z})^2} = ${tn(w)}${u('rad/s')}`,
+    `T = \\frac{2\\pi}{\\omega} = \\frac{2\\pi}{${tn(w)}} = ${tn(T)}${u('s')}`,
     `a = -\\omega_0^2 x - 2\\zeta\\omega_0 v`,
-    `= -(${tn(w0, sa)})^2(${tn(s.x, sa)}) - 2(${num(p.zeta)})(${tn(w0, sa)})(${tn(s.v, sa)}) = ${tn(s.a)}${u('m/s^2')}`,
+    `= -(${tn(w0)})^2(${tn(s.x)}) - 2(${z})(${tn(w0)})(${t0(s.v, w0 * p.A)}) = ${tn(s.a)}${u('m/s^2')}`,
     energy,
   ];
 }

@@ -2,7 +2,7 @@
 // ΔE_int does not (state function).
 import { num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
-import { dELine, qLine } from './formula';
+import { E_SCALE, dELine, qLine, tJ } from './formula';
 import { split, stageRect } from './panels';
 import { A0, pathAt, temp, threePaths, type St } from './physics';
 import { dofOf } from './process';
@@ -115,9 +115,10 @@ export const pathsScene: Scene<P, { t: number }> = {
   },
 
   readouts: [
-    { label: 'W', unit: 'J', value: (s, p) => hlPoint(s, p).W },
-    { label: 'Q', unit: 'J', value: (s, p) => hlPoint(s, p).Q },
-    { label: '\\Delta E_\\text{int}', unit: 'J', value: (s, p) => hlPoint(s, p).dE },
+    // Energies in whole joules, as in the Σ panel and on the bars (policy D, R7a, R8).
+    { label: 'W', unit: 'J', value: (s, p) => hlPoint(s, p).W, scale: E_SCALE },
+    { label: 'Q', unit: 'J', value: (s, p) => hlPoint(s, p).Q, scale: E_SCALE },
+    { label: '\\Delta E_\\text{int}', unit: 'J', value: (s, p) => hlPoint(s, p).dE, scale: E_SCALE },
   ],
 
   formula: (s, p) => formulaLines(s, p),
@@ -139,14 +140,14 @@ export function formulaLines(s: { t: number }, p: P): string[] {
   const B = endOf(p);
   const pt = hlPoint(s, p);
   const { st } = pt;
-  const dV = `(${tn(st.V, 4)} - ${num(A0.V)})`;
-  const W = `${tn(pt.W)}${u('J')}`;
+  const dV = `(${tn(st.V)} - ${num(A0.V)})`;
+  const W = `${tJ(pt.W)}${u('J')}`;
   // The trapezoid is split over two lines so it stays legible in the docked panel.
   const work =
     p.hl === 'ADB'
       ? [`W = p_\\text{B}(V - V_\\text{A}) = ${num(B.p)} \\times ${dV} = ${W}`]
       : p.hl === 'AB'
-        ? [`W = \\tfrac{1}{2}(p_\\text{A} + p)(V - V_\\text{A})`, `= \\tfrac{1}{2}(${num(A0.p)} + ${tn(st.p, 4)})${dV} = ${W}`]
+        ? [`W = \\tfrac{1}{2}(p_\\text{A} + p)(V - V_\\text{A})`, `= \\tfrac{1}{2}(${num(A0.p)} + ${tn(st.p)})${dV} = ${W}`]
         : [`W = p_\\text{A}(V - V_\\text{A}) = ${num(A0.p)} \\times ${dV} = ${W}`];
   return [...work, dELine(st, pt.dE, f), qLine(pt.dE, pt.W, pt.Q)];
 }

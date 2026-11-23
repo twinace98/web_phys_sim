@@ -3,12 +3,11 @@
 // hyperbola.
 // Free-body diagram: the one force on the probe, F_g = GMm/r² towards the Earth's centre.
 import { t as tr } from '../../core/i18n';
-import { num, tn, u } from '../../core/tex';
+import { num, slider, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { drawFbd, fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
 import { ROLE_COLOR } from '../../draw/theme';
-import { sigFit } from '../ch07/sigfit';
 import { GM, R_EARTH, accel, classify, elements, energy, escapeSpeed, radius, speed, yoshida, type Body, type OrbitKind, type V2 } from './physics';
 
 export type P = { speed: number; alt: number; dir: number; predict: boolean; areas: boolean; ueff: boolean; fbd: boolean };
@@ -368,6 +367,15 @@ export function timeScaleOf(p: P): number {
 /** Smallest drawn Earth radius [px], kept inside the lowest point of the path. */
 const EARTH_MIN_PX = 6;
 
+/** E [GJ] at the escape speed: a numerical residue of a few GJ runs, printed as an exact 0 (R7a); else undefined (3 figures). */
+const eZero = (E: number) => (Math.abs(E) < 1e-6 ? '0' : undefined);
+
+/** A speed in m/s to 3 figures, with a power of ten from 10³ m/s on (6823 → 6.82×10³, as v = 6.82 km/s). */
+function tsi(x: number): string {
+  const e = Math.floor(Math.log10(Math.abs(Number(x.toPrecision(3)))));
+  return e < 3 ? tn(x) : `${tn(x / 10 ** e)}\\times 10^{${e}}`;
+}
+
 /**
  * Σ panel at the probe's current position (SI inside, GJ and km/s out, as in the readouts): K, U,
  * E = K + U (fixed by the launch), the local escape speed and how v compares with it (E < 0 ⇔ v < v_esc).
@@ -381,24 +389,28 @@ export function formulaLines(s: S, p: P): string[] {
   const U = (-GM * MASS) / r / 1e9;
   const E = (MASS * energy(m.b0)) / 1e9;
   const vesc = escapeSpeed(r);
-  const gm = tn(GM, 4);
-  const sv = sigFit([v], (q) => (0.5 * MASS * q * q) / 1e9, K);
-  const sr = sigFit([r], (q) => (-GM * MASS) / q / 1e9, U, 3, 4);
-  const se = sigFit([K, U], (a, c) => a + c, E);
-  const sx = sigFit([r], (q) => escapeSpeed(q) / 1e3, vesc / 1e3, 3, 4);
+  // Inputs to 3 figures (policy D, R3); GM as Halliday's G M_E = (6.67×10⁻¹¹)(5.98×10²⁴) = 3.99×10¹⁴,
+  // the model keeps 3.986×10¹⁴. Results print from the unrounded values, like the readouts.
+  const gm = tn(GM);
   const rel = m.kind === 'ellipse' ? '<' : m.kind === 'hyperbola' ? '>' : '=';
+  // E = K + U nearly cancels close to the escape speed (31.6 + (−32.2) = −0.641 GJ at 0.99), so E is
+  // also computed without the cancellation (R5): at launch K₀ = f² GMm/r₀ with f = v₀/v_esc the
+  // slider value (0.71: exactly 1/√2), so E = (f² − 1) GMm/r₀.
+  const f2 = Math.abs(p.speed - Math.SQRT1_2) < 0.005 ? '(1/\\sqrt{2})^2' : `${slider(params.speed, p.speed)}^2`;
+  const U0 = (GM * MASS) / r0Of(p) / 1e9;
   const lines = [
-    `K = \\tfrac12 mv^2 = \\tfrac12(${num(MASS)})(${tn(v, sv)})^2\\ \\mathrm{J} = ${tn(K)}${u('GJ')}`,
-    `U = -\\frac{GMm}{r} = -\\frac{(${gm})(${num(MASS)})}{${tn(r, sr)}}\\ \\mathrm{J} = ${tn(U)}${u('GJ')}`,
-    `E = K + U = ${tn(K, se)} + (${tn(U, se)}) = ${tn(E)}${u('GJ')}`,
-    `v_\\mathrm{esc} = \\sqrt{\\frac{2GM}{r}} = \\sqrt{\\frac{2(${gm})}{${tn(r, sx)}}}\\ \\mathrm{m/s} = ${tn(vesc / 1e3)}${u('km/s')}`,
+    `K = \\tfrac12 mv^2 = \\tfrac12(${num(MASS)})(${tsi(v)})^2\\ \\mathrm{J} = ${tn(K)}${u('GJ')}`,
+    `U = -\\frac{GMm}{r} = -\\frac{(${gm})(${num(MASS)})}{${tn(r)}}\\ \\mathrm{J} = ${tn(U)}${u('GJ')}`,
+    `E = K + U = ${tn(K)} + (${tn(U)})`,
+    `= \\big[(v_0/v_\\mathrm{esc})^2 - 1\\big]\\,GMm/r_0`,
+    `= (${f2} - 1)(${tn(U0)}${u('GJ')}) = ${eZero(E) ?? tn(E)}${u('GJ')}`,
+    `v_\\mathrm{esc} = \\sqrt{\\frac{2GM}{r}} = \\sqrt{\\frac{2(${gm})}{${tn(r)}}}\\ \\mathrm{m/s} = ${tn(vesc / 1e3)}${u('km/s')}`,
     `v = ${tn(v / 1e3)}${u('km/s')} ${rel} v_\\mathrm{esc}`,
   ];
   if (p.fbd) {
     // The free-body diagram has one force: the net force is F_g.
     const F = (GM * MASS) / (r * r);
-    const sf = sigFit([r], (q) => (GM * MASS) / (q * q), F, 3, 4);
-    lines.push(`\\Sigma F = F_g = \\frac{GMm}{r^2} = \\frac{(${gm})(${num(MASS)})}{(${tn(r, sf)})^2} = ${tn(F)}${u('N')} = ma`);
+    lines.push(`\\Sigma F = F_g = \\frac{GMm}{r^2} = \\frac{(${gm})(${num(MASS)})}{(${tn(r)})^2} = ${tn(F)}${u('N')} = ma`);
   }
   return lines;
 }
@@ -545,7 +557,7 @@ export const orbitScene: Scene<P, S> = {
   readouts: [
     { label: 'v', unit: 'km/s', value: (s, p) => speed(bodyAt(p, s.n)) / 1e3 },
     { label: 'v_\\mathrm{esc}', unit: 'km/s', value: (s, p) => escapeSpeed(radius(bodyAt(p, s.n))) / 1e3 },
-    { label: 'E', unit: 'GJ', value: (_s, p) => (MASS * energy(model(p).b0)) / 1e9 },
+    { label: 'E', unit: 'GJ', value: (_s, p) => (MASS * energy(model(p).b0)) / 1e9, format: eZero },
   ],
 
   formula: (s, p) => formulaLines(s, p),

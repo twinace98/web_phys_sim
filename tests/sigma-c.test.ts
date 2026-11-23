@@ -3,7 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
-import { num, tn, u } from '../src/core/tex';
+import { num, readoutText, texOf, tn, u } from '../src/core/tex';
+import { tJ } from '../src/sims/ch18/formula';
 import type { Params, Scene } from '../src/core/types';
 import { reflectAt } from '../src/sims/ch16/physics';
 import { cfg as reflectCfg, reflect } from '../src/sims/ch16/reflect';
@@ -33,13 +34,20 @@ function run(scene: AnyScene, over: Record<string, unknown>, steps: number, prep
   }
   const lines = scene.formula!(r.state as never, r.params as never);
   const ro = (scene.readouts ?? []).map((x) => x.value(r.state as never, r.params as never));
-  return { r, lines, ro, s: r.state as never, p: r.params as never };
+  // Readout strings as the shell prints them (policy D: a Σ result is its readout string), in TeX.
+  const rt = (scene.readouts ?? []).map((x, k) => texOf(readoutText(x as never, ro[k], r.params as Params)));
+  return { r, lines, ro, rt, s: r.state as never, p: r.params as never };
 }
 
 /** Line `i` ends with "= <tn(v, sig)><unit>". */
 function ends(lines: string[], i: number, v: number, unit = '', sig = 3) {
+  endsText(lines, i, tn(v, sig), unit);
+}
+
+/** Line `i` ends with "= <text><unit>". */
+function endsText(lines: string[], i: number, text: string, unit = '') {
   expect(lines[i], `line ${i}: ${lines[i]}`).toBeDefined();
-  expect(lines[i].endsWith(`= ${tn(v, sig)}${unit ? u(unit) : ''}`), `line ${i}: ${lines[i]} vs ${tn(v, sig)}`).toBe(true);
+  expect(lines[i].endsWith(`= ${text}${unit ? u(unit) : ''}`), `line ${i}: ${lines[i]} vs ${text}`).toBe(true);
 }
 
 describe('Σ panel agrees with the simulation (Ch 16–20)', () => {
@@ -48,9 +56,13 @@ describe('Σ panel agrees with the simulation (Ch 16–20)', () => {
       for (const steps of [0, 400, 520]) {
         const { lines, s, p } = run(reflect, over, steps);
         const t = (s as { t: number }).t;
-        const at = reflectAt(reflectCfg(p), 4, t);
-        ends(lines, lines.length - 2, at.inc, 'm', 4);
-        ends(lines, lines.length - 1, at.y, 'm');
+        const c = reflectCfg(p);
+        const at = reflectAt(c, 4, t);
+        // 3 figures; a residue below 10⁻⁶ of the amplitude is an exact 0 (R7a): the two halves at a fixed end.
+        const d = (v: number) => (Math.abs(v) < 1e-6 * c.A ? '0' : tn(v));
+        endsText(lines, lines.length - 2, d(at.inc), 'm');
+        endsText(lines, lines.length - 1, d(at.y), 'm');
+        if (c.end === 'fixed') expect(lines.at(-1)!.endsWith(`= 0${u('m')}`), lines.at(-1)).toBe(true);
       }
     }
     // The free end really moves: 2h once the pulse is there.
@@ -71,11 +83,13 @@ describe('Σ panel agrees with the simulation (Ch 16–20)', () => {
   it('Ch 17 beats: f₂, f_beat, T_beat readouts and the envelope now', () => {
     for (const over of [{}, { f1: 440, df: 3.9 }, { f1: 137, df: 1.3 }]) {
       for (const steps of [0, 300]) {
-        const { lines, ro, s, p } = run(beats, over, steps);
+        const { lines, ro, rt, s, p } = run(beats, over, steps);
         // f₂ = f₁ + Δf is exact: printed as typed (443.9, not 444), as in its readout.
         expect(lines[0].endsWith(`= ${num(ro[0])}${u('Hz')}`), lines[0]).toBe(true);
         expect(beats.readouts![0].format!(ro[0])).toBe(num(ro[0]));
-        ends(lines, 1, ro[1], 'Hz');
+        // f_beat = Δf as the slider label (R1): 3.9, not 3.90.
+        endsText(lines, 1, rt[1], 'Hz');
+        expect(rt[1]).toBe(String((p as { df: number }).df.toFixed(1)));
         ends(lines, 2, ro[2], 's');
         const pp = p as { f1: number; df: number };
         const t = (s as { t: number }).t;
@@ -110,22 +124,22 @@ describe('Σ panel agrees with the simulation (Ch 16–20)', () => {
         if ((over as { proc?: string }).proc === 'isothermal' || (over as { proc?: string }).proc === 'adiabatic') ends(lines, 1, ro[0], 'kPa');
       }
     }
-    // Isothermal, end: W = nRT ln 2 = 1000 ln 2 J, ΔE_int = 0, Q = W.
+    // Isothermal, end: W = nRT ln 2 = 1000 ln 2 J, ΔE_int = 0, Q = W; energies in whole joules.
     const { lines } = run(processScene, { proc: 'isothermal' }, 480);
-    ends(lines, 2, 1000 * Math.LN2, 'J');
-    ends(lines, 3, 0, 'J');
-    ends(lines, 4, 1000 * Math.LN2, 'J');
+    endsText(lines, 2, '693', 'J');
+    endsText(lines, 3, '0', 'J');
+    endsText(lines, 4, '693', 'J');
   });
 
   it('Ch 18 paths: W, ΔE_int, Q readouts of the highlighted path', () => {
     for (const over of [{}, { hl: 'ADB' }, { hl: 'AB', B: 'b3' }, { hl: 'ADB', B: 'b2', gas: 'di' }]) {
       for (const steps of [0, 300, 720]) {
-        const { lines, ro } = run(pathsScene, over, steps);
+        const { lines, rt } = run(pathsScene, over, steps);
         // The trapezoid of path AB takes two lines.
         const k = (over as { hl?: string }).hl === 'AB' ? 1 : 0;
-        ends(lines, k, ro[0], 'J');
-        ends(lines, k + 1, ro[2], 'J');
-        ends(lines, k + 2, ro[1], 'J');
+        endsText(lines, k, rt[0], 'J');
+        endsText(lines, k + 1, rt[2], 'J');
+        endsText(lines, k + 2, rt[1], 'J');
       }
     }
   });
@@ -133,11 +147,11 @@ describe('Σ panel agrees with the simulation (Ch 16–20)', () => {
   it('Ch 18 cycle: W, ΔE_int, Q readouts; net work ± area 2000 J', () => {
     for (const over of [{}, { dir: 'ccw' }, { gas: 'di' }]) {
       for (const steps of [0, 300, 700, 960]) {
-        const { lines, ro } = run(cycleScene, over, steps);
-        ends(lines, 0, ro[0], 'J');
-        ends(lines, 1, ro[2], 'J');
-        ends(lines, 2, ro[1], 'J');
-        ends(lines, 3, (over as { dir?: string }).dir === 'ccw' ? -2000 : 2000, 'J');
+        const { lines, rt } = run(cycleScene, over, steps);
+        endsText(lines, 0, rt[0], 'J');
+        endsText(lines, 1, rt[2], 'J');
+        endsText(lines, 2, rt[1], 'J');
+        endsText(lines, 3, (over as { dir?: string }).dir === 'ccw' ? '-2000' : '2000', 'J');
       }
     }
   });
@@ -145,8 +159,10 @@ describe('Σ panel agrees with the simulation (Ch 16–20)', () => {
   it('Ch 19 pressure: J/(L t) and NkT/A readouts', () => {
     for (const over of [{}, { N: 1000, T: 1200, L: 15 }, { N: 20, T: 100, L: 30, init: 'mb' }]) {
       for (const steps of [0, 500, 3000]) {
-        const { lines, ro } = run(gasScene, over, steps);
-        ends(lines, 0, ro[0], 'mN/m');
+        const { lines, ro, rt } = run(gasScene, over, steps);
+        // Measured (R4): the readout string with its scatter, "(1.2 ± 0.2) mN/m"; 0 before the first bounce.
+        if (ro[0] === 0) endsText(lines, 0, '0', 'mN/m');
+        else expect(lines[0], lines[0]).toMatch(new RegExp(`= \\(?${rt[0].replace(/[.\\{}^()]/g, '\\$&')}( \\\\pm |\\\\times)`));
         ends(lines, 1, ro[1], 'mN/m');
       }
     }
@@ -155,12 +171,14 @@ describe('Σ panel agrees with the simulation (Ch 16–20)', () => {
   it('Ch 20 expansion: W and ΔS/k readouts, closed and opened; P(n = N) = 2^−N', () => {
     for (const N of [10, 4, 100, 1000]) {
       for (const open of [false, true]) {
-        const { lines, ro } = run(expansionScene, { N }, 600, (s: { open: boolean }) => {
+        const { lines, rt } = run(expansionScene, { N }, 600, (s: { open: boolean }) => {
           s.open = open;
         });
-        ends(lines, 0, ro[1]);
-        ends(lines, 1, ro[2]);
+        endsText(lines, 0, rt[1]);
+        endsText(lines, 1, rt[2]);
         ends(lines, 2, lnBinom(N, Math.floor(N / 2)));
+        // Closed: one microstate, Ω = 1 and ΔS/k = ln 1 = 0 exactly (R2).
+        if (!open) expect([rt[1], rt[2]]).toEqual(['1', '0']);
       }
     }
     expect(pow2(10)).toBe(tn(2 ** -10));
@@ -171,9 +189,9 @@ describe('Σ panel agrees with the simulation (Ch 16–20)', () => {
   it('Ch 20 heat: kT/ε readouts of both solids', () => {
     for (const over of [{}, { start: 'B' }, { na: 90, q: 20 }, { na: 10, q: 200 }]) {
       for (const steps of [0, 400]) {
-        const { lines, ro } = run(heatScene, over, steps);
-        ends(lines, 3, ro[1]);
-        ends(lines, 4, ro[2]);
+        const { lines, rt } = run(heatScene, over, steps);
+        endsText(lines, 3, rt[1]);
+        endsText(lines, 4, rt[2]);
       }
     }
   });
@@ -186,7 +204,7 @@ describe('Σ panel agrees with the simulation (Ch 16–20)', () => {
         ends(lines, 4, ro[1]);
         const pp = p as { tc: number; gas: string };
         const c = cycle('carnot', true, pp.gas === 'di' ? 5 : 3, pp.tc);
-        ends(lines, 5, heatsAt(c.legs, Math.min((s as { t: number }).t / 8, 1), pp.gas === 'di' ? 5 : 3).W, 'J');
+        endsText(lines, 5, tJ(heatsAt(c.legs, Math.min((s as { t: number }).t / 8, 1), pp.gas === 'di' ? 5 : 3).W), 'J');
       }
     }
   });

@@ -213,7 +213,9 @@ describe('Σ panel agrees with the simulation (group B)', () => {
       [{ speed: 0.3, alt: 1000 }, 5000, '<'],
     ] as [Params, number, string][]) {
       const { lines, ro } = run(sc, over, steps);
-      shows(lines, ro('E'), 'GJ');
+      // At the escape speed E is an exact 0 (policy D, R7a), in the Σ panel and the readout.
+      if (rel === '=') expect(lines.some((l) => l.endsWith(`= 0${u('GJ')}`))).toBe(true);
+      else shows(lines, ro('E'), 'GJ');
       shows(lines, ro('v_\\mathrm{esc}'), 'km/s');
       expect(lines.at(-1)).toBe(`v = ${tn(ro('v'))}${u('km/s')} ${rel} v_\\mathrm{esc}`);
     }

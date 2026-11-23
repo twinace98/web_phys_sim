@@ -195,7 +195,8 @@ describe('ch17 Doppler: readouts and flashes agree with the arriving fronts', ()
   });
 });
 
-// Review 2026-11-20 P2: 440 + 1.5 printed "442 Hz" (3 figures) next to f_beat = 1.50 Hz.
+// Review 2026-11-20 P2: 440 + 1.5 printed "442 Hz" (3 figures) next to f_beat = 1.50 Hz. Policy D
+// (R1): f_beat = Δf prints as the slider label (1.5, 2.0) in the Σ panel and the readout.
 describe('ch17 beats: f₂ and every Σ line reproduce from what is printed', () => {
   const sigma = (p: Record<string, unknown>, steps: number) => {
     const r = new Runner(beats, { ...(defaults(beats.params) as object), ...p } as never, 1);
@@ -209,10 +210,11 @@ describe('ch17 beats: f₂ and every Σ line reproduce from what is printed', ()
   it('regression: f₁ = 440 Hz, Δf = 1.5 Hz shows f₂ = 441.5 Hz (Σ and readout), mean 440.75 Hz', () => {
     const { lines, ro } = sigma({ f1: 440, df: 1.5 }, 0);
     expect(lines[0]).toBe(`f_2 = 440 + 1.5 = 441.5${u('Hz')}`);
-    expect(lines[1]).toContain('\\lvert 440 - 441.5 \\rvert = 1.50');
+    expect(lines[1]).toBe(`f_\\text{beat} = \\lvert f_1 - f_2 \\rvert = \\lvert 440 - 441.5 \\rvert = 1.5${u('Hz')}`);
+    expect(lines[2]).toBe(`T_\\text{beat} = 1/f_\\text{beat} = 1/1.5 = 0.667${u('s')}`);
     expect(lines[3]).toBe(`\\tfrac{f_1 + f_2}{2} = (440 + 441.5)/2 = 440.75${u('Hz')}`);
     expect(ro[0]).toBe('441.5');
-    expect(ro[1]).toBe('1.50');
+    expect(ro[1]).toBe('1.5');
     expect(lines.join(' ')).not.toContain('442');
   });
 
@@ -228,7 +230,7 @@ describe('ch17 beats: f₂ and every Σ line reproduce from what is printed', ()
           if (ro[0] !== f2) bad.push(`${tag}: readout f2 ${ro[0]} vs ${f2}`);
           const [x1, x2, fb] = grab(lines[1], new RegExp(`\\\\lvert (${NUM}) - (${NUM}) \\\\rvert = (${NUM})`));
           if (!agrees(Math.abs(val(x1) - val(x2)), fb) || x2 !== f2) bad.push(`${tag}: ${lines[1]}`);
-          if (ro[1] !== fb) bad.push(`${tag}: readout f_beat ${ro[1]} vs ${fb}`);
+          if (ro[1] !== fb || fb !== p.df.toFixed(1)) bad.push(`${tag}: readout f_beat ${ro[1]} vs ${fb} (slider ${p.df.toFixed(1)})`);
           const [fbIn, Tb] = grab(lines[2], new RegExp(`= 1/(${NUM}) = (${NUM})`));
           if (!agrees(1 / val(fbIn), Tb)) bad.push(`${tag}: ${lines[2]}`);
           const [m1, m2, mean] = grab(lines[3], new RegExp(`\\((${NUM}) \\+ (${NUM})\\)/2 = (${NUM})`));
