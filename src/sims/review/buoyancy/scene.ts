@@ -33,6 +33,8 @@ type S = Motion & { t: number; held: boolean };
 
 /** Named fluids [kg/m³]; water is the default and the reference. */
 export const FLUIDS: Record<string, number> = { water: 1000, sea: 1025, oil: 920, glycerin: 1260, mercury: 13600 };
+/** Object densities named in ⓘ [kg/m³]: cork, wood, ice, aluminium, iron. */
+export const SOLIDS: Record<string, number> = { cork: 240, wood: 600, ice: 917, aluminium: 2700, iron: 7870 };
 /** A fluid is named on the stage when ρ_f is within this fraction of its density. */
 export const NAME_TOL = 0.01;
 
@@ -62,6 +64,8 @@ const params: ParamSchema<P> = {
     control: 'slider',
     log: true,
     sig: 3,
+    // The slider lands exactly on the densities named in ⓘ (600, not 601 or 592).
+    marks: Object.values(SOLIDS),
     min: 50,
     max: 20000,
     default: 600,
@@ -76,6 +80,7 @@ const params: ParamSchema<P> = {
     control: 'slider',
     log: true,
     sig: 3,
+    marks: Object.values(FLUIDS),
     min: 500,
     max: 15000,
     // Water.

@@ -1,6 +1,10 @@
 // Addition under review #/ch/107: buoyancy of a cube in a finite tank.
 import { describe, expect, it } from 'vitest';
-import { defaults } from '../src/core/params';
+import { fmt } from '../src/core/format';
+import { defaults, fromQuery, logStops, logValue } from '../src/core/params';
+import type { NumberParam } from '../src/core/types';
+import en from '../src/sims/review/buoyancy/i18n.en.json';
+import ko from '../src/sims/review/buoyancy/i18n.ko.json';
 import { Runner } from '../src/core/runner';
 import {
   GRAV,
@@ -24,7 +28,7 @@ import {
   type Fluid,
   type Motion,
 } from '../src/sims/review/buoyancy/physics';
-import { FLUIDS, buoyancyScene, fluidName, fluidOf, formulaLines, forcesOf } from '../src/sims/review/buoyancy/scene';
+import { FLUIDS, SOLIDS, blockOf, buoyancyScene, fluidName, fluidOf, formulaLines, forcesOf } from '../src/sims/review/buoyancy/scene';
 import { NUM, agrees, grab, val } from './sigma-digits';
 
 const water: Fluid = { rho: 1000 };
@@ -302,8 +306,8 @@ describe('buoyancy Σ: units, the hand while held, printed inputs reproduce the 
 
   it('every line over densities, sizes, positions, speeds, held or free', () => {
     const bad: string[] = [];
-    for (const rhoO of [50, 600, 917, 2700, 20000])
-      for (const rhoF of [500, 1000, 1025, 13600, 15000])
+    for (const rhoO of [50, 240, 600, 917, 2700, 7870, 20000])
+      for (const rhoF of [500, 920, 1000, 1025, 1260, 13600, 15000])
         for (const a of [0.1, 0.2, 0.37, 0.4])
           for (const y of [0, 0.05, 0.17, 0.3, 0.38, 0.41, 0.6].filter((yy) => yy <= 0.84 - a))
             for (const [v, held] of [
@@ -331,5 +335,97 @@ describe('buoyancy Σ: units, the hand while held, printed inputs reproduce the 
       }
     }
     expect(bad.length, bad.slice(0, 5).join('\n')).toBe(0);
+  });
+});
+
+describe('buoyancy sliders reach the named densities (review 2026-11-20: 600 → 601/592)', () => {
+  const sp = (k: 'rhoO' | 'rhoF') => buoyancyScene.params[k] as NumberParam;
+  /** Densities [kg/m³] a ⓘ string names: integers of two to five digits, not a percentage. */
+  const named = (s: string) => [...s.matchAll(/(?<![\d.])(\d{2,5})(?![\d.]| %)/g)].map((m) => Number(m[1]));
+
+  it('review case: 600, 917 and 2700 are slider values (were 601/592, 914/928, 2690/2730)', () => {
+    const stops = logStops(sp('rhoO'));
+    for (const v of [600, 917, 2700]) expect(stops).toContain(v);
+  });
+
+  it('every density named in ⓘ (ko and en) and every listed material is exactly reachable', () => {
+    const want = {
+      rhoO: new Set([...Object.values(SOLIDS), 50, 20000, ...named(ko['buoyancy.d.rhoO']), ...named(en['buoyancy.d.rhoO'])]),
+      rhoF: new Set([
+        ...Object.values(FLUIDS),
+        500,
+        15000,
+        ...named(ko['buoyancy.d.rhoF']),
+        ...named(en['buoyancy.d.rhoF']),
+        ...named(ko['buoyancy.as.fluidname']),
+        ...named(en['buoyancy.as.fluidname']),
+      ]),
+    };
+    expect([...want.rhoO].sort((a, b) => a - b)).toEqual([50, 240, 600, 917, 2700, 7870, 20000]);
+    expect([...want.rhoF].sort((a, b) => a - b)).toEqual([500, 920, 1000, 1025, 1260, 13600, 15000]);
+    for (const k of ['rhoO', 'rhoF'] as const) {
+      const s = sp(k);
+      for (const v of want[k]) {
+        expect(logStops(s), `${k} ${v}`).toContain(v);
+        // Thumb at the value's position (the browser rounds it to the nearest step) gives the value.
+        expect(logValue(s, Math.log10(v))).toBe(v);
+        // The slider readout prints the value the physics uses.
+        expect(Number(fmt(v, s.sig))).toBe(v);
+      }
+      const st = logStops(s);
+      for (let i = 1; i < st.length; i++) expect(st[i]).toBeGreaterThanOrEqual(st[i - 1]);
+    }
+    // Densities in the observations: the lightest block, wood, ice, iron; mercury.
+    for (const v of [50, 600, 917, 7870]) expect(logStops(sp('rhoO'))).toContain(v);
+    expect(logStops(sp('rhoF'))).toContain(13600);
+  });
+
+  it('every slider value: shown = used by the physics; readouts and Σ finite (whole track)', () => {
+    const p0 = defaults(buoyancyScene.params);
+    for (const k of ['rhoO', 'rhoF'] as const)
+      for (const v of logStops(sp(k))) {
+        const p = { ...p0, [k]: v };
+        expect(Number(fmt(v, 3))).toBe(v);
+        expect(k === 'rhoO' ? blockOf(p).rho : fluidOf(p).rho).toBe(v);
+        const s = { y: 0.2, v: 0, held: false };
+        for (const ro of buoyancyScene.readouts!) expect(Number.isFinite(ro.value(s as never, p))).toBe(true);
+        expect(formulaLines(s, p).join(' ')).not.toMatch(/NaN|Infinity|undefined/);
+      }
+  });
+
+  it('ⓘ numbers at the reached values: wood 0.600, ice 0.917 in water and 0.895 in sea water, iron 0.579 in mercury', () => {
+    const p0 = defaults(buoyancyScene.params);
+    const ratio = (rhoO: number, rhoF: number) => formulaLines({ y: 0.2, v: 0 }, { ...p0, rhoO, rhoF })[3];
+    expect(ratio(600, 1000)).toMatch(/= 0\.600$/);
+    expect(ratio(917, 1000)).toMatch(/\\frac\{917\}\{1000\} = 0\.917$/);
+    expect(ratio(917, 1025)).toMatch(/\\frac\{917\}\{1025\} = 0\.895$/);
+    expect(ratio(7870, 13600)).toMatch(/= 0\.579$/);
+  });
+
+  it('URL values: named densities as they are, others at 3 figures', () => {
+    const q = (s: string) => fromQuery(buoyancyScene.params, new URLSearchParams(s));
+    expect(q('rhoO=917&rhoF=1025')).toMatchObject({ rhoO: 917, rhoF: 1025 });
+    expect(q('rhoO=917.3&rhoF=1024.6')).toMatchObject({ rhoO: 917, rhoF: 1020 });
+    expect(q('rhoO=7870&rhoF=13600')).toMatchObject({ rhoO: 7870, rhoF: 13600 });
+  });
+
+  it('a live change mid-run to named densities settles at ρ_obj/ρ_f (or sinks)', () => {
+    const p0 = defaults(buoyancyScene.params);
+    for (const [rhoO, rhoF] of [
+      [240, 1000],
+      [917, 1025],
+      [2700, 920],
+      [7870, 13600],
+      [600, 1260],
+    ]) {
+      const r = new Runner(buoyancyScene, p0, 1);
+      r.play();
+      for (let i = 0; i < 100; i++) r.advance(0.02);
+      r.setParam('rhoO', rhoO);
+      r.setParam('rhoF', rhoF);
+      for (let i = 0; i < 2500; i++) r.advance(0.02);
+      const f = levelAt(blockOf(r.params), r.state.y).s / r.params.a;
+      expect(f).toBeCloseTo(Math.min(1, rhoO / rhoF), 2);
+    }
   });
 });
