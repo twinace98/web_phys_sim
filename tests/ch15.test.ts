@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
 import { agm, ellipticK, exactPeriod, omega0, oscAt, pendulumStep, period, periodError, smallAnglePeriod, type Oscillator } from '../src/sims/ch15/physics';
-import { ARROW_MAX, ERR_RECT, bobArrows, errPct, pendulum, periodSig, worldTop } from '../src/sims/ch15/pendulum';
+import { ARROW_MAX, ERR_RECT, bobArrows, errPct, pendulum, worldTop } from '../src/sims/ch15/pendulum';
+import { readoutText, tn } from '../src/core/tex';
 import { shm } from '../src/sims/ch15/shm';
 import { NUM, agrees, grab, val } from './sigma-digits';
 import { offStage, probe, ProbeDraw } from './stage-probe';
@@ -287,30 +288,28 @@ describe('ch15 pendulum: one real pendulum against the small-angle model', () =>
     const p = { ...defaults(pendulum.params), theta0: 90 };
     const s = pendulum.init(p, null as never);
     const f = pendulum.formula!(s, p).join('\n');
-    expect(f).toContain('2\\pi\\sqrt{1.0/9.8} = 2.007');
+    expect(f).toContain('2\\pi\\sqrt{1.0/9.8} = 2.01\\ \\mathrm{s}');
     expect(f).toContain('K(\\sin 45^\\circ) = 1.85');
-    expect(f).toContain('= 2.369\\ \\mathrm{s}');
-    expect(f).toContain('= 18.0\\ \\%');
+    expect(f).toContain('\\times 1.85 = 2.37\\ \\mathrm{s}');
+    expect(f).toContain('\\frac{T - T_0}{T_0} = \\frac{2K}{\\pi} - 1 = 18.0\\ \\%');
     expect(f).toContain('-9.8\\sin(90.0^\\circ) = -9.80');
     expect(f).toContain('-g\\theta = -9.8 \\times 1.57 = -15.4');
   });
 
-  // Review 2026-11-20 P2: at 10° the panel printed K = 1.574 next to T = 2.01092 s. Policy D
-  // (docs/design.md §3.3): K prints with 3 figures and T agrees with 4√(L/g) K to 1 %. The error
-  // line is a small difference (R5) that phase 2 rewrites as 2K/π − 1; until then T and T₀ keep
-  // the figures periodSig gives them.
-  it('regression: at 10° every period line agrees with its printed inputs (K, T and the error)', () => {
+  // Review 2026-11-20 P2 and policy D (docs/design.md §3.3): at 10° the panel printed K = 1.574 next
+  // to T = 2.01092 s and the error from 5-figure periods. Now T₀, K and T have 3 figures, T₀ and T
+  // are their readouts (R3), and the error is written as 2K/π − 1 (R5), the readout 0.191 %.
+  it('regression: at 10° T₀ = 2.01 s, K = 1.57, T = 2.01 s, (T − T₀)/T₀ = 2K/π − 1 = 0.191 %', () => {
     const p = { ...defaults(pendulum.params), theta0: 10, L: 1 };
-    const f = pendulum.formula!(pendulum.init(p, null as never), p);
-    expect(f[1]).not.toContain('= 1.574');
-    expect(f[1]).toContain('K(\\sin 5^\\circ) = 1.57');
-    expect(f[2]).toContain('\\times 1.57 = 2.0109\\ \\mathrm{s}');
-    expect(f[3]).toContain('\\frac{2.0109 - 2.0071}{2.0071} = 0.19\\ \\%');
-    expect(Math.abs((4 * Math.sqrt(1 / 9.8) * 1.57) / 2.0109 - 1)).toBeLessThan(0.01);
+    const s = pendulum.init(p, null as never);
+    const f = pendulum.formula!(s, p);
+    expect(f[0]).toBe('T_0 = 2\\pi\\sqrt{L/g} = 2\\pi\\sqrt{1.0/9.8} = 2.01\\ \\mathrm{s}');
+    expect(f[1]).toBe('K\\!\\left(\\sin\\tfrac{\\theta_0}{2}\\right) = K(\\sin 5^\\circ) = 1.57');
+    expect(f[2]).toBe('T = 4\\sqrt{L/g}\\,K = 4\\sqrt{1.0/9.8} \\times 1.57 = 2.01\\ \\mathrm{s}');
+    expect(f[3]).toBe('\\frac{T - T_0}{T_0} = \\frac{2K}{\\pi} - 1 = 0.191\\ \\%');
+    const ro = pendulum.readouts!.map((r) => readoutText(r as never, r.value(s, p), p));
+    expect(ro).toEqual(['2.01', '2.01', '0.191']);
     expect(periodLineIssues(p)).toEqual([]);
-    // The error's figures follow from the printed periods: 2 here, 3 where T and T₀ give them.
-    expect(periodSig(exactPeriod({ L: 1, g: 9.8 }, 10 * DEG), 2 * Math.PI * Math.sqrt(1 / 9.8))).toEqual({ sT: 5, sE: 2 });
-    expect(periodSig(exactPeriod({ L: 1, g: 9.8 }, 90 * DEG), 2 * Math.PI * Math.sqrt(1 / 9.8))).toEqual({ sT: 4, sE: 3 });
   });
 
   it('sweep: θ₀ 5–170° (every degree) × L 0.2–2 m: T₀, K, T and the error agree with what is printed', () => {
@@ -326,8 +325,8 @@ describe('ch15 pendulum: one real pendulum against the small-angle model', () =>
         maxK = Math.max(maxK, figures(grab(f[1], new RegExp(`= (${NUM})$`))[0]));
       }
     expect(bad).toEqual([]);
-    // No more figures than the error needs: at most 7 for T (5° needs 6); K 3 figures (policy D).
-    expect(maxT).toBeLessThanOrEqual(7);
+    // Policy D: T and K with 3 figures (R3).
+    expect(maxT).toBeLessThanOrEqual(3);
     expect(maxK).toBeLessThanOrEqual(3);
     // Mid-run (θ, ω change; the period lines do not) and with the free-body toggle.
     const p = { ...defaults(pendulum.params), theta0: 37, L: 0.6, fbd: true };
@@ -342,22 +341,26 @@ describe('ch15 pendulum: one real pendulum against the small-angle model', () =>
 /** Significant figures of a printed number. */
 const figures = (t: string) => t.replace(/\\times.*$/, '').replace(/\D/g, '').replace(/^0+/, '').length;
 
-/** The four period lines at p: each result agrees with the arithmetic on the numbers printed before it. */
+/**
+ * The four period lines at p: T₀ and T are their readouts and agree with the arithmetic on the
+ * numbers printed before them (R3, 1 %); the error is 2K/π − 1 from the unrounded K (R5), its
+ * readout, with 3 figures.
+ */
 function periodLineIssues(p: ReturnType<typeof defaults> & { theta0: number; L: number }): string[] {
-  const f = pendulum.formula!(pendulum.init(p as never, null as never), p as never);
+  const s = pendulum.init(p as never, null as never);
+  const f = pendulum.formula!(s, p as never);
+  const [roT, roT0, roE] = pendulum.readouts!.map((r) => readoutText(r as never, r.value(s, p as never), p as never));
   const L = p.L;
   const [T0] = grab(f[0], new RegExp(`= (${NUM})\\\\ \\\\mathrm\\{s\\}`));
   const [K] = grab(f[1], new RegExp(`= (${NUM})$`));
   const [Kin, T] = grab(f[2], new RegExp(`\\\\times (${NUM}) = (${NUM})\\\\ \\\\mathrm\\{s\\}`));
-  const [a, b, c, e] = grab(f[3], new RegExp(`\\\\frac\\{(${NUM}) - (${NUM})\\}\\{(${NUM})\\} = (${NUM})\\\\ \\\\%`));
+  const [e] = grab(f[3], new RegExp(`\\\\frac\\{2K\\}\\{\\\\pi\\} - 1 = (${NUM})\\\\ \\\\%$`));
   const out: string[] = [];
   const tag = `${p.theta0}° L=${L}`;
-  if (!agrees(2 * Math.PI * Math.sqrt(L / 9.8), T0)) out.push(`${tag}: T0 ${f[0]}`);
-  if (Kin !== K || !agrees(4 * Math.sqrt(L / 9.8) * val(K), T)) out.push(`${tag}: T from K ${f[2]}`);
-  if (a !== T || b !== T0 || c !== T0 || !agrees((100 * (val(a) - val(b))) / val(c), e)) out.push(`${tag}: error ${f[3]}`);
-  // The printed error is also the exact one to its figures.
-  if (!agrees(100 * periodError({ L, g: 9.8 }, p.theta0 * DEG), e)) out.push(`${tag}: exact error ${e}`);
-  if (figures(e) < 2) out.push(`${tag}: error with ${figures(e)} figure`);
+  if (T0 !== roT0 || !agrees(2 * Math.PI * Math.sqrt(L / 9.8), T0)) out.push(`${tag}: T0 ${f[0]} (readout ${roT0})`);
+  if (Kin !== K || T !== roT || !agrees(4 * Math.sqrt(L / 9.8) * val(K), T)) out.push(`${tag}: T from K ${f[2]} (readout ${roT})`);
+  if (e !== roE || e !== tn(100 * periodError({ L, g: 9.8 }, p.theta0 * DEG))) out.push(`${tag}: error ${f[3]} (readout ${roE})`);
+  if (figures(e) !== 3) out.push(`${tag}: error with ${figures(e)} figures`);
   return out;
 }
 

@@ -6,6 +6,7 @@ import type { Draw } from '../../draw/draw';
 import { measureRich } from '../../draw/text';
 import { theme } from '../../draw/theme';
 import { bar, chart, inPanel, TICK, type Chart, type Rect } from './panels';
+import { fmtJ } from './formula';
 import { NR, legAt, pathPoints, type Leg, type St } from './physics';
 
 /** Heat, work and internal energy keep these colours in every Part II chapter. */
@@ -456,8 +457,8 @@ export function drawBars(g: Draw, r0: Rect, groups: BarGroup[], yr: [number, num
   });
 }
 
-/** Energy value: whole joules below 10⁵, and 0 without decimals. */
-const fmtE = (v: number) => (Math.abs(v) < 0.5 ? '0' : fmt(v));
+/** Energy value: whole joules, as the readouts and the Σ panel print it (policy D, R8). */
+const fmtE = fmtJ;
 
 /** Wide stage: panels side by side; narrow: stacked. */
 export const isWide = (r: Rect) => r.w >= 1.25 * r.h;

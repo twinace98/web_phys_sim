@@ -5,9 +5,7 @@
 import { fmt, fmtTick } from '../../core/format';
 import { t } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
-import { num, paren, tn, u } from '../../core/tex';
-import { sigFit } from '../ch07/sigfit';
-import { printed } from '../ch02/sigma';
+import { CONST, num, paren, slider, tn, tnScale, u } from '../../core/tex';
 import type { Draw } from '../../draw/draw';
 import { drawRich, measureRich } from '../../draw/text';
 import { color, theme } from '../../draw/theme';
@@ -204,27 +202,6 @@ export function worldTop(p: P): number {
   return top + 0.12;
 }
 
-/**
- * Figures for the period lines of the formula panel. T and T₀ get the fewest figures (4 or more)
- * whose printed difference, over the printed T₀, gives the error (T − T₀)/T₀ to 2 figures; the
- * error then prints with 3 figures if the printed T and T₀ reproduce them, else 2. So the error line
- * follows from the numbers printed on it (10°: (2.0109 − 2.0071)/2.0071 → 0.19 %).
- */
-export function periodSig(T: number, T0: number): { sT: number; sE: number } {
-  const pct = 100 * (T / T0 - 1);
-  // Both sides of v round alike (as in sigFit), so a reader working by hand gets the same digits.
-  const fits = (v: number, rs: number) => {
-    const want = tn(pct, rs);
-    const d = 1e-7 * Math.max(Math.abs(v), 1e-12);
-    return tn(v - d, rs) === want && tn(v + d, rs) === want;
-  };
-  for (let sT = 4; sT <= 8; sT++) {
-    const v = (100 * (printed(T, sT) - printed(T0, sT))) / printed(T0, sT);
-    if (fits(v, 2)) return { sT, sE: fits(v, 3) ? 3 : 2 };
-  }
-  return { sT: 8, sE: 2 };
-}
-
 export const pendulum: Scene<P, S> = {
   id: 'pendulum',
   title: 'ch15.n.scene',
@@ -348,29 +325,38 @@ export const pendulum: Scene<P, S> = {
     const T0 = smallAnglePeriod(pd);
     const T = exactPeriod(pd, th0);
     const err = periodError(pd, th0);
-    const { sT: sig, sE } = periodSig(T, T0);
-    const L = p.L.toFixed(1);
+    // Policy D: L as its slider label, g as 9.8 (R1); T₀, K and T to 3 figures, T₀ and T as their
+    // readouts (R3). The error is the small difference of two periods: written as 2K/π − 1, computed
+    // without the cancellation (R5), the readout string.
+    const L = slider(params.L, p.L);
+    const g = CONST.g.tex;
     const { at, ar } = pendulumAccel(pd, s.th, s.w);
     const v = p.L * s.w;
     const deg = s.th / DEG;
     const K = ellipticK(Math.sin(th0 / 2));
-    // K with the figures that make 4√(L/9.8) × K print T as shown.
-    const sK = sigFit([K], (k) => 4 * Math.sqrt(p.L / G) * k, T, sig, 4);
+    // Values that change during the swing: fixed decimals from their largest value in the run (R7a),
+    // so the turning point prints v = 0 and the sums below keep one decimal place.
+    // θ to 3 figures (R3). Beyond 90° sin θ is small near the top and 3 figures of θ would lose it:
+    // the angle from the top, 180° − |θ|, is computed directly (R5): sin(180° − 4.62°).
+    const sinArg = (d: number) =>
+      Math.abs(d) <= 90 ? `${tn(d)}^\\circ` : d > 0 ? `180^\\circ - ${tn(180 - d)}^\\circ` : `-180^\\circ + ${tn(180 + d)}^\\circ`;
+    const vMax = Math.sqrt(2 * G * p.L * (1 - Math.cos(th0)));
+    const fMax = BOB_M * G * (3 - 2 * Math.cos(th0));
     const lines = [
-      `T_0 = 2\\pi\\sqrt{L/g} = 2\\pi\\sqrt{${L}/9.8} = ${tn(T0, sig)}${u('s')}`,
-      `K\\!\\left(\\sin\\tfrac{\\theta_0}{2}\\right) = K(\\sin ${num(p.theta0 / 2)}^\\circ) = ${tn(K, sK)}`,
-      `T = 4\\sqrt{L/g}\\,K = 4\\sqrt{${L}/9.8} \\times ${tn(K, sK)} = ${tn(T, sig)}${u('s')}`,
-      `\\frac{T - T_0}{T_0} = \\frac{${tn(T, sig)} - ${tn(T0, sig)}}{${tn(T0, sig)}} = ${tn(100 * err, sE)}\\ \\%`,
-      `a_\\mathrm{t} = -g\\sin\\theta = -9.8\\sin(${tn(deg)}^\\circ) = ${tn(at)}${u('m/s^2')}`,
-      `a_{\\mathrm{t},0} = -g\\theta = -9.8 \\times ${paren(tn(s.th))} = ${tn(-G * s.th)}${u('m/s^2')}`,
-      `a_\\mathrm{r} = v^2/L = (${tn(v)})^2/${L} = ${tn(ar)}${u('m/s^2')}`,
+      `T_0 = 2\\pi\\sqrt{L/g} = 2\\pi\\sqrt{${L}/${g}} = ${tn(T0)}${u('s')}`,
+      `K\\!\\left(\\sin\\tfrac{\\theta_0}{2}\\right) = K(\\sin ${num(p.theta0 / 2)}^\\circ) = ${tn(K)}`,
+      `T = 4\\sqrt{L/g}\\,K = 4\\sqrt{${L}/${g}} \\times ${tn(K)} = ${tn(T)}${u('s')}`,
+      `\\frac{T - T_0}{T_0} = \\frac{2K}{\\pi} - 1 = ${tn(100 * err)}\\ \\%`,
+      `a_\\mathrm{t} = -g\\sin\\theta = -${g}\\sin(${sinArg(deg)}) = ${tnScale(at, G * Math.sin(Math.min(th0, Math.PI / 2)))}${u('m/s^2')}`,
+      `a_{\\mathrm{t},0} = -g\\theta = -${g} \\times ${paren(tnScale(s.th, th0))} = ${tnScale(-G * s.th, G * th0)}${u('m/s^2')}`,
+      `a_\\mathrm{r} = v^2/L = (${tnScale(v, vMax)})^2/${L} = ${tnScale(ar, (vMax * vMax) / p.L)}${u('m/s^2')}`,
     ];
     if (p.fbd) {
       // Radial part of ΣF = ma from the drawn forces; the tangential part, −mg sin θ = m a_t, is above.
+      // Forces with the decimals of the largest one, F_T at the bottom (R7a).
       const T = tension(s, p);
       const Wr = BOB_M * G * Math.cos(s.th);
-      const sf = sigFit([T, Wr], (a, b) => a - b, BOB_M * ar);
-      lines.push(`\\Sigma F_\\mathrm{r} = F_T - mg\\cos\\theta = ${tn(T, sf)} - ${paren(tn(Wr, sf))} = ${tn(BOB_M * ar)}${u('N')} = ma_\\mathrm{r}`);
+      lines.push(`\\Sigma F_\\mathrm{r} = F_T - mg\\cos\\theta = ${tnScale(T, fMax)} - ${paren(tnScale(Wr, fMax))} = ${tnScale(BOB_M * ar, fMax)}${u('N')} = ma_\\mathrm{r}`);
     }
     return lines;
   },

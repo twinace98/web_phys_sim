@@ -346,7 +346,20 @@ const CONST_TOKS = new Set(Object.values(CONST).flatMap((c) => toks(texClean(c.t
  * whose recomputation may differ by more than 1 %: scene key "ch/id", a pattern for the line's
  * left-hand side, the checks it is exempt from, and why. Phase 2 adds a line only with its reason.
  */
-export const ALLOW: { scene: string; lhs: RegExp; checks: Check[]; why: string }[] = [];
+export const ALLOW: { scene: string; lhs: RegExp; checks: Check[]; why: string }[] = [
+  {
+    scene: '15/shm',
+    lhs: /^x$/,
+    checks: ['recompute'],
+    why: 'x = A cos ωt near a zero crossing: x ≪ A, and the last figure of the 3-figure phase (0.1° at ±90°) moves A cos by up to 2×10⁻³ A',
+  },
+  {
+    scene: '17/beats',
+    lhs: /^(f_\\text\{beat\}|\\tfrac\{f_1 \+ f_2\}\{2\})$/,
+    checks: ['inputSig'],
+    why: 'f₂ = f₁ + Δf is an exact sum of two slider values (R1), printed as typed (441.5), not rounded to 3 figures',
+  },
+];
 
 /** Physical small values (R7b): their readout and Σ result never print as 0.00. Scene key → labels. */
 export const PHYSICAL_SMALL: Record<string, string[]> = {

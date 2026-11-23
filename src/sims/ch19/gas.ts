@@ -2,12 +2,12 @@
 // right wall delivers 2 m v_x. The accumulated impulse grows at the mean force, so its time
 // average per wall length converges to the ideal-gas pressure NkT/A.
 import { t as tr } from '../../core/i18n';
-import { num, tn, u } from '../../core/tex';
+import { CONST, fmtMeas, slider, texOf, tn, tnMeas, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { drawRich } from '../../draw/text';
 import { ROLE_COLOR, theme } from '../../draw/theme';
 import { chart, inPanel, type Chart, split, stageRect, TICK, type Rect } from '../ch18/panels';
-import { J_PER_V, WIN, idealForce, idealPressure, impulseTop, initGas, pCum, pWin, pressureTop, sigmaV, speedPdf, stepGas, type Gas } from './physics';
+import { J_PER_V, MASS, WIN, hitRate, idealForce, idealPressure, impulseCv, impulseTop, initGas, pCum, pWin, pressureTop, sigmaV, speedPdf, stepGas, type Gas } from './physics';
 
 type P = { N: number; T: number; L: number; init: string; arrows: boolean };
 
@@ -26,6 +26,33 @@ const WALL = '#5c5c5c';
 export const LABEL_PX = 40;
 
 const vMax = (T: number) => 4.2 * sigmaV(T);
+
+/**
+ * Statistical scatter of the measured pressure J/(L t) [mN/m]: the impulse of the n = rate × t
+ * bounces expected so far scatters by impulseCv(n) (relative), divided by t (by 10 ps before t = 10 ps,
+ * as pCum does).
+ */
+export function pressureScatter(s: { gas: Gas }, p: P): number {
+  const t = s.gas.t;
+  if (!(t > 0)) return 0;
+  return idealPressure(p.N, p.L, p.T) * impulseCv(hitRate(p.N, p.L, p.T) * t) * (t / Math.max(t, WIN));
+}
+
+/**
+ * A measured pressure (or its ratio to NkT/A) rounded at the leading digit of its scatter (policy D,
+ * R4): 1.178 ± 0.17 → "1.2". Before the first bounce it is an exact 0.
+ */
+export const fmtPressure = (v: number, sigma: number) => (v === 0 ? '0' : fmtMeas(v, sigma));
+
+/** The impulse so far [pN·ps] to 3 figures (R3), with a power of ten from 10⁴ on (55735 → 5.57×10⁴); none yet: 0. */
+function tJ3(J: number): string {
+  if (J === 0) return '0';
+  const e = Math.floor(Math.log10(Number(J.toPrecision(3))));
+  return e < 4 ? tn(J) : `${tn(J / 10 ** e)}\\times 10^{${e}}`;
+}
+
+// The readout formats its value without the state: value() leaves the scatter of the same frame here.
+let readoutScatter = 0;
 
 /** Molecules per speed bin right now (no time averaging), from the gas on the stage. */
 export function speedCounts(g: Gas, T: number): number[] {
@@ -258,7 +285,16 @@ export const gasScene: Scene<P, S> = {
   },
 
   readouts: [
-    { label: 'J/(L\\,t)', unit: 'mN/m', value: (s) => pCum(s.gas) },
+    // Measured: to its scatter (R4), the Σ result string.
+    {
+      label: 'J/(L\\,t)',
+      unit: 'mN/m',
+      value: (s, p) => {
+        readoutScatter = pressureScatter(s, p);
+        return pCum(s.gas);
+      },
+      format: (v) => fmtPressure(v, readoutScatter),
+    },
     { label: 'NkT/A', unit: 'mN/m', value: (_s, p) => idealPressure(p.N, p.L, p.T) },
   ],
 
@@ -269,7 +305,7 @@ export const gasScene: Scene<P, S> = {
     observe: ['ch19.obs.J', 'ch19.obs.fluct', 'ch19.obs.N', 'ch19.obs.T', 'ch19.obs.hist'],
     // One bounce adds ΔJ = 2mv_x to the impulse J; p is reserved for the pressure (as in Halliday 19-4).
     equations: ['\\Delta J = 2mv_x', 'p = \\frac{F}{L} = \\frac{J}{L\\,t} = \\frac{1}{L\\,t}\\sum 2mv_x', 'pA = NkT \\quad (\\text{2D})', 'f(v) = \\frac{mv}{kT}\\,e^{-mv^2/2kT}'],
-    assumptions: ['ch19.assume.2d', 'ch19.assume.3d', 'ch19.assume.disk', 'ch19.assume.dense', 'ch19.assume.relax', 'ch19.assume.win'],
+    assumptions: ['ch19.assume.2d', 'ch19.assume.3d', 'ch19.assume.disk', 'ch19.assume.dense', 'ch19.assume.relax', 'ch19.assume.win', 'ch19.assume.scatter'],
   },
 };
 
@@ -280,14 +316,24 @@ export const gasScene: Scene<P, S> = {
 export function formulaLines(s: S, p: P): string[] {
   const g = s.gas;
   const pc = pCum(g);
+  const sp = pressureScatter(s, p);
   const p0 = idealPressure(p.N, p.L, p.T);
-  // k and m (physics.ts KB, MASS) written out: tn prints values below 10⁻⁹ as 0.
-  const kB = '1.381\\times 10^{-23}';
-  const m = '6.646\\times 10^{-27}';
+  // Policy D: sliders as their labels (R1), k_B from the constant table, the helium mass and the
+  // impulse and time so far to 3 figures (R3); the measured pressure and the ratio to their scatter (R4).
+  const [N, T, L] = [slider(params.N, p.N), slider(params.T, p.T), slider(params.L, p.L)];
+  const kB = CONST.kB.tex;
+  const m = tn(MASS, 3, 0);
+  // The readout string as input, with its scatter (±) as results: the last figure is uncertain.
+  const meas = texOf(fmtPressure(pc, sp));
+  const pm = (v: number, sigma: number, unit = '') => {
+    if (v === 0) return `0${unit}`;
+    const t = tnMeas(v, sigma, { pm: true });
+    return unit && !t.startsWith('(') ? `(${t})${unit}` : `${t}${unit}`;
+  };
   return [
-    `\\frac{J}{L\\,t} = \\frac{${tn(g.J, 4)}}{${num(p.L)} \\times ${tn(Math.max(g.t, WIN), 4)}} = ${tn(pc)}${u('mN/m')}`,
-    `\\frac{NkT}{A} = \\frac{${num(p.N)} \\times ${kB} \\times ${num(p.T)}}{(${num(p.L)}\\times 10^{-9})^2} = ${tn(p0)}${u('mN/m')}`,
-    `\\frac{J/(L\\,t)}{NkT/A} = \\frac{${tn(pc, 4)}}{${tn(p0, 4)}} = ${tn(pc / p0)}`,
-    `\\sqrt{\\frac{2kT}{m}} = \\sqrt{\\frac{2 \\times ${kB} \\times ${num(p.T)}}{${m}}} = ${tn(Math.SQRT2 * sigmaV(p.T))}${u('km/s')}`,
+    `\\frac{J}{L\\,t} = \\frac{${tJ3(g.J)}}{${L} \\times ${tn(Math.max(g.t, WIN))}} = ${pm(pc, sp, u('mN/m'))}`,
+    `\\frac{NkT}{A} = \\frac{${N} \\times ${kB} \\times ${T}}{(${L}\\times 10^{-9})^2} = ${tn(p0)}${u('mN/m')}`,
+    `\\frac{J/(L\\,t)}{NkT/A} = \\frac{${meas}}{${tn(p0)}} = ${pm(pc / p0, sp / p0)}`,
+    `\\sqrt{\\frac{2kT}{m}} = \\sqrt{\\frac{2 \\times ${kB} \\times ${T}}{${m}}} = ${tn(Math.SQRT2 * sigmaV(p.T))}${u('km/s')}`,
   ];
 }

@@ -36,22 +36,6 @@ const PENDING: Record<string, Partial<Record<Check, string>>> = {
   '9/puck': { slider: 'R1: m2 "1.0" printed "1"' },
   '10/rotor': { slider: 'R1: rA, rB, m, tau "0.50" printed "0.5"' },
   '11/spin': { slider: 'R1: m, mDb "0.20" printed "0.2"' },
-  // Ch 13–17
-  '13/orbit': { inputSig: 'GM = 3.986×10¹⁴ (U, v_esc lines): 3 figures or a CONST entry' },
-  '15/shm': { slider: 'R1: A, m, zeta "0.20" printed "0.2"', inputSig: 'x line: phase in degrees with 4 figures (tn(…, 4))' },
-  '15/pendulum': {
-    result: 'T₀, T print 4 figures (periodSig) against readouts 2.01, 2.04',
-    inputSig: 'R5: error line (T - T₀)/T₀ on 4–6 figure periods; write 2K/π - 1 directly',
-  },
-  '16/reflect': { inputSig: 'y(L) = h - h on -0.1414 (R7a: same point, print 0)' },
-  '16/resonance': { slider: 'R1: f "2.00" printed "2"' },
-  '17/beats': { slider: 'R1: df "2.0" printed "2"' },
-  // Ch 18–20
-  '18/process': { inputSig: 'fixed tn(…, 4): 100.0, 10.00, 3.333 (T, W, p, Q, ΔE_int lines)' },
-  '18/paths': { inputSig: 'fixed tn(…, 4): 10.00, 23.33 (W, Q lines)' },
-  '19/pressure': { inputSig: 'fixed tn(…, 4) and k_B, m to 4 figures; R4 for the measured pressure' },
-  '20/heat': { slider: 'R1: q "100" printed "100.0"', inputSig: 'fixed tn(…, 4): S/k 66.27, kT/ε lines' },
-  '20/carnot': { inputSig: 'fixed tn(…, 4): n = 3.333, Q_H, Q_C, W lines' },
   // Ch 23–27
   '23/gauss': { inputSig: 'ε₀ = 8.854×10⁻¹²: CONST.eps0' },
   '24/potential': { inputSig: 'R7a: ΔV = V - V_A on 4–5 figure equal potentials (15.002 - 15.002); print 0' },
