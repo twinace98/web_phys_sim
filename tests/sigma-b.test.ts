@@ -4,11 +4,15 @@
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
-import { tn, u } from '../src/core/tex';
+import { INPUT_SIG, tn, u } from '../src/core/tex';
 import type { Params, Scene } from '../src/core/types';
 import { CHAPTERS } from '../src/sims/registry';
 import { kinetic } from '../src/sims/ch07/physics';
-import { sigFit } from '../src/sims/ch07/sigfit';
+import { sigFit, tnFit } from '../src/sims/ch07/sigfit';
+import { fitSig } from '../src/sims/ch31/fit';
+import { sumSig } from '../src/sims/ch41/common';
+import { diffSig as diffSig37 } from '../src/sims/ch37/scene';
+import { diffSig as diffSig39 } from '../src/sims/ch39/scene';
 import { POTENTIALS } from '../src/sims/ch08/physics';
 import { inertiaCm } from '../src/sims/ch10/physics';
 import { BETA, G, rollAccel } from '../src/sims/ch11/physics';
@@ -37,14 +41,24 @@ function shows(lines: string[], v: number, unit: string, sig = 3): void {
   expect(lines.some((l) => l.endsWith(tail)), `${tail}\n${lines.join('\n')}`).toBe(true);
 }
 
-describe('sigFit', () => {
-  it('adds digits until the shown arithmetic gives the shown result', () => {
-    // 0.167 + 0.442 = 0.609, but 1/6 + 0.4418 = 0.6085 prints 0.608.
-    const k = sigFit([1 / 6, 0.4418], (a, b) => a + b, 1 / 6 + 0.4418);
-    expect(k).toBeGreaterThan(3);
+describe('digit-fitting helpers (policy D: at most 3 figures)', () => {
+  it('sigFit and tnFit: 3 figures, also where the shown arithmetic would need more', () => {
+    // 0.167 + 0.442 = 0.609, but 1/6 + 0.4418 = 0.6085 prints 0.608: still 3 figures (R3).
+    expect(sigFit([1 / 6, 0.4418], (a, b) => a + b, 1 / 6 + 0.4418)).toBe(3);
     expect(sigFit([2, 3], (a, b) => a * b, 6)).toBe(3);
-    // A zero result: any inputs that print the sum as 0.00.
     expect(sigFit([-1.7390774, 0.56099271 * 3.1], (a, b) => a + b, 0)).toBe(3);
+    expect(sigFit([1.2542], (t) => 2 * t, 2 * 1.2542, 3, 4)).toBe(3);
+    expect(tnFit(0.44183, 5)).toBe('0.442');
+    expect(tnFit(0.5, 2)).toBe('0.50');
+  });
+  it('fitSig, sumSig and diffSig: 3 figures at most; fitSig keeps 2 when allowed and enough', () => {
+    expect(fitSig((r) => tn(r(1 / 6) + r(0.4418)), tn(1 / 6 + 0.4418), 3, 8)).toBe(3);
+    expect(fitSig((r) => tn(r(2.4) * 2, 2), tn(4.8, 2), 2)).toBe(2);
+    expect(fitSig((r) => tn(r(1 / 6) + r(0.4418)), tn(1 / 6 + 0.4418), 5, 8)).toBe(3);
+    expect(sumSig(15.0024, 15.0019)).toBe(3);
+    expect(diffSig39(1.218544, 1.172093)).toBe(3);
+    expect(diffSig37(2.032713, 1.172093)).toBe(3);
+    expect(INPUT_SIG).toBe(3);
   });
 });
 

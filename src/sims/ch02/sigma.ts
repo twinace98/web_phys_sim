@@ -1,6 +1,7 @@
-// Σ formula panel helpers shared by Ch 2–6: choose how many digits the substituted inputs need so
-// that the arithmetic shown, done on the printed numbers, gives the printed result.
-import { tn } from '../../core/tex';
+// Σ formula panel helpers shared by Ch 2–6: how many digits the substituted inputs print with.
+// Policy D (docs/design.md §3.3, R3): at most INPUT_SIG (3) figures; the result is printed from the
+// unrounded value, like its readout, and may differ in the last digit from the printed inputs.
+import { INPUT_SIG, tn } from '../../core/tex';
 
 /** The number tn() prints, read back (×10ⁿ included). */
 export function printed(v: number, sig = 3): number {
@@ -19,18 +20,18 @@ function same(x: number, want: string): boolean {
 }
 
 /**
- * Fewest significant figures (at least `min`) for the inputs so that `f` applied to the printed
- * inputs prints the same result as `result` at 3 figures.
+ * Fewest significant figures (at least `min`, at most INPUT_SIG) for the inputs so that `f` applied
+ * to the printed inputs prints the same result as `result` at 3 figures; INPUT_SIG when none does.
  */
 export function sigToMatch(result: number, inputs: number[], f: (...xs: number[]) => number, min = 3, max = 7): number {
   const want = tn(result);
-  for (let s = min; s < max; s++) if (same(f(...inputs.map((v) => printed(v, s))), want)) return s;
-  return max;
+  const hi = Math.min(max, INPUT_SIG);
+  for (let s = min; s < hi; s++) if (same(f(...inputs.map((v) => printed(v, s))), want)) return s;
+  return hi;
 }
 
 /**
- * Like sigToMatch, but each input keeps only the digits it needs: in √(14.14² + (−0.517)²) the small
- * term needs no more than 3 figures.
+ * Like sigToMatch, but each input keeps only the digits it needs (at most INPUT_SIG).
  */
 export function sigsToMatch(result: number, inputs: number[], f: (...xs: number[]) => number, min = 3, max = 7): number[] {
   const all = sigToMatch(result, inputs, f, min, max);

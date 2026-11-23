@@ -288,30 +288,32 @@ describe('ch15 pendulum: one real pendulum against the small-angle model', () =>
     const s = pendulum.init(p, null as never);
     const f = pendulum.formula!(s, p).join('\n');
     expect(f).toContain('2\\pi\\sqrt{1.0/9.8} = 2.007');
-    expect(f).toContain('K(\\sin 45^\\circ) = 1.854');
+    expect(f).toContain('K(\\sin 45^\\circ) = 1.85');
     expect(f).toContain('= 2.369\\ \\mathrm{s}');
     expect(f).toContain('= 18.0\\ \\%');
     expect(f).toContain('-9.8\\sin(90.0^\\circ) = -9.80');
     expect(f).toContain('-g\\theta = -9.8 \\times 1.57 = -15.4');
   });
 
-  // Review 2026-11-20 P2: at 10° the panel printed K = 1.574 next to T = 2.01092 s, but
-  // 4√(1.0/9.8) × 1.574 = 2.0112 s, and with that T the error comes out 0.205 %, not 0.191 %.
-  it('regression: at 10° every period line follows from its printed inputs (K, T and the error)', () => {
+  // Review 2026-11-20 P2: at 10° the panel printed K = 1.574 next to T = 2.01092 s. Policy D
+  // (docs/design.md §3.3): K prints with 3 figures and T agrees with 4√(L/g) K to 1 %. The error
+  // line is a small difference (R5) that phase 2 rewrites as 2K/π − 1; until then T and T₀ keep
+  // the figures periodSig gives them.
+  it('regression: at 10° every period line agrees with its printed inputs (K, T and the error)', () => {
     const p = { ...defaults(pendulum.params), theta0: 10, L: 1 };
     const f = pendulum.formula!(pendulum.init(p, null as never), p);
     expect(f[1]).not.toContain('= 1.574');
-    expect(f[1]).toContain('K(\\sin 5^\\circ) = 1.5738');
-    expect(f[2]).toContain('\\times 1.5738 = 2.0109\\ \\mathrm{s}');
+    expect(f[1]).toContain('K(\\sin 5^\\circ) = 1.57');
+    expect(f[2]).toContain('\\times 1.57 = 2.0109\\ \\mathrm{s}');
     expect(f[3]).toContain('\\frac{2.0109 - 2.0071}{2.0071} = 0.19\\ \\%');
-    expect(4 * Math.sqrt(1 / 9.8) * 1.5738).toBeCloseTo(2.0109, 4);
+    expect(Math.abs((4 * Math.sqrt(1 / 9.8) * 1.57) / 2.0109 - 1)).toBeLessThan(0.01);
     expect(periodLineIssues(p)).toEqual([]);
     // The error's figures follow from the printed periods: 2 here, 3 where T and T₀ give them.
     expect(periodSig(exactPeriod({ L: 1, g: 9.8 }, 10 * DEG), 2 * Math.PI * Math.sqrt(1 / 9.8))).toEqual({ sT: 5, sE: 2 });
     expect(periodSig(exactPeriod({ L: 1, g: 9.8 }, 90 * DEG), 2 * Math.PI * Math.sqrt(1 / 9.8))).toEqual({ sT: 4, sE: 3 });
   });
 
-  it('sweep: θ₀ 5–170° (every degree) × L 0.2–2 m: T₀, K, T and the error reproduce from what is printed', () => {
+  it('sweep: θ₀ 5–170° (every degree) × L 0.2–2 m: T₀, K, T and the error agree with what is printed', () => {
     const bad: string[] = [];
     let maxT = 0;
     let maxK = 0;
@@ -324,9 +326,9 @@ describe('ch15 pendulum: one real pendulum against the small-angle model', () =>
         maxK = Math.max(maxK, figures(grab(f[1], new RegExp(`= (${NUM})$`))[0]));
       }
     expect(bad).toEqual([]);
-    // No more figures than the error needs: at most 7 for T (5° needs 6), K one more at most.
+    // No more figures than the error needs: at most 7 for T (5° needs 6); K 3 figures (policy D).
     expect(maxT).toBeLessThanOrEqual(7);
-    expect(maxK).toBeLessThanOrEqual(8);
+    expect(maxK).toBeLessThanOrEqual(3);
     // Mid-run (θ, ω change; the period lines do not) and with the free-body toggle.
     const p = { ...defaults(pendulum.params), theta0: 37, L: 0.6, fbd: true };
     const r = new Runner(pendulum, p);

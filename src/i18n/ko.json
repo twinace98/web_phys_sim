@@ -34,6 +34,7 @@
   "ui.loadError": "페이지를 불러오지 못했습니다.",
   "ui.reload": "새로고침",
   "ui.formula": "현재 값 대입",
+  "ui.formulaNote": "대입값은 3자리 반올림, 다시 계산하면 끝자리가 다를 수 있음",
   "ui.review": "검토",
   "key.formula": "현재 값을 대입한 수식",
   "fbd.p": "자유물체도",

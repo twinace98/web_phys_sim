@@ -4,7 +4,7 @@ import { Runner } from '../src/core/runner';
 import { fmt } from '../src/core/format';
 import { u } from '../src/core/tex';
 import { beats } from '../src/sims/ch17/beats';
-import { NUM, agrees, grab, val } from './sigma-digits';
+import { NUM, agrees, agreesWithin, grab, val } from './sigma-digits';
 import { doppler, setup } from '../src/sims/ch17/doppler';
 import { arrival, arrivalAt, flashing, heardAt, beatEnvelope, beatFrequency, fronts, heard, machAngle, wave, wavelengths, type Doppler } from '../src/sims/ch17/physics';
 
@@ -234,7 +234,8 @@ describe('ch17 beats: f₂ and every Σ line reproduce from what is printed', ()
           const [m1, m2, mean] = grab(lines[3], new RegExp(`\\((${NUM}) \\+ (${NUM})\\)/2 = (${NUM})`));
           if (!agrees((val(m1) + val(m2)) / 2, mean) || Math.abs(val(mean) - (p.f1 + p.f1 + p.df) / 2) > 1e-9) bad.push(`${tag}: ${lines[3]}`);
           const [dfIn, tIn, env] = grab(lines[5], new RegExp(`\\\\pi \\\\times (${NUM}) \\\\times (${NUM})\\) \\\\rvert = (${NUM})A`));
-          if (!agrees(2 * Math.abs(Math.cos(Math.PI * val(dfIn) * val(tIn))), env)) bad.push(`${tag}: ${lines[5]}`);
+          // Near a node the envelope is a small difference (R5): allow the rounding of the 3-figure t.
+          if (!agreesWithin((d, tt) => 2 * Math.abs(Math.cos(Math.PI * d * tt)), [dfIn, tIn], env, [0])) bad.push(`${tag}: ${lines[5]}`);
         }
     expect(bad).toEqual([]);
   });

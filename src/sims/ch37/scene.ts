@@ -4,7 +4,7 @@
 // order of two events are read off; the fourth is the train-flash experiment.
 import { fmt } from '../../core/format';
 import { t } from '../../core/i18n';
-import { num, paren, tn, u } from '../../core/tex';
+import { INPUT_SIG, num, paren, tn, u } from '../../core/tex';
 import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR, theme } from '../../draw/theme';
@@ -640,11 +640,11 @@ export const simultaneity: Scene<PT, { t: number; n: number }> = {
 
 // ------------------------------------------------------------------ formula panel
 
-/** Significant figures for two inputs whose difference prints at 3 figures, so the shown arithmetic holds. */
+/** Significant figures for two inputs of a difference: the fewest (≥ 3) that reproduce the printed result, at most INPUT_SIG. */
 export function diffSig(a: number, b: number): number {
   const r = (v: number, s: number) => Number(v.toPrecision(s));
-  for (let s = 3; s < 8; s++) if (tn(r(a, s) - r(b, s)) === tn(a - b)) return s;
-  return 8;
+  for (let s = 3; s < INPUT_SIG; s++) if (tn(r(a, s) - r(b, s)) === tn(a - b)) return s;
+  return INPUT_SIG;
 }
 
 /** Decimals for two diagram readings whose difference prints with n2 (two decimals). */
