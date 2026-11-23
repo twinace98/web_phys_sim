@@ -332,6 +332,8 @@ export const projectile: Scene<P, S> = {
   formula: (s, p) => {
     const { l, H } = model(p);
     const gt = num(l.g);
+    // ½g with at most 3 figures, half up: 4.9, 1.86 (Mars, 1.855), 0.81 (R3).
+    const half = String(Number((l.g / 2 + 1e-12).toPrecision(3)));
     const v0 = slider(params.v0, p.v0);
     const th = `${slider(params.theta, p.theta)}^\\circ`;
     const T = tn(s.t);
@@ -343,7 +345,7 @@ export const projectile: Scene<P, S> = {
       `v_y = v_0\\sin\\theta - gt`,
       `= ${sin} - ${gt} \\times ${T} = ${tn(s.vy)}${u('m/s')}`,
       `y = h + v_0\\sin\\theta\\,t - \\tfrac{1}{2}gt^2`,
-      `= ${slider(params.h, l.h)} + ${sin} \\times ${T} - \\tfrac{1}{2}(${gt})(${T})^2 = ${tnScale(s.y, H)}${u('m')}`,
+      `= ${slider(params.h, l.h)} + ${sin} \\times ${T} - ${half} \\times ${T}^2 = ${tnScale(s.y, H)}${u('m')}`,
       `v = \\sqrt{v_x^2 + v_y^2} = \\sqrt{${tn(s.vx)}^2 + ${tp(s.vy)}^2} = ${tn(Math.hypot(s.vx, s.vy))}${u('m/s')}`,
     ];
   },

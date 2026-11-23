@@ -68,17 +68,17 @@ describe('Ch 3 component sum (audit §5: overlay 0.05 against Σ 0.0500, R8)', (
 });
 
 describe('Ch 4 projectile (audit §5: 17.678; PENDING: v0 label, ½g on Mars, landing line)', () => {
-  it('v0 as its label, ½g as ½(g option), components with 3 figures, landing y = 0', async () => {
+  it('v0 as its label, ½g with 3 figures, components with 3 figures, landing y = 0', async () => {
     const sc = await scene(4, 'projectile');
     const d = at(sc, {}, 0);
     expect(d.lines).toContain('v_x = v_0\\cos\\theta = 20.0\\cos 45^\\circ = 14.1\\ \\mathrm{m/s}');
     // v0 = 25 m/s after 600 steps (t = 2.50 s): the audit's √(17.678² + (−6.82)²).
     expect(at(sc, { v0: 25 }, 600).lines).toContain('v = \\sqrt{v_x^2 + v_y^2} = \\sqrt{17.7^2 + (-6.82)^2} = 18.9\\ \\mathrm{m/s}');
     const mars = at(sc, { g: 'mars' }, 600);
-    expect(mars.lines).toContain('= 0 + 20.0\\sin 45^\\circ \\times 2.50 - \\tfrac{1}{2}(3.71)(2.50)^2 = 23.8\\ \\mathrm{m}');
+    expect(mars.lines).toContain('= 0 + 20.0\\sin 45^\\circ \\times 2.50 - 1.86 \\times 2.50^2 = 23.8\\ \\mathrm{m}');
     expect(mars.lines).toContain('= 20.0\\sin 45^\\circ - 3.71 \\times 2.50 = 4.87\\ \\mathrm{m/s}');
     const land = at(sc, { v0: 10 }, END);
-    expect(land.lines).toContain('= 0 + 10.0\\sin 45^\\circ \\times 1.44 - \\tfrac{1}{2}(9.8)(1.44)^2 = 0\\ \\mathrm{m}');
+    expect(land.lines).toContain('= 0 + 10.0\\sin 45^\\circ \\times 1.44 - 4.9 \\times 1.44^2 = 0\\ \\mathrm{m}');
     expect(land.ro('y')).toBe('0');
   });
   it('circular: v readout as its slider label; relative: v_WG as its label in the stage panel and Σ', async () => {
