@@ -76,8 +76,6 @@ export const noiseI = (p: P, t: number) => {
  * print to this scatter (policy D, R4).
  */
 export const scatterI = (p: P, t: number) => 0.5 * noiseI(p, t) * (1 + (1.5 * driftSpeed(wireOf(p), p.V)) / V_TH);
-/** Scatter of the latest reading, set with the readout value (a readout format sees only the value). */
-let lastScatter = { I: NaN, VI: NaN };
 /** End of the run [s]: Δt prints with the decimals of this scale (R7a). */
 const RUN_END = 30;
 
@@ -497,8 +495,8 @@ export const conduction: Scene<P, S> = {
   },
 
   readouts: [
-    { label: '\\bar I', unit: 'mA', value: (s, p) => ((lastScatter = scatterOf(s, p)), readI(s)), format: (v) => fmtMeas(v, lastScatter.I) },
-    { label: 'V/\\bar I', unit: 'Ω', value: (s, p) => ((lastScatter = scatterOf(s, p)), readVI(s, p)), format: (v) => fmtMeas(v, lastScatter.VI) },
+    { label: '\\bar I', unit: 'mA', value: (s) => readI(s), format: (v, s, p) => fmtMeas(v, scatterOf(s, p).I) },
+    { label: 'V/\\bar I', unit: 'Ω', value: (s, p) => readVI(s, p), format: (v, s, p) => fmtMeas(v, scatterOf(s, p).VI) },
     { label: '\\rho L/A', unit: 'Ω', value: (_s, p) => resistanceOf(wireOf(p)) },
   ],
 

@@ -33,7 +33,7 @@ function at(scene: AnyScene, over: Record<string, unknown>, t = 0) {
     while (r.playing && r.state.t < t - 1e-9) r.advance(scene.time!.h);
   }
   const lines = scene.formula!(r.state as never, r.params as never);
-  const ro = (scene.readouts ?? []).map((x) => readoutText(x as never, x.value(r.state as never, r.params as never), r.params as Params));
+  const ro = (scene.readouts ?? []).map((x) => readoutText(x as never, x.value(r.state as never, r.params as never), r.params as Params, r.state as never));
   return { lines, ro, s: r.state, p: r.params };
 }
 

@@ -51,9 +51,6 @@ function tJ3(J: number): string {
   return e < 4 ? tn(J) : `${tn(J / 10 ** e)}\\times 10^{${e}}`;
 }
 
-// The readout formats its value without the state: value() leaves the scatter of the same frame here.
-let readoutScatter = 0;
-
 /** Molecules per speed bin right now (no time averaging), from the gas on the stage. */
 export function speedCounts(g: Gas, T: number): number[] {
   const n = binsOf(g.N);
@@ -289,11 +286,8 @@ export const gasScene: Scene<P, S> = {
     {
       label: 'J/(L\\,t)',
       unit: 'mN/m',
-      value: (s, p) => {
-        readoutScatter = pressureScatter(s, p);
-        return pCum(s.gas);
-      },
-      format: (v) => fmtPressure(v, readoutScatter),
+      value: (s) => pCum(s.gas),
+      format: (v, s, p) => fmtPressure(v, pressureScatter(s, p)),
     },
     { label: 'NkT/A', unit: 'mN/m', value: (_s, p) => idealPressure(p.N, p.L, p.T) },
   ],

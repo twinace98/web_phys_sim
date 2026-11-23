@@ -191,8 +191,11 @@ export interface ReadoutSpec<S, P extends Params> {
   sig?: number;
   /** Values below this print as 0 (default 1e-9); 0 keeps tiny values such as 10⁻³⁴ m. */
   zeroTol?: number;
-  /** Custom text for a value (e.g. '< 1'); undefined falls back to the number format. */
-  format?: (v: number) => string | undefined;
+  /**
+   * Custom text for a value (e.g. '< 1'); undefined falls back to the number format. It also gets
+   * the state and params, for a format that depends on them (a measured value's scatter, a unit).
+   */
+  format?: (v: number, s: S, p: P) => string | undefined;
   /**
    * Run scale (the largest magnitude the value reaches in a run): fixed decimals for 3 figures at
    * that scale, residues below 10⁻⁶ of it print as 0 (policy D, R7a; precision.ts fmtScale).

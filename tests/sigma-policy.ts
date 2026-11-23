@@ -449,7 +449,7 @@ export function policyIssues(key: string, scene: Scene): Map<Check, string[]> {
       for (const spec of scene.readouts ?? []) {
         const v = spec.value(s as never, p as never);
         if (!Number.isFinite(v)) continue;
-        ro.set(norm(spec.label), { text: readoutText(spec as never, v, p), custom: spec.format?.(v) !== undefined });
+        ro.set(norm(spec.label), { text: readoutText(spec as never, v, p, s as never), custom: spec.format?.(v, s as never, p as never) !== undefined });
       }
       // Slider labels now, and the positions on the lines that carry a slider's value: the token
       // equals the value here and the other value when the slider is moved.

@@ -203,7 +203,7 @@ describe('ch17 beats: f₂ and every Σ line reproduce from what is printed', ()
     r.play();
     for (let i = 0; i < steps && r.playing; i++) r.advance(beats.time!.h);
     const lines = beats.formula!(r.state as never, r.params as never);
-    const ro = beats.readouts!.map((x) => x.format?.(x.value(r.state as never, r.params as never)) ?? fmt(x.value(r.state as never, r.params as never), x.sig ?? 3));
+    const ro = beats.readouts!.map((x) => x.format?.(x.value(r.state as never, r.params as never), r.state as never, r.params as never) ?? fmt(x.value(r.state as never, r.params as never), x.sig ?? 3));
     return { lines, ro, t: r.state.t, p: r.params as { f1: number; df: number } };
   };
 

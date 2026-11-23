@@ -43,7 +43,7 @@ function run(sc: unknown, over: Record<string, unknown> = {}, seconds = 0, seed 
     lines: () => scene.formula!(r.state as never, r.params as never),
     ro: (label) => {
       const spec = scene.readouts!.find((x) => x.label === label)!;
-      return readoutText(spec as never, spec.value(r.state as never, r.params as never), r.params);
+      return readoutText(spec as never, spec.value(r.state as never, r.params as never), r.params, r.state as never);
     },
     ov: () => scene.overlay!(r.state as never, r.params as never),
   };

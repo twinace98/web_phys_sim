@@ -213,8 +213,6 @@ const params: ParamSchema<P> = {
   nf: nParam('nf', 2),
 };
 
-/** mₑc² as Halliday quotes it (0.511 MeV), in keV. CONST has no entry for it (reported). */
-const MEC2_KEV = '511';
 
 export const welljump: Scene<P, S> = {
   id: 'welljump',
@@ -268,7 +266,7 @@ export const welljump: Scene<P, S> = {
     // differ from the result in the last digit (R3).
     const hc = CONST.hc.tex;
     const lines = [
-      `E_1 = \\frac{h^2}{8mL^2} = \\frac{(hc)^2}{8\\,mc^2L^2} = \\frac{(${hc}\\ \\text{eV}\\cdot\\text{nm})^2}{8\\,(${MEC2_KEV}\\ \\text{keV})\\,(${slider(params.L, L)}\\ \\text{nm})^2} = ${tn(E1)}\\ \\text{eV}`,
+      `E_1 = \\frac{h^2}{8mL^2} = \\frac{(hc)^2}{8\\,mc^2L^2} = \\frac{(${hc}\\ \\text{eV}\\cdot\\text{nm})^2}{8\\,(${CONST.mec2.tex}\\ \\text{keV})\\,(${slider(params.L, L)}\\ \\text{nm})^2} = ${tn(E1)}\\ \\text{eV}`,
       `E_n = n^2E_1:\\quad E_{${ni}} = ${tn(level(ni, L))}\\ \\text{eV},\\quad E_{${nf}} = ${tn(level(nf, L))}\\ \\text{eV}`,
     ];
     if (same) return [...lines, 'n_i = n_f:\\ \\Delta E = 0'];

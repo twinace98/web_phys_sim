@@ -766,12 +766,6 @@ export function formulaLines(p: PD): string[] {
 
 // ------------------------------------------------------------------ scene
 
-/**
- * Δy readout in the screen unit of the structure shown. A readout format gets the value only, so
- * the value function (called just before it, by the shell and by readoutText) records the structure.
- */
-let dyStruct: Structure = STRUCTS.crystal;
-const dyReadout = (v: number) => (Number.isFinite(v) ? dyText(v, dyStruct) : undefined);
 
 export const diffractionScene: Scene<PD, S> = {
   id: 'debroglie',
@@ -800,11 +794,8 @@ export const diffractionScene: Scene<PD, S> = {
     {
       label: '\\Delta y',
       unit: '',
-      value: (_s, p) => {
-        dyStruct = STRUCTS[structIdOf(p)];
-        return fringe(dyStruct, lambdaP(p)).y1;
-      },
-      format: dyReadout,
+      value: (_s, p) => fringe(STRUCTS[structIdOf(p)], lambdaP(p)).y1,
+      format: (v, _s, p) => (Number.isFinite(v) ? dyText(v, STRUCTS[structIdOf(p)]) : undefined),
     },
     { label: 'N', unit: '', value: (s) => Math.min(s.hits.length, hitsBy(s.t)), sig: 1 },
   ],

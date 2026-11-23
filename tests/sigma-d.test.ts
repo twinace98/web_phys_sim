@@ -38,7 +38,7 @@ function run(sc: unknown, over: Record<string, unknown> = {}, seconds = 0) {
   const lines = scene.formula!(r.state as never, r.params as never);
   const ro = (label: string) => {
     const spec = scene.readouts!.find((x) => x.label === label)!;
-    return texOf(readoutText(spec, spec.value(r.state as never, r.params as never), r.params as Params));
+    return texOf(readoutText(spec, spec.value(r.state as never, r.params as never), r.params as Params, r.state as never));
   };
   return { r, p: r.params as Params, s: r.state as never, lines, ro };
 }

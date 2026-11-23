@@ -35,7 +35,7 @@ function run(scene: AnyScene, over: Record<string, unknown>, steps: number, prep
   const lines = scene.formula!(r.state as never, r.params as never);
   const ro = (scene.readouts ?? []).map((x) => x.value(r.state as never, r.params as never));
   // Readout strings as the shell prints them (policy D: a Σ result is its readout string), in TeX.
-  const rt = (scene.readouts ?? []).map((x, k) => texOf(readoutText(x as never, ro[k], r.params as Params)));
+  const rt = (scene.readouts ?? []).map((x, k) => texOf(readoutText(x as never, ro[k], r.params as Params, r.state as never)));
   return { r, lines, ro, rt, s: r.state as never, p: r.params as never };
 }
 
@@ -86,7 +86,7 @@ describe('Σ panel agrees with the simulation (Ch 16–20)', () => {
         const { lines, ro, rt, s, p } = run(beats, over, steps);
         // f₂ = f₁ + Δf is exact: printed as typed (443.9, not 444), as in its readout.
         expect(lines[0].endsWith(`= ${num(ro[0])}${u('Hz')}`), lines[0]).toBe(true);
-        expect(beats.readouts![0].format!(ro[0])).toBe(num(ro[0]));
+        expect(beats.readouts![0].format!(ro[0], undefined as never, undefined as never)).toBe(num(ro[0]));
         // f_beat = Δf as the slider label (R1): 3.9, not 3.90.
         endsText(lines, 1, rt[1], 'Hz');
         expect(rt[1]).toBe(String((p as { df: number }).df.toFixed(1)));

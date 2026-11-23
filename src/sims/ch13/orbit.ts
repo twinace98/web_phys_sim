@@ -3,7 +3,7 @@
 // hyperbola.
 // Free-body diagram: the one force on the probe, F_g = GMm/r² towards the Earth's centre.
 import { t as tr } from '../../core/i18n';
-import { num, slider, tn, u } from '../../core/tex';
+import { CONST, num, slider, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { drawFbd, fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
@@ -391,7 +391,7 @@ export function formulaLines(s: S, p: P): string[] {
   const vesc = escapeSpeed(r);
   // Inputs to 3 figures (policy D, R3); GM as Halliday's G M_E = (6.67×10⁻¹¹)(5.98×10²⁴) = 3.99×10¹⁴,
   // the model keeps 3.986×10¹⁴. Results print from the unrounded values, like the readouts.
-  const gm = tn(GM);
+  const gm = CONST.GME.tex;
   const rel = m.kind === 'ellipse' ? '<' : m.kind === 'hyperbola' ? '>' : '=';
   // E = K + U nearly cancels close to the escape speed (31.6 + (−32.2) = −0.641 GJ at 0.99), so E is
   // also computed without the cancellation (R5): at launch K₀ = f² GMm/r₀ with f = v₀/v_esc the

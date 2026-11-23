@@ -110,6 +110,10 @@ export const CONST = {
   hc: c(1240, '1240', 'eV\\,nm'),
   /** Hydrogen ground-state binding energy, E_n = −(13.60 eV)/n². */
   Ry: c(13.6, '13.60', 'eV'),
+  /** Electron rest energy mₑc² = 0.511 MeV, in keV. */
+  mec2: c(511, '511', 'keV'),
+  /** GM of the Earth as printed (the orbit physics keeps 3.986×10¹⁴). */
+  GME: c(3.99e14, '3.99\\times 10^{14}', 'm^3/s^2'),
 } as const satisfies Record<string, Const>;
 
 // ---------------------------------------------------------------- R3 state and derived inputs
@@ -224,8 +228,8 @@ export const tnScale = (v: number, scale: number): string => texOf(fmtScale(v, s
  * The text of a readout value (shell and tests): its own `format`, else the run-scale format when
  * it has a `scale` (R7a), else `sig` figures. A Σ result for the same symbol prints this string.
  */
-export function readoutText<S, P extends Params>(spec: ReadoutSpec<S, P>, v: number, p: P): string {
-  const custom = spec.format?.(v);
+export function readoutText<S, P extends Params>(spec: ReadoutSpec<S, P>, v: number, p: P, s?: S): string {
+  const custom = spec.format?.(v, s as S, p);
   if (custom !== undefined) return custom;
   if (spec.scale !== undefined) return fmtScale(v, typeof spec.scale === 'function' ? spec.scale(p) : spec.scale);
   return fmt(v, spec.sig ?? 3, spec.zeroTol);
