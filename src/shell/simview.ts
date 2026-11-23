@@ -1,8 +1,9 @@
 // Chapter page: header, stage, control bar, plots, settings drawer, info panel
 // (docs/design.md §2). Controls are generated from the scene's parameter schema.
-import { clockDecimals, fmt, fmtClock, fmtTick } from '../core/format';
+import { clockDecimals, fmtClock } from '../core/format';
 import { getLang, onLangChange, t } from '../core/i18n';
 import { LOG_STEPS, defaults, fromQuery, logIndex, logStops, toQuery } from '../core/params';
+import { readoutText, sliderText, unitAfter } from '../core/precision';
 import { Runner } from '../core/runner';
 import { timeUnit, timeWindow, type Params, type ParamSpec, type Scene, type SimPage, type UiState } from '../core/types';
 import { chapterHash } from '../core/url';
@@ -23,16 +24,9 @@ const TAP_PX = 4;
 /** Two taps on one handle within this time [ms] make a double tap. */
 const DOUBLE_MS = 400;
 
-/** "30°" but "2 m/s": no space before the degree sign. */
-/** Value shown with as many decimals as the control's step has. */
-const fmtStep = (v: number, step: number) => {
-  const d = Math.min(4, Math.max(0, -Math.floor(Math.log10(step) + 1e-9)));
-  const frac = step * 10 ** d;
-  const dec = Math.abs(frac - Math.round(frac)) > 1e-9 ? d + 1 : d;
-  return v.toFixed(dec).replace('-', '−');
-};
 const snap = (v: number, min: number, step: number) => Number((min + Math.round((v - min) / step) * step).toFixed(10));
-const withUnit = (v: string, unit?: string) => (!unit ? v : unit === '°' ? `${v}°` : `${v} ${unit}`);
+/** "30°" but "2 m/s": no space before the degree sign. */
+const withUnit = (v: string, unit?: string) => v + unitAfter(unit ?? '');
 
 type Panel = 'none' | 'settings' | 'info' | 'formula';
 
@@ -300,7 +294,7 @@ export class SimView {
       const val = h('span', { class: 'val' });
       const el = h('span', { class: 'ro' });
       el.innerHTML = `${tex(spec.label)} = `;
-      const unit = h('span', null, spec.unit ? ` ${spec.unit}` : '');
+      const unit = h('span', null, unitAfter(spec.unit));
       el.append(val, unit);
       ros.append(el);
       this.readoutVals.push(val);
@@ -336,7 +330,7 @@ export class SimView {
         if (spec.control === 'select') {
           const s = h('select', { class: 'sel', 'aria-label': plain, title: tip });
           for (const c of spec.choices ?? []) {
-            s.append(h('option', { value: String(c), selected: c === value }, withUnit(fmtTick(c), spec.unit)));
+            s.append(h('option', { value: String(c), selected: c === value }, withUnit(sliderText(spec, c), spec.unit)));
           }
           s.addEventListener('change', () => this.setParam(key, Number(s.value)));
           input = s;
@@ -344,7 +338,7 @@ export class SimView {
           const min = spec.min ?? 0;
           const max = spec.max ?? 1;
           const step = spec.step ?? (spec.control === 'stepper' ? 1 : 0.01);
-          const show = (v: number) => withUnit(fmtStep(v, step), spec.unit);
+          const show = (v: number) => withUnit(sliderText(spec, v), spec.unit);
           const out = h('span', { class: 'val' }, show(value as number));
           if (spec.control === 'stepper') {
             let v = value as number;
@@ -368,9 +362,8 @@ export class SimView {
             inc.disabled = v >= max;
             input = h('span', { class: 'stepper', title: tip }, dec, out, inc);
           } else if (spec.log) {
-            const sig = spec.sig ?? 2;
             const stops = logStops(spec);
-            const showLog = (v: number) => withUnit(fmt(v, sig), spec.unit);
+            const showLog = (v: number) => withUnit(sliderText(spec, v), spec.unit);
             out.textContent = showLog(value as number);
             // Track in whole positions 0 … LOG_STEPS: a fractional log step made the browser drop the
             // last position (max unreachable).
@@ -513,7 +506,8 @@ export class SimView {
     const { panel, body } = this.sidePanel('formula', t('ui.formula'), t('ui.formula'));
     this.formulaBox = h('div', { class: 'eqs' });
     this.formulaTex = '';
-    body.append(this.formulaBox);
+    // Policy D (docs/design.md §3.3): said once here, not in every ⓘ list.
+    body.append(this.formulaBox, h('p', { class: 'note formula-note' }, t('ui.formulaNote')));
     return panel;
   }
 
@@ -858,7 +852,7 @@ export class SimView {
     (scene.readouts ?? []).forEach((spec, i) => {
       // An undefined value reads "–" alone: no unit after it.
       const v = spec.value(s, p);
-      this.readoutVals[i].textContent = spec.format?.(v) ?? fmt(v, spec.sig ?? 3, spec.zeroTol);
+      this.readoutVals[i].textContent = readoutText(spec, v, p);
       this.readoutUnits[i].hidden = !Number.isFinite(v);
     });
     if (this.playBtn && this.shownPlaying !== r.playing) {

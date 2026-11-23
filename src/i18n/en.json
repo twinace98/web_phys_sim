@@ -34,6 +34,7 @@
   "ui.loadError": "The page could not be loaded.",
   "ui.reload": "Reload",
   "ui.formula": "Formulas with values",
+  "ui.formulaNote": "Substituted values are rounded to 3 figures; recomputing may differ in the last digit",
   "ui.review": "Review",
   "key.formula": "Formulas with the current values",
   "fbd.p": "Free-body diagram",

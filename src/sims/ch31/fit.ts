@@ -1,7 +1,7 @@
 // Formula-panel (Scene.formula) helpers shared by Ch 31-36: significant figures for the inputs
-// of a line, so that the arithmetic shown reproduces the printed result, and tiny SI values.
+// of a line (at most INPUT_SIG = 3, policy D in docs/design.md §3.3), and tiny SI values.
 import { fmt } from '../../core/format';
-import { tn } from '../../core/tex';
+import { INPUT_SIG, tn } from '../../core/tex';
 
 /**
  * tn() without the zero tolerance: tiny SI constants (r = 5.29×10⁻¹¹ m, e = 1.60×10⁻¹⁹ C) print
@@ -21,12 +21,13 @@ export type Round = (x: number) => number;
 export const printed = (x: number, s: number) => Number(tns(x, s).replace(/\\times 10\^\{(-?\d+)\}/, 'e$1'));
 
 /**
- * Fewest figures s in [lo, hi] for which show(printed at s) prints target; hi if none does.
- * show receives the rounding function, so several inputs can share one s.
+ * Fewest figures s in [lo, min(hi, INPUT_SIG)] for which show(printed at s) prints target; that
+ * upper bound if none does. show receives the rounding function, so several inputs can share one s.
  */
 export function fitSig(show: (r: Round) => string, target: string, lo = 3, hi = 8): number {
-  for (let s = lo; s < hi; s++) {
+  const top = Math.min(hi, INPUT_SIG);
+  for (let s = lo; s < top; s++) {
     if (show((x) => printed(x, s)) === target) return s;
   }
-  return hi;
+  return top;
 }

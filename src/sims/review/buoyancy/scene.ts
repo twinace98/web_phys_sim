@@ -5,9 +5,8 @@ import type { ParamSchema, Scene, Vec2 } from '../../../core/types';
 import { t } from '../../../core/i18n';
 import { UI_FONT, theme } from '../../../draw/theme';
 import type { Draw } from '../../../draw/draw';
-import { paren, tn } from '../../../core/tex';
+import { paren } from '../../../core/tex';
 import { sigFit } from '../../ch07/sigfit';
-import { printed } from '../../ch31/fit';
 import { texNum } from '../../field/render';
 import {
   GRAV,
@@ -181,11 +180,9 @@ export function formulaLines(s: Motion & { held?: boolean }, p: P): string[] {
   const hasN = N > 0;
   const xs = [Fb, Fg, Fd, N, hand];
   const sumOf = (...v: number[]) => v[0] - v[1] + v[2] + v[3] + v[4];
-  // A result on a decimal tie (147.15 − 196.20 = −49.05) gets a fourth figure.
-  let rs = 3;
-  let sn = sigFit(xs, sumOf, total, rs);
-  const shows = (k: number) => tn(sumOf(...xs.map((x) => printed(x, k))), rs) === tn(total, rs);
-  while (total !== 0 && rs < 5 && !shows(sn)) sn = sigFit(xs, sumOf, total, ++rs);
+  // The result prints at 3 figures from the unrounded forces (policy D, R3).
+  const rs = 3;
+  const sn = sigFit(xs, sumOf, total, rs);
   const terms = [`F_b - F_g`, hasD ? '+ F_d' : '', hasN ? '+ N' : '', withHand ? `+ F_\\text{${t('buoyancy.hand')}}` : ''].join(' ');
   const vals = [
     `${n(Fb, sn)} - ${n(Fg, sn)}`,

@@ -16,7 +16,7 @@ import ch08ko from '../src/sims/ch08/i18n.ko.json';
 import { spinScene } from '../src/sims/ch11/spin';
 import ch11en from '../src/sims/ch11/i18n.en.json';
 import ch11ko from '../src/sims/ch11/i18n.ko.json';
-import { NUM, agrees, val } from './sigma-digits';
+import { NUM, agrees, agreesWithin, val } from './sigma-digits';
 
 const N = NUM;
 const H = 1 / 240;
@@ -42,8 +42,8 @@ function checkFirst(s: any, p: any, tag: string): void {
   expect(m1[2], tag).toBe(tn(-s.f));
   const last = lastV(lines);
   const res =last.match(new RegExp(`= (${N})\\\\ \\\\mathrm\\{m/s\\}$`))![1];
-  // The readout's digits, or the other side of an exact tie (1.775).
-  expect(agrees(s.v, res), `${tag} ${last}`).toBe(true);
+  // The result is the readout string (policy D, R3), also on an exact tie (1.775).
+  expect(res, `${tag} ${last}`).toBe(tn(s.v));
   if (s.f + s.F === 0) {
     // Constant velocity: v_0 only while the speed is still the starting one.
     expect(last, tag).toContain(s.v === p.v0 ? 'v = v_0 = ' : 'v = v_1 = ');
@@ -55,10 +55,12 @@ function checkFirst(s: any, p: any, tag: string): void {
   expect(v0 || v1, `${tag} ${last}`).not.toBeNull();
   if (v0) {
     expect(s.t1, tag).toBe(0);
-    expect(agrees(val(v0[1]) + val(v0[2]) * val(v0[3]), v0[4]), `${tag} ${last}`).toBe(true);
+    // v₀ + at nearly cancels as the puck stops (R5): allow the rounding of the 3-figure a and t.
+    expect(agreesWithin((a, b, c) => a + b * c, v0.slice(1, 4), v0[4], [0]), `${tag} ${last}`).toBe(true);
   } else {
     expect(s.t1, tag).toBeGreaterThan(0);
-    expect(agrees(val(v1![1]) + val(v1![2]) * (val(v1![3]) - val(v1![4])), v1![5]), `${tag} ${last}`).toBe(true);
+    // t − t₁ is a difference of two 3-figure times (R5): allow their rounding.
+    expect(agreesWithin((a, b, c, d) => a + b * (c - d), v1!.slice(1, 5), v1![5]), `${tag} ${last}`).toBe(true);
   }
 }
 

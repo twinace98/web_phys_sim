@@ -4,7 +4,7 @@
 import { paren, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
-import { printed, sigsToMatch } from '../ch02/sigma';
+import { sigsToMatch } from '../ch02/sigma';
 import { tnFit } from '../ch07/sigfit';
 import { drawPuckFbd, drawTrack, padded, weightPair } from './common';
 
@@ -109,22 +109,13 @@ export function firstStep(x: number, v: number, mu: number, push: boolean, h: nu
 }
 
 /**
- * Printed inputs and result for v = f(inputs) in the Σ panel: each input with the fewest digits that
- * reproduce the result (sigsToMatch), exact values without trailing zeros (tnFit). With μ = 0.3 the
- * speed often lands on an exact tie (2.02 − 2.94 × 0.0833… = 1.775) that rounds either way; then the
- * side the printed inputs reach with fewer digits is printed.
+ * Printed inputs and result for v = f(inputs) in the Σ panel: inputs with at most 3 figures
+ * (sigsToMatch), the result as the v readout prints it (policy D, R3). On a tie such as
+ * 2.02 − 2.94 × 0.0833… = 1.775 (μ = 0.3) the result follows the unrounded speed, like the readout.
  */
 export function fitSpeed(v: number, xs: number[], f: (...x: number[]) => number): { xs: string[]; v: string } {
-  const at = (sig: number[]) => f(...xs.map((x, i) => printed(x, sig[i])));
-  let best: { sig: number[]; v: string } | undefined;
-  for (const w of [v, v * (1 + 1e-9), v * (1 - 1e-9)]) {
-    const sig = sigsToMatch(w, xs, f);
-    const sum = sig.reduce((a, b) => a + b, 0);
-    if (tn(at(sig)) === tn(w) && (!best || sum < best.sig.reduce((a, b) => a + b, 0))) best = { sig, v: tn(w) };
-  }
-  // Nothing fits (not expected): print the arithmetic of the printed inputs, so the line still adds up.
-  const sig = best?.sig ?? sigsToMatch(v, xs, f);
-  return { xs: xs.map((x, i) => tnFit(x, sig[i])), v: best?.v ?? tn(at(sig)) };
+  const sig = sigsToMatch(v, xs, f);
+  return { xs: xs.map((x, i) => tnFit(x, sig[i])), v: tn(v) };
 }
 
 export const first: Scene<P, S> = {

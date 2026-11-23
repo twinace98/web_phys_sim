@@ -24,7 +24,7 @@ import {
 } from '../src/sims/review/ladder/physics';
 import { H, L, endTime, forcesAt, input, ladderScene, onsetTime, runInput } from '../src/sims/review/ladder/scene';
 
-import { NUM, agrees, val } from './sigma-digits';
+import { NUM, agreesWithin } from './sigma-digits';
 
 const DEG = Math.PI / 180;
 
@@ -411,7 +411,8 @@ describe('ladder: scene', () => {
           if (!m) continue;
           hits[name] = (hits[name] ?? 0) + 1;
           const t = m.slice(1);
-          if (!agrees(f(t.slice(0, -1).map(val)), t[t.length - 1])) bad.push(`${tag} ${name}: ${l}`);
+          // d_c − d_0 and E₀ − E are differences (R5): allow the rounding of their 3-figure inputs.
+          if (!agreesWithin((...x) => f(x), t.slice(0, -1), t[t.length - 1])) bad.push(`${tag} ${name}: ${l}`);
         }
         if (/\{-?0(\.0+)?\}/.test(l)) bad.push(`${tag} zero denominator ${l}`);
       }

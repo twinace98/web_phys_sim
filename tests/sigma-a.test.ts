@@ -5,7 +5,7 @@ import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
 import { tn } from '../src/core/tex';
 import type { Params, Scene } from '../src/core/types';
-import { sigToMatch } from '../src/sims/ch02/sigma';
+import { sigToMatch, sigsToMatch } from '../src/sims/ch02/sigma';
 import ch02 from '../src/sims/ch02';
 import ch03 from '../src/sims/ch03';
 import { add, components } from '../src/sims/ch03/physics';
@@ -64,13 +64,16 @@ function check(sc: Scene, over: Record<string, unknown>, steps: number[], expect
 
 const STEPS = [0, 150, 301, 700, 2000];
 
-describe('sigToMatch', () => {
-  it('adds digits until the printed arithmetic gives the printed result', () => {
-    // 10 − 9.8 × 1.25 = −2.25, but the exact t = 1.2542 gives −2.29.
-    expect(sigToMatch(10 - 9.8 * 1.2542, [1.2542], (t) => 10 - 9.8 * t)).toBe(4);
+describe('sigToMatch (policy D: at most 3 figures)', () => {
+  it('never returns more than 3 figures, also where the printed arithmetic would need more', () => {
+    // 10 − 9.8 × 1.25 = −2.25, but the exact t = 1.2542 gives −2.29: still 3 figures (R3).
+    expect(sigToMatch(10 - 9.8 * 1.2542, [1.2542], (t) => 10 - 9.8 * t)).toBe(3);
     expect(sigToMatch(2 * 3, [3], (x) => 2 * x)).toBe(3);
-    // A result that prints as 0.00 accepts a printed leftover below 0.005.
-    expect(sigToMatch(0, [2.0203051], (t) => 20 - 4.9 * t * t)).toBeLessThan(7);
+    expect(sigToMatch(0, [2.0203051], (t) => 20 - 4.9 * t * t)).toBe(3);
+    // A call asking for at least 4 figures gets 3; one allowing 2 keeps 2 when they suffice.
+    expect(sigToMatch(2 * 1.2542, [1.2542], (x) => 2 * x, 4)).toBe(3);
+    expect(sigToMatch(2 * 1.5, [1.5], (x) => 2 * x, 2)).toBe(2);
+    expect(sigsToMatch(Math.hypot(14.142, -0.517), [14.142, -0.517], Math.hypot)).toEqual([3, 3]);
   });
 });
 

@@ -1,7 +1,7 @@
 // Ch 39 scenes: bound states of 1D wells drawn as an energy diagram (U(x), levels, ψ or |ψ|²),
 // and the time evolution of a two-state superposition.
 import { fmt } from '../../core/format';
-import { num, tn, u } from '../../core/tex';
+import { INPUT_SIG, num, tn, u } from '../../core/tex';
 import type { ParamSchema, ParamSpec, Scene } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
@@ -226,11 +226,11 @@ const label = (n: number, E: number, narrow: boolean, top = Infinity) => (narrow
 /** h²/8m for the electron [eV nm²] = π² ħ²/2m. */
 const H2_8M = HB2M * Math.PI ** 2;
 
-/** Significant figures for two inputs whose difference prints at 3 figures, so the shown arithmetic holds. */
+/** Significant figures for two inputs of a difference: the fewest (≥ 3) that reproduce the printed result, at most INPUT_SIG. */
 export function diffSig(a: number, b: number): number {
   const r = (v: number, s: number) => Number(v.toPrecision(s));
-  for (let s = 3; s < 8; s++) if (tn(r(a, s) - r(b, s)) === tn(a - b)) return s;
-  return 8;
+  for (let s = 3; s < INPUT_SIG; s++) if (tn(r(a, s) - r(b, s)) === tn(a - b)) return s;
+  return INPUT_SIG;
 }
 
 const levelDiff = (E: number[], hi: number, lo: number, n0: number) => {

@@ -109,7 +109,8 @@ describe('welljump stage', () => {
   it('formula panel: E_n with numbers, ΔE and λ at the defaults (L = 1 nm, 3 → 2)', () => {
     const p = defaults(welljump.params);
     const f = welljump.formula!(welljump.init(p, null as never), p).join(' ');
-    expect(f).toContain('0.3760');
+    // E₁ = 0.376 eV, 3 figures (policy D).
+    expect(f).toContain('= 0.376\\ \\text{eV}');
     expect(f).toContain('3.384');
     expect(f).toContain('1.504');
     expect(f).toContain('1.880');

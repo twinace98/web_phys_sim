@@ -619,6 +619,11 @@ kbd {
 .panel.formula .eqs .katex-display {
   margin: 0.5em 0;
 }
+/* The rounding note under the lines (policy D, docs/design.md §3.3). */
+.panel.formula .formula-note {
+  margin: 12px 0 2px;
+  font-size: 0.85em;
+}
 .chapters .todo .name {
   font-weight: 400;
 }

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { formulaFree, freeScene } from '../src/sims/ch31/free';
-import { tns } from '../src/sims/ch31/fit';
 import { tn } from '../src/core/tex';
 import { defaults } from '../src/core/params';
 import { fmt } from '../src/core/format';
@@ -125,8 +124,8 @@ describe('ch31 free RLC: the 100 Ω ⓘ line is tied to R ≥ 2√(L/C) (review 
         expect(m![3].trim(), line).toBe(tn(Ur));
         if (Math.abs(Ur) < 1e-9) expect([a, b, c]).toEqual([0, 0, 0]);
         else {
-          // Terms in exponent form when tiny: their sum, as printed, is the printed U.
-          expect(tns(a + b), line).toBe(m![3].trim());
+          // Terms in exponent form when tiny: their sum, as printed, agrees with the printed U (R3).
+          expect(Math.abs(a + b - c), line).toBeLessThanOrEqual(0.01 * c);
           expect(a + b, line).toBeGreaterThan(0);
         }
       }
