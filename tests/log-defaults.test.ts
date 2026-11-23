@@ -16,7 +16,7 @@ describe('log sliders reach their default and marks', () => {
           const sp = spec as NumberParam;
           const stops = logStops(sp);
           for (const v of [sp.default, ...(sp.marks ?? [])]) {
-            const where = `${meta.id ?? ''} ${scene.id}.${key} = ${v}`;
+            const where = `Ch ${meta.ch} ${scene.id}.${key} = ${v}`;
             expect(stops, where).toContain(v);
             // The thumb placed for v gives v back, and a URL with v keeps it.
             expect(stops[logIndex(sp, v)], where).toBe(v);
