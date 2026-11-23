@@ -24,7 +24,7 @@ import {
   rk4,
   type Osc,
 } from './physics';
-import { sigFit } from '../../ch07/sigfit';
+import { slider, tnCmp } from '../../../core/tex';
 import { tn, tp, u } from './tex';
 
 type P = { b: number; m: number; k: number; vectors: boolean; fbd: boolean };
@@ -238,10 +238,14 @@ export const freeScene: Scene<P, S> = {
     const r = regime(o);
     const E = energy(o, s.x, s.v).E;
     const cmp = r === 'under' ? '<' : r === 'critical' ? '=' : '>';
+    // Policy D: b, m, k as their slider labels (R1), derived values at 3 figures (R3); b_c against
+    // b keeps the figures that show the inequality (R6).
+    const [bS, mS, kS] = [slider(params.b, p.b), slider(params.m, p.m), slider(params.k, p.k)];
+    const bc = bCrit(o);
     const lines = [
-      `\\omega_0 = \\sqrt{k/m} = \\sqrt{${p.k}/${p.m.toFixed(1)}} = ${tn(w0)}${u('rad/s')}`,
-      `b = ${p.b.toFixed(1)} ${cmp} b_c = 2\\sqrt{km} = ${tn(bCrit(o))}${u('kg/s')}`,
-      `\\gamma = \\frac{b}{2m} = \\frac{${p.b.toFixed(1)}}{2 \\times ${p.m.toFixed(1)}} = ${tn(g)}${u('s^{-1}')}`,
+      `\\omega_0 = \\sqrt{k/m} = \\sqrt{${kS}/${mS}} = ${tn(w0)}${u('rad/s')}`,
+      `b = ${bS} ${cmp} b_c = 2\\sqrt{km} = ${r === 'critical' ? tn(bc) : tnCmp(bc, p.b)}${u('kg/s')}`,
+      `\\gamma = \\frac{b}{2m} = \\frac{${bS}}{2 \\times ${mS}} = ${tn(g)}${u('s^{-1}')}`,
     ];
     if (r === 'under') {
       const xm = amplitudeConst(o, X0);
@@ -268,9 +272,10 @@ export const freeScene: Scene<P, S> = {
       // Net force from the drawn forces (y up): F_s − mg + F_d = −kx − bv = ma.
       const [Fs, , Fd] = fbdForces(s, p).map((f) => f.F.y);
       const mg = p.m * DAMPED_G;
+      // ΣF is a small difference of F_s ≈ mg (R5): 3 figures from the unrounded forces, so the
+      // printed 3-figure terms may miss it by more than the last digit.
       const net = Fs - mg + Fd;
-      const sf = sigFit([Fs, mg, Fd], (a, b, c) => a - b + c, net);
-      lines.push(`\\Sigma F = F_s - mg + F_d = ${tn(Fs, sf)} - ${tn(mg, sf)} + ${tp(Fd, sf)} = ${tn(net)}${u('N')} = ma`);
+      lines.push(`\\Sigma F = F_s - mg + F_d = ${tn(Fs)} - ${tn(mg)} + ${tp(Fd)} = ${tn(net)}${u('N')} = ma`);
     }
     return lines;
   },

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { defaults, fromQuery } from '../src/core/params';
 import { probe } from './stage-probe';
 import { Runner } from '../src/core/runner';
+import { readoutText } from '../src/core/precision';
 import {
   C,
   F_RANGE,
@@ -129,8 +130,9 @@ describe('photoelectric scene', () => {
     expect(l[1]).toContain('\\lambda = c/f = 400');
     expect(l[1]).toContain('f_0 = \\Phi/h = 5.51\\times10^{14}');
     expect(l[2]).toContain('V_\\text{stop} = K_\\text{max}');
-    expect(l[2]).toContain('3.10 - 2.28 = 0.82');
-    expect(l[0]).toContain(tsci(H_OVER_E, 4));
+    // Policy D: K_max is the V_stop readout string (3 figures), h is Halliday's 4.14×10⁻¹⁵ eV s.
+    expect(l[2]).toContain('3.10 - 2.28 = 0.822\\ \\mathrm{eV}');
+    expect(l[0]).toContain('(4.14\\times 10^{-15}\\ \\mathrm{eV\\,s})');
     expect(tsci(H_OVER_E, 4)).toBe('4.136\\times10^{-15}');
     const below = formulaLines({ ...base, f: 5.0 });
     expect(below[2]).toContain('K_\\text{max} = 0');
@@ -143,6 +145,20 @@ describe('photoelectric scene', () => {
     expect(fitted.length).toBe(4);
     expect(fitted[3]).toContain('t_\\text{cl}');
     for (const s of [...l, ...below, ...fitted]) expect(s).not.toMatch(/NaN|undefined|Infinity|−/);
+  });
+
+  it('policy D: K_max near the threshold is the V_stop readout (R5), f_0 has 3 figures', () => {
+    // Na at 5.6×10¹⁴ Hz: hf = 2.316 eV, K_max = 0.0360 eV (the printed 2.32 − 2.28 gives 0.04).
+    const near = formulaLines({ ...base, f: 5.6 });
+    expect(near[0]).toContain('(5.6\\times10^{14}');
+    expect(near[2]).toContain('= 2.32 - 2.28 = 0.0360\\ \\mathrm{eV}');
+    const r = new Runner(photoelectric, { ...base, f: 5.6 }, 1);
+    const vs = photoelectric.readouts!.find((x) => x.label === 'V_\\text{stop}')!;
+    expect(readoutText(vs as never, vs.value(r.state, { ...base, f: 5.6 }), base)).toBe('0.0360');
+    // Pt: f_0 = 13.66×10¹⁴ Hz prints 3 figures.
+    expect(formulaLines({ ...base, metal: 'Pt' })[1]).toContain('f_0 = \\Phi/h = 13.7\\times10^{14}');
+    // Every slider value of f prints as its label (one decimal).
+    for (let f = 4.0; f <= 16.6 + 1e-9; f += 0.1) expect(formulaLines({ ...base, f: Number(f.toFixed(1)) })[0]).toContain(`(${f.toFixed(1)}\\times10^{14}`);
   });
 
   it('readouts follow the model; the I–V axis holds the saturation current', () => {

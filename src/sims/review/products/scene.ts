@@ -196,10 +196,10 @@ const dragParam: SelectParam = {
   ],
 };
 
-/** Degrees with one decimal for TeX. */
-const deg = (r: number) => (r / DEG).toFixed(1);
 /** TeX number, 3 significant figures, ASCII minus. */
 const tx = (v: number, sig = 3) => fmt(v, sig).replace('−', '-');
+/** Degrees as the φ readout and the stage arc print them: 3 figures (R8: 104°, 5.19°, not 104.0°, 5.2°). */
+const deg = (r: number) => tx(r / DEG);
 /** Component as stored (at most 2 decimals, trailing zeros dropped), in parentheses (products written as juxtaposition). */
 const cpt = (v: number) => `(${Number((Math.abs(v) < 0.005 ? 0 : v).toFixed(2))})`;
 /** Magnitude, 3 significant figures, in parentheses. */
@@ -928,7 +928,8 @@ export const crossScene: Scene<PC, { t: number }> = {
     const phi = signedAngle(a, b);
     const cz = crossZ(a, b);
     const hs = lb * Math.sin(phi);
-    const dir = Math.abs(cz) < 0.005 ? '\\vec 0' : `${tx(Math.abs(cz))}\\,${cz > 0 ? '\\hat k\\ (\\odot)' : '(-\\hat k)\\ (\\otimes)'}`;
+    // The zero vector only where (a × b)_z itself prints 0 (the readout's 10⁻⁹), never next to 0.00300.
+    const dir = Math.abs(cz) < 1e-9 ? '\\vec 0' : `${tx(Math.abs(cz))}\\,${cz > 0 ? '\\hat k\\ (\\odot)' : '(-\\hat k)\\ (\\otimes)'}`;
     const pr = (x: number, y: number) => `${cpt(x)}${cpt(y)}`;
     return [
       `(\\vec a\\times\\vec b)_z = a\\,(b\\sin\\varphi) = a_x b_y - a_y b_x`,

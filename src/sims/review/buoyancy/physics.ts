@@ -3,7 +3,7 @@
 // Forces on the block: weight, buoyancy ρ_f V_sub g, linear damping −b v on the submerged part,
 // and the normal force of the tank floor when it rests there.
 
-export const GRAV = 9.81; // m/s²
+export const GRAV = 9.8; // m/s², Halliday's g (CONST.g), as on every other page
 export const P0 = 101.3e3; // Pa, atmospheric pressure at the surface
 /** Tank: inner width W (square cross-section W × W), wall height H, fluid depth without the block h0 [m]. */
 export const TANK = { W: 0.8, H: 0.7, h0: 0.4 };

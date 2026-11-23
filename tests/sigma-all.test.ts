@@ -70,13 +70,6 @@ const PENDING: Record<string, Partial<Record<Check, string>>> = {
   '30/maxwell': { slider: 'R1: dBdt "1.0" printed "1"', inputSig: 'A = 0.1942 m² (4 figures)' },
   '31/ac': { slider: 'R1: ratio "0.80" printed "0.8"' },
   '32/materials': { slider: 'R1: T "0.50" printed "0.5"', inputSig: 'Onsager T_c = 2.269 (4 figures)' },
-  // Review pages 101–109
-  '101/photoelectric': { inputSig: 'h = 4.136×10⁻¹⁵ eV s: CONST.hEV' },
-  '102/transitions': { result: 'ΔE 1.8887 against the readout 1.889', inputSig: '13.5983 eV, 1239.84 eV nm: CONST.Ry, CONST.hc' },
-  '103/welljump': { result: 'ΔE 1.8802, λ 659.4 against readouts 1.88, 659', inputSig: 'hc = 1239.84 (CONST.hc), mc² = 511.0; inline sD loop' },
-  '105/ladder': { slider: 'R1: v, mu "1.00" printed "1.0"' },
-  '106/gravfield': { inputSig: 'G = 6.674×10⁻¹¹: CONST.G' },
-  '107/buoyancy': { recompute: 'R5: F_net = 52.5 - 47.1 - 2.83 = 2.61 N on 3-figure forces' },
 };
 
 function cases(scene: Scene): { name: string; p: Params }[] {

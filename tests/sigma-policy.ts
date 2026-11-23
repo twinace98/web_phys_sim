@@ -350,6 +350,11 @@ export const ALLOW: { scene: string; lhs: RegExp; checks: Check[]; why: string }
   // Ch 33–42
   { scene: '33/refraction', lhs: /^\\theta_2$/, checks: ['inputSig'], why: 'R6: sin θ₂ just below 1 keeps its side of 1 (θ₁ = 41.8°: sin⁻¹(0.9998), not sin⁻¹(1.00))' },
   { scene: '39/wells', lhs: /^N$/, checks: ['inputSig'], why: 'R6: 2z₀/π next to an integer keeps its side for the ceiling (L = 1.3 nm, U₀ = 2.0 eV: ⌈2.998⌉ = 3)' },
+  // Review pages 101–109
+  { scene: '101/photoelectric', lhs: /V_\\text\{stop\}/, checks: ['recompute'], why: 'R5: K_max = hf − Φ near the threshold (2.32 − 2.28 = 0.0360 eV), from the unrounded hf' },
+  { scene: '107/buoyancy', lhs: /^F_\\text\{net\}$/, checks: ['recompute'], why: 'R5: F_b − F_g + F_d nearly cancel while bobbing; F_net from the unrounded forces' },
+  { scene: '108/free', lhs: /^\\Sigma F$/, checks: ['recompute'], why: 'R5: F_s ≈ mg near equilibrium; ΣF from the unrounded forces' },
+  { scene: '108/driven', lhs: /^\\Sigma F$/, checks: ['recompute'], why: 'R5: F_s ≈ mg near equilibrium; ΣF from the unrounded forces' },
 ];
 
 /** Physical small values (R7b): their readout and Σ result never print as 0.00. Scene key → labels. */

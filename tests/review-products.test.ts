@@ -1,6 +1,7 @@
 // Addition under review: dot and cross products (→ Ch 3).
 import { afterEach, describe, expect, it } from 'vitest';
 import { fmt } from '../src/core/format';
+import { readoutText } from '../src/core/precision';
 import { defaults } from '../src/core/params';
 import { Rng } from '../src/core/rng';
 import type { Params, Scene, Vec2 } from '../src/core/types';
@@ -194,6 +195,24 @@ describe('products: scenes', () => {
     expect(sw[2]).toMatch(/= -11\.0$/);
     expect(sw[3]).toMatch(/= -11\.0$/);
     expect(sw[4]).toContain('\\otimes');
+  });
+
+  it('policy D (R8): φ in Σ is the readout string (3 figures: 157°, not 156.9°)', () => {
+    const base = defaults(dotScene.params) as Params;
+    const phiText = (sc: Scene, p: Params) => {
+      const spec = sc.readouts!.find((r) => r.label === '\\varphi')!;
+      return readoutText(spec as never, spec.value({ t: 0 } as never, p as never), p);
+    };
+    expect(run(dotScene, { ...base, B: [-3, 0.5] })[1]).toBe('b\\cos\\varphi = (3.04)\\cos 157^\\circ = -2.79');
+    for (const B of [[-3, 0.5], [-1.25, 3.5], [1, 3], [0.1, 5], [-5, -0.2], [3, -4.5]])
+      for (const sc of [dotScene, crossScene]) {
+        const p = { ...(defaults(sc.params) as Params), B };
+        expect(run(sc, p)[1], JSON.stringify(B)).toContain(sc === dotScene ? `\\cos ${phiText(sc, p).replace('−', '-')}^\\circ` : `\\sin(${phiText(sc, p).replace('−', '-')}^\\circ)`);
+      }
+    // The zero vector only where (a × b)_z prints 0; a small cross product keeps its value.
+    const cp = defaults(crossScene.params) as Params;
+    expect(run(crossScene, { ...cp, A: [4, 1], B: [8, 2] })[4]).toBe('\\vec a\\times\\vec b = \\vec 0');
+    expect(run(crossScene, { ...cp, A: [4, 1], B: [4, 1.01] })[4]).toBe('\\vec a\\times\\vec b = 0.0400\\,\\hat k\\ (\\odot)');
   });
 
   it('formula lines stay finite for zero, parallel and antiparallel vectors', () => {

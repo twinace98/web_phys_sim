@@ -4,6 +4,7 @@
 // every point where g = 0 (×) with the equipotential through it (thick), and a draggable test
 // mass with its field vectors. Reuses the 2D field engine and the charge tray of Ch 22/24.
 import { t } from '../../../core/i18n';
+import { CONST } from '../../../core/tex';
 import type { Handle, ParamSchema, Params, Scene, SceneCtx, UiState, Vec2 } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
 import { theme } from '../../../draw/theme';
@@ -287,7 +288,7 @@ export function formulaLines(p: P): string[] {
   if (ms.length <= 2) {
     ms.forEach((b, i) => {
       const r = Math.hypot(at.x - b.x, at.y - b.y);
-      out.push(`g_${b.n} = \\frac{GM_${b.n}}{r_${b.n}^2} = \\frac{(${texNum(G, 4, 0)})(${kg(b.m)})}{(${meters(r)})^2} = ${n3(mag(parts[i]))}\\ \\mathrm{m/s^2}`);
+      out.push(`g_${b.n} = \\frac{GM_${b.n}}{r_${b.n}^2} = \\frac{(${CONST.G.tex})(${kg(b.m)})}{(${meters(r)})^2} = ${n3(mag(parts[i]))}\\ \\mathrm{m/s^2}`);
     });
   } else {
     // Three or four masses: the values of g_i = GM_i/r_i², two per line.
