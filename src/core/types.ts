@@ -60,6 +60,8 @@ export interface NumberParam extends ParamBase {
   log?: boolean;
   /** log slider: significant figures of the value (default 2). */
   sig?: number;
+  /** log slider: named values it lands on exactly, each in place of the nearest track point. */
+  marks?: number[];
   choices?: number[];
   min?: number;
   max?: number;
