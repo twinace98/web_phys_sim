@@ -1,6 +1,6 @@
 // Σ digits policy D, phase 2 for Ch 33–42 (docs/design.md §3.3): the exact strings of the audit
 // items (2026-11-23 §5) at their quoted settings, and sweeps over the controls where the default
-// sampling of tests/sigma-all.test.ts (defaults, min, max) misses an item.
+// sampling of tests/sigma-all.shared.ts (defaults, min, max) misses an item.
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
