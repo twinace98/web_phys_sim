@@ -109,10 +109,15 @@ export class SimView {
     const onVis = () => {
       if (document.hidden) this.runner.pause();
     };
+    // Crossing the phone breakpoint switches an open panel between docked column and bottom sheet.
+    const phone = window.matchMedia('(max-width: 767px)');
+    const onPhone = () => this.dockPanel();
     window.addEventListener('keydown', onKey);
     document.addEventListener('visibilitychange', onVis);
+    phone.addEventListener('change', onPhone);
     this.off.push(
       () => window.removeEventListener('keydown', onKey),
+      () => phone.removeEventListener('change', onPhone),
       () => document.removeEventListener('visibilitychange', onVis),
       onLangChange(() => {
         this.build();
@@ -468,23 +473,29 @@ export class SimView {
   }
 
   /**
-   * The formula panel is read while the sim keeps running, so on a wide screen it docks: the sim
-   * narrows by the panel width (the stage and plots re-lay out) instead of being covered. The
-   * settings and info panels still overlay (read, then close). Phones keep the bottom sheet.
+   * Side panels (settings, ⓘ, Σ) are read while the sim keeps running, so on a wide screen the open
+   * one docks as a third column: the sim narrows by the panel width (the stage and plots re-lay out)
+   * instead of being covered. Phones keep the bottom sheet.
    */
-  private dockFormula(): void {
+  private dockPanel(): void {
     const main = this.mainEl;
     if (!main) return;
-    const docked = this.panel === 'formula' && !window.matchMedia('(max-width: 767px)').matches;
-    main.style.marginRight = docked ? `${this.formula.offsetWidth}px` : '';
+    const el = this.panelEl();
+    const docked = !!el && !window.matchMedia('(max-width: 767px)').matches;
+    main.style.marginRight = docked ? `${el.offsetWidth}px` : '';
     this.dockRo?.disconnect();
     if (docked) {
       // Follow the panel when its edge is dragged.
       this.dockRo = new ResizeObserver(() => {
-        if (this.panel === 'formula') main.style.marginRight = `${this.formula.offsetWidth}px`;
+        if (this.panelEl() === el) main.style.marginRight = `${el.offsetWidth}px`;
       });
-      this.dockRo.observe(this.formula);
+      this.dockRo.observe(el);
     }
+  }
+
+  /** The open side panel, if any. */
+  private panelEl(): HTMLElement | undefined {
+    return this.panel === 'settings' ? this.settings : this.panel === 'info' ? this.info : this.panel === 'formula' ? this.formula : undefined;
   }
 
   /** Formula panel: filled while open from Scene.formula, re-rendered only when the text changes. */
@@ -606,7 +617,7 @@ export class SimView {
     this.formula.classList.toggle('open', this.panel === 'formula');
     this.formulaTex = '';
     this.formulaAt = -Infinity;
-    this.dockFormula();
+    this.dockPanel();
     if (this.panel === 'info' && this.eqBox) fitEquations(this.eqBox);
   }
 
