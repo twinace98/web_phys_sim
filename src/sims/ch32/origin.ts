@@ -5,9 +5,9 @@ import { t } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2, WorldSpec } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { TICK } from '../inset/inset';
-import { u } from '../../core/tex';
-import { fitSig, tns } from '../ch31/fit';
-import { A0, E_CHARGE, MU_B, M_E, V1, orbit } from './physics';
+import { CONST, u } from '../../core/tex';
+import { tns } from '../ch31/fit';
+import { A0, MU_B, V1, orbit } from './physics';
 
 type P = { dir: string; spin: string };
 
@@ -106,26 +106,23 @@ export function formulaOrigin(p: P): string[] {
   const { T, I, mu, L } = ORB;
   const r = A0;
   const v = V1;
-  const e = E_CHARGE;
-  const st = fitSig((q) => tns((2 * Math.PI * q(r)) / q(v)), tns(T));
-  const si = fitSig((q) => tns((q(e) / q(T)) * 1e3), tns(I * 1e3));
-  const sm = fitSig((q) => tns(q(I) * Math.PI * q(r) ** 2), tns(mu));
-  const sl = fitSig((q) => tns(q(M_E) * q(v) * q(r)), tns(L));
+  // Policy D: e and mₑ from CONST, the orbit values with 3 figures; the printed arithmetic may
+  // differ from the result in the last digit.
   const d = p.dir === 'ccw' ? 1 : -1;
   const sgn = (k: number) => (k > 0 ? '+' : '-');
   const up = p.spin === 'up' ? 1 : -1;
   const JT = u('J/T');
   // Long products split over two lines, so they stay legible on a phone.
   return [
-    `T = \\frac{2\\pi r}{v} = \\frac{2\\pi(${tns(r, st)})}{${tns(v, st)}} = ${tns(T)}${u('s')}`,
-    `I = \\frac{e}{T} = \\frac{${tns(e, si)}}{${tns(T, si)}} = ${tns(I * 1e3)}${u('mA')}`,
-    `\\mu = IA = I\\pi r^2 = (${tns(I, sm)})\\,\\pi\\,(${tns(r, sm)})^2`,
+    `T = \\frac{2\\pi r}{v} = \\frac{2\\pi(${tns(r)})}{${tns(v)}} = ${tns(T)}${u('s')}`,
+    `I = \\frac{e}{T} = \\frac{${CONST.e.tex}}{${tns(T)}} = ${tns(I * 1e3)}${u('mA')}`,
+    `\\mu = IA = I\\pi r^2 = (${tns(I)})\\,\\pi\\,(${tns(r)})^2`,
     `= ${tns(mu)}${JT}`,
-    `L = mvr = (${tns(M_E, sl)})(${tns(v, sl)})(${tns(r, sl)})`,
+    `L = mvr = (${CONST.me.tex})(${tns(v)})(${tns(r)})`,
     `= ${tns(L)}${u('J\\,s')} = \\hbar`,
     `\\mu_z = -\\frac{e}{2m}L_z = -\\frac{e}{2m}(${sgn(d)}\\hbar) = ${sgn(-d)}\\mu_B = ${tns(-d * mu)}${JT}`,
     `\\mu_{s,z} = -\\frac{e}{m}S_z = -\\frac{e}{m}\\left(${sgn(up)}\\frac{\\hbar}{2}\\right)`,
-    `= ${sgn(-up)}\\mu_B =${tns(-up * MU_B)}${JT}`,
+    `= ${sgn(-up)}\\mu_B = ${tns(-up * MU_B)}${JT}`,
   ];
 }
 

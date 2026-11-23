@@ -16,7 +16,7 @@ describe('ch26 Ī graph', () => {
       const I = currentOf({ L: p.L, A: p.A, T: p.T }, V) * 1e3;
       const plot = conduction.plots!.find((q) => q.id === 'i')!;
       const [lo, hi] = plot.yRange!(p);
-      const read = conduction.readouts!.find((r) => r.label === 'I')!;
+      const read = conduction.readouts!.find((r) => r.label === '\\bar I')!;
       let inRange = 0;
       let n = 0;
       for (let seed = 1; seed <= 6; seed++) {
@@ -47,8 +47,8 @@ describe('ch26 Ī graph', () => {
     // Now ΔQ/Δt from 4τ: expected bias −τ e^{−4}/(t − 4τ) ≈ −0.2 %; mean of 60 runs (σ ≈ 5 % each).
     const p = { ...defaults(conduction.params), V: 1.5 };
     const I = currentOf({ L: p.L, A: p.A, T: p.T }, p.V) * 1e3;
-    const read = conduction.readouts!.find((r) => r.label === 'I')!;
-    const ohm = conduction.readouts!.find((r) => r.label === 'V/I')!;
+    const read = conduction.readouts!.find((r) => r.label === '\\bar I')!;
+    const ohm = conduction.readouts!.find((r) => r.label === 'V/\\bar I')!;
     let sum = 0;
     let sumR = 0;
     const N = 60;

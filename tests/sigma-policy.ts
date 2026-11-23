@@ -355,6 +355,8 @@ export const ALLOW: { scene: string; lhs: RegExp; checks: Check[]; why: string }
   { scene: '107/buoyancy', lhs: /^F_\\text\{net\}$/, checks: ['recompute'], why: 'R5: F_b − F_g + F_d nearly cancel while bobbing; F_net from the unrounded forces' },
   { scene: '108/free', lhs: /^\\Sigma F$/, checks: ['recompute'], why: 'R5: F_s ≈ mg near equilibrium; ΣF from the unrounded forces' },
   { scene: '108/driven', lhs: /^\\Sigma F$/, checks: ['recompute'], why: 'R5: F_s ≈ mg near equilibrium; ΣF from the unrounded forces' },
+  // Ch 22–32
+  { scene: '25/capacitor', lhs: /^C$/, checks: ['inputSig'], why: 'R1/R8: κ of air is the table value 1.00054, the string of its dropdown option (a preset, not a slider label)' },
 ];
 
 /** Physical small values (R7b): their readout and Σ result never print as 0.00. Scene key → labels. */

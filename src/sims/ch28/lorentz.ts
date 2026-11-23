@@ -1,8 +1,7 @@
 // Ch 28 scene: charged particles in a uniform field into the page. F = q v × B is always
 // perpendicular to v: speed constant, circular path, period independent of the speed.
-import { num, tn, u } from '../../core/tex';
+import { CONST, slider, tn, u } from '../../core/tex';
 import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
-import { texNum } from '../field/render';
 import { fieldGrid, particle } from './common';
 import { PARTICLES, gyrate, lorentz, period, radius, type Kin, type Particle } from './physics';
 
@@ -93,24 +92,33 @@ export const readR = (s: S, p: P) => {
 export const readT = (p: P) => period(ptOf(p), Bof(p)) * 1e9;
 
 /**
- * Σ panel for the fastest particle: F = |q|vB, r = mv/|q|B and T = 2πm/|q|B. Constants carry
- * four figures so the shown arithmetic gives the 3-figure result.
+ * Mass and |q| of a species as the Σ panel prints them: mₑ, mₚ and e from CONST (R1), the α mass
+ * with 3 figures and its charge as 2e.
+ */
+export function speciesTex(name: string): { m: string; q: string } {
+  const pt = PARTICLES[name] ?? PARTICLES.proton;
+  const m = name === 'electron' ? CONST.me.tex : name === 'proton' ? CONST.mp.tex : tn(pt.m, 3, 0);
+  return { m: `(${m})`, q: name === 'alpha' ? `(2)(${CONST.e.tex})` : `(${CONST.e.tex})` };
+}
+
+/**
+ * Σ panel for the fastest particle: F = |q|vB, r = mv/|q|B and T = 2πm/|q|B. Policy D: constants
+ * from CONST, v and B as their sliders (B in T: 1.00 mT → 1.00×10⁻³); the printed arithmetic may
+ * differ from the 3-figure result in the last digit.
  */
 export function formulaLines(s: S, p: P): string[] {
   const pt = ptOf(p);
   const k = s.ps[s.ps.length - 1];
-  const v = Math.hypot(k.vx, k.vy);
   const B = Bof(p);
   const [fx, fy] = lorentz(k, pt, -B);
-  const m = texNum(pt.m, 4, 0);
-  const q = texNum(Math.abs(pt.q), 4, 0);
-  // B in T as set (2 mT → 0.002).
-  const Bt = isElectron(p) ? String(Number((p.Be / 1000).toPrecision(4))) : num(p.Bi);
-  const vt = tn(v, 3);
+  const { m, q } = speciesTex(p.particle);
+  const Bt = isElectron(p) ? `${slider(params.Be as NumberParam, p.Be)}\\times 10^{-3}` : slider(params.Bi as NumberParam, p.Bi);
+  // The fastest speed: the slider, or 3×10⁶ m/s of the comparison, as the slider would show it.
+  const vt = `${slider(params.v as NumberParam, p.compare ? 3 : p.v)}\\times 10^{6}`;
   return [
-    `F = \\lvert q\\rvert vB = (${texNum(Math.abs(pt.q), 3, 0)})(${vt})(${Bt}) = ${texNum(Math.hypot(fx, fy), 3, 0)}${u('N')}`,
-    `r = \\frac{mv}{\\lvert q\\rvert B} = \\frac{(${m})(${vt})}{(${q})(${Bt})}\\ \\mathrm{m} = ${tn(readR(s, p))}${u('cm')}`,
-    `T = \\frac{2\\pi m}{\\lvert q\\rvert B} = \\frac{2\\pi(${m})}{(${q})(${Bt})}\\ \\mathrm{s} = ${tn(readT(p))}${u('ns')}`,
+    `F = \\lvert q\\rvert vB = ${q}(${vt})(${Bt}) = ${tn(Math.hypot(fx, fy), 3, 0)}${u('N')}`,
+    `r = \\frac{mv}{\\lvert q\\rvert B} = \\frac{${m}(${vt})}{${q}(${Bt})}\\ \\mathrm{m} = ${tn(readR(s, p))}${u('cm')}`,
+    `T = \\frac{2\\pi m}{\\lvert q\\rvert B} = \\frac{2\\pi${m}}{${q}(${Bt})}\\ \\mathrm{s} = ${tn(readT(p))}${u('ns')}`,
   ];
 }
 

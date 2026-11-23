@@ -1,8 +1,8 @@
 // Ch 30 scene: Faraday-Lenz. A square loop crosses a field region, or a bar magnet passes
 // through a coil (side view). Φ_B(t) with its tangent, ℰ = −dΦ_B/dt, induced current and the
 // field it makes, which opposes the change of flux.
-import { num, tn, tp, u } from '../../core/tex';
-import type { ParamSchema, Scene, Vec2 } from '../../core/types';
+import { CONST, slider, tn, tp, u } from '../../core/tex';
+import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { wireGlyph } from '../field/render';
 import { A_COIL, A_LOOP, M_MAG, REGION, REGION_H, dipoleFlux, dipoleFluxRate, faradayAt, faradayEnd, overlap, overlapRate } from './physics';
@@ -184,26 +184,33 @@ function drawMagnet(g: Draw, p: P, s: S): void {
 /** Readouts: Φ_B [mWb], ℰ [mV]. */
 export const readPhi = (s: S, p: P) => at(p, s.t).phi * 1e3;
 export const readEmf = (s: S, p: P) => -at(p, s.t).dphi * 1e3;
+/** An exact 0 (loop outside the field or wholly inside it) prints as 0 in the readouts and the Σ panel (R7a, R8). */
+const fmtZero = (v: number) => (v === 0 ? '0' : undefined);
+const tz = (v: number) => (v === 0 ? '0' : tn(v));
 
 /**
  * Σ panel. Region: Φ_B = B a x (x the length of the loop inside the field), ℰ = −B a dx/dt.
- * Magnet: on-axis dipole flux through the coil, ℰ = −(dΦ_B/dx) v. The live inputs carry four
- * figures so the shown arithmetic gives the result.
+ * Magnet: on-axis dipole flux through the coil, ℰ = −(dΦ_B/dx) v. Policy D: B and v as their
+ * sliders, μ0 from CONST, the live x and dΦ_B/dx with 3 figures; the printed arithmetic may differ
+ * from the result in the last digit.
  */
 export function formulaLines(s: S, p: P): string[] {
   const f = at(p, s.t);
+  const v = slider(params.v as NumberParam, p.v);
   if (sc(p) === 'region') {
-    const B = num(p.B);
-    const rate = overlapRate(f.x) * p.v;
+    const B = slider(params.B as NumberParam, p.B);
+    // dx/dt is +v, −v or 0: the slider value with its sign.
+    const rate = overlapRate(f.x);
+    const dxdt = rate === 0 ? '0' : rate > 0 ? v : `-${v}`;
     return [
-      `\\Phi_B = B\\,a\\,x = (${B})(${A_LOOP})(${overlap(f.x).toFixed(4)})\\ \\mathrm{Wb} = ${tn(readPhi(s, p))}${u('mWb')}`,
-      `\\mathcal{E} = -\\frac{d\\Phi_B}{dt} = -Ba\\,\\frac{dx}{dt} = -(${B})(${A_LOOP})(${num(rate)})\\ \\mathrm{V} = ${tn(readEmf(s, p))}${u('mV')}`,
+      `\\Phi_B = B\\,a\\,x = (${B})(${A_LOOP})(${tz(overlap(f.x))})\\ \\mathrm{Wb} = ${tz(readPhi(s, p))}${u('mWb')}`,
+      `\\mathcal{E} = -\\frac{d\\Phi_B}{dt} = -Ba\\,\\frac{dx}{dt} = -(${B})(${A_LOOP})(${dxdt})\\ \\mathrm{V} = ${tz(readEmf(s, p))}${u('mV')}`,
     ];
   }
   return [
-    `\\Phi_B = \\frac{\\mu_0 m a^2}{2(a^2 + x^2)^{3/2}},\\quad x = ${tn(f.x, 4)}${u('m')}`,
-    `\\Phi_B = \\frac{(4\\pi\\times 10^{-7})(${M_MAG})(${A_COIL})^2}{2[(${A_COIL})^2 + ${tp(f.x, 4)}^2]^{3/2}}\\ \\mathrm{Wb} = ${tn(readPhi(s, p))}${u('mWb')}`,
-    `\\mathcal{E} = -\\frac{d\\Phi_B}{dx}\\,v = -(${tn(dipoleFluxRate(f.x), 4)}\\ \\mathrm{Wb/m})(${num(p.v)}\\ \\mathrm{m/s}) = ${tn(readEmf(s, p))}${u('mV')}`,
+    `\\Phi_B = \\frac{\\mu_0 m a^2}{2(a^2 + x^2)^{3/2}},\\quad x = ${tn(f.x)}${u('m')}`,
+    `\\Phi_B = \\frac{(${CONST.mu0.tex})(${M_MAG})(${A_COIL})^2}{2[(${A_COIL})^2 + ${tp(f.x)}^2]^{3/2}}\\ \\mathrm{Wb} = ${tn(readPhi(s, p))}${u('mWb')}`,
+    `\\mathcal{E} = -\\frac{d\\Phi_B}{dx}\\,v = -(${tn(dipoleFluxRate(f.x))}\\ \\mathrm{Wb/m})(${v}\\ \\mathrm{m/s}) = ${tn(readEmf(s, p))}${u('mV')}`,
   ];
 }
 
@@ -249,8 +256,8 @@ export const faraday: Scene<P, S> = {
   ],
 
   readouts: [
-    { label: '\\Phi_B', unit: 'mWb', value: (s, p) => readPhi(s, p) },
-    { label: '\\mathcal{E}', unit: 'mV', value: (s, p) => readEmf(s, p) },
+    { label: '\\Phi_B', unit: 'mWb', value: (s, p) => readPhi(s, p), format: fmtZero },
+    { label: '\\mathcal{E}', unit: 'mV', value: (s, p) => readEmf(s, p), format: fmtZero },
   ],
 
   formula: (s, p) => formulaLines(s, p),

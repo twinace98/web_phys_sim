@@ -3,10 +3,9 @@
 // In tune (f = f_c) every crossing accelerates. A small detuning only slips the phase a little
 // per turn and adds turns; beyond a few percent (fewer turns allowed at low V0) the proton falls
 // out of step before it reaches the extraction radius.
-import { num, tn, u } from '../../core/tex';
-import type { ParamSchema, Scene, Vec2 } from '../../core/types';
+import { CONST, slider, tn, u } from '../../core/tex';
+import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
 import { withAlpha, ROLE_COLOR } from '../../draw/theme';
-import { texNum } from '../field/render';
 import { fieldGrid, particle } from './common';
 import { PARTICLES, cyclotronOmega, gapVoltage, maxEnergy, runCyclotron, sampleRun, type Cyclotron, type Run } from './physics';
 
@@ -98,21 +97,23 @@ export const readK = (p: P, tNs: number) => sampleRun(runOf(p), tNs * 1e-9).K / 
 
 /**
  * Σ panel: f_c and the oscillator f, K_max = (qBR)²/2m, and at the present instant the orbit
- * radius v/ω_c and K = ½mv². Constants carry four figures so the shown arithmetic gives the result.
+ * radius v/ω_c and K = ½mv². Policy D: e and mₚ from CONST, the ratio as its slider, state values
+ * with 3 figures; the printed arithmetic may differ from the result in the last digit.
  */
 export function formulaLines(s: S, p: P): string[] {
   const c = cfgOf(p);
   const fc = cyclotronOmega(c) / (2 * Math.PI);
-  const m = texNum(c.pt.m, 4, 0);
-  const q = texNum(Math.abs(c.pt.q), 4, 0);
+  const m = CONST.mp.tex;
+  const q = CONST.e.tex;
   const k = sampleRun(runOf(p), s.t * 1e-9);
   const v = Math.hypot(k.vx, k.vy);
+  const ratio = slider(params.ratio as NumberParam, p.ratio);
   return [
-    `f_c = \\frac{\\lvert q\\rvert B}{2\\pi m} = \\frac{(${q})(${num(B)})}{2\\pi(${m})}\\ \\mathrm{Hz} = ${tn(fc / 1e6)}${u('MHz')}`,
-    `f = ${p.ratio.toFixed(2)}\\,f_c = (${p.ratio.toFixed(2)})(${tn(fc / 1e6, 4)}\\ \\mathrm{MHz}) = ${tn((p.ratio * fc) / 1e6)}${u('MHz')}`,
-    `K_\\text{max} = \\frac{(qBR)^2}{2m} = \\frac{[(${q})(${num(B)})(${num(R)})]^2}{2(${m})}\\ \\mathrm{J} = ${tn(maxEnergy(c) / KEV)}${u('keV')}`,
-    `r = \\frac{mv}{\\lvert q\\rvert B} = \\frac{v}{2\\pi f_c} = \\frac{${tn(v, 4)}}{2\\pi(${tn(fc, 4)})}\\ \\mathrm{m} = ${tn(orbitRadiusCm(p, s.t))}${u('cm')}`,
-    `K = \\tfrac{1}{2} m v^2 = \\tfrac{1}{2}(${m})(${tn(v, 4)})^2\\ \\mathrm{J} = ${tn(readK(p, s.t))}${u('keV')}`,
+    `f_c = \\frac{\\lvert q\\rvert B}{2\\pi m} = \\frac{(${q})(${B})}{2\\pi(${m})}\\ \\mathrm{Hz} = ${tn(fc / 1e6)}${u('MHz')}`,
+    `f = ${ratio}\\,f_c = (${ratio})(${tn(fc / 1e6)}\\ \\mathrm{MHz}) = ${tn((p.ratio * fc) / 1e6)}${u('MHz')}`,
+    `K_\\text{max} = \\frac{(qBR)^2}{2m} = \\frac{[(${q})(${B})(${R})]^2}{2(${m})}\\ \\mathrm{J} = ${tn(maxEnergy(c) / KEV)}${u('keV')}`,
+    `r = \\frac{mv}{\\lvert q\\rvert B} = \\frac{v}{2\\pi f_c} = \\frac{${tn(v)}}{2\\pi(${tn(fc)})}\\ \\mathrm{m} = ${tn(orbitRadiusCm(p, s.t))}${u('cm')}`,
+    `K = \\tfrac{1}{2} m v^2 = \\tfrac{1}{2}(${m})(${tn(v)})^2\\ \\mathrm{J} = ${tn(readK(p, s.t))}${u('keV')}`,
   ];
 }
 

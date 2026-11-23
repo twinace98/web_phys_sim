@@ -1,7 +1,7 @@
 // Ch 29 scene: Biot-Savart law as a sum. Current elements of a straight wire or a circular
 // loop are added one at a time; each dB at the observation point P is ⊥ page.
 import { fmt } from '../../core/format';
-import { num, tn, u } from '../../core/tex';
+import { CONST, num, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { drawRich } from '../../draw/text';
 import { theme } from '../../draw/theme';
@@ -91,7 +91,8 @@ export const readD = (p: P) => (p.wire === 'loop' ? Math.hypot(obs(p).x, obs(p).
 
 /**
  * Σ panel: the latest element's dB (signed: + out of the page), the running sum, and the
- * reference value. Element inputs carry four figures so the shown arithmetic gives the result.
+ * reference value. Policy D: element inputs with 3 figures, sin φ as a number (3 figures of the
+ * angle near 180° would leave a few digits of its sine); μ0 from CONST.
  */
 export function formulaLines(s: S, p: P): string[] {
   const m = model(p);
@@ -104,10 +105,10 @@ export function formulaLines(s: S, p: P): string[] {
   const dl = Math.hypot(e.dx, e.dy);
   // Angle from dl to r: its sine carries the sign of (dl × r)_z.
   const phi = (Math.atan2(e.dx * ry - e.dy * rx, e.dx * rx + e.dy * ry) * 180) / Math.PI;
-  const mu = '(4\\pi\\times 10^{-7})(10)';
+  const mu = `(${CONST.mu0.tex})(10)`;
   const lines = [
     `dB_{${k}} = \\frac{\\mu_0}{4\\pi}\\,\\frac{I\\,dl\\,\\sin\\phi}{r^2},\\quad \\phi = \\angle(d\\vec l, \\vec r)`,
-    `dB_{${k}} = 10^{-7}\\,\\frac{(10)(${tn(dl, 4)})\\sin(${tn(phi, 4)}^\\circ)}{(${tn(r, 4)})^2}\\ \\mathrm{T} = ${tn(m.dB[k - 1])}${u('\\mu T')}`,
+    `dB_{${k}} = 10^{-7}\\,\\frac{(10)(${tn(dl)})(${tn(Math.sin((phi * Math.PI) / 180))})}{(${tn(r)})^2}\\ \\mathrm{T} = ${tn(m.dB[k - 1])}${u('\\mu T')}`,
     `B = \\sum_{i=1}^{${k}} dB_i = ${tn(readB(s, p))}${u('\\mu T')}`,
   ];
   if (p.wire !== 'loop') lines.push(`\\frac{\\mu_0 I}{2\\pi d} = \\frac{${mu}}{2\\pi(${tn(readD(p), 2)})}\\ \\mathrm{T} = ${tn(Math.abs(m.ref))}${u('\\mu T')}`);

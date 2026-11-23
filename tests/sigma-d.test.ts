@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
-import { tn } from '../src/core/tex';
+import { readoutText, texOf, tn } from '../src/core/tex';
 import type { Params, Scene } from '../src/core/types';
 import { gaussScene, gaussValues } from '../src/sims/ch23/scene';
 import { ENC_FLUX } from '../src/sims/ch23/physics';
@@ -38,7 +38,7 @@ function run(sc: unknown, over: Record<string, unknown> = {}, seconds = 0) {
   const lines = scene.formula!(r.state as never, r.params as never);
   const ro = (label: string) => {
     const spec = scene.readouts!.find((x) => x.label === label)!;
-    return tn(spec.value(r.state as never, r.params as never), spec.sig ?? 3);
+    return texOf(readoutText(spec, spec.value(r.state as never, r.params as never), r.params as Params));
   };
   return { r, p: r.params as Params, s: r.state as never, lines, ro };
 }
@@ -112,8 +112,8 @@ describe('Σ panel agrees with the simulation (Ch 22-30)', () => {
       expect(before.lines.some((l) => l.startsWith('\\bar I'))).toBe(false);
       const after = run(conduction, over, 4);
       shows(after.lines, tn(resistanceOf({ L: after.p.L as number, A: after.p.A as number, T: after.p.T as number })));
-      shows(after.lines, after.ro('I'));
-      shows(after.lines, after.ro('V/I'));
+      shows(after.lines, after.ro('\\bar I'));
+      shows(after.lines, after.ro('V/\\bar I'));
     }
   });
 
@@ -199,6 +199,6 @@ describe('Σ panel agrees with the simulation (Ch 22-30)', () => {
       shows(lines, tn(a.circ * 1e6));
     }
     const gb = run(maxwell, { eq: 'gaussB' });
-    shows(gb.lines, tn(0));
+    shows(gb.lines, '0');
   });
 });
