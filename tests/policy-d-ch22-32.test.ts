@@ -162,7 +162,7 @@ describe('policy D, Ch 25-27', () => {
     const lines = c.lines();
     expect(lines).toContain('R = \\rho\\,\\frac{L}{A} = (10\\ \\Omega)\\,\\frac{4.0}{4}\\cdot\\frac{2}{2.0}\\cdot\\frac{300}{300} = 10.0\\ \\mathrm{\\Omega}');
     expect(lines).toContain('\\frac{V}{R} = \\frac{1.0\\ \\mathrm{V}}{10.0\\ \\Omega} = 100\\ \\mathrm{mA}');
-    expect(lines).toContain('\\bar I = \\frac{\\Delta Q}{\\Delta t} = \\frac{0.188\\ \\mathrm{C}}{2.0\\ \\mathrm{s}} = 94\\ \\mathrm{mA}');
+    expect(lines).toContain('\\bar I = \\frac{\\Delta Q}{\\Delta t} = \\frac{0.188\\ \\mathrm{C}}{2.00\\ \\mathrm{s}} = 94\\ \\mathrm{mA}');
     expect(lines).toContain('V/\\bar I = \\frac{1.0\\ \\mathrm{V}}{94\\ \\mathrm{mA}} = 10.6\\ \\mathrm{\\Omega}');
     // No line claims the prediction is the measured I of the readout.
     expect(lines.some((l) => l.startsWith('I ='))).toBe(false);

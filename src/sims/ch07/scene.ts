@@ -50,7 +50,7 @@ function barBox(): { x: number; mid: number; half: number } {
 }
 
 let memoKey = '';
-/** Run scales (largest magnitude over the run) of the printed values: fixed decimals (policy D, R7a). */
+/** Run scales (largest magnitude over the run) of the printed values: residues below 10⁻³ print 0 (policy D, R7a). */
 type Scales = { x: number; v: number; K: number; W: number; F: number };
 let memo: { su: Setup; tj: Trajectory; F: [number, number]; K: number; B: number; Fmax: number; sc: Scales } | null = null;
 function model(p: P) {
@@ -239,7 +239,7 @@ function bandAxis(g: Draw, lo: number, hi: number, y: (v: number) => number, lab
 /**
  * Σ panel: F at the block, the work as the area under F(x) (segment by segment, or the spring's
  * closed form), K and ΔK, so that W_net = ΔK can be read off the two results. x, v, K, W and the
- * spring force print with fixed decimals from their run scale, as the readouts: back at the turning
+ * spring force print with 3 figures and their run scale, as the readouts: back at the turning
  * point the spring's v and W read 0.00, not a time-grid residue such as 2.96×10⁻⁴ (policy D, R7a).
  * Segment forces and the start values as set (R1), segment lengths with 3 figures (R3).
  */
@@ -508,7 +508,7 @@ export const workEnergy: Scene<P, S> = {
   })),
 
   readouts: [
-    // Fixed decimals from the run scale, as in the Σ panel (policy D, R7a).
+    // Run scale as in the Σ panel: residues print 0 (policy D, R7a).
     { label: 'x', unit: 'm', value: (s) => s.x, scale: (p) => model(p).sc.x },
     { label: 'v', unit: 'm/s', value: (s) => s.v, scale: (p) => model(p).sc.v },
     { label: 'K', unit: 'J', value: (s, p) => kinetic(model(p).su.m, s.v), scale: (p) => model(p).sc.K },

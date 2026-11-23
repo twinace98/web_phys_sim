@@ -158,14 +158,14 @@ describe('Ch 6 (PENDING: m label; banked friction as a direct difference, R5)', 
 });
 
 describe('Ch 7 spring at the end of the run (audit §5: 2.96×10⁻⁴ m/s, 8.76×10⁻⁸ J)', () => {
-  it('v, K, W and ΔK with fixed decimals from the run scale: residues print 0.00 or an exact 0 (R7a)', async () => {
+  it('v, K, W and ΔK: residues below 10⁻³ of the run scale print an exact 0 (R7a)', async () => {
     const sc = await scene(7, 'work');
     const e = at(sc, { preset: 'spring' }, END);
-    expect(e.ro('v')).toBe('0.00');
+    expect(e.ro('v')).toBe('0');
     expect(e.ro('K')).toBe('0');
     expect(e.lines).toContain('= -\\tfrac12(2)[(-2.00)^2 - (-2)^2] = 0\\ \\mathrm{J}');
-    expect(e.lines).toContain('K = \\tfrac12 mv^2 = \\tfrac12(2)(0.00)^2 = 0\\ \\mathrm{J}');
-    expect(e.lines).toContain('= \\tfrac12(2)[(0.00)^2 - 0^2] = 0\\ \\mathrm{J}');
+    expect(e.lines).toContain('K = \\tfrac12 mv^2 = \\tfrac12(2)(0)^2 = 0\\ \\mathrm{J}');
+    expect(e.lines).toContain('= \\tfrac12(2)[(0)^2 - 0^2] = 0\\ \\mathrm{J}');
     expect(e.lines.join(' ')).not.toMatch(/10\^\{-/);
     // Mid-run: the same strings as the readouts.
     const m = at(sc, { preset: 'spring' }, 600);
@@ -203,8 +203,8 @@ describe('Ch 9 (PENDING: m1, m2, v1 labels; R7a totals)', () => {
     expect(at(sc, {}, 800).lines).toContain('e = \\frac{v_{2f} - v_{1f}}{v_{1i} - v_{2i}} = \\frac{(2.00) - (0.00)}{(2.0) - (0.0)} = 1');
     const ine = at(sc, { kind: 'inelastic', m1: 1.3, m2: 2.7, v2: -0.7, e: 0.35 }, 800);
     expect(ine.lines[1]).toBe(`= (1.3)(-0.460) + (2.7)(0.485) = ${ine.ro('p_\\mathrm{tot}')}\\ \\mathrm{kg\\,m/s}`);
-    // A sum has the decimals of its largest term (m₁v₁ = 2.6 kg m/s): 0.71.
-    expect(ine.ro('p_\\mathrm{tot}')).toBe('0.71');
+    // 3 figures (zero handling only, 2026-11-24).
+    expect(ine.ro('p_\\mathrm{tot}')).toBe('0.710');
     expect(ine.lines[5]).toMatch(/\{\(2\.0\) - \(-0\.7\)\} = 0\.35$/);
     // Explosion from rest: p_tot is an exact 0.
     const ex = at(sc, { kind: 'explode' }, 600);

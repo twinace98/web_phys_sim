@@ -177,7 +177,7 @@ export function formulaLines(t: number, p: P): string[] {
     const half = `${tn(r.lambda / 2)}${u('m')}`;
     lines.push(r.end === 'fixed' ? `x' = m\\lambda/2 = m \\times ${half}` : `x' = (m + \\tfrac{1}{2})\\lambda/2 = (m + \\tfrac{1}{2}) \\times ${half}`);
   }
-  // Displacements to 3 figures (policy D, R3). Below 10⁻⁶ of the amplitude a value is a numerical
+  // Displacements to 3 figures (policy D, R3). Below 10⁻³ of the amplitude a value is a numerical
   // residue and prints as an exact 0 (R7a): before the wave arrives, and y(L) = h − h at a fixed end.
   const { inc, y } = reflectAt(r, L, t);
   const d = (v: number) => (Math.abs(v) < RESIDUE * r.A ? '0' : tn(v));

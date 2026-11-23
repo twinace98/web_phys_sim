@@ -112,7 +112,7 @@ function sample(p: P, t: number) {
 
 /**
  * Run scales of the conserved totals: the initial momentum and kinetic energy (puck 2 at rest; K
- * never grows). Fixed decimals from them, so p_tot,y = 0 prints as an exact 0, not a rounding
+ * never grows). The run scales, so p_tot,y = 0 prints as an exact 0, not a rounding
  * residue (policy D, R7a).
  */
 function scales(p: P): { p: number; K: number } {

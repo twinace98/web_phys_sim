@@ -637,7 +637,7 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
     // b = 0.5 nm); the splitting in meV below 0.1 eV, as in the Σ panel.
     { label: '\\Delta E', unit: '', value: (_s, p) => supGap(p), format: (v) => (Number.isFinite(v) ? eText(v) : undefined) },
     { label: 'T', unit: 'fs', value: (_s, p) => supPeriod(p) },
-    // Time-varying: fixed decimals from |x̄| + |A| (R7a), as in the Σ panel.
+    // Time-varying: 3 figures, |x̄| + |A| as the run scale (R7a), as in the Σ panel.
     { label: '\\langle x\\rangle', unit: 'nm', value: (s, p) => supOf(p).xm + supOf(p).xc * Math.cos(supOf(p).w * s.t), scale: (p) => supScale(p as PS) },
   ],
 

@@ -197,8 +197,8 @@ export interface ReadoutSpec<S, P extends Params> {
    */
   format?: (v: number, s: S, p: P) => string | undefined;
   /**
-   * Run scale (the largest magnitude the value reaches in a run): fixed decimals for 3 figures at
-   * that scale, residues below 10⁻⁶ of it print as 0 (policy D, R7a; precision.ts fmtScale).
+   * Run scale (the largest magnitude the value reaches in a run): the value prints with 3 figures,
+   * and a residue below 10⁻³ of the scale prints as 0 (policy D, R7a; precision.ts fmtScale).
    */
   scale?: number | ((p: P) => number);
 }

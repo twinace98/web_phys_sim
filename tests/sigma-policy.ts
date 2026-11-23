@@ -347,6 +347,8 @@ const CONST_TOKS = new Set(Object.values(CONST).flatMap((c) => toks(texClean(c.t
  * left-hand side, the checks it is exempt from, and why. Phase 2 adds a line only with its reason.
  */
 export const ALLOW: { scene: string; lhs: RegExp; checks: Check[]; why: string }[] = [
+  // Ch 2–11
+  { scene: '9/track', lhs: /^$/, checks: ['recompute'], why: 'R5: the p_tot continuation line, m₁v₁ + m₂v₂ nearly cancel after the collision ((1.0)(-2.08) + (1.4)(1.42) = -0.100); p_tot from the unrounded momenta' },
   // Ch 33–42
   { scene: '33/refraction', lhs: /^\\theta_2$/, checks: ['inputSig'], why: 'R6: sin θ₂ just below 1 keeps its side of 1 (θ₁ = 41.8°: sin⁻¹(0.9998), not sin⁻¹(1.00))' },
   { scene: '39/wells', lhs: /^N$/, checks: ['inputSig'], why: 'R6: 2z₀/π next to an integer keeps its side for the ceiling (L = 1.3 nm, U₀ = 2.0 eV: ⌈2.998⌉ = 3)' },

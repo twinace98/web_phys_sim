@@ -208,7 +208,7 @@ const pv = (v: number) => `(${tn(v)})`;
 
 /**
  * Run scales of the totals: the largest single momentum (a sum has the decimals of its largest
- * term) and the largest K_tot before or after the event. Fixed decimals from them, so a total that
+ * term) and the largest K_tot before or after the event. The run scales, so a total that
  * is zero (an explosion from rest) prints as an exact 0, not a rounding residue (policy D, R7a).
  */
 function scales(p: P): { p: number; K: number; v: number } {

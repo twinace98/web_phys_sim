@@ -116,7 +116,7 @@ export function energyRange(p: P): [number, number] {
 
 /**
  * Run scale of K, U and E: the start energy U(x₀) (the particle starts at rest and E never grows).
- * Fixed decimals from it, so K at a turning point reads 0.00, not a sampling residue (policy D, R7a).
+ * The run scale, so K at a turning point reads 0, not a sampling residue (policy D, R7a).
  */
 const eScale = (p: P) => Math.abs(potOf(p).U(x0Of(p)));
 
@@ -303,7 +303,7 @@ export const energyScene: Scene<P, S> = {
   ],
 
   // U(x) and F = −dU/dx in closed form at the particle, K from its speed, and E = K + U. x and v with
-  // 3 figures, K, U and E with fixed decimals from the start energy, as the readouts (policy D).
+  // 3 figures, K, U and E with the start energy as their scale, as the readouts (policy D).
   formula: (s, p) => {
     const pot = potOf(p);
     const e = energies(s, p);

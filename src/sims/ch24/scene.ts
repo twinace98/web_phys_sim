@@ -1,6 +1,9 @@
 // Ch 24 scene: equipotential lines (or a potential map) over the charges of Ch 22, and the
 // work done by the field on a test charge dragged along any path.
-import { RESIDUE, paren, tn, u } from '../../core/tex';
+import { paren, tn, u } from '../../core/tex';
+
+/** Relative difference below which V and V_A are the same potential (the same point): ΔV = 0. */
+const SAME = 1e-6;
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { BOX, KQ, POINT_POOL, V, clearOf, layoutParam, pointCoords, pointSources, pointWorld, presetParam, presetTag } from '../field/charges';
 import { FieldLayers, palette } from '../field/layers';
@@ -53,7 +56,7 @@ export const workNJ = (s: S, p: P) => W(s, p);
 export const deltaV = (s: S, p: P) => {
   const v = Vq(s, p);
   const a = VA(s, p);
-  return Math.abs(v - a) < RESIDUE * Math.max(Math.abs(v), Math.abs(a)) ? 0 : v - a;
+  return Math.abs(v - a) < SAME * Math.max(Math.abs(v), Math.abs(a)) ? 0 : v - a;
 };
 /** ΔV and W as the readouts and the Σ panel print them: an exact 0 as "0", else 3 figures (R7a, R8). */
 const fmtZero = (v: number) => (v === 0 ? '0' : undefined);

@@ -168,14 +168,14 @@ export const freefall: Scene<P, S> = {
   plots: kinematicPlots<P>('y', model),
 
   readouts: [
-    // Fixed decimals from the highest point, so the landing reads an exact 0 (policy D, R7a).
+    // 3 figures; the highest point sets the run scale, so the landing reads an exact 0 (policy D, R7a).
     { label: 'y', unit: 'm', value: (s) => s.y, scale: top },
     { label: 'v', unit: 'm/s', value: (s) => s.v },
     { label: 'a', unit: 'm/s²', value: (s) => s.a },
   ],
 
   // Constant acceleration −g: v and y at the current t, t with 3 figures (policy D, R3). y prints
-  // with fixed decimals from the run's height, as its readout: at landing it is an exact 0 (R7a).
+  // with the run's height as its scale, as its readout: at landing it is an exact 0 (R7a).
   formula: (s, p) => {
     const { pr } = model(p);
     const v0 = num(pr.v0);

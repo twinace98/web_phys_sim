@@ -167,7 +167,7 @@ const rel = (q: V2): V2 => [q[0] - ANCHOR[0], q[1] - ANCHOR[1]];
  * Σ panel: the work so far from the force's closed form (gravity: height; spring: stretch; friction:
  * path length), then the work over the whole path: W_AB for a conservative force (the same on every
  * path), zero around a closed path, −μ_k m g L for friction. Fixed values as set, g from the constant
- * table, state values with 3 figures; W with fixed decimals from its run scale, as the readout.
+ * table, state values with 3 figures; W with its run scale (residues print 0), as the readout.
  */
 export function formulaLines(st: S, p: P): string[] {
   const pw = current(p);

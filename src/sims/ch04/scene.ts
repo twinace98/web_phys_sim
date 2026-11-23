@@ -319,7 +319,7 @@ export const projectile: Scene<P, S> = {
 
   readouts: [
     { label: 'x', unit: 'm', value: (s) => s.x },
-    // Fixed decimals from the highest point, so the landing reads an exact 0 (policy D, R7a).
+    // 3 figures; the highest point sets the run scale, so the landing reads an exact 0 (policy D, R7a).
     { label: 'y', unit: 'm', value: (s) => s.y, scale: (p) => model(p).H },
     { label: 'v_x', unit: 'm/s', value: (s) => s.vx },
     { label: 'v_y', unit: 'm/s', value: (s) => s.vy },
@@ -328,7 +328,7 @@ export const projectile: Scene<P, S> = {
 
   // Σ panel: v_x constant, v_y and y uniformly accelerated, at the current t. Slider values as their
   // labels, g as its option label, t and the components with 3 figures (policy D, R1/R3); y with
-  // fixed decimals from the highest point, as its readout, so the landing reads an exact 0 (R7a).
+  // the highest point as its scale, as its readout, so the landing reads an exact 0 (R7a).
   formula: (s, p) => {
     const { l, H } = model(p);
     const gt = num(l.g);

@@ -89,19 +89,23 @@ describe('tnCmp (R6)', () => {
 });
 
 describe('tnScale (R7a)', () => {
-  it('fixed decimals from the run scale; residues print as 0', () => {
-    expect(fmtScale(2.96e-4, 2)).toBe('0.00');
-    expect(fmtScale(-2.96e-4, 2)).toBe('0.00');
+  it('3 figures; residues below 10⁻³ of the run scale print as 0 (zero handling only, 2026-11-24)', () => {
+    expect(fmtScale(2.96e-4, 2)).toBe('0');
+    expect(fmtScale(-2.96e-4, 2)).toBe('0');
+    expect(fmtScale(0.049, 1.7)).toBe('0.0490');
+    expect(fmtScale(-0.005, 0.17)).toBe('−0.00500');
     expect(fmtScale(1.234, 2)).toBe('1.23');
     expect(fmtScale(1e-7, 2)).toBe('0');
     expect(fmtScale(15.2, 20)).toBe('15.2');
-    expect(fmtScale(-0.04, 20)).toBe('0.0');
-    expect(fmtScale(-0.4, 20)).toBe('−0.4');
+    expect(fmtScale(-0.04, 20)).toBe('−0.0400');
+    expect(fmtScale(-0.019, 20)).toBe('0');
+    expect(fmtScale(-0.4, 20)).toBe('−0.400');
     expect(fmtScale(806.3, 806.3)).toBe('806');
     expect(fmtScale(-1.69e-9, 806.3)).toBe('0');
     expect(fmtScale(23960.4, 23960)).toBe('23960');
     expect(fmtScale(1.23e-5, 2e-5)).toBe('1.23×10⁻⁵');
-    expect(fmtScale(4e-8, 2e-5)).toBe('0.00×10⁻⁵');
+    expect(fmtScale(4e-8, 2e-5)).toBe('4.00×10⁻⁸');
+    expect(fmtScale(1e-8, 2e-5)).toBe('0');
     expect(tnScale(-1.234, 2)).toBe('-1.23');
     expect(tnScale(1.23e-5, 2e-5)).toBe('1.23\\times 10^{-5}');
   });
@@ -113,7 +117,7 @@ describe('readoutText and units (R3, R8)', () => {
     expect(readoutText(ro({}), 1.775001, { v0: 2 })).toBe('1.78');
     expect(tn(1.775001)).toBe('1.78');
     expect(readoutText(ro({ sig: 2 }), 1.775001, { v0: 2 })).toBe('1.8');
-    expect(readoutText(ro({ scale: (p) => p.v0 }), 2.96e-4, { v0: 2 })).toBe('0.00');
+    expect(readoutText(ro({ scale: (p) => p.v0 }), 2.96e-4, { v0: 2 })).toBe('0');
     expect(readoutText(ro({ scale: 2 }), 1e-8, { v0: 2 })).toBe('0');
     expect(readoutText(ro({ format: (v) => (v < 1 ? '< 1' : undefined) }), 0.3, { v0: 2 })).toBe('< 1');
   });

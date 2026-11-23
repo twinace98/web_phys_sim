@@ -115,7 +115,7 @@ export function formulaLines(p: P): string[] {
   const F1 = Math.hypot(parts[i1][0], parts[i1][1]) * 1e9;
   const [ex, ey] = fieldAtTest(p);
   const Em = Math.hypot(ex, ey);
-  // A component that vanishes by symmetry (below 10⁻⁶ of E) is an exact 0 (policy D, R7a).
+  // A component that vanishes by symmetry (below 10⁻³ of E) is an exact 0 (policy D, R7a).
   const comp = (c: number) => (Math.abs(c) < RESIDUE * Em ? '0' : tp(c));
   return [
     `F_1 = k\\,\\frac{\\lvert q_1\\rvert q_0}{r_1^2} = \\frac{(${CONST.k.tex})(${Math.abs(src[i1].s)})(1)\\times 10^{-18}}{(${tn(dist(i1))})^2}\\ \\mathrm{N} = ${tn(F1)}${u('nN')}`,

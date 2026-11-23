@@ -334,7 +334,7 @@ export const pendulum: Scene<P, S> = {
     const v = p.L * s.w;
     const deg = s.th / DEG;
     const K = ellipticK(Math.sin(th0 / 2));
-    // Values that change during the swing: fixed decimals from their largest value in the run (R7a),
+    // Values that change during the swing: 3 figures, with their largest value in the run as the scale (R7a),
     // so the turning point prints v = 0 and the sums below keep one decimal place.
     // θ to 3 figures (R3). Beyond 90° sin θ is small near the top and 3 figures of θ would lose it:
     // the angle from the top, 180° − |θ|, is computed directly (R5): sin(180° − 4.62°).

@@ -176,7 +176,7 @@ export function formulaLines(s: Motion & { held?: boolean }, p: P): string[] {
   const hand = withHand ? -net : 0;
   // F_net is a small difference of large forces near equilibrium (R5): 3 figures from the
   // unrounded forces, so the printed 3-figure terms may miss it by more than the last digit. A
-  // residue below 10⁻⁶ of the forces (resting on the floor, held) is an exact 0 (R7a).
+  // residue below 10⁻³ of the forces (resting on the floor, held) is an exact 0 (R7a).
   const total = withHand || Math.abs(net) < RESIDUE * scale ? 0 : net;
   const hasD = Math.abs(Fd) > 1e-9;
   const hasN = N > 0;

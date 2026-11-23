@@ -500,8 +500,8 @@ export const ladderScene: Scene<P, S> = {
     }
     const b = { L, m: p.m, M: p.M, d: s.d };
     const E = mechEnergy(b, s.th, s.om);
-    // E₀ − E and W_f change during the slip: fixed decimals set by E₀ (R7a), so 806 − 803 = 3 J;
-    // a residue below 10⁻⁶ E₀ (μk = 0: no friction, W_f = 0) prints as an exact 0.
+    // E₀ − E and W_f change during the slip: 3 figures with E₀ as the run scale (R7a);
+    // a residue below 10⁻³ E₀ (μk = 0: no friction, W_f = 0) prints as an exact 0.
     const dES = fmtScale(s.E0 - E, s.E0);
     const WS = fmtScale(s.W, s.E0);
     const sc = (v: number) => tnScale(v, s.E0);
