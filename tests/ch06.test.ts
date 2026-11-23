@@ -30,7 +30,7 @@ import {
   topViewAt,
   type Preset,
 } from '../src/sims/ch06/physics';
-import { NUM, agrees, grab, val } from './sigma-digits';
+import { NUM, agrees, agreesWithin, grab, val } from './sigma-digits';
 import { ProbeDraw, probe } from './stage-probe';
 
 const PRESETS: Preset[] = ['string', 'flat', 'banked', 'cone'];
@@ -561,7 +561,8 @@ describe('ch06 circular: Σ arithmetic on the printed numbers gives the printed 
         if (pr === 'banked') {
           const re = new RegExp(`\\\\frac\\{(${N})\\\\,\\((${N})\\^2 - (${N})\\^2\\)\\}\\{(${N})\\}\\\\cos (${N})\\^\\\\circ = (${N})`);
           const [m, a, b, r, th, res] = grab(find(lines, 'f_s = '), re);
-          expect(agrees(((val(m) * (val(a) ** 2 - val(b) ** 2)) / val(r)) * Math.cos(val(th) * DEG), res), `${tag} f_s`).toBe(true);
+          // v² − v_d² is a difference (R5): allow the rounding of the 3-figure speeds.
+          expect(agreesWithin((mm, aa, bb, rr, tt) => ((mm * (aa ** 2 - bb ** 2)) / rr) * Math.cos(tt * DEG), [m, a, b, r, th], res), `${tag} f_s`).toBe(true);
         }
         if (pr === 'cone') {
           const [L, th, r] = grab(find(lines, 'r = L'), new RegExp(`= (${N}) \\\\times \\\\sin (${N})\\^\\\\circ = (${N})`));

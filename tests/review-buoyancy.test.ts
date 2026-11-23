@@ -29,7 +29,7 @@ import {
   type Motion,
 } from '../src/sims/review/buoyancy/physics';
 import { FLUIDS, SOLIDS, blockOf, buoyancyScene, fluidName, fluidOf, formulaLines, forcesOf } from '../src/sims/review/buoyancy/scene';
-import { NUM, agrees, grab, val } from './sigma-digits';
+import { NUM, agrees, agreesWithin, grab, val } from './sigma-digits';
 
 const water: Fluid = { rho: 1000 };
 
@@ -258,14 +258,6 @@ describe('buoyancy scene', () => {
 describe('buoyancy Σ: units, the hand while held, printed inputs reproduce the results', () => {
   const R = (s: string) => new RegExp(s.replace(/N#/g, `(${NUM})`));
   const p0 = defaults(buoyancyScene.params);
-  /** Value of "78.5 - 47.1 + (-31.4)" as printed. */
-  const sum = (expr: string) =>
-    expr
-      .replace(/[()]/g, '')
-      .replace(/\\times 10\^\{(-?\d+)\}/g, 'e$1')
-      .split(' ')
-      .reduce<[number, number]>(([acc, sg], tok) => (tok === '-' ? [acc, -1] : tok === '+' ? [acc, 1] : [acc + sg * val(tok), 1]), [0, 1])[0];
-
   function check(s: { y: number; v: number; held: boolean }, p: typeof p0, tag: string): string[] {
     const bad: string[] = [];
     const f = formulaLines(s, p);
@@ -278,7 +270,12 @@ describe('buoyancy Σ: units, the hand while held, printed inputs reproduce the 
     const [ro, rf, r] = grab(f[3], R(String.raw`= \\frac\{N#\}\{N#\} = N#`));
     if (!agrees(val(ro) / val(rf), r)) bad.push(`${tag} ${f[3]}`);
     const [expr, net] = grab(f[4], R(String.raw`= ([-+() \d.\\a-z^{}]+) = N#\\ \\mathrm\{N\}$`));
-    if (!agrees(sum(expr), net)) bad.push(`${tag} ${f[4]}`);
+    // F_net is a small difference of large forces (R5): allow the rounding of the 3-figure terms.
+    // Tokens of "78.5 - 47.1 + (-31.4)"; a 1.23\\times 10^{-5} term stays one token.
+    const toks = expr.replace(/[()]/g, '').replace(/\\times 10/g, '\\times~10').split(' ').map((x) => x.replace('~', ' '));
+    const terms = toks.filter((x) => x !== '+' && x !== '-');
+    const signs = toks.flatMap((x, i) => (x === '+' || x === '-' ? [] : [toks[i - 1] === '-' ? -1 : 1]));
+    if (!agreesWithin((...x) => x.reduce((acc, xi, i) => acc + signs[i] * xi, 0), terms, net)) bad.push(`${tag} ${f[4]}`);
     if (s.held && net !== '0') bad.push(`${tag} held but F_net ≠ 0: ${f[4]}`);
     return bad;
   }

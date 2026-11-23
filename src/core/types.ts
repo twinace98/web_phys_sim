@@ -193,6 +193,11 @@ export interface ReadoutSpec<S, P extends Params> {
   zeroTol?: number;
   /** Custom text for a value (e.g. '< 1'); undefined falls back to the number format. */
   format?: (v: number) => string | undefined;
+  /**
+   * Run scale (the largest magnitude the value reaches in a run): fixed decimals for 3 figures at
+   * that scale, residues below 10⁻⁶ of it print as 0 (policy D, R7a; precision.ts fmtScale).
+   */
+  scale?: number | ((p: P) => number);
 }
 
 export interface PlotHandle<P extends Params> {

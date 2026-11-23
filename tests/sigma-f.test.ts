@@ -17,6 +17,7 @@ import { conduction } from '../src/sims/ch41/conduction';
 import { carriersOf, doping } from '../src/sims/ch41/doping';
 import { filling } from '../src/sims/ch41/filling';
 import { decayScene } from '../src/sims/ch42/decay';
+import { agrees, agreesWithin } from './sigma-digits';
 
 const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
 const plain = (c: string) => (c === '⁻' ? '-' : String(SUP.indexOf(c)));
@@ -91,13 +92,14 @@ describe('Σ group F: Ch 37', () => {
     expect(result(line(o.lines, "x'_"))).toBe(fromS(-2.3, 0.7, 0.8).xp.toFixed(2));
   });
 
-  it('train: Δt = t_F − t_R as the readout, and the shown difference holds', () => {
+  it('train: Δt = t_F − t_R as the readout, and the shown difference holds up to the input rounding', () => {
     for (const beta of [0.6, 0.1, 0.8, 0.37]) {
       const { lines, ro } = run(simultaneity as Scene, { beta });
       const l = line(lines, '\\Delta t =');
       expect(result(l)).toBe(ro('\\Delta t'));
-      const [a, b] = l.split(' = ')[2].split(' - ').map(Number);
-      expect(tn(a - b)).toBe(result(l));
+      // A difference (R5) of two 3-figure times; phase 2 writes Δt directly.
+      const [a, b] = l.split(' = ')[2].split(' - ');
+      expect(agreesWithin((x, y) => x - y, [a, b], result(l)), l).toBe(true);
     }
   });
 });
@@ -130,10 +132,10 @@ describe('Σ group F: Ch 39', () => {
       const { lines, p } = run(wells as Scene, { pot: 'infinite', L });
       const E = model(p as never).st.E;
       lines.forEach((l, k) => expect(result(l)).toBe(tn(E[k])));
-      // E_n = n² E₁: the shown product reproduces the level.
+      // E_n = n² E₁: the shown product agrees with the level (policy D, R3: within 1 %).
       for (const l of lines.slice(1)) {
-        const [n2, e1] = l.split(' = ')[2].split(' \\times ').map(Number);
-        expect(tn(n2 * e1)).toBe(result(l));
+        const [n2, e1] = l.split(' = ')[2].split(' \\times ');
+        expect(agrees(Number(n2) * Number(e1), result(l)), l).toBe(true);
       }
     }
     const h = run(wells as Scene, { pot: 'harmonic', hw: 0.37 });
