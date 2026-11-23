@@ -149,6 +149,10 @@ describe('Ch 6 (PENDING: m label; banked friction as a direct difference, R5)', 
     expect(at(sc, { preset: 'banked', vBanked: 8.5 }, 0).lines).toContain('= \\frac{1000 \\times 0.912}{20}\\cos 20^\\circ = 42.8\\ \\mathrm{N}');
     // The speed readout at the slider's resolution: 10.00, as the slider label.
     expect(at(sc, { preset: 'flat', vFlat: 10 }, 0).ro('v')).toBe('10.00');
+    // On the circle F_net,r and F_cf print as mv²/r: one number, not 3612 against 3613 (R8).
+    const b = at(sc, { preset: 'banked', vBanked: 8.5, rot: true }, 100);
+    expect(b.lines).toContain("\\sum F'_r = F_{\\text{net},r} - F_\\text{cf} = 3613 - 3613 = 0\\ \\mathrm{N}");
+    expect(b.ro('F_{\\text{net},r}')).toBe(b.ro('mv^2/r'));
     expect(at(sc, { rot: true }, 100).lines).toContain("\\sum F'_r = F_{\\text{net},r} - F_\\text{cf} = 4.50 - 4.50 = 0\\ \\mathrm{N}");
   });
 });

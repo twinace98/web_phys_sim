@@ -539,7 +539,9 @@ export function circularFormula(p: P, t: number): string[] {
   const st = setupOf(p);
   const rel = t >= tRel(p);
   const need = required(st);
-  const Fr = netForce(pr, rel, st).r;
+  // On the circle the net radial force is mv²/r: the same number as mv²/r, not a sum of the drawn
+  // forces that may round the other way (3612 against 3613 N at 8.50 m/s banked; policy D, R8).
+  const Fr = rel ? netForce(pr, rel, st).r : need;
   const m = num(st.m);
   const r = num(st.r);
   const mg = st.m * G;
@@ -577,7 +579,7 @@ export function circularFormula(p: P, t: number): string[] {
   lines.push(`\\omega = \\frac{v}{r} = \\frac{${v}}{${r}} = ${tn(w)}${u('rad/s')}`);
   const q = rotatingViewAt(st, t, tRel(p));
   const { cf, cor } = fictitious(st, q);
-  const Fcf = Math.hypot(cf.x, cf.y);
+  const Fcf = rel ? Math.hypot(cf.x, cf.y) : need;
   if (!rel) {
     lines.push(`F_\\text{cf} = m\\omega^2 r = \\frac{mv^2}{r} = ${tn(Fcf)}${u('N')}`);
     // Both are mv²/r: the difference is a rounding residue and prints as an exact 0 (R7a).
@@ -643,7 +645,8 @@ export const circular: Scene<P, { t: number; n: number }> = {
   readouts: [
     // Two decimals, as the speed slider (0.01 m/s): 10.00, not 10.0 (policy D, R8).
     { label: 'v', unit: 'm/s', value: (s, p) => speedAt(presetOf(p), s.t, tRel(p), setupOf(p)), format: (v) => fmtStep(v, 0.01) },
-    { label: 'F_{\\text{net},r}', unit: 'N', value: (s, p) => netForce(presetOf(p), s.t >= tRel(p), setupOf(p)).r },
+    // mv²/r while on the circle, as the next readout (R8).
+    { label: 'F_{\\text{net},r}', unit: 'N', value: (s, p) => (s.t >= tRel(p) ? netForce(presetOf(p), true, setupOf(p)).r : required(setupOf(p))) },
     { label: 'mv^2/r', unit: 'N', value: (_s, p) => required(setupOf(p)) },
   ],
 
