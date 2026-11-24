@@ -2,7 +2,7 @@
 // inequalities, run-scale values and readout text.
 import { describe, expect, it } from 'vitest';
 import { fmt } from '../src/core/format';
-import { CONST, fmtCmp, fmtInt, fmtMeas, fmtScale, fmtStep, readoutText, slider, sliderText, tnCmp, tnInt, tnMeas, tnScale, unitAfter } from '../src/core/precision';
+import { CANCEL_SIG, CONST, fmtCmp, fmtInt, fmtMeas, fmtScale, fmtStep, readBack, readoutText, reproduces, sigCancel, slider, sliderText, tnCancel, tnCmp, tnInt, tnMeas, tnScale, ulpText, unitAfter } from '../src/core/precision';
 import { tn } from '../src/core/tex';
 import type { NumberParam, ReadoutSpec } from '../src/core/types';
 
@@ -125,5 +125,33 @@ describe('readoutText and units (R3, R8)', () => {
     expect(unitAfter('°')).toBe('°');
     expect(unitAfter('m/s')).toBe(' m/s');
     expect(unitAfter('')).toBe('');
+  });
+});
+
+describe('cancelling lines (R5b)', () => {
+  it('reads printed numbers back, with their last digit', () => {
+    expect(readBack('-4.17\\times 10^{-3}')).toBe(-4.17e-3);
+    expect(readBack('−4.17×10⁻³')).toBe(-4.17e-3);
+    expect(ulpText('-4.17\\times 10^{-3}')).toBeCloseTo(1e-5, 15);
+    expect(ulpText('2.13')).toBeCloseTo(0.01, 12);
+    expect(ulpText('360')).toBe(1);
+    expect(reproduces(2.18, '2.13')).toBe(false);
+    expect(reproduces(2.14, '2.13')).toBe(true);
+    expect(reproduces(0.02, '0', 0.03)).toBe(true);
+    expect(reproduces(0.05, '0', 0.03)).toBe(false);
+  });
+  it('QA 2026-11-24: v = 10 − 9.8t near the top keeps the figures of t that reproduce v', () => {
+    const t = 1.0208;
+    const v = 10 - 9.8 * t;
+    const k = sigCancel((r) => 10 - 9.8 * r(t), tn(v));
+    expect(k).toBeGreaterThan(3);
+    expect(reproduces(10 - 9.8 * readBack(tnCancel(t, k)), tn(v))).toBe(true);
+    // Away from the cancellation 3 figures stay.
+    expect(sigCancel((r) => 10 - 9.8 * r(0.4), tn(10 - 9.8 * 0.4))).toBe(3);
+  });
+  it('stops at CANCEL_SIG; tnCancel drops zeros the value does not need', () => {
+    expect(sigCancel(() => 1, '2.00')).toBe(CANCEL_SIG);
+    expect(tnCancel(-2.94, 5)).toBe('-2.94');
+    expect(tnCancel(1.69166, 5)).toBe('1.6917');
   });
 });

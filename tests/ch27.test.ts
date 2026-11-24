@@ -110,6 +110,25 @@ describe('ch27 RC circuit', () => {
     expect(iReadout.value(run.state, run.params)).toBeLessThan(0);
   });
 
+  it('QA 2026-11-24: R changed while paused, the Σ charge line starts the new segment now', () => {
+    const run = new Runner(rcCircuit, defaults(rcCircuit.params));
+    run.play();
+    run.advance(2.5);
+    run.pause();
+    const q = run.state.q;
+    run.setParam('R', 0.5);
+    const lines = rcCircuit.formula!(run.state, run.params);
+    // q = Cε + (q₀ − Cε) e^{−(t − t_s)/τ} with t − t_s = 0: the present charge, not the old elapsed
+    // time under the new τ ((12.0 mC)(1 − e^{−2.49/0.500}) = 8.55 mC was printed against 11.9 mC).
+    const qLine = lines.find((l) => l.startsWith('q = ') && /e\^\{-/.test(l) && /mC/.test(l))!;
+    expect(qLine).toMatch(/e\^\{-0\/0\.500\}/);
+    expect(qLine).toContain(`= ${(q * 1e3).toPrecision(3)}\\ \\mathrm{mC}`);
+    run.play();
+    run.advance(0.5);
+    const after = rcCircuit.formula!(run.state, run.params).find((l) => l.startsWith('q = ') && /e\^\{-/.test(l) && /mC/.test(l))!;
+    expect(after).toMatch(/e\^\{-0\.(49|5)\d*\/0\.500\}/);
+  });
+
   it('the plots widen to keep the run in view when C or R changes mid-run', () => {
     for (const [k, v] of [['C', 100], ['R', 4], ['R', 0.5], ['C', 1000]] as const) {
       const run = new Runner(rcCircuit, { ...defaults(rcCircuit.params), C: k === 'C' && v === 1000 ? 100 : 1000 });

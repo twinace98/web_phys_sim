@@ -1,6 +1,6 @@
 // Ch 4 scene: projectile = uniform motion in x + uniformly accelerated motion in y.
 import { fmtTick, niceTicks } from '../../core/format';
-import { num, slider, tn, tnScale, tp, u } from '../../core/tex';
+import { ZERO, num, sigCancel, slider, tn, tnCancel, tnScale, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { drawFbd, fbdParam, type FbdForce } from '../../draw/fbd';
@@ -46,13 +46,14 @@ const launchOf = (p: P): Launch => ({ h: p.h, v0: p.v0, theta: p.theta * DEG, g:
 
 // Everything below depends only on parameters; cache the last one.
 let memoKey = '';
-let memo: { l: Launch; T: number; R: number; H: number; vyEnd: number } | null = null;
+let memo: { l: Launch; T: number; R: number; H: number; vyEnd: number; VY: number } | null = null;
 function model(p: P) {
   const key = `${p.theta}|${p.h}|${p.v0}|${p.g}`;
   if (key !== memoKey || !memo) {
     const l = launchOf(p);
     const T = flightTime(l);
-    memo = { l, T, R: range(l), H: maxHeight(l), vyEnd: v0y(l) - l.g * T };
+    const vyEnd = v0y(l) - l.g * T;
+    memo = { l, T, R: range(l), H: maxHeight(l), vyEnd, VY: Math.max(Math.abs(v0y(l)), Math.abs(vyEnd), 1) };
     memoKey = key;
   }
   return memo;
@@ -322,7 +323,8 @@ export const projectile: Scene<P, S> = {
     // 3 figures; the highest point sets the run scale, so the landing reads an exact 0 (policy D, R7a).
     { label: 'y', unit: 'm', value: (s) => s.y, scale: (p) => model(p).H },
     { label: 'v_x', unit: 'm/s', value: (s) => s.vx },
-    { label: 'v_y', unit: 'm/s', value: (s) => s.vy },
+    // The larger of |v_y| at launch and landing sets the run scale: the top reads an exact 0 (R7a).
+    { label: 'v_y', unit: 'm/s', value: (s) => s.vy, scale: (p) => model(p).VY },
     { label: 'v', unit: 'm/s', value: (s) => Math.hypot(s.vx, s.vy) },
   ],
 
@@ -332,20 +334,30 @@ export const projectile: Scene<P, S> = {
   formula: (s, p) => {
     const { l, H } = model(p);
     const gt = num(l.g);
-    // ½g with at most 3 figures, half up: 4.9, 1.86 (Mars, 1.855), 0.81 (R3).
-    const half = String(Number((l.g / 2 + 1e-12).toPrecision(3)));
+    // ½g with 3 figures, half up: 4.9, 1.86 (Mars, 1.855), 0.81 (R3); exact (1.855) once the
+    // landing line needs more figures (R5b).
+    const halfAt = (sig: number) => (sig <= 3 ? Number((l.g / 2 + 1e-12).toPrecision(3)) : l.g / 2);
     const v0 = slider(params.v0, p.v0);
     const th = `${slider(params.theta, p.theta)}^\\circ`;
-    const T = tn(s.t);
+    const VY = tnScale(s.vy, model(p).VY);
+    const Y = tnScale(s.y, H);
+    const vy0 = v0y(l);
+    // R5b: near the top (v_y ≈ 0) and at landing (y ≈ 0) the terms cancel; t keeps the figures that
+    // reproduce the printed v_y and y (one string for both lines, R8).
+    const sigY = sigCancel((r, k) => l.h + vy0 * r(s.t) - halfAt(k) * r(s.t) ** 2, Y, ZERO * H);
+    const sig = Math.max(sigCancel((r) => vy0 - l.g * r(s.t), VY, ZERO * model(p).VY), sigY);
+    // ½g exact only where the y line itself needs it (a t needed by the v_y line does not).
+    const half = String(halfAt(sigY));
+    const T = tnCancel(s.t, sig);
     const sin = `${v0}\\sin ${th}`;
     return [
       // Free-body diagram: gravity only, so a_x = 0 (v_x constant) and a_y = -g.
       ...(p.fbd ? [`\\Sigma \\vec F = m\\vec g \\;\\Rightarrow\\; a_x = 0,\\ a_y = -g = -${gt}${u('m/s^2')}`] : []),
       `v_x = v_0\\cos\\theta = ${v0}\\cos ${th} = ${tn(s.vx)}${u('m/s')}`,
       `v_y = v_0\\sin\\theta - gt`,
-      `= ${sin} - ${gt} \\times ${T} = ${tn(s.vy)}${u('m/s')}`,
+      `= ${sin} - ${gt} \\times ${T} = ${VY}${u('m/s')}`,
       `y = h + v_0\\sin\\theta\\,t - \\tfrac{1}{2}gt^2`,
-      `= ${slider(params.h, l.h)} + ${sin} \\times ${T} - ${half} \\times ${T}^2 = ${tnScale(s.y, H)}${u('m')}`,
+      `= ${slider(params.h, l.h)} + ${sin} \\times ${T} - ${half} \\times ${T}^2 = ${Y}${u('m')}`,
       `v = \\sqrt{v_x^2 + v_y^2} = \\sqrt{${tn(s.vx)}^2 + ${tp(s.vy)}^2} = ${tn(Math.hypot(s.vx, s.vy))}${u('m/s')}`,
     ];
   },

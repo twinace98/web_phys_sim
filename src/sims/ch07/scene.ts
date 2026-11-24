@@ -2,7 +2,7 @@
 // graph share one x axis. The signed area under F(x) from the start to the block (the work, as in
 // the Ch 2 area overlay) always equals the change ΔK on the K(x) graph and in the bars.
 import { fmtTick, niceTicks } from '../../core/format';
-import { fmtScale, num, tn, tnScale, u } from '../../core/tex';
+import { ZERO, fmtScale, num, sigCancel, tn, tnCancel, tnScale, u } from '../../core/tex';
 import { t as tr } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
@@ -250,14 +250,19 @@ export function formulaLines(s: S, p: P): string[] {
   const dK = K - kinetic(m, su.v0);
   const W = work(su.prof, su.x0, s.x);
   const F = force(su.prof, s.x);
-  const x = tnScale(s.x, sc.x);
+  let x = tnScale(s.x, sc.x);
   const v = tnScale(s.v, sc.v);
   const Ft = su.prof.kind === 'spring' ? tnScale(F, sc.F) : num(F);
   const lines: string[] = [];
   if (su.prof.kind === 'spring') {
     const k = su.prof.k;
+    const Wt = tnScale(W, sc.W);
+    // R5b: near a turning point x² ≈ x₀² and the bracket cancels; x then keeps the figures that
+    // reproduce the printed W (the same string in the F line, R8).
+    const sig = sigCancel((r) => -0.5 * Number(num(k)) * (r(s.x) ** 2 - Number(num(su.x0)) ** 2), Wt, ZERO * sc.W);
+    if (sig > 3) x = tnCancel(s.x, sig);
     lines.push(`F = -kx = -(${num(k)})(${x}) = ${Ft}${u('N')}`);
-    lines.push(`W = \\int_{x_0}^{x} F\\,dx = -\\tfrac12 k(x^2 - x_0^2)`, `= -\\tfrac12(${num(k)})[(${x})^2 - (${num(su.x0)})^2] = ${tnScale(W, sc.W)}${u('J')}`);
+    lines.push(`W = \\int_{x_0}^{x} F\\,dx = -\\tfrac12 k(x^2 - x_0^2)`, `= -\\tfrac12(${num(k)})[(${x})^2 - (${num(su.x0)})^2] = ${Wt}${u('J')}`);
   } else {
     const prof = su.prof;
     lines.push(`F(${x}${u('m')}) = ${Ft}${u('N')}`);

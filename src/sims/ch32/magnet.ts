@@ -194,7 +194,9 @@ export function formulaMagnet(s: S, p: P): string[] {
     return lines;
   }
   lines.push(`k_BT_C = \\frac{2J}{\\ln(1 + \\sqrt2)} = ${tn(TC)}\\,J`);
-  if (p.T >= 1) lines.push(`T = ${T}\\,T_C \\ge T_C:\\ \\lvert M\\rvert_{B=0} = 0`);
+  // Zero only for an infinite lattice: the 36 × 24 lattice keeps |M|/M_s ≈ 0.64 at T_C and 0.21 at
+  // 1.1 T_C from fluctuations (QA 2026-11-24), so the line states the limit (ⓘ gives the numbers).
+  if (p.T >= 1) lines.push(`T = ${T}\\,T_C \\ge T_C:\\ \\lvert M\\rvert_{B=0} \\to 0\\ (N \\to \\infty)`);
   else {
     const y = 2 / kT;
     lines.push(

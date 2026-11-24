@@ -1,6 +1,6 @@
 // Ch 2 scene: free fall. Vertical motion with constant acceleration −g, same slope/area plots.
 import { fmtTick, niceTicks } from '../../core/format';
-import { CONST, num, paren, slider, tn, tnScale, u } from '../../core/tex';
+import { CONST, ZERO, num, paren, sigCancel, slider, tn, tnCancel, tnScale, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { drawFbd, fbdParam, type FbdForce } from '../../draw/fbd';
 import { kinematicPlots } from './common';
@@ -51,6 +51,8 @@ function model(p: P): { pr: Profile; rg: Ranges } {
 
 /** Height of the top of the view: the highest point reached. */
 const top = (p: P) => Math.max(model(p).rg.x[1], 1);
+/** Largest speed of the run: the scale of v (R7a), so the top of a throw reads an exact 0. */
+const vTop = (p: P) => Math.max(Math.abs(model(p).rg.v[0]), Math.abs(model(p).rg.v[1]), 1);
 
 const params: ParamSchema<P> = {
   throw: {
@@ -170,7 +172,7 @@ export const freefall: Scene<P, S> = {
   readouts: [
     // 3 figures; the highest point sets the run scale, so the landing reads an exact 0 (policy D, R7a).
     { label: 'y', unit: 'm', value: (s) => s.y, scale: top },
-    { label: 'v', unit: 'm/s', value: (s) => s.v },
+    { label: 'v', unit: 'm/s', value: (s) => s.v, scale: vTop },
     { label: 'a', unit: 'm/s²', value: (s) => s.a },
   ],
 
@@ -179,14 +181,23 @@ export const freefall: Scene<P, S> = {
   formula: (s, p) => {
     const { pr } = model(p);
     const v0 = num(pr.v0);
-    const T = tn(s.t);
+    const half = CONST.g.value / 2;
+    // R5b: near the top (v ≈ 0) and at landing (y ≈ 0) the terms cancel; t then keeps the figures
+    // that reproduce the printed v and y (one string for both lines, R8).
+    const V = tnScale(s.v, vTop(p));
+    const Y = tnScale(s.y, top(p));
+    const sig = Math.max(
+      sigCancel((r) => pr.v0 - CONST.g.value * r(s.t), V, ZERO * vTop(p)),
+      sigCancel((r) => pr.x0 + pr.v0 * r(s.t) - half * r(s.t) ** 2, Y, ZERO * top(p)),
+    );
+    const T = tnCancel(s.t, sig);
     return [
       // Free-body diagram: mg is the only force, so ΣF = ma gives a = −g for any mass.
       ...(p.fbd ? [`\\Sigma F_y = -mg = ma \\;\\Rightarrow\\; a = -g`] : []),
       `a = -g = ${tn(s.a)}${u('m/s^2')}`,
-      `v = v_0 - gt = ${v0} - ${CONST.g.tex} \\times ${T} = ${tn(s.v)}${u('m/s')}`,
+      `v = v_0 - gt = ${v0} - ${CONST.g.tex} \\times ${T} = ${V}${u('m/s')}`,
       `y = h + v_0 t - \\tfrac{1}{2} g t^2`,
-      `= ${slider(params.h, pr.x0)} + ${paren(v0)} \\times ${T} - ${num(CONST.g.value / 2)} \\times ${T}^2 = ${tnScale(s.y, top(p))}${u('m')}`,
+      `= ${slider(params.h, pr.x0)} + ${paren(v0)} \\times ${T} - ${num(half)} \\times ${T}^2 = ${Y}${u('m')}`,
     ];
   },
 

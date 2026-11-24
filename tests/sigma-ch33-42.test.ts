@@ -57,9 +57,9 @@ describe('Ch 33', () => {
 describe('Ch 34–35', () => {
   it('lens and mirror: p and f as their sliders print them, in the Σ panel and in the stage panel', async () => {
     const l = await at(34, 'lens');
-    expect(l.lines[1]).toBe('i = \\frac{pf}{p - f} = \\frac{(18.0)(15)}{18.0 - 15} = 90.0\\ \\mathrm{cm}');
-    expect(l.lines[2]).toBe('m = -\\frac{i}{p} = -\\frac{90.0}{18.0} = -5.00');
-    expect((await at(34, 'mirror', { kind: 'convex' })).lines[1]).toBe('\\frac{1}{i} = \\frac{1}{f} - \\frac{1}{p} = \\frac{1}{-15} - \\frac{1}{18.0}');
+    expect(l.lines[1]).toBe('i = \\frac{pf}{p - f} = \\frac{(20.0)(15)}{20.0 - 15} = 60.0\\ \\mathrm{cm}');
+    expect(l.lines[2]).toBe('m = -\\frac{i}{p} = -\\frac{60.0}{20.0} = -3.00');
+    expect((await at(34, 'mirror', { kind: 'convex' })).lines[1]).toBe('\\frac{1}{i} = \\frac{1}{f} - \\frac{1}{p} = \\frac{1}{-15} - \\frac{1}{20.0}');
     const st = panel({ kind: 'converging', f: 15, p: 18, h: 5 });
     expect(st).toContain('\\dfrac{1}{18.0}');
     expect(st).toContain('\\dfrac{1}{15}');
@@ -180,12 +180,12 @@ describe('Ch 39', () => {
     expect((await at(39, 'wells', { pot: 'harmonic' })).lines[0]).toBe('E_0 = \\tfrac12\\hbar\\omega = \\tfrac12 \\times 0.20\\ \\mathrm{eV} = 0.100\\ \\mathrm{eV}');
   });
 
-  it('superposition: h from CONST, ΔE to 3 figures, t/T to 3 figures, ⟨x⟩ with the run-scale decimals', async () => {
+  it('superposition: h from CONST, ΔE to 3 figures, t/T as whole periods + φ, ⟨x⟩ with the run-scale decimals', async () => {
     const h = await at(39, 'superposition', { pot: 'harmonic' }, 300);
     expect(h.lines[1]).toBe('T = \\frac{h}{\\Delta E} = \\frac{4.14\\ \\mathrm{eV\\,fs}}{0.200\\ \\mathrm{eV}} = 20.7\\ \\mathrm{fs}');
     const d = await at(39, 'superposition', {}, 777);
-    expect(d.lines[2]).toBe('\\frac{t}{T} = \\frac{7.11\\ \\mathrm{fs}}{3.67\\ \\mathrm{fs}} = 1.94');
-    expect(d.lines.at(-1)).toBe('= 0 - 0.180\\cos(2\\pi \\times 1.94) = -0.167\\ \\mathrm{nm}');
+    expect(d.lines[2]).toBe('\\frac{t}{T} = \\frac{7.11\\ \\mathrm{fs}}{3.67\\ \\mathrm{fs}} = 1 + 0.939');
+    expect(d.lines.at(-1)).toBe('= 0 - 0.180\\cos(2\\pi \\times 0.939) = -0.167\\ \\mathrm{nm}');
     expect(d.ro('\\langle x\\rangle')).toBe('−0.167');
   });
 });

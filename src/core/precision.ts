@@ -5,6 +5,8 @@
 //   R2 integers and counts → tnInt
 //   R3 state and derived values → tn (3 figures, tex.ts); results equal their readout string
 //   R4 measured / statistical values → tnMeas (to the scatter, optional ±)
+//   R5b inputs of a line whose terms nearly cancel → sigCancel (more figures, up to CANCEL_SIG, until
+//       the printed arithmetic reproduces the printed result)
 //   R6 inequalities → tnCmp (fewest figures ≥ 3 that keep the inequality visible)
 //   R7a time-varying values → tnScale / ReadoutSpec.scale (3 figures; residues below 10⁻³ of the
 //       run scale print as an exact 0)
@@ -123,6 +125,67 @@ export const CONST = {
  * helpers of the chapters (sigToMatch, sigFit, fitSig, sumSig, diffSig) never return more.
  */
 export const INPUT_SIG = 3;
+
+// ---------------------------------------------------------------- R5b cancelling lines
+
+/** R5b: most significant figures a live input of a cancelling line prints with. */
+export const CANCEL_SIG = 6;
+
+/**
+ * R5b: how close to 0 the arithmetic of a line whose result prints as an exact 0 (R7a) must come,
+ * as a fraction of the run scale: 1 %, the recompute tolerance of any other result.
+ */
+export const ZERO = 0.01;
+
+/** A number as fmt or tn prints it ("−1.23×10⁻⁵", "-1.23\\times 10^{-5}", "0.191"), read back. */
+export function readBack(t: string): number {
+  const s = texOf(t)
+    .replace(/\\times 10\^\{(-?\d+)\}/, 'e$1')
+    .replace(/^\(|\)$/g, '');
+  return Number(s);
+}
+
+/** One unit in the last printed digit of a number string (2.13 → 0.01, 4.17×10⁻³ → 10⁻⁵, 0 → 0). */
+export function ulpText(t: string): number {
+  const s = texOf(t).replace(/^\(|\)$/g, '');
+  const m = /^-?(\d+)(?:\.(\d+))?(?:\\times 10\^\{(-?\d+)\})?$/.exec(s);
+  if (!m || readBack(t) === 0) return 0;
+  return 10 ** (Number(m[3] ?? 0) - (m[2]?.length ?? 0));
+}
+
+/**
+ * Whether v, the arithmetic on the printed inputs, reproduces the printed result: within 1 % or
+ * one unit in its last digit (R3, the recompute rule of the tests); a printed 0 needs |v| ≤ zero.
+ */
+export function reproduces(v: number, result: string, zero = 0): boolean {
+  const r = readBack(result);
+  if (!Number.isFinite(v) || !Number.isFinite(r)) return false;
+  if (r === 0) return Math.abs(v) <= zero;
+  return Math.abs(v - r) <= Math.max(0.01 * Math.abs(r), ulpText(result)) * (1 + 1e-9);
+}
+
+/**
+ * R5b: fewest figures s (INPUT_SIG..CANCEL_SIG) for the live inputs of a line whose terms nearly
+ * cancel (v = v₀ − gt near the top, a spring's work near a turning point, 2K/π − 1 for small
+ * angles), so that the arithmetic on the printed inputs reproduces the printed result. `calc` gets
+ * the rounding x ↦ x printed at s figures (and s) and returns the line's value from the rounded inputs;
+ * `zero` is how far from 0 a result printed as an exact 0 may be (ZERO × its run scale).
+ * Lines without cancellation keep 3 figures: s grows only where 3 do not reproduce the result.
+ */
+export function sigCancel(calc: (r: (x: number) => number, s: number) => number, result: string, zero = 0): number {
+  for (let s = INPUT_SIG; s < CANCEL_SIG; s++) if (reproduces(calc((x) => readBack(fmt(x, s, 0)), s), result, zero)) return s;
+  return CANCEL_SIG;
+}
+
+/**
+ * R5b: x as an input of a cancelling line at sigCancel's s figures, without trailing zeros the
+ * value does not need (a = −2.94 stays "−2.94" while t prints 1.6917; never fewer than 3 figures).
+ */
+export function tnCancel(x: number, s: number): string {
+  const full = readBack(fmt(x, s, 0));
+  for (let k = INPUT_SIG; k < s; k++) if (readBack(fmt(x, k, 0)) === full) return texOf(fmt(x, k, 0));
+  return texOf(fmt(x, s, 0));
+}
 
 // ---------------------------------------------------------------- R2 integers
 

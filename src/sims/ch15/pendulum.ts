@@ -5,7 +5,7 @@
 import { fmt, fmtTick } from '../../core/format';
 import { t } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
-import { CONST, num, paren, slider, tn, tnScale, u } from '../../core/tex';
+import { CONST, num, paren, sigCancel, slider, tn, tnCancel, tnScale, u } from '../../core/tex';
 import type { Draw } from '../../draw/draw';
 import { drawRich, measureRich } from '../../draw/text';
 import { color, theme } from '../../draw/theme';
@@ -325,15 +325,19 @@ export const pendulum: Scene<P, S> = {
     const T0 = smallAnglePeriod(pd);
     const T = exactPeriod(pd, th0);
     const err = periodError(pd, th0);
-    // Policy D: L as its slider label, g as 9.8 (R1); T₀, K and T to 3 figures, T₀ and T as their
-    // readouts (R3). The error is the small difference of two periods: written as 2K/π − 1, computed
-    // without the cancellation (R5), the readout string.
+    // Policy D: L as its slider label, g as 9.8 (R1); T₀ and T to 3 figures, as their readouts (R3).
+    // The error is the small difference of two periods: written as 2K/π − 1, the readout string,
+    // with K to the figures that reproduce it (R5b).
     const L = slider(params.L, p.L);
     const g = CONST.g.tex;
     const { at, ar } = pendulumAccel(pd, s.th, s.w);
     const v = p.L * s.w;
     const deg = s.th / DEG;
     const K = ellipticK(Math.sin(th0 / 2));
+    // R5b: K ≈ π/2 for small amplitudes, so 2K/π − 1 cancels; K keeps the figures that reproduce the
+    // printed error (10° needs 1.57379, not 1.57), the same string in the K and T lines (R8).
+    const E = tn(100 * err);
+    const Kt = tnCancel(K, sigCancel((r) => 100 * ((2 * r(K)) / Math.PI - 1), E));
     // Values that change during the swing: 3 figures, with their largest value in the run as the scale (R7a),
     // so the turning point prints v = 0 and the sums below keep one decimal place.
     // θ to 3 figures (R3). Beyond 90° sin θ is small near the top and 3 figures of θ would lose it:
@@ -344,9 +348,9 @@ export const pendulum: Scene<P, S> = {
     const fMax = BOB_M * G * (3 - 2 * Math.cos(th0));
     const lines = [
       `T_0 = 2\\pi\\sqrt{L/g} = 2\\pi\\sqrt{${L}/${g}} = ${tn(T0)}${u('s')}`,
-      `K\\!\\left(\\sin\\tfrac{\\theta_0}{2}\\right) = K(\\sin ${num(p.theta0 / 2)}^\\circ) = ${tn(K)}`,
-      `T = 4\\sqrt{L/g}\\,K = 4\\sqrt{${L}/${g}} \\times ${tn(K)} = ${tn(T)}${u('s')}`,
-      `\\frac{T - T_0}{T_0} = \\frac{2K}{\\pi} - 1 = ${tn(100 * err)}\\ \\%`,
+      `K\\!\\left(\\sin\\tfrac{\\theta_0}{2}\\right) = K(\\sin ${num(p.theta0 / 2)}^\\circ) = ${Kt}`,
+      `T = 4\\sqrt{L/g}\\,K = 4\\sqrt{${L}/${g}} \\times ${Kt} = ${tn(T)}${u('s')}`,
+      `\\frac{T - T_0}{T_0} = \\frac{2K}{\\pi} - 1 = \\frac{2 \\times ${Kt}}{\\pi} - 1 = ${E}\\ \\%`,
       `a_\\mathrm{t} = -g\\sin\\theta = -${g}\\sin(${sinArg(deg)}) = ${tnScale(at, G * Math.sin(Math.min(th0, Math.PI / 2)))}${u('m/s^2')}`,
       `a_{\\mathrm{t},0} = -g\\theta = -${g} \\times ${paren(tnScale(s.th, th0))} = ${tnScale(-G * s.th, G * th0)}${u('m/s^2')}`,
       `a_\\mathrm{r} = v^2/L = (${tnScale(v, vMax)})^2/${L} = ${tnScale(ar, (vMax * vMax) / p.L)}${u('m/s^2')}`,

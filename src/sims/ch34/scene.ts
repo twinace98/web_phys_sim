@@ -109,9 +109,11 @@ function params(el: Element): ParamSchema<P> {
       min: 2,
       max: 55,
       step: 0.5,
-      // 18 cm: the f slider (5–30) crosses p/2 = 9 and p = 18, so it shows a reduced real image,
-      // an enlarged real image and an upright virtual image in turn.
-      default: 18,
+      // 20 cm: the f slider (5–30) crosses p/2 = 10 and p = 20, so it shows a reduced real image,
+      // an enlarged real image and an upright virtual image in turn. At the default f = 15 the image
+      // (i = 60 cm) lies on the 70 cm half-stage, so the rays meet visibly (18 cm put it at 90 cm,
+      // QA 2026-11-24); at f = 30 the virtual image (i = −60 cm) does too.
+      default: 20,
       unit: 'cm',
     },
     h: { kind: 'number', label: 'ch34.p.h', desc: 'ch34.d.h', group: 'hidden', live: true, control: 'slider', min: 2, max: 8, step: 0.5, default: 5 },

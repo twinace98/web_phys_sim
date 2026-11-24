@@ -1,7 +1,7 @@
 // Ch 39 scenes: bound states of 1D wells drawn as an energy diagram (U(x), levels, ψ or |ψ|²),
 // and the time evolution of a two-state superposition.
 import { fmt } from '../../core/format';
-import { CONST, slider, texOf, tn, tnCmp, tnScale, u } from '../../core/tex';
+import { CONST, ZERO, readBack, sigCancel, slider, texOf, tn, tnCancel, tnCmp, tnScale, u } from '../../core/tex';
 import type { ParamSchema, ParamSpec, Scene } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
@@ -530,14 +530,24 @@ export function supLines(time: number, p: PS): string[] {
   const sc = supScale(p);
   // h in eV·fs from the constant table (4.14×10⁻¹⁵ eV s).
   lines.push(`T = \\frac{h}{\\Delta E} = \\frac{${tn(CONST.hEV.value * 1e15)}\\ \\mathrm{eV\\,fs}}{${eTex(dE)}} = ${tn(T)}${u('fs')}`);
-  lines.push(`\\frac{t}{T} = \\frac{${tn(time)}\\ \\mathrm{fs}}{${tn(T)}\\ \\mathrm{fs}} = ${tn(ph)}`);
+  // Whole periods drop out of the cosine: t/T is written as n + φ and only φ is substituted, so a
+  // long run (t/T = 100.5) keeps the fraction that decides the sign (QA 2026-11-24).
+  const n = Math.floor(ph);
+  const frac = ph - n;
+  const Xt = tnScale(xm, sc);
+  const Xm = tnScale(q.xm, sc);
+  const sg = q.xc < 0 ? -1 : 1;
+  // R5b: near a zero of the cosine the terms cancel; φ and A keep the figures that reproduce ⟨x⟩.
+  const k = Math.abs(q.xc) < 1e-9 ? 3 : sigCancel((r) => readBack(Xm) + sg * r(Math.abs(q.xc)) * Math.cos(2 * Math.PI * r(frac)), Xt, ZERO * sc);
+  const F = tnCancel(frac, k);
+  lines.push(`\\frac{t}{T} = \\frac{${tn(time)}\\ \\mathrm{fs}}{${tn(T)}\\ \\mathrm{fs}} = ${n > 0 ? `${n} + ${F}` : F}`);
   // Pairs of the same parity: ⟨x⟩ stays at x̄.
-  if (Math.abs(q.xc) < 1e-9) lines.push(`A = 0 \\;\\Rightarrow\\; \\langle x\\rangle = \\bar x = ${tnScale(xm, sc)}${u('nm')}`);
+  if (Math.abs(q.xc) < 1e-9) lines.push(`A = 0 \\;\\Rightarrow\\; \\langle x\\rangle = \\bar x = ${Xt}${u('nm')}`);
   // Split over two lines: one line would shrink to about 0.63 × in the docked panel.
   else
     lines.push(
       `\\langle x\\rangle = \\bar x + A\\cos(2\\pi t/T)`,
-      `= ${tnScale(q.xm, sc)} ${q.xc < 0 ? '-' : '+'} ${tn(Math.abs(q.xc))}\\cos(2\\pi \\times ${tn(ph)}) = ${tnScale(xm, sc)}${u('nm')}`,
+      `= ${Xm} ${sg < 0 ? '-' : '+'} ${tnCancel(Math.abs(q.xc), k)}\\cos(2\\pi \\times ${F}) = ${Xt}${u('nm')}`,
     );
   return lines;
 }

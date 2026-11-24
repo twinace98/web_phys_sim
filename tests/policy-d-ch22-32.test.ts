@@ -360,7 +360,7 @@ describe('policy D, Ch 28-32', () => {
     const lines = run(magnet).lines();
     expect(lines).toContain('k_BT_C = \\frac{2J}{\\ln(1 + \\sqrt2)} = 2.27\\,J');
     expect(lines).toContain('\\frac{2J}{k_BT} = \\frac{2}{0.50 \\times 2.27} = 1.76');
-    expect(run(magnet, { T: 2 }).lines()).toContain('T = 2.00\\,T_C \\ge T_C:\\ \\lvert M\\rvert_{B=0} = 0');
+    expect(run(magnet, { T: 2 }).lines()).toContain('T = 2.00\\,T_C \\ge T_C:\\ \\lvert M\\rvert_{B=0} \\to 0\\ (N \\to \\infty)');
   });
 
   it('Ch 32 origin: e and mₑ from CONST', () => {

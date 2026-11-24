@@ -36,6 +36,6 @@
   "ch34.assume.thin": "Paraxial approximation: rays stay close to the axis at small angles. Lenses and mirrors are treated as thin elements that refract or reflect in one plane; the mirror's curvature is only drawn, and the mirror is drawn tall enough for every principal ray to reach it. On narrow screens heights are drawn 2.5 times larger. An image that forms beyond the stage is drawn at its edge with a double chevron (»)",
   "ch34.l.assume.sign": "Signs: converging lens $f > 0$, diverging lens $f < 0$, real image $i > 0$, virtual image $i < 0$",
   "ch34.m.assume.sign": "Signs: concave mirror $f > 0$, convex mirror $f < 0$, plane mirror $f = \\infty$, real image $i > 0$, virtual image $i < 0$",
-  "ch34.l.obs.f2": "Change only the focal length (converging lens, object at 18 cm): $f < p/2$ → reduced, inverted real image; $p/2 < f < p$ → enlarged, inverted real image; $f = p$ → no image (at infinity); $f > p$ → enlarged, upright virtual image",
-  "ch34.m.obs.f2": "Change only the focal length (concave mirror, object at 18 cm): $f < p/2$ → reduced, inverted real image; $p/2 < f < p$ → enlarged, inverted real image; $f > p$ → enlarged, upright virtual image behind the mirror"
+  "ch34.l.obs.f2": "Change only the focal length (converging lens, object at 20 cm): $f < p/2$ → reduced, inverted real image; $p/2 < f < p$ → enlarged, inverted real image; $f = p$ → no image (at infinity); $f > p$ → enlarged, upright virtual image",
+  "ch34.m.obs.f2": "Change only the focal length (concave mirror, object at 20 cm): $f < p/2$ → reduced, inverted real image; $p/2 < f < p$ → enlarged, inverted real image; $f > p$ → enlarged, upright virtual image behind the mirror"
 }

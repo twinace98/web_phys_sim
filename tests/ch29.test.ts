@@ -141,4 +141,25 @@ describe('ch29 Biot-Savart reference line and convergence (QA E7)', () => {
     expect(ko['ch29.b.obs.n']).toMatch(/-91/);
     expect(en['ch29.b.obs.n']).toMatch(/sign/);
   });
+
+  it('QA 2026-11-24: the quoted error ranges hold wherever P sits along the wire, 6 cm away', async () => {
+    const { biot, readB } = await import('../src/sims/ch29/biot');
+    const { infiniteWire } = await import('../src/sims/ch29/physics');
+    const { defaults } = await import('../src/core/params');
+    const range = (n: number) => {
+      const e: number[] = [];
+      for (let x = -0.4; x <= 0.4001; x += 0.005) {
+        const p = { ...defaults(biot.params), wire: 'straight', n, Ps: [x, 0.06] } as never;
+        e.push(100 * (readB({ t: 1e9 } as never, p) / infiniteWire(0.06) - 1));
+      }
+      return [Math.min(...e), Math.max(...e)];
+    };
+    const [lo4, hi4] = range(4);
+    expect(lo4).toBeGreaterThan(-91.5);
+    expect(hi4).toBeLessThan(361);
+    expect(Math.max(...range(24).map(Math.abs))).toBeLessThan(9.5);
+    expect(Math.max(...range(48).map(Math.abs))).toBeLessThan(0.5);
+    expect(ko['ch29.b.obs.n']).toMatch(/\+360/);
+    expect(en['ch29.b.obs.n']).toMatch(/0\.5 %/);
+  });
 });
