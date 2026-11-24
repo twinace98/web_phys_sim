@@ -111,12 +111,12 @@ describe('Ch 5 (audit §5: 1.3333 × 0.41667, m = 2.000; first law 1.77 against 
   });
   it('third law and frames: masses, k and a₀ as their labels', async () => {
     const t = at(await scene(5, 'third'), { fbd: true }, 0);
-    expect(t.lines).toContain('a_A = \\frac{F_{AB}}{m_A} = \\frac{0.00}{3.0} = 0.00\\ \\mathrm{m/s^2}');
+    expect(t.lines).toContain('a_A = \\frac{F_{AB}}{m_A} = \\frac{0}{3.0} = 0\\ \\mathrm{m/s^2}');
     expect(t.lines).toContain('N_A = m_A g = 3.0 \\times 9.8 = 29.4\\ \\mathrm{N}');
-    expect(t.lines[0]).toBe('F_{BA} = k\\,c = 50 \\times 0.00 = 0.00\\ \\mathrm{N}');
+    expect(t.lines[0]).toBe('F_{BA} = k\\,c = 50 \\times 0 = 0\\ \\mathrm{N}');
     const f = at(await scene(5, 'frames'), { A: 2 }, 0);
     expect(f.lines).toContain("a' = a - a_0 = 0 - 2.0 = -2.00\\ \\mathrm{m/s^2}");
-    expect(at(await scene(5, 'frames'), { motion: 'uniform' }, 0).lines).toContain("a' = a - a_0 = 0 - 0 = 0.00\\ \\mathrm{m/s^2}");
+    expect(at(await scene(5, 'frames'), { motion: 'uniform' }, 0).lines).toContain("a' = a - a_0 = 0 - 0 = 0\\ \\mathrm{m/s^2}");
   });
 });
 
@@ -198,9 +198,9 @@ describe('Ch 9 (PENDING: m1, m2, v1 labels; R7a totals)', () => {
   it('track: masses and initial velocities as their labels, e as its label or an exact 1', async () => {
     const sc = await scene(9, 'track');
     const d = at(sc, {}, 0);
-    expect(d.lines[1]).toBe('= (1.0)(2.00) + (1.0)(0.00) = 2.00\\ \\mathrm{kg\\,m/s}');
+    expect(d.lines[1]).toBe('= (1.0)(2.00) + (1.0)(0) = 2.00\\ \\mathrm{kg\\,m/s}');
     expect(d.lines[4]).toBe('v_\\mathrm{cm} = \\frac{p_\\mathrm{tot}}{m_1 + m_2} = \\frac{2.00}{2.0} = 1.00\\ \\mathrm{m/s}');
-    expect(at(sc, {}, 800).lines).toContain('e = \\frac{v_{2f} - v_{1f}}{v_{1i} - v_{2i}} = \\frac{(2.00) - (0.00)}{(2.0) - (0.0)} = 1');
+    expect(at(sc, {}, 800).lines).toContain('e = \\frac{v_{2f} - v_{1f}}{v_{1i} - v_{2i}} = \\frac{(2.00) - (0)}{(2.0) - (0.0)} = 1');
     const ine = at(sc, { kind: 'inelastic', m1: 1.3, m2: 2.7, v2: -0.7, e: 0.35 }, 800);
     expect(ine.lines[1]).toBe(`= (1.3)(-0.460) + (2.7)(0.485) = ${ine.ro('p_\\mathrm{tot}')}\\ \\mathrm{kg\\,m/s}`);
     // 3 figures (zero handling only, 2026-11-24).

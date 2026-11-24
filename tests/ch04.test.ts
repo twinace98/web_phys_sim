@@ -132,7 +132,7 @@ describe('ch04 position readouts (review 2026-11-17, §0-1)', () => {
             for (let i = 0; i < 400 && r.playing; i++) r.advance(0.5);
             const tag = `θ=${theta} h=${h} v0=${v0} ${g}`;
             expect(show('x', r.state, p), tag).toBe(fmt(range(l)));
-            expect(show('y', r.state, p), tag).toBe('0.00');
+            expect(show('y', r.state, p), tag).toBe('0');
           }
   });
 });

@@ -12,11 +12,11 @@ describe('fmt', () => {
     expect(fmt(1.5)).toBe('1.50');
     expect(fmt(-2)).toBe('−2.00');
     expect(fmt(21)).toBe('21.0');
-    expect(fmt(0)).toBe('0.00');
+    expect(fmt(0)).toBe('0');
   });
   it('prints floating-point noise as zero', () => {
-    expect(fmt(3e-16)).toBe('0.00');
-    expect(fmt(-1e-12)).toBe('0.00');
+    expect(fmt(3e-16)).toBe('0');
+    expect(fmt(-1e-12)).toBe('0');
   });
   it('uses ×10ⁿ for extremes', () => {
     expect(fmt(6.626e-34, 3, 0)).toBe('6.63×10⁻³⁴');

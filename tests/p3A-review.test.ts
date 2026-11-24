@@ -32,7 +32,7 @@ function checkFirst(s: any, p: any, tag: string): void {
   const lines = first.formula!(s, p);
   const at = (head: string) => lines.find((l) => l.startsWith(head));
   if (s.v <= 0) {
-    expect(lines[1], tag).toContain('v = 0.00');
+    expect(lines[1], tag).toContain('v = 0\\ ');
     return;
   }
   const fk = at('f_k = ')!;

@@ -24,6 +24,9 @@ const sup = (n: number) => String(n).replace(/[-0-9]/g, (c) => SUP[c]);
 export function fmt(v: number, sig = 3, zeroTol = 1e-9): string {
   if (!Number.isFinite(v)) return '–';
   if (Math.abs(v) < zeroTol) v = 0;
+  // An exact 0 (or rounding noise below zeroTol) prints as "0", not "0.00": 0.00 reads as a
+  // measured small value (policy D, R7). Small physical values keep their figures (1.36×10⁻⁹).
+  if (v === 0) return '0';
   const a = Math.abs(v);
   const sign = v < 0 ? MINUS : '';
   // Decide the notation from the value as it will be printed (99999.6 at 3 figures is 1.00×10⁵).

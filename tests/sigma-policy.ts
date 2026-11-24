@@ -416,8 +416,8 @@ function otherValue(spec: NumberParam, v: number): number | undefined {
 }
 
 const abs = (s: string) => s.replace(/^-/, '');
-/** "0.00", "-0.0", "0.00e-5": a zero printed with decimals. */
-const isZeroText = (s: string) => /^-?0\.0+(?:e-?\d+)?$/.test(s.trim());
+/** "0", "0.00", "-0.0", "0.00e-5": a zero (a physical small value never prints as one, R7b). */
+const isZeroText = (s: string) => /^-?0(?:\.0+)?(?:e-?\d+)?$/.test(s.trim());
 /** The first number of a unicode-formatted text (fmt) as a token. */
 const firstTok = (text: string) => toks(texClean(texOf(text)))[0];
 
