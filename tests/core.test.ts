@@ -12,11 +12,11 @@ describe('fmt', () => {
     expect(fmt(1.5)).toBe('1.50');
     expect(fmt(-2)).toBe('−2.00');
     expect(fmt(21)).toBe('21.0');
-    expect(fmt(0)).toBe('0.00');
+    expect(fmt(0)).toBe('0');
   });
   it('prints floating-point noise as zero', () => {
-    expect(fmt(3e-16)).toBe('0.00');
-    expect(fmt(-1e-12)).toBe('0.00');
+    expect(fmt(3e-16)).toBe('0');
+    expect(fmt(-1e-12)).toBe('0');
   });
   it('uses ×10ⁿ for extremes', () => {
     expect(fmt(6.626e-34, 3, 0)).toBe('6.63×10⁻³⁴');
@@ -110,8 +110,15 @@ describe('URL numbers on the control grid (review 2026-11-20: nClosed=2 gave an 
     expect(decode(step005, '-1.26')).toBe(-1.25);
   });
 
-  it('fractional-step slider keeps the URL value (handles set values between its points, θc in Ch 33)', () => {
-    const sp = num({ min: 0, max: 89, step: 0.1 });
+  it('fractional-step slider: URL values snap to the grid, so the label shows the value used (QA 2026-11-24, 108 b = 8.04)', () => {
+    const sp = num({ min: 0.5, max: 12, step: 0.1 });
+    expect(decode(sp, '8.04')).toBe(8);
+    expect(decode(sp, '8.06')).toBe(8.1);
+    expect(decode(sp, '30')).toBeUndefined();
+  });
+
+  it('free slider keeps the URL value (its handle sets values between grid points, θc in Ch 33)', () => {
+    const sp = num({ min: 0, max: 89, step: 0.1, free: true });
     expect(decode(sp, '41.810314895778596')).toBe(41.810314895778596);
     expect(decode(sp, '30')).toBe(30);
   });

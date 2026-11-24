@@ -155,7 +155,7 @@ describe('ch08 energy diagram: end of the run', () => {
   };
 
   it('regression: over the hill the particle stops on the edge with E conserved, and the clock pauses there', () => {
-    const p = { ...base, pot: 'hill', x0s: [-2.7, 3.1] };
+    const p = { ...base, pot: 'hill', x0Double: -2.7, x0Hill: 3.1 };
     const tEnd = endTime(p)!;
     expect(tEnd).toBeGreaterThan(1);
     const r = run(p);
@@ -191,12 +191,12 @@ describe('ch08 energy diagram: end of the run', () => {
   it('the spring potential is gone (Ch 15 covers it); old spring links fall back to the double well', () => {
     expect((energyScene.params.pot as any).options.map((o: any) => o.value)).toEqual(['double', 'hill']);
     expect(Object.keys(POTENTIALS).sort()).toEqual(['double', 'hill']);
-    const p = fromQuery(energyScene.params, new URLSearchParams('pot=spring&x0s=-2.7,-2.5,2.9'));
+    const p = fromQuery(energyScene.params, new URLSearchParams('pot=spring&x0Double=-2.5'));
     expect(p.pot).toBe('double');
-    expect(p.x0s).toEqual([-2.7, 2.9]);
-    // A three-entry start list from an old link cannot be split by potential: defaults instead.
-    expect(fromQuery(energyScene.params, new URLSearchParams('pot=hill&x0s=-2.7,-2.5,3.1')).x0s).toEqual([-2.7, 2.9]);
-    expect(fromQuery(energyScene.params, new URLSearchParams('pot=hill&x0s=-2.7,3.1')).x0s).toEqual([-2.7, 3.1]);
+    expect([p.x0Double, p.x0Hill]).toEqual([-2.5, 2.9]);
+    // Each potential keeps its own start slider (QA 2026-11-24: the start was drag-only before).
+    const q = fromQuery(energyScene.params, new URLSearchParams('pot=hill&x0Hill=3.1'));
+    expect([q.x0Double, q.x0Hill]).toEqual([-2.7, 3.1]);
   });
 });
 
@@ -215,7 +215,7 @@ describe('ch08 energy diagram: the unstable label keeps off the E line', () => {
     ];
     for (const [w, h] of [[1280, 800], [770, 680], [390, 420], [360, 300]]) {
       for (const [pot, x0s] of starts) {
-        const p = { ...base, pot, x0s };
+        const p = { ...base, pot, x0Double: x0s[0], x0Hill: x0s[1] };
         const s = energyScene.init(p, undefined as any);
         const g = probe(energyScene, s, p, w, h);
         const E = POTENTIALS[pot as 'hill'].U(s.x);
@@ -251,7 +251,7 @@ describe('ch08 energy diagram: K, U and E stay inside the plot (review 2026-11-1
   };
 
   it('review case: hill, x0 = −3.1 m. K_max 0.34 J inside the plot (before: top 0.14 J)', () => {
-    const p = { ...base, pot: 'hill', x0s: [-2.7, -3.1] };
+    const p = { ...base, pot: 'hill', x0Double: -2.7, x0Hill: -3.1 };
     const [, top] = plotE.yRange!(p);
     const { K } = extremes(p);
     expect(K[1]).toBeCloseTo(0.34, 2);
@@ -265,7 +265,7 @@ describe('ch08 energy diagram: K, U and E stay inside the plot (review 2026-11-1
         for (let i = 0; i <= 124; i++) {
           const x0 = Number((-3.1 + 0.05 * i).toFixed(2));
           const x0s = pot === 'double' ? [x0, 2.9] : [-2.7, x0];
-          const p = { ...base, pot, friction, x0s };
+          const p = { ...base, pot, friction, x0Double: x0s[0], x0Hill: x0s[1] };
           const [lo, hi] = plotE.yRange!(p);
           const v = extremes(p);
           for (const k of ['K', 'U', 'E']) {

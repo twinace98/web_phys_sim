@@ -4,7 +4,8 @@
 // whose point can be dragged too. The dot tab adds a rectangle a × (b cos φ) whose area is a·b; the
 // cross tab draws the rectangle a × (b sin φ) on the plane, sheared from the parallelogram.
 import { fmt, fmtTick } from '../../../core/format';
-import type { ParamSchema, Role, Scene, SceneCtx, SelectParam, Vec2, WorldSpec } from '../../../core/types';
+import { ZERO, fmtCmp, readBack, reproduces, sigCancel, slider, tn, tnCancel, texOf } from '../../../core/tex';
+import type { NumberParam, ParamSchema, Role, Scene, SceneCtx, SelectParam, Vec2, WorldSpec } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
 import { theme } from '../../../draw/theme';
 import { type Box, LabelLayout } from '../../ch03/labels';
@@ -55,7 +56,10 @@ function world(L: Layout): WorldSpec {
 
 const P = (v: V2, k = 1): Vec2 => ({ x: v[0] * k, y: v[1] * k });
 const O: Vec2 = { x: 0, y: 0 };
-const vecOf = (p: number[]): V2 => [p[0], p[1]];
+/** The two vectors from their component sliders. */
+type Comps = { ax: number; ay: number; bx: number; by: number };
+const vecA = (p: Comps): V2 => [p.ax, p.ay];
+const vecB = (p: Comps): V2 => [p.bx, p.by];
 
 /** Unit grid and the x, y axes (Ch 3 style), inside the plane. */
 function drawPlane(g: Draw, L: Layout): void {
@@ -183,6 +187,24 @@ function angleArc(g: Draw, lay: LabelLayout, a: V2, phi: number, label: string, 
   );
 }
 
+/**
+ * Component sliders (settings drawer), the way to set the vectors without dragging: 0.01 steps, the
+ * grid the tips land on when dragged (and the plot point when it turns b).
+ */
+const compParam = (key: keyof Comps, lim: number, def: number): NumberParam => ({
+  kind: 'number',
+  label: `products.p.${key}`,
+  desc: `products.d.${key}`,
+  group: 'advanced',
+  live: true,
+  control: 'slider',
+  min: -lim,
+  max: lim,
+  step: 0.01,
+  default: def,
+});
+const compParams = (lim: number): ParamSchema<Comps> => ({ ax: compParam('ax', lim, 4), ay: compParam('ay', lim, 1), bx: compParam('bx', lim, 1), by: compParam('by', lim, 3) });
+
 const dragParam: SelectParam = {
   kind: 'select',
   label: 'products.p.drag',
@@ -196,14 +218,48 @@ const dragParam: SelectParam = {
   ],
 };
 
-/** TeX number, 3 significant figures, ASCII minus. */
-const tx = (v: number, sig = 3) => fmt(v, sig).replace('−', '-');
-/** Degrees as the φ readout and the stage arc print them: 3 figures (R8: 104°, 5.19°, not 104.0°, 5.2°). */
-const deg = (r: number) => tx(r / DEG);
-/** Component as stored (at most 2 decimals, trailing zeros dropped), in parentheses (products written as juxtaposition). */
-const cpt = (v: number) => `(${Number((Math.abs(v) < 0.005 ? 0 : v).toFixed(2))})`;
-/** Magnitude, 3 significant figures, in parentheses. */
-const mg = (v: number) => `(${tx(v)})`;
+/**
+ * φ [deg] as the stage arc, the readout and Σ print it (R8): 3 figures, more where 3 would hide on
+ * which side of the zero of the line's trig function the angle lies (R6): 90° for cos φ in the dot
+ * tab (90.003°, not 90.0°, next to a negative a·b), ±180° for sin φ in the cross tab.
+ */
+export const phiDotText = (deg: number): string => fmtCmp(deg, 90);
+export const phiCrossText = (deg: number): string => fmtCmp(deg, deg < 0 ? -180 : 180);
+/** Magnitude, 3 significant figures, in parentheses (products written as juxtaposition). */
+const mg = (v: number) => `(${tn(v)})`;
+
+/**
+ * Σ line of the factor M trig φ (b cos φ in the dot tab, b sin φ in the cross tab) with its printed
+ * result `fac`. Near a zero of the trig function (cos at 90°, sin at 0° and ±180°) the printed angle
+ * needs enough figures for M trig φ to reproduce the result (R5b): the readout string when it does,
+ * else up to CANCEL_SIG figures; where even those do not, the line takes the component route,
+ * factor = product / base, which does not cancel. A result printed as 0 allows ZERO × M.
+ */
+export function factorLine(o: {
+  lhs: string;
+  M: number;
+  phiDeg: number;
+  phiText: string;
+  trig: 'cos' | 'sin';
+  fac: string;
+  prodTex: string;
+  prod: number;
+  base: string;
+  L: number;
+}): string {
+  const f = o.trig === 'cos' ? Math.cos : Math.sin;
+  const m = readBack(tn(o.M));
+  const zero = ZERO * o.M;
+  const ok = (t: string) => reproduces(m * f(readBack(t) * DEG), o.fac, zero);
+  let ang = texOf(o.phiText);
+  if (!ok(ang)) {
+    const t = tnCancel(o.phiDeg, sigCancel((r) => m * f(r(o.phiDeg) * DEG), o.fac, zero));
+    if (ok(t)) ang = t;
+    else if (o.L > 1e-9) return `${o.lhs} = \\frac{${o.prodTex}}{${o.base}} = \\frac{${tn(o.prod)}}{${tn(o.L)}} = ${o.fac}`;
+  }
+  const trig = o.trig === 'cos' ? `\\cos ${ang}^\\circ` : `\\sin(${ang}^\\circ)`;
+  return `${o.lhs} = ${mg(o.M)}${trig} = ${o.fac}`;
+}
 
 /**
  * Translucent band of `widthPx` from p to q with square ends, so its drawn length is exactly |pq|
@@ -452,7 +508,7 @@ function drawPlot(g: Draw, ins: Inset, sp: PlotSpec, marks: Box[] = []): void {
 
 // ------------------------------------------------------------------ dot product
 
-type PD = { proj: string; drag: string; A: number[]; B: number[] };
+type PD = Comps & { proj: string; drag: string };
 
 const dotParams: ParamSchema<PD> = {
   proj: {
@@ -468,8 +524,7 @@ const dotParams: ParamSchema<PD> = {
     ],
   },
   drag: dragParam,
-  A: { kind: 'array', label: 'products.p.A', desc: 'products.d.A', group: 'hidden', live: true, default: [4, 1], min: -DOT.lim, max: DOT.lim },
-  B: { kind: 'array', label: 'products.p.B', desc: 'products.d.B', group: 'hidden', live: true, default: [1, 3], min: -DOT.lim, max: DOT.lim },
+  ...compParams(DOT.lim),
 };
 
 /**
@@ -477,8 +532,8 @@ const dotParams: ParamSchema<PD> = {
  * default "b onto a", base a and factor b cos φ; with "a onto b", base b and factor a cos φ.
  */
 export function dotSplit(p: PD) {
-  const a = vecOf(p.A);
-  const b = vecOf(p.B);
+  const a = vecA(p);
+  const b = vecB(p);
   const onA = p.proj !== 'a';
   const base = onA ? a : b;
   const other = onA ? b : a;
@@ -598,10 +653,15 @@ function drawDotBox(g: Draw, p: PD): void {
   );
 }
 
-function setTip<Q extends { drag: string; A: number[]; B: number[] }>(ctx: SceneCtx<Q>, key: 'A' | 'B', w: Vec2, lim: number): void {
-  const next = placeTip([w.x, w.y], ctx.params.drag === 'snap', lim);
-  const cur = ctx.params[key];
-  if (next[0] !== cur[0] || next[1] !== cur[1]) ctx.set(key, next as Q['A']);
+/** Set vector a or b (its two component sliders) to `next` where it changed. */
+function setVec<Q extends Comps>(ctx: SceneCtx<Q>, which: 'a' | 'b', next: V2): void {
+  const [kx, ky] = which === 'a' ? (['ax', 'ay'] as const) : (['bx', 'by'] as const);
+  if (next[0] !== ctx.params[kx]) ctx.set(kx, next[0] as Q[typeof kx]);
+  if (next[1] !== ctx.params[ky]) ctx.set(ky, next[1] as Q[typeof ky]);
+}
+
+function setTip<Q extends Comps & { drag: string }>(ctx: SceneCtx<Q>, which: 'a' | 'b', w: Vec2, lim: number): void {
+  setVec(ctx, which, placeTip([w.x, w.y], ctx.params.drag === 'snap', lim));
 }
 
 export const dotScene: Scene<PD, { t: number }> = {
@@ -648,7 +708,7 @@ export const dotScene: Scene<PD, { t: number }> = {
     lay.seg(O, P(a));
     lay.seg(O, P(b));
 
-    if (la > 1e-9 && lb > 1e-9) angleArc(g, lay, a, phi, `*φ* = ${fmt(Math.abs(phi) / DEG, 3)}°`, false);
+    if (la > 1e-9 && lb > 1e-9) angleArc(g, lay, a, phi, `*φ* = ${phiDotText(Math.abs(phi) / DEG)}°`, false);
     const D = [12, 20, 30, 42, 56];
     // Each vector's label on the side away from the other vector.
     const away = (v: V2, w: V2): Vec2 => {
@@ -684,8 +744,8 @@ export const dotScene: Scene<PD, { t: number }> = {
   },
 
   handles: [
-    { pos: (_s, p) => P(vecOf(p.A)), radiusPx: 18, onDrag: (ctx, _s, w) => setTip(ctx, 'A', w, DOT.lim) },
-    { pos: (_s, p) => P(vecOf(p.B)), radiusPx: 18, onDrag: (ctx, _s, w) => setTip(ctx, 'B', w, DOT.lim) },
+    { pos: (_s, p) => P(vecA(p)), radiusPx: 18, onDrag: (ctx, _s, w) => setTip(ctx, 'a', w, DOT.lim) },
+    { pos: (_s, p) => P(vecB(p)), radiusPx: 18, onDrag: (ctx, _s, w) => setTip(ctx, 'b', w, DOT.lim) },
     {
       // The plot point: dragging it along φ turns b about the origin (length kept, same side of a).
       pos: (_s, p) => {
@@ -696,22 +756,22 @@ export const dotScene: Scene<PD, { t: number }> = {
         return { x: r.x0 + phi * (r.x1 - r.x0), y: r.y0 + ((dot(a, b) + yb) / (2 * yb)) * (r.y1 - r.y0) };
       },
       radiusPx: 14,
-      when: (p) => mag(vecOf(p.A)) > 1e-9 && mag(vecOf(p.B)) > 1e-9,
+      when: (p) => mag(vecA(p)) > 1e-9 && mag(vecB(p)) > 1e-9,
       onDrag: (ctx, _s, w) => {
-        const a = vecOf(ctx.params.A);
-        const b = vecOf(ctx.params.B);
+        const a = vecA(ctx.params);
+        const b = vecB(ctx.params);
         const r = panels(DOT).plot;
         const f = Math.min(1, Math.max(0, (w.x - r.x0) / (r.x1 - r.x0)));
         const side = crossZ(a, b) < 0 ? -1 : 1;
         const next = rotateTo(a, b, side * f * Math.PI);
-        if (next[0] !== b[0] || next[1] !== b[1]) ctx.set('B', next);
+        setVec(ctx, 'b', next);
       },
     },
   ],
 
   readouts: [
-    { label: '\\varphi', unit: '°', value: (_s, p) => angleBetween(vecOf(p.A), vecOf(p.B)) / DEG },
-    { label: '\\vec a\\cdot\\vec b', unit: '', value: (_s, p) => dot(vecOf(p.A), vecOf(p.B)), zeroTol: 1e-9 },
+    { label: '\\varphi', unit: '°', value: (_s, p) => angleBetween(vecA(p), vecB(p)) / DEG, format: phiDotText },
+    { label: '\\vec a\\cdot\\vec b', unit: '', value: (_s, p) => dot(vecA(p), vecB(p)), zeroTol: 1e-9 },
   ],
 
   formula: (_s, p) => {
@@ -719,15 +779,17 @@ export const dotScene: Scene<PD, { t: number }> = {
     const la = mag(a);
     const lb = mag(b);
     const phi = angleBetween(a, b);
-    const pr = (x: number, y: number) => `${cpt(x)}${cpt(y)}`;
+    // Components as their slider labels (R1), in parentheses (products written as juxtaposition).
+    const c = (k: keyof Comps) => `(${slider(dotParams[k], p[k])})`;
     // Factor and base: b cos φ and a ("b onto a") or a cos φ and b ("a onto b").
     const [L, M, f, fl] = onA ? [la, lb, 'b\\cos\\varphi', 'a'] : [lb, la, 'a\\cos\\varphi', 'b'];
     const fac = M * Math.cos(phi);
+    const phiDeg = phi / DEG;
     return [
       `\\vec a\\cdot\\vec b = ${fl}\\,(${f}) = a_x b_x + a_y b_y`,
-      `${f} = ${mg(M)}\\cos ${deg(phi)}^\\circ = ${tx(fac)}`,
-      `${fl}\\,(${f}) = ${mg(L)}${mg(fac)} = ${tx(L * fac)}`,
-      `a_x b_x + a_y b_y = ${pr(a[0], b[0])} + ${pr(a[1], b[1])} = ${tx(d)}`,
+      factorLine({ lhs: f, M, phiDeg, phiText: phiDotText(phiDeg), trig: 'cos', fac: tn(fac), prodTex: '\\vec a\\cdot\\vec b', prod: d, base: fl, L }),
+      `${fl}\\,(${f}) = ${mg(L)}${mg(fac)} = ${tn(L * fac)}`,
+      `a_x b_x + a_y b_y = ${c('ax')}${c('bx')} + ${c('ay')}${c('by')} = ${tn(d)}`,
     ];
   },
 
@@ -741,15 +803,14 @@ export const dotScene: Scene<PD, { t: number }> = {
 
 // ------------------------------------------------------------------ cross product
 
-type PC = { drag: string; A: number[]; B: number[] };
+type PC = Comps & { drag: string };
 
 const crossParams: ParamSchema<PC> = {
   drag: dragParam,
-  A: { kind: 'array', label: 'products.p.A', desc: 'products.d.A', group: 'hidden', live: true, default: [4, 1], min: -CROSS.lim, max: CROSS.lim },
-  B: { kind: 'array', label: 'products.p.B', desc: 'products.d.B', group: 'hidden', live: true, default: [1, 3], min: -CROSS.lim, max: CROSS.lim },
+  ...compParams(CROSS.lim),
 };
 
-const crossBound = (p: PC) => plotBound(mag(vecOf(p.A)) * mag(vecOf(p.B)), mag(vecOf(p.B)));
+const crossBound = (p: PC) => plotBound(mag(vecA(p)) * mag(vecB(p)), mag(vecB(p)));
 
 const crossInset = (g: Draw, p: PC) => {
   const yb = crossBound(p);
@@ -775,8 +836,8 @@ export const crossScene: Scene<PC, { t: number }> = {
   init: () => ({ t: 0 }),
 
   draw: (g, _s, p) => {
-    const a = vecOf(p.A);
-    const b = vecOf(p.B);
+    const a = vecA(p);
+    const b = vecB(p);
     const la = mag(a);
     const lb = mag(b);
     const phi = signedAngle(a, b);
@@ -835,7 +896,7 @@ export const crossScene: Scene<PC, { t: number }> = {
       lay.boxes.push({ x0: cx - r, y0: cy - r, x1: cx + r, y1: cy + r });
     }
 
-    if (la > 1e-9 && lb > 1e-9) angleArc(g, lay, a, phi, `*φ* = ${fmt(phi / DEG, 3)}°`, true);
+    if (la > 1e-9 && lb > 1e-9) angleArc(g, lay, a, phi, `*φ* = ${phiCrossText(phi / DEG)}°`, true);
     const D = [12, 20, 30, 42, 56];
     const away = (v: V2): Vec2 => {
       const m = P(v, 0.5);
@@ -890,52 +951,53 @@ export const crossScene: Scene<PC, { t: number }> = {
   },
 
   handles: [
-    { pos: (_s, p) => P(vecOf(p.A)), radiusPx: 18, onDrag: (ctx, _s, w) => setTip(ctx, 'A', w, CROSS.lim) },
-    { pos: (_s, p) => P(vecOf(p.B)), radiusPx: 18, onDrag: (ctx, _s, w) => setTip(ctx, 'B', w, CROSS.lim) },
+    { pos: (_s, p) => P(vecA(p)), radiusPx: 18, onDrag: (ctx, _s, w) => setTip(ctx, 'a', w, CROSS.lim) },
+    { pos: (_s, p) => P(vecB(p)), radiusPx: 18, onDrag: (ctx, _s, w) => setTip(ctx, 'b', w, CROSS.lim) },
     {
       // The plot point: dragging it along φ turns b about the origin, length kept.
       pos: (_s, p) => {
-        const a = vecOf(p.A);
-        const b = vecOf(p.B);
+        const a = vecA(p);
+        const b = vecB(p);
         const r = panels(CROSS).plot;
         const yb = crossBound(p as PC);
         const f = (signedAngle(a, b) + Math.PI) / (2 * Math.PI);
         return { x: r.x0 + f * (r.x1 - r.x0), y: r.y0 + ((crossZ(a, b) + yb) / (2 * yb)) * (r.y1 - r.y0) };
       },
       radiusPx: 14,
-      when: (p) => mag(vecOf(p.A)) > 1e-9 && mag(vecOf(p.B)) > 1e-9,
+      when: (p) => mag(vecA(p)) > 1e-9 && mag(vecB(p)) > 1e-9,
       onDrag: (ctx, _s, w) => {
-        const a = vecOf(ctx.params.A);
-        const b = vecOf(ctx.params.B);
+        const a = vecA(ctx.params);
+        const b = vecB(ctx.params);
         const r = panels(CROSS).plot;
         const f = Math.min(1, Math.max(0, (w.x - r.x0) / (r.x1 - r.x0)));
         const next = rotateTo(a, b, (2 * f - 1) * Math.PI);
-        if (next[0] !== b[0] || next[1] !== b[1]) ctx.set('B', next);
+        setVec(ctx, 'b', next);
       },
     },
   ],
 
   readouts: [
-    { label: '\\varphi', unit: '°', value: (_s, p) => signedAngle(vecOf(p.A), vecOf(p.B)) / DEG },
-    { label: '(\\vec a\\times\\vec b)_z', unit: '', value: (_s, p) => crossZ(vecOf(p.A), vecOf(p.B)) },
+    { label: '\\varphi', unit: '°', value: (_s, p) => signedAngle(vecA(p), vecB(p)) / DEG, format: phiCrossText },
+    { label: '(\\vec a\\times\\vec b)_z', unit: '', value: (_s, p) => crossZ(vecA(p), vecB(p)) },
   ],
 
   formula: (_s, p) => {
-    const a = vecOf(p.A);
-    const b = vecOf(p.B);
+    const a = vecA(p);
+    const b = vecB(p);
     const la = mag(a);
     const lb = mag(b);
     const phi = signedAngle(a, b);
     const cz = crossZ(a, b);
     const hs = lb * Math.sin(phi);
     // The zero vector only where (a × b)_z itself prints 0 (the readout's 10⁻⁹), never next to 0.00300.
-    const dir = Math.abs(cz) < 1e-9 ? '\\vec 0' : `${tx(Math.abs(cz))}\\,${cz > 0 ? '\\hat k\\ (\\odot)' : '(-\\hat k)\\ (\\otimes)'}`;
-    const pr = (x: number, y: number) => `${cpt(x)}${cpt(y)}`;
+    const dir = Math.abs(cz) < 1e-9 ? '\\vec 0' : `${tn(Math.abs(cz))}\\,${cz > 0 ? '\\hat k\\ (\\odot)' : '(-\\hat k)\\ (\\otimes)'}`;
+    const c = (k: keyof Comps) => `(${slider(crossParams[k], p[k])})`;
+    const phiDeg = phi / DEG;
     return [
       `(\\vec a\\times\\vec b)_z = a\\,(b\\sin\\varphi) = a_x b_y - a_y b_x`,
-      `b\\sin\\varphi = ${mg(lb)}\\sin(${deg(phi)}^\\circ) = ${tx(hs)}`,
-      `a\\,(b\\sin\\varphi) = ${mg(la)}${mg(hs)} = ${tx(la * hs)}`,
-      `a_x b_y - a_y b_x = ${pr(a[0], b[1])} - ${pr(a[1], b[0])} = ${tx(cz)}`,
+      factorLine({ lhs: 'b\\sin\\varphi', M: lb, phiDeg, phiText: phiCrossText(phiDeg), trig: 'sin', fac: tn(hs), prodTex: '(\\vec a\\times\\vec b)_z', prod: cz, base: 'a', L: la }),
+      `a\\,(b\\sin\\varphi) = ${mg(la)}${mg(hs)} = ${tn(la * hs)}`,
+      `a_x b_y - a_y b_x = ${c('ax')}${c('by')} - ${c('ay')}${c('bx')} = ${tn(cz)}`,
       `\\vec a\\times\\vec b = ${dir}`,
     ];
   },

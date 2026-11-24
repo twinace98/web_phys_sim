@@ -2,6 +2,7 @@
 // (2026-11-23, §5) and of the PENDING entries these scenes had, at the quoted settings, and a sweep
 // of the policy checks with every number control moved to in-between values.
 import { describe, expect, it } from 'vitest';
+import { clockDecimals, fmtClock } from '../src/core/format';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
 import { readoutText } from '../src/core/tex';
@@ -153,18 +154,28 @@ describe('policy D, Ch 13–20: audit items at the quoted settings', () => {
 
   it('Ch 19 pressure: k_B and m from the constant table and 3 figures; the measured pressure to its scatter (R4)', () => {
     const z = at(gasScene, {});
-    expect(z.lines[0]).toBe('\\frac{J}{L\\,t} = \\frac{0}{20 \\times 10.0} = 0\\ \\mathrm{mN/m}');
-    expect(z.lines[1]).toBe('\\frac{NkT}{A} = \\frac{100 \\times 1.38\\times 10^{-23} \\times 300}{(20\\times 10^{-9})^2} = 1.04\\ \\mathrm{mN/m}');
-    expect(z.lines[3]).toBe('\\sqrt{\\frac{2kT}{m}} = \\sqrt{\\frac{2 \\times 1.38\\times 10^{-23} \\times 300}{6.65\\times 10^{-27}}} = 1.12\\ \\mathrm{km/s}');
+    // Units where the result changes prefix (QA 2026-11-24): nN·ps/(nm·ps) and N/m → mN/m, m/s → km/s.
+    expect(z.lines[0]).toBe('\\frac{J}{L\\,t} = \\frac{0\\ \\mathrm{nN\\,ps}}{(20\\ \\mathrm{nm})(10.0\\ \\mathrm{ps})} = 0\\ \\mathrm{mN/m}');
+    expect(z.lines[1]).toBe('\\frac{NkT}{A} = \\frac{100 \\times 1.38\\times 10^{-23} \\times 300}{(20\\times 10^{-9})^2}\\ \\mathrm{N/m} = 1.04\\ \\mathrm{mN/m}');
+    expect(z.lines[3]).toBe(
+      'v_\\mathrm{rms} = \\sqrt{\\frac{2kT}{m}}\\ (\\text{2D}) = \\sqrt{\\frac{2 \\times 1.38\\times 10^{-23} \\times 300}{6.65\\times 10^{-27}}}\\ \\mathrm{m/s} = 1.12\\ \\mathrm{km/s}',
+    );
     expect(z.ro[0]).toBe('0');
     const { lines, ro } = at(gasScene, {}, 30);
     expect(ro[0]).toBe('1.2');
-    expect(lines[0]).toMatch(/^\\frac\{J\}\{L\\,t\} = \\frac\{\d{3}\}\{20 \\times 30\.0\} = \(1\.2 \\pm 0\.2\)\\ \\mathrm\{mN\/m\}$/);
+    expect(lines[0]).toMatch(/^\\frac\{J\}\{L\\,t\} = \\frac\{0\.\d\d\d\\ \\mathrm\{nN\\,ps\}\}\{\(20\\ \\mathrm\{nm\}\)\(30\.0\\ \\mathrm\{ps\}\)\} = \(1\.2 \\pm 0\.2\)\\ \\mathrm\{mN\/m\}$/);
     expect(lines[2]).toMatch(/= \\frac\{1\.2\}\{1\.04\} = 1\.\d \\pm 0\.2$/);
     // Long run, many molecules: the scatter shrinks and the measured value gets a figure more.
     const big = at(gasScene, { N: 1000, T: 1200, L: 15 }, 50);
     expect(big.ro[0]).toMatch(/^7\d$/);
-    expect(big.lines[0]).toMatch(/\\frac\{5\.\d\d\\times 10\^\{4\}\}\{15 \\times 50\.0\} = \(7\d \\pm 2\)/);
+    expect(big.lines[0]).toMatch(/\\frac\{5\d\.\d\\ \\mathrm\{nN\\,ps\}\}\{\(15\\ \\mathrm\{nm\}\)\(50\.0\\ \\mathrm\{ps\}\)\} = \(7\d \\pm 2\)/);
+  });
+
+  it('Ch 19 pressure: t in the Σ panel is the clock string (R8, QA 2026-11-24: Σ 80.2 ps against a clock of 80 ps)', () => {
+    const r = at(gasScene, {}, 80.2);
+    // The clock shows one decimal (frame step 0.1 ps): the same string as t in the line.
+    expect(fmtClock(r.s.t, clockDecimals(gasScene.time!.frameStep, gasScene.time!.tEnd as number))).toBe('80.2');
+    expect(r.lines[0]).toContain('(80.2\\ \\mathrm{ps})');
   });
 
   it('Ch 20 expansion, closed box: Ω = 1 and ΔS/k = ln 1 = 0 exactly (R2) in Σ, readouts and bar labels', () => {

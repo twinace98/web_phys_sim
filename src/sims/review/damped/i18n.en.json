@@ -15,7 +15,6 @@
   "damped.regime.under": "Underdamped",
   "damped.regime.critical": "Critically damped",
   "damped.regime.over": "Overdamped",
-  "damped.nopeak": "no peak",
   "damped.f.goal.env": "The damping force $F_d = -bv$ removes mechanical energy: the amplitude decays exponentially as $x_m e^{-bt/2m}$, and the angular frequency drops slightly to $\\omega' = \\sqrt{\\omega_0^2 - \\gamma^2}$ ($\\gamma = b/2m$)",
   "damped.f.goal.regimes": "Comparing $b$ with $b_c = 2\\sqrt{km}$: underdamped ($b < b_c$, decaying oscillation), critically damped ($b = b_c$, fastest return without oscillating), overdamped ($b > b_c$, slower return without oscillating)",
   "damped.f.obs.default": "Default $b$ = 1.0 kg/s: the oscillation shrinks along the grey dashed envelope $\\pm x_m e^{-bt/2m}$, by $1/e$ every $2m/b$ = 2 s",
@@ -32,8 +31,7 @@
   "damped.d.obs.build": "Default ($\\omega_d = \\omega_0$, $b$ = 1.0 kg/s): the amplitude grows from 0 over a few seconds to the dashed $\\pm x_m$ = 0.080 m, 4 times the support amplitude $d$ = 0.020 m",
   "damped.d.obs.sweep": "Change $\\omega_d/\\omega_0$ while running: the ring (current amplitude) moves towards the dot on the curve (steady-state amplitude). At 0.5, $x_m \\approx 1.3d$; at 2, $x_m \\approx 0.33d$",
   "damped.d.obs.b": "Grey curves = $b$ 0.5 (solid), 1 (dashed), 2 kg/s (dotted): each doubling of $b$ roughly halves the peak and widens it",
-  "damped.d.obs.phase": "$\\omega_d \\ll \\omega_0$: the block moves with the support (grey $y_s$, $\\phi \\approx 0$). $\\omega_d = \\omega_0$: a quarter period behind ($\\phi = 90^\\circ$). $\\omega_d \\gg \\omega_0$: opposite to it ($\\phi \\approx 180^\\circ$)",
-  "damped.d.obs.ring": "Ring = current amplitude $\\sqrt{x^2 + (v/\\omega_d)^2}$, equal to the dot ($x_m$) in the steady state; during the transient it swells and fades like beats",
-  "damped.d.assume.drive": "Support amplitude $d$ = 0.020 m: a pin on a turning disk pushes the slotted support, $y_s = d\\cos\\omega_d t$ (Scotch yoke). The spring force $k(y_s - x)$ gives the driving force $F_m = kd$. The free-body diagram splits it into $F_s = mg - kx$ and the driving force $F = ky_s$",
+  "damped.d.obs.ring": "Ring = current amplitude, equal to the dot ($x_m$) in the steady state; in the first seconds (the transient) it swells and fades on its way there",
+  "damped.d.assume.drive": "Support amplitude $d$ = 0.020 m: a pin on a turning disk moves the support up and down, $y_s = d\\cos\\omega_d t$. The spring force $k(y_s - x)$ gives the driving force $F_m = kd$. The free-body diagram splits it into $F_s = mg - kx$ and the driving force $F = ky_s$",
   "damped.d.assume.start": "The block starts at rest at equilibrium. RK4 integration (1 ms step); the resonance curves and the dashed lines are the exact steady state"
 }

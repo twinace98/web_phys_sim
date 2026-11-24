@@ -1,6 +1,6 @@
 // Ch 27 scene: RC circuit. The switch charges the capacitor through R from the battery,
 // or discharges it through R. Plots mark t = τ after the latest switch (63 %, 37 %).
-import { slider, tn, u } from '../../core/tex';
+import { CONST, slider, tn, u } from '../../core/tex';
 import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { drawRich } from '../../draw/text';
@@ -117,6 +117,13 @@ const CAP_X = 9.2;
 const CAP_T = 3.25;
 const CAP_B = 2.75;
 
+/** Zigzag of the resistor from (R0, TOP) to (R1, TOP): drawn, and followed by the current dots. */
+const ZIGZAG: Vec2[] = [
+  { x: R0, y: TOP },
+  ...Array.from({ length: 6 }, (_, i) => ({ x: R0 + ((i + 0.5) * (R1 - R0)) / 6, y: TOP + (i % 2 === 0 ? 0.28 : -0.28) })),
+  { x: R1, y: TOP },
+];
+
 const path = (pts: Vec2[]) => {
   const len: number[] = [0];
   for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
@@ -131,10 +138,11 @@ const CHARGE_PATH = path([
   { x: BAT_X, y: A.y },
   A,
   PIV,
+  ...ZIGZAG,
   { x: CAP_X, y: TOP },
   { x: CAP_X, y: CAP_T },
 ]);
-const DISCHARGE_PATH = path([{ x: CAP_X, y: CAP_B }, { x: CAP_X, y: BOT }, { x: B.x, y: BOT }, B, PIV, { x: CAP_X, y: TOP }, { x: CAP_X, y: CAP_T }]);
+const DISCHARGE_PATH = path([{ x: CAP_X, y: CAP_B }, { x: CAP_X, y: BOT }, { x: B.x, y: BOT }, B, PIV, ...ZIGZAG, { x: CAP_X, y: TOP }, { x: CAP_X, y: CAP_T }]);
 
 function pointAt(pa: ReturnType<typeof path>, d: number): Vec2 {
   let i = 1;
@@ -146,11 +154,7 @@ function pointAt(pa: ReturnType<typeof path>, d: number): Vec2 {
 }
 
 function resistor(g: Draw): void {
-  const pts: Vec2[] = [{ x: R0, y: TOP }];
-  const n = 6;
-  for (let i = 0; i < n; i++) pts.push({ x: R0 + ((i + 0.5) * (R1 - R0)) / n, y: TOP + (i % 2 === 0 ? 0.28 : -0.28) });
-  pts.push({ x: R1, y: TOP });
-  g.polyline(pts, { color: WIRE, width: 1.75 });
+  g.polyline(ZIGZAG, { color: WIRE, width: 1.75 });
 }
 
 function circuit(g: Draw, charging: boolean): void {
@@ -189,7 +193,7 @@ function mark(pd: PlotDraw, t: number, y: number, txt: string, below: boolean): 
   drawRich(pd.ctx, txt, x + 6 * theme.scale, py + (below ? 14 : -7) * theme.scale, { size: 11, color: MARK, align: 'left' });
 }
 
-function tauMarkers(id: string, pd: PlotDraw, p: P): void {
+function tauMarkers(id: string, pd: PlotDraw, p: P, now: number): void {
   const c = rcOf(p);
   const T = tau(c);
   const charging = shown.mode === 'charge';
@@ -197,6 +201,23 @@ function tauMarkers(id: string, pd: PlotDraw, p: P): void {
   if (Math.abs(qf - shown.q0) < 1e-3 * c.C * c.emf) return;
   const t0 = shown.ts;
   const t1 = t0 + T;
+  // The rolling window the plots show (as the shell sets it): once it has scrolled past t = τ the
+  // dot and the labels would sit left of the y axis. Lines clip themselves; the dot and the text
+  // are clipped to the plot's time span here, and left out once t = τ has scrolled out of view.
+  const win = plotWindow(p);
+  const [L] = pd.toPx(Math.max(0, now - win), 0);
+  const [R] = pd.toPx(Math.max(win, now), 0);
+  const [x1] = pd.toPx(t1, 0);
+  const inView = x1 >= L && x1 <= R;
+  pd.ctx.save();
+  pd.ctx.beginPath();
+  pd.ctx.rect(L, -1e4, R - L, 2e4);
+  pd.ctx.clip();
+  markers(id, pd, c, T, charging, qf, t0, t1, inView);
+  pd.ctx.restore();
+}
+
+function markers(id: string, pd: PlotDraw, c: RC, T: number, charging: boolean, qf: number, t0: number, t1: number, inView: boolean): void {
   const dash = { color: MARK, width: 1, dash: [4, 4] };
   const k = id === 'q' ? 1e3 : 1 / c.C; // C → mC, or q → V_C
   if (id === 'vc' || id === 'q') {
@@ -207,6 +228,7 @@ function tauMarkers(id: string, pd: PlotDraw, p: P): void {
     pd.polyline([[t0, y0], [t1, yf]], dash);
     pd.polyline([[t0, yf], [t1 + 3 * T, yf]], { ...dash, dash: [2, 3] });
     pd.polyline([[t1, y0], [t1, y1]], dash);
+    if (!inView) return;
     pd.dot(t1, y1, { color: MARK, r: 3.5 });
     // Charging covers 63 % of the way; discharging leaves 37 % of the starting charge.
     mark(pd, t1, y1, charging ? '63 %' : '37 %', yf > y0);
@@ -218,6 +240,7 @@ function tauMarkers(id: string, pd: PlotDraw, p: P): void {
     const i0 = ((qf - shown.q0) / T) * 1e3;
     const i1 = i0 * Math.exp(-1);
     pd.polyline([[t1, 0], [t1, i1]], dash);
+    if (!inView) return;
     pd.dot(t1, i1, { color: MARK, r: 3.5 });
     mark(pd, t1, i1, '37 %', i1 < 0);
   }
@@ -251,10 +274,33 @@ function grow(rec: { vc: number; i: number; q: number }): void {
 }
 
 /**
- * V_C and i print tiny values in powers of ten (R7b: a settled current is physical, not 0.00); only
- * an exact 0 (the start, or e^{−t/τ} below the smallest double) prints as 0, in the readouts and Σ.
+ * One elementary charge [C]: below it the exponential has nothing physical left to describe (policy
+ * D, R7). A plate charge |q| < e is an exact 0: q, V_C = q/C and q₀ print "0". The current is a
+ * physical small value (R7b) and prints in powers of ten while the charge still to flow,
+ * |q_final − q| = |i|τ, is at least e; below that it prints as a bound, |i| < e/τ rounded up to a
+ * power of ten ("< 10⁻¹⁴" mA at τ = 0.05 s), never as 0.
  */
-const fmtZero = (v: number) => (v === 0 ? '0' : undefined);
+const E_CH = CONST.e.value;
+/** Charge [C] as printed: an exact 0 below one elementary charge. */
+const qPrint = (q: number) => (Math.abs(q) < E_CH ? 0 : q);
+/** Power of ten [mA] that bounds a settled current: 10^n ≥ e/τ. */
+export const iBoundExp = (T: number) => Math.ceil(Math.log10((E_CH / T) * 1e3) - 1e-9);
+/** The current [mA] has settled: less than one elementary charge still to flow. */
+const settled = (iMA: number, T: number) => Math.abs(iMA * 1e-3) * T < E_CH;
+const SUP: Record<string, string> = { '-': '⁻', '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+/**
+ * A settled current as text: "< 10⁻¹⁴" (charging), "> −10⁻¹⁴" (discharging, i ≤ 0; an i that has
+ * run below the smallest double is an exact 0 and takes the sign of its switch position).
+ */
+export const iBoundText = (iMA: number, T: number, sw: string) => {
+  const n = String(iBoundExp(T)).replace(/./g, (d) => SUP[d]);
+  return iMA < 0 || (iMA === 0 && sw === 'discharge') ? `> −10${n}` : `< 10${n}`;
+};
+const iBoundTex = (iMA: number, T: number, sw: string) => `${iMA < 0 || (iMA === 0 && sw === 'discharge') ? '> -' : '< '}10^{${iBoundExp(T)}}`;
+/** V_C [V] readout text: an exact 0 below one elementary charge on the plate. */
+const fmtVC = (v: number, _s: S, p: P) => (qPrint(v * rcOf(p).C) === 0 ? '0' : undefined);
+/** i [mA] readout text: the bound once settled (never 0). */
+const fmtI = (v: number, _s: S, p: P) => (settled(v, tau(rcOf(p))) ? iBoundText(v, tau(rcOf(p)), p.sw) : undefined);
 const tz = (v: number) => (v === 0 ? '0' : tn(v, 3, 0));
 
 /** Readouts: V_C [V] and i [mA] (loop rule with the switch of the parameters). */
@@ -280,7 +326,6 @@ export function formulaLines(s0: S, p: P): string[] {
   const i = readI(s0, p);
   const c = rcOf(p);
   const T = tau(c);
-  const qm = s.q * 1e3;
   const CE = finalCharge(c, true) * 1e3;
   const dt = s.t - s.ts;
   // Elapsed time and τ in the exponent as the readouts show them (t is live).
@@ -288,28 +333,35 @@ export function formulaLines(s0: S, p: P): string[] {
   const tt = s.ts > 0 ? '(t - t_s)' : 't';
   const sl = (k: 'R' | 'C') => slider(params[k] as NumberParam, p[k]);
   const lines = [`\\tau = RC = (${sl('R')}\\ \\mathrm{k\\Omega})(${sl('C')}\\ \\mathrm{\\mu F}) = ${tn(T)}${u('s')}`];
-  if (s.mode === 'charge' && Math.abs(s.q0) < 1e-12) {
-    lines.push(`q = C\\mathcal{E}(1 - e^{-${tt}/\\tau}) = (${tn(CE)}\\ \\mathrm{mC})(1 - ${ex}) = ${tz(qm)}${u('mC')}`);
+  // Charges [mC] as printed: below one elementary charge an exact 0.
+  const tq = (q: number) => tz(qPrint(q) * 1e3);
+  const fromZero = Math.abs(s.q0) < E_CH;
+  // Long lines are split after the symbolic form: the substituted numbers continue on "= …".
+  if (s.mode === 'charge' && fromZero) {
+    lines.push(`q = C\\mathcal{E}(1 - e^{-${tt}/\\tau})`, `= (${tn(CE)}\\ \\mathrm{mC})(1 - ${ex}) = ${tq(s.q)}${u('mC')}`);
   } else if (s.mode === 'charge') {
-    lines.push(`q = C\\mathcal{E} + (q_0 - C\\mathcal{E})\\,e^{-${tt}/\\tau}`);
-    lines.push(`q = ${tn(CE)} + (${tz(s.q0 * 1e3)} - ${tn(CE)})\\,${ex} = ${tz(qm)}${u('mC')}`);
+    lines.push(`q = C\\mathcal{E} + (q_0 - C\\mathcal{E})\\,e^{-${tt}/\\tau}`, `= ${tn(CE)} + (${tq(s.q0)} - ${tn(CE)})\\,${ex} = ${tq(s.q)}${u('mC')}`);
   } else {
-    lines.push(`q = q_0\\,e^{-${tt}/\\tau} = (${tz(s.q0 * 1e3)}\\ \\mathrm{mC})\\,${ex} = ${tz(qm)}${u('mC')}`);
+    lines.push(`q = q_0\\,e^{-${tt}/\\tau}`, `= ${tq(s.q0)}\\,${ex} = ${tq(s.q)}${u('mC')}`);
   }
-  lines.push(`V_C = \\frac{q}{C} = \\frac{${Math.abs(qm) < 1e-3 ? tz(s.q) : `${tz(qm)}\\times 10^{-3}`}}{${sl('C')}\\times 10^{-6}}\\ \\mathrm{V} = ${tz(vc)}${u('V')}`);
+  const vcZero = qPrint(vc * c.C) === 0;
+  const vt = vcZero ? '0' : tz(vc);
+  const qC = qPrint(s0.q);
+  lines.push(`V_C = \\frac{q}{C}`, `= \\frac{${Math.abs(qC) < 1e-6 ? tz(qC) : `${tz(qC * 1e3)}\\times 10^{-3}`}}{${sl('C')}\\times 10^{-6}}\\ \\mathrm{V} = ${vt}${u('V')}`);
   const R = `${sl('R')}\\ \\mathrm{k\\Omega}`;
-  const it = tz(i);
+  // The result: "= i" while charge is still to flow, else the bound "< 10⁻ⁿ" (never 0, R7b).
+  const res = `${settled(i, T) ? ` ${iBoundTex(i, T, p.sw)}` : ` = ${tz(i)}`}${u('mA')}`;
   if (p.sw === 'charge' && inSegment(s0, p)) {
-    lines.push(
-      Math.abs(s.q0) < 1e-12
-        ? `i = \\frac{\\mathcal{E}}{R}\\,e^{-${tt}/\\tau} = \\frac{${EMF}\\ \\mathrm{V}}{${R}}\\,${ex} = ${it}${u('mA')}`
-        : `i = \\frac{C\\mathcal{E} - q_0}{\\tau}\\,e^{-${tt}/\\tau} = \\frac{${tn(CE - s.q0 * 1e3, 3, 0)}\\ \\mathrm{mC}}{${tn(T)}\\ \\mathrm{s}}\\,${ex} = ${it}${u('mA')}`,
-    );
+    if (fromZero) lines.push(`i = \\frac{\\mathcal{E}}{R}\\,e^{-${tt}/\\tau}`, `= \\frac{${EMF}\\ \\mathrm{V}}{${R}}\\,${ex}${res}`);
+    else lines.push(`i = \\frac{C\\mathcal{E} - q_0}{\\tau}\\,e^{-${tt}/\\tau}`, `= \\frac{${tn(CE - s.q0 * 1e3, 3, 0)}\\ \\mathrm{mC}}{${tn(T)}\\ \\mathrm{s}}\\,${ex}${res}`);
   } else if (p.sw === 'charge') {
     // Switched to charging while paused: the loop rule at this instant.
-    lines.push(`i = \\frac{\\mathcal{E} - V_C}{R} = \\frac{${EMF} - ${tz(vc)}}{${R}} = ${it}${u('mA')}`);
+    lines.push(`i = \\frac{\\mathcal{E} - V_C}{R} = \\frac{${EMF} - ${vt}}{${R}}${res}`);
+  } else if (!vcZero) {
+    lines.push(`i = -\\frac{V_C}{R} = -\\frac{${vt}\\ \\mathrm{V}}{${R}}${res}`);
   } else {
-    lines.push(`i = -\\frac{V_C}{R} = -\\frac{${tz(vc)}\\ \\mathrm{V}}{${R}} = ${it}${u('mA')}`);
+    // Discharged to below one elementary charge: V_C prints 0, the current is the bound.
+    lines.push(`i = -\\frac{q_0}{\\tau}\\,e^{-${tt}/\\tau}`, `= -\\frac{${tq(s.q0)}\\ \\mathrm{mC}}{${tn(T)}\\ \\mathrm{s}}\\,${ex}${res}`);
   }
   return lines;
 }
@@ -379,8 +431,11 @@ export const rcCircuit: Scene<P, S> = {
       g.circle(pt, 2.6, { fill: 'positive', alpha: 0.75 });
     }
 
-    // Plate charges.
-    const n = Math.round((Math.min(6, Math.floor(1.1 / g.px(13))) * s.q) / qmax);
+    // Plate charges: a full row stands for the larger of Cε and the largest charge of the run, so a
+    // C lowered mid-run (q kept, V_C = q/C above ε) never overfills the plate, and the row shrinks
+    // as the extra charge flows back.
+    const full = Math.max(qmax, env.q[1] * 1e-3);
+    const n = Math.max(0, Math.min(6, Math.round((Math.min(6, Math.floor(1.1 / g.px(13))) * s.q) / full)));
     for (let k = 0; k < n; k++) {
       const x = CAP_X - 0.55 + ((k + 0.5) * 1.1) / n;
       for (const [y, sign] of [
@@ -417,12 +472,12 @@ export const rcCircuit: Scene<P, S> = {
     },
   ],
 
-  drawPlot: (id, pd, p) => tauMarkers(id, pd, p),
+  drawPlot: (id, pd, p, ui) => tauMarkers(id, pd, p, ui.t),
 
   readouts: [
     { label: '\\tau', unit: 's', value: (_s, p) => tau(rcOf(p)) },
-    { label: 'V_C', unit: 'V', value: (s, p) => readVC(s, p), zeroTol: 0, format: fmtZero },
-    { label: 'i', unit: 'mA', value: (s, p) => readI(s, p), zeroTol: 0, format: fmtZero },
+    { label: 'V_C', unit: 'V', value: (s, p) => readVC(s, p), zeroTol: 0, format: fmtVC },
+    { label: 'i', unit: 'mA', value: (s, p) => readI(s, p), zeroTol: 0, format: fmtI },
   ],
 
   formula: (s, p) => formulaLines(s, p),
@@ -435,6 +490,6 @@ export const rcCircuit: Scene<P, S> = {
       'q = q_0 e^{-t/\\tau}, \\quad i = -\\frac{q_0}{\\tau} e^{-t/\\tau}',
       '\\tau = RC',
     ],
-    assumptions: ['ch27.assume'],
+    assumptions: ['ch27.assume', 'ch27.assume.sym', 'ch27.assume.floor', 'ch27.assume.plate'],
   },
 };

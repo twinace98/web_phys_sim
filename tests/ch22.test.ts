@@ -80,3 +80,35 @@ describe('ch22 Coulomb forces and field', () => {
     expect(Math.hypot(x, y)).toBeCloseTo(0.05, 12);
   });
 });
+
+describe('QA 2026-11-24 (P3): q₁ on the stage; force arrows clear of the charges on a phone', () => {
+  it('the charge of F₁ is labelled q₁; no arrow tip lands on a charge glyph, on a phone and a desktop stage', async () => {
+    const { probe } = await import('./stage-probe');
+    const { defaults } = await import('../src/core/params');
+    const { field } = await import('../src/sims/ch22/scene');
+    for (const [w, h] of [
+      [390, 700],
+      [940, 700],
+    ])
+      for (const preset of ['dipole', 'like', 'single', 'plates'])
+        for (const T of [
+          [0, 0.55],
+          [0.15, 0.1],
+          [-0.2, -0.15],
+          [0.6, 0.3],
+        ]) {
+          const p = { ...(defaults(field.params) as object), preset, T } as never;
+          const g = probe(field, { t: 0 } as never, p, w, h);
+          const tag = JSON.stringify({ w, preset, T });
+          expect(g.marks.some((m) => m.kind === 'text' && m.text === '*q*_{1}'), tag).toBe(true);
+          const at = g.vp.toPx(...(clearOf(pointSources(p), T[0], T[1]) as [number, number]));
+          for (const c of pointSources(p)) {
+            const [cx, cy] = g.vp.toPx(c.x, c.y);
+            const r = Math.abs(c.s) > 1.5 ? 13 : 10;
+            // Charges the test charge already overlaps cannot be avoided.
+            if (Math.hypot(cx - at[0], cy - at[1]) <= r + 4) continue;
+            for (const m of g.marks.filter((k) => k.kind === 'arrow-tip')) expect(Math.hypot(m.x - cx, m.y - cy), tag).toBeGreaterThanOrEqual(r);
+          }
+        }
+  });
+});

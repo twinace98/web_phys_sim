@@ -166,7 +166,8 @@ function drawMagnet(g: Draw, p: P, s: S): void {
   );
   g.text({ x: f.x - MAG_L / 4, y: 0 }, 'S', { size: 13, color: '#ffffff', align: 'center', baseline: 'middle', weight: 600 });
   g.text({ x: f.x + MAG_L / 4, y: 0 }, 'N', { size: 13, color: '#ffffff', align: 'center', baseline: 'middle', weight: 600 });
-  g.arrow({ x: f.x + MAG_L / 2 + g.px(8), y: MAG_H / 2 + g.px(14) }, { x: g.px(30), y: 0 }, { role: 'velocity', width: 2.5, label: '*v*' });
+  // v above the magnet's middle: on the stage with the magnet at either end of its travel.
+  g.arrow({ x: f.x - g.px(15), y: MAG_H / 2 + g.px(14) }, { x: g.px(30), y: 0 }, { role: 'velocity', width: 2.5, label: '*v*' });
 
   const emf = -f.dphi;
   if (Math.abs(emf) > 1e-9 * M_MAG) {
@@ -265,7 +266,7 @@ export const faraday: Scene<P, S> = {
   info: {
     goals: ['ch30.f.goal.law', 'ch30.f.goal.lenz'],
     observe: ['ch30.f.obs.enter', 'ch30.f.obs.full', 'ch30.f.obs.leave', 'ch30.f.obs.slope', 'ch30.f.obs.magnet', 'ch30.f.obs.v'],
-    equations: ['\\Phi_B = \\int \\vec B\\cdot d\\vec A', '\\mathcal{E} = -\\frac{d\\Phi_B}{dt}', '\\text{region: } \\mathcal{E} = \\mp B a v'],
+    equations: ['\\Phi_B = \\int \\vec B\\cdot d\\vec A', '\\mathcal{E} = -\\frac{d\\Phi_B}{dt}', '\\mathcal{E} = \\mp B a v'],
     assumptions: ['ch30.f.as.region', 'ch30.f.as.magnet', 'ch30.f.as.sign', 'ch30.f.as.self'],
   },
 };

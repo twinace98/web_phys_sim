@@ -260,3 +260,94 @@ describe('Ch 33 refraction: smooth approach to total internal reflection', () =>
     }
   });
 });
+
+describe('ch33 QA 2026-11-24 (P3)', () => {
+  it('polar: the same exact value prints the same string (3/16 at 30° and 60°, 3/4 and 1/4, 1/8 at 45°)', async () => {
+    const { formulaPolar } = await import('../src/sims/ch33/polar');
+    const { fmt } = await import('../src/core/format');
+    const ro = (p: Record<string, unknown>, i: number) => fmt(polar.readouts![i].value({ t: 0 }, p as never), 3);
+    const at = (n: number, theta: number) => ({ ...defaults(polar.params), n, theta });
+    expect(ro(at(3, 30), 0)).toBe('0.188');
+    expect(ro(at(3, 60), 0)).toBe('0.188');
+    expect(ro(at(3, 120), 0)).toBe('0.188');
+    expect(ro(at(3, 150), 0)).toBe('0.188');
+    expect(ro(at(3, 30), 1)).toBe(ro(at(3, 60), 1));
+    expect(formulaPolar(at(3, 30) as never)[1]).toMatch(/= 0\.188$/);
+    expect(formulaPolar(at(3, 60) as never)[1]).toMatch(/= 0\.188$/);
+    expect(ro(at(2, 30), 0)).toBe('0.750');
+    expect(ro(at(2, 150), 0)).toBe('0.750');
+    expect(ro(at(2, 60), 0)).toBe(ro(at(2, 120), 0));
+    expect(ro(at(3, 45), 1)).toBe('0.125');
+    expect(ro(at(3, 135), 1)).toBe('0.125');
+    // Crossed: an exact 0.
+    expect(polar.readouts![0].value({ t: 0 }, at(2, 90) as never)).toBe(0);
+    // Every whole degree: θ and 180° − θ (and 90° ± θ for three) print alike, exact values equal.
+    for (let th = 0; th <= 90; th++) {
+      expect(ro(at(2, th), 0)).toBe(ro(at(2, 180 - th), 0));
+      expect(ro(at(3, th), 0)).toBe(ro(at(3, 90 + th), 0));
+      expect(ro(at(3, th), 1)).toBe(ro(at(3, 90 - th), 1));
+    }
+  });
+
+  it('polar: on a phone the E indicator radius is at least 15 px (was about 11 px) and clear of its neighbours', async () => {
+    const { eRadius } = await import('../src/sims/ch33/polar');
+    for (const n of [2, 3]) {
+      for (const [w, h] of [
+        [390, 560],
+        [1280, 660],
+      ]) {
+        const g = probe(polar, { t: 0 }, { ...defaults(polar.params), n } as never, w, h);
+        // The narrowest gap (three polarizers: 1.3 from the middle to a rim) still gets 15 px.
+        const r3 = eRadius(g as never, 1.3) / g.px(1);
+        expect(r3, `${n} ${w}`).toBeGreaterThanOrEqual(w < 400 ? 15 : 17);
+        // Never more than 80 % of the way to a rim.
+        expect(eRadius(g as never, 0.5)).toBeLessThanOrEqual(0.4 + 1e-12);
+      }
+    }
+  });
+
+  it('fibre: θ and θc with as many figures as show the inequality; readouts are the Σ strings', async () => {
+    const { formulaFibre, wallTexts } = await import('../src/sims/ch33/refraction');
+    const { readBack } = await import('../src/core/tex');
+    const at = (alpha: number, clad = '1.46') => ({ ...defaults(fibre.params), alpha, clad });
+    // The reported case: θ = 76.69° just past the acceptance angle, θc = 76.74°.
+    const w = wallTexts(at(20.2) as never);
+    expect(w).toEqual({ th: '76.69', tc: '76.74' });
+    const lines = formulaFibre(at(20.2) as never);
+    expect(lines[0]).toMatch(/= 76\.69\^\\circ$/);
+    expect(lines[1]).toMatch(/= 76\.74\^\\circ > \\theta$/);
+    expect(fibre.readouts![0].format!(0, { t: 0 }, at(20.2) as never)).toBe('76.69');
+    expect(fibre.readouts![1].format!(0, { t: 0 }, at(20.2) as never)).toBe('76.74');
+    // Default: 3 figures (80.1° against 76.7°).
+    expect(wallTexts(at(15) as never)).toEqual({ th: '80.1', tc: '76.7' });
+    // Every 0.1° of α for every cladding: the printed pair is in the true order, never equal
+    // unless θ = θc; at most 5 figures on the slider grid.
+    for (const clad of ['1.46', '1.33', '1']) {
+      for (let k = 0; k <= 800; k++) {
+        const p = at(k / 10, clad) as never;
+        const { th, tc } = wallTexts(p);
+        const tT = wallIncidence({ n1: 1.5, n2: Number(clad), n0: 1 }, (k / 10) * (Math.PI / 180));
+        const cT = criticalAngle(1.5, Number(clad));
+        expect(Math.sign(readBack(th) - readBack(tc)), `${clad} ${k / 10}`).toBe(Math.sign(tT - cT));
+        expect(th.replace(/[^\d]/g, '').length).toBeLessThanOrEqual(5);
+      }
+      // At the acceptance angle (where the drag snaps): equal strings and "≤".
+      const am = (acceptance({ n1: 1.5, n2: Number(clad), n0: 1 }) * 180) / Math.PI;
+      if (am < 80) {
+        const e = wallTexts(at(am, clad) as never);
+        expect(e.th).toBe(e.tc);
+        expect(formulaFibre(at(am, clad) as never)[1]).toMatch(/\\le \\theta$/);
+      }
+    }
+  });
+
+  it('refraction: θ₁ is a main control; at most two main controls per scene; θ₁ and α keep a snapped value', () => {
+    expect(refraction.params.theta.group).toBe('main');
+    for (const sc of [polar, refraction, fibre]) {
+      const mains = Object.values(sc.params as Record<string, { group: string }>).filter((s) => s.group === 'main');
+      expect(mains.length, sc.id).toBeLessThanOrEqual(2);
+    }
+    expect((refraction.params.theta as { free?: boolean }).free).toBe(true);
+    expect((fibre.params.alpha as { free?: boolean }).free).toBe(true);
+  });
+});

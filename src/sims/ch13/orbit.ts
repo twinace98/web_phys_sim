@@ -7,6 +7,7 @@ import { CONST, num, slider, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { drawFbd, fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
+import { measureRich } from '../../draw/text';
 import { ROLE_COLOR } from '../../draw/theme';
 import { GM, R_EARTH, accel, classify, elements, energy, escapeSpeed, radius, speed, yoshida, type Body, type OrbitKind, type V2 } from './physics';
 
@@ -250,7 +251,8 @@ const params: ParamSchema<P> = {
   speed: { kind: 'number', label: 'ch13.p.speed', desc: 'ch13.d.speed', group: 'main', live: false, control: 'slider', min: 0.3, max: 1.4, step: 0.01, default: 0.85 },
   alt: { kind: 'number', label: 'ch13.p.alt', desc: 'ch13.d.alt', group: 'main', live: false, control: 'slider', min: 1000, max: 15000, step: 500, default: 6000, unit: 'km' },
   fbd: fbdParam(),
-  dir: { kind: 'number', label: 'ch13.p.dir', desc: 'ch13.d.dir', group: 'hidden', live: false, control: 'slider', min: -90, max: 90, default: 0 },
+  // Launch direction: a slider in the settings drawer, and the tip of the velocity arrow on stage.
+  dir: { kind: 'number', label: 'ch13.p.dir', desc: 'ch13.d.dir', group: 'advanced', live: false, control: 'slider', min: -90, max: 90, step: 1, default: 0, unit: '°' },
   predict: { kind: 'toggle', label: 'ch13.p.predict', desc: 'ch13.d.predict', group: 'advanced', live: true, default: true },
   areas: { kind: 'toggle', label: 'ch13.p.areas', desc: 'ch13.d.areas', group: 'advanced', live: true, default: false },
   ueff: { kind: 'toggle', label: 'ch13.p.ueff', desc: 'ch13.d.ueff', group: 'advanced', live: true, default: false },
@@ -333,23 +335,52 @@ function effectivePotential(g: Draw, p: P, rNow: number): void {
   // side of the tail away from E.
   const tailAbove = U(r1) > E;
   const clampY = (y: number) => Math.min(Math.max(y, by + 14), by + Hh - 5);
-  g.text(at(bx + W - 8, clampY(Y(U(r1)) + (tailAbove ? -6 : 15))), '*U*_{eff}', { size: 12, role: 'energyU', align: 'right' });
-  g.text(at(bx + W - 8, clampY(Y(E) + (tailAbove ? 15 : -6))), '*E*', { size: 12, color: '#1a1a1a', align: 'right' });
-  g.text(at(bx + W - 8, Y(0) - 5), '*r*', { size: 12, color: '#6b6b6b', align: 'right' });
+  const uY = clampY(Y(U(r1)) + (tailAbove ? -6 : 15));
+  const eY = clampY(Y(E) + (tailAbove ? 15 : -6));
+  g.text(at(bx + W - 8, uY), '*U*_{eff}', { size: 12, role: 'energyU', align: 'right' });
+  g.text(at(bx + W - 8, eY), '*E*', { size: 12, color: '#1a1a1a', align: 'right' });
+  // The r axis label: above or below the axis's right end, whichever clears the two labels there
+  // (U_eff tends to 0 at large r, so its label often sits on the axis); else left of them.
+  const clear = (y: number) => y >= by + 14 && y <= by + Hh - 3 && Math.abs(y - uY) >= 14 && Math.abs(y - eY) >= 14;
+  const rY = [Y(0) - 5, Y(0) + 14].find(clear);
+  const left = Math.max(measureRich(ctx, '*U*_{eff}', { size: 12 }), measureRich(ctx, '*E*', { size: 12 })) + 8;
+  g.text(at(bx + W - 8 - (rY === undefined ? left : 0), rY ?? Y(0) - 5), '*r*', { size: 12, color: '#6b6b6b', align: 'right' });
 }
 
 /** World length per m/s of velocity: the escape-speed circle at launch has radius g0. */
 const kv = (p: P) => view(p).g0 / MM / escapeSpeed(r0Of(p));
 
-function sectors(g: Draw, p: P, n: number): void {
+/** Position [m] at a fractional physics step q: integrated on from step ⌊q⌋, as the run itself does. */
+function positionAt(m: Model, q: number): V2 {
+  const i = Math.floor(q + 1e-9);
+  const f = q - i;
+  if (f < 1e-9 || i >= m.N) return [m.xs[2 * i], m.xs[2 * i + 1]];
+  const b: Body = { x: [m.xs[2 * i], m.xs[2 * i + 1]], v: [m.vs[2 * i], m.vs[2 * i + 1]] };
+  for (let k = 0; k < SUB; k++) yoshida(b, (f * H) / SUB);
+  return b.x;
+}
+
+/**
+ * Kepler sectors [m]: the polygons swept in each 1/12 of the period. Boundaries at the exact times
+ * k·T/12 (between physics steps), so every sector covers the same time and the areas agree to
+ * 10⁻⁴ (rounding them to whole 20 s steps made them differ by up to 4 %).
+ */
+export function sectorPolys(p: P, n: number): V2[][] {
   const m = model(p);
-  const at = (k: number) => Math.round((k * m.sectorDt) / H);
-  const nEnd = Math.min(n, m.kind === 'ellipse' ? at(12) : m.N);
-  for (let k = 0; at(k + 1) <= nEnd; k++) {
-    const pts: Vec2[] = [{ x: 0, y: 0 }];
-    for (let i = at(k); i <= at(k + 1); i++) pts.push(w(m.xs, 2 * i));
-    g.polygon(pts, { fill: SECTOR_FILL[k % 2], fillAlpha: 0.25 });
+  const q = (k: number) => (k * m.sectorDt) / H;
+  const nEnd = Math.min(n, m.kind === 'ellipse' ? q(12) + 1e-6 : m.N);
+  const out: V2[][] = [];
+  for (let k = 0; q(k + 1) <= nEnd; k++) {
+    const pts: V2[] = [[0, 0], positionAt(m, q(k))];
+    for (let i = Math.floor(q(k) + 1e-9) + 1; i < q(k + 1) - 1e-9; i++) pts.push([m.xs[2 * i], m.xs[2 * i + 1]]);
+    pts.push(positionAt(m, q(k + 1)));
+    out.push(pts);
   }
+  return out;
+}
+
+function sectors(g: Draw, p: P, n: number): void {
+  sectorPolys(p, n).forEach((pts, k) => g.polygon(pts.map(([x, y]) => ({ x: x / MM, y: y / MM })), { fill: SECTOR_FILL[k % 2], fillAlpha: 0.25 }));
 }
 
 /** Sim seconds per wall second at 1×: 4000, faster for long ellipses so one orbit takes at most ORBIT_WALL s. */

@@ -1,6 +1,7 @@
 // Ch 19 scene: pressure as the sum of molecular impulses. A hard-disk gas; every bounce on the
 // right wall delivers 2 m v_x. The accumulated impulse grows at the mean force, so its time
 // average per wall length converges to the ideal-gas pressure NkT/A.
+import { clockDecimals, fmtClock } from '../../core/format';
 import { t as tr } from '../../core/i18n';
 import { CONST, fmtMeas, slider, texOf, tn, tnMeas, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
@@ -44,12 +45,15 @@ export function pressureScatter(s: { gas: Gas }, p: P): number {
  */
 export const fmtPressure = (v: number, sigma: number) => (v === 0 ? '0' : fmtMeas(v, sigma));
 
-/** The impulse so far [pN·ps] to 3 figures (R3), with a power of ten from 10⁴ on (55735 → 5.57×10⁴); none yet: 0. */
-function tJ3(J: number): string {
-  if (J === 0) return '0';
-  const e = Math.floor(Math.log10(Number(J.toPrecision(3))));
-  return e < 4 ? tn(J) : `${tn(J / 10 ** e)}\\times 10^{${e}}`;
-}
+/**
+ * The impulse plot and the Σ panel show J in nN·ps (the physics keeps pN·ps): 4.14 at the defaults,
+ * 223 at the densest, hottest gas, so the axis ticks need no power of ten (R8: the same unit in both).
+ */
+const NN_PS = 1e-3;
+
+/** Step-button increment [ps]: the clock shows one decimal, the string the Σ panel prints for t (R8). */
+const FRAME_STEP = 0.1;
+const T_DECIMALS = clockDecimals(FRAME_STEP, T_END);
 
 /** Molecules per speed bin right now (no time averaging), from the gas on the stage. */
 export function speedCounts(g: Gas, T: number): number[] {
@@ -224,7 +228,7 @@ export const gasScene: Scene<P, S> = {
   id: 'pressure',
   title: 'ch19.scene',
   params,
-  time: { h: 0.01, recordEvery: 10, frameStep: 1, tEnd: T_END, scale: 10, unit: 'ps' },
+  time: { h: 0.01, recordEvery: 10, frameStep: FRAME_STEP, tEnd: T_END, scale: 10, unit: 'ps' },
   world: () => ({ x: [0, 1], y: [0, 1], aspect: 'contain' }),
   init: (p, rng) => {
     const s: S = { t: 0, gas: initGas(p.N, p.L, p.T, p.init === 'mb' ? 'mb' : 'equal', rng) };
@@ -238,7 +242,7 @@ export const gasScene: Scene<P, S> = {
     while (drop < hits.length && hits[drop].t < s.t - WIN - 2) drop++;
     if (drop) hits.splice(0, drop);
   },
-  record: (s) => ({ t: s.t, J: s.gas.J, pw: pWin(s.gas), pc: pCum(s.gas) }),
+  record: (s) => ({ t: s.t, J: s.gas.J * NN_PS, pw: pWin(s.gas), pc: pCum(s.gas) }),
 
   draw: (g, s, p) => {
     const full = stageRect(g);
@@ -250,9 +254,9 @@ export const gasScene: Scene<P, S> = {
   plots: [
     {
       id: 'J',
-      label: 'J\\,(\\mathrm{pN\\cdot ps})',
+      label: 'J\\,(\\mathrm{nN\\cdot ps})',
       traces: [{ channel: 'J', role: 'force' }],
-      yRange: (p) => [0, impulseTop(p.N, p.L, p.T, T_END)],
+      yRange: (p) => [0, impulseTop(p.N, p.L, p.T, T_END) * NN_PS],
     },
     {
       id: 'pw',
@@ -273,7 +277,7 @@ export const gasScene: Scene<P, S> = {
     const F = idealForce(p.N, p.L, p.T);
     const p0 = idealPressure(p.N, p.L, p.T);
     const st = { color: '#1a1a1a', width: 1.25, dash: [5, 4], alpha: 0.7 };
-    if (id === 'J') pd.polyline([[0, 0], [T_END, F * T_END]], st);
+    if (id === 'J') pd.polyline([[0, 0], [T_END, F * T_END * NN_PS]], st);
     else {
       pd.polyline([[0, p0], [T_END, p0]], st);
       const [x, y] = pd.toPx(T_END, p0);
@@ -305,7 +309,8 @@ export const gasScene: Scene<P, S> = {
 
 /**
  * Σ panel: the measured pressure J/(L t) (t counted from 10 ps, as pCum does), the ideal-gas
- * NkT/A with SI values, their ratio, and the rms speed √(2kT/m) of the 2D gas.
+ * NkT/A with SI values, their ratio, and the rms speed √(2kT/m) of the 2D gas. Units are written
+ * where the printed result changes prefix: nN·ps/(nm·ps) and N/m → mN/m, m/s → km/s.
  */
 export function formulaLines(s: S, p: P): string[] {
   const g = s.gas;
@@ -313,7 +318,8 @@ export function formulaLines(s: S, p: P): string[] {
   const sp = pressureScatter(s, p);
   const p0 = idealPressure(p.N, p.L, p.T);
   // Policy D: sliders as their labels (R1), k_B from the constant table, the helium mass and the
-  // impulse and time so far to 3 figures (R3); the measured pressure and the ratio to their scatter (R4).
+  // impulse so far to 3 figures (R3), the time as the clock shows it (R8; 10 ps before 10 ps, as pCum
+  // divides by); the measured pressure and the ratio to their scatter (R4).
   const [N, T, L] = [slider(params.N, p.N), slider(params.T, p.T), slider(params.L, p.L)];
   const kB = CONST.kB.tex;
   const m = tn(MASS, 3, 0);
@@ -324,10 +330,11 @@ export function formulaLines(s: S, p: P): string[] {
     const t = tnMeas(v, sigma, { pm: true });
     return unit && !t.startsWith('(') ? `(${t})${unit}` : `${t}${unit}`;
   };
+  const t = g.t < WIN ? tn(WIN) : fmtClock(g.t, T_DECIMALS);
   return [
-    `\\frac{J}{L\\,t} = \\frac{${tJ3(g.J)}}{${L} \\times ${tn(Math.max(g.t, WIN))}} = ${pm(pc, sp, u('mN/m'))}`,
-    `\\frac{NkT}{A} = \\frac{${N} \\times ${kB} \\times ${T}}{(${L}\\times 10^{-9})^2} = ${tn(p0)}${u('mN/m')}`,
+    `\\frac{J}{L\\,t} = \\frac{${tn(g.J * NN_PS)}\\ \\mathrm{nN\\,ps}}{(${L}\\ \\mathrm{nm})(${t}\\ \\mathrm{ps})} = ${pm(pc, sp, u('mN/m'))}`,
+    `\\frac{NkT}{A} = \\frac{${N} \\times ${kB} \\times ${T}}{(${L}\\times 10^{-9})^2}\\ \\mathrm{N/m} = ${tn(p0)}${u('mN/m')}`,
     `\\frac{J/(L\\,t)}{NkT/A} = \\frac{${meas}}{${tn(p0)}} = ${pm(pc / p0, sp / p0)}`,
-    `\\sqrt{\\frac{2kT}{m}} = \\sqrt{\\frac{2 \\times ${kB} \\times ${T}}{${m}}} = ${tn(Math.SQRT2 * sigmaV(p.T))}${u('km/s')}`,
+    `v_\\mathrm{rms} = \\sqrt{\\frac{2kT}{m}}\\ (\\text{2D}) = \\sqrt{\\frac{2 \\times ${kB} \\times ${T}}{${m}}}\\ \\mathrm{m/s} = ${tn(Math.SQRT2 * sigmaV(p.T))}${u('km/s')}`,
   ];
 }

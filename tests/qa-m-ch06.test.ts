@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
 import { Runner } from '../src/core/runner';
-import { circular } from '../src/sims/ch06/circular';
-import { G, lapTime, SETUPS } from '../src/sims/ch06/physics';
+import { circular, setupOf } from '../src/sims/ch06/circular';
+import { G, lapTime } from '../src/sims/ch06/physics';
 import ko from '../src/sims/ch06/i18n.ko.json';
 
 const vReadout = (s: any, p: any) => (circular.readouts![0] as any).value(s, p) as number;
@@ -13,7 +13,7 @@ describe('ch06 circular: the v readout is the true speed', () => {
     const run = new Runner(circular, p);
     run.play();
     for (let i = 0; i < 400 && run.playing; i++) run.advance(0.02);
-    const s = SETUPS.cone;
+    const s = setupOf(p);
     const tau = run.state.t - lapTime(s) / 4;
     expect(tau).toBeGreaterThan(0.15);
     const v = vReadout(run.state, p);
@@ -33,7 +33,7 @@ describe('ch06 circular: the v readout is the true speed', () => {
       const run = new Runner(circular, p);
       run.play();
       for (let i = 0; i < 400 && run.playing; i++) run.advance(0.02);
-      expect(vReadout(run.state, p), preset).toBeCloseTo(SETUPS[preset].v, 12);
+      expect(vReadout(run.state, p), preset).toBeCloseTo(setupOf(p).v, 12);
     }
   });
 

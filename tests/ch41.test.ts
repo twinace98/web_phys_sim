@@ -215,3 +215,75 @@ describe('ch41 doping: dopant level labels', () => {
           }
   });
 });
+
+describe('ch41 QA 2026-11-24 (P3)', () => {
+  it('band formation: exact levels; one well gives the finite-well level 0.814 eV for every spacing b (was 0.813 or 0.814)', async () => {
+    const { chainLevels } = await import('../src/sims/ch41/physics');
+    const { bandLines } = await import('../src/sims/ch41/bands');
+    const { finiteLevels, HB2M, solve, wellChain } = await import('../src/sims/modern/eigen');
+    const ex = finiteLevels(0.5, 5);
+    for (let b = 0.1; b <= 0.5 + 1e-9; b += 0.02) {
+      const E = chainLevels(1, Number(b.toFixed(2)));
+      expect(E.length).toBe(ex.length);
+      // The hard walls 1 nm outside the well raise the levels by 6×10⁻¹⁰ and 1×10⁻⁶ eV.
+      E.forEach((e, k) => expect(Math.abs(e - ex[k])).toBeLessThan(2e-6));
+      expect(bandLines({ N: 1, b: Number(b.toFixed(2)) })[0]).toBe('E_{1,1} = 0.814\\ \\mathrm{eV}');
+    }
+    // N wells: within the error of a fine grid (16× the old density), N levels per band.
+    for (const [N, b] of [
+      [2, 0.1],
+      [8, 0.5],
+      [12, 0.1],
+    ]) {
+      const n = Math.round((N * 0.5 + (N - 1) * b + 2) / 0.00025);
+      const g = solve(wellChain(N, 0.5, b, 5, 1), n, 4 * N, HB2M, 5).E;
+      const E = chainLevels(N, b);
+      expect(E.length).toBe(g.length);
+      E.forEach((e, k) => expect(Math.abs(e - g[k])).toBeLessThan(2e-4));
+    }
+  });
+
+  it('filling: diamond at 30 K prints n_i and f(E_c) from their logarithms (e^x underflows to 0), the readout "< 1"; T = 0 is an exact 0', async () => {
+    const { fillingLines, filling } = await import('../src/sims/ch41/filling');
+    const { readoutText } = await import('../src/core/tex');
+    const ro = (p: { mat: string; T: number; scale: string }) => {
+      const spec = filling.readouts!.find((x) => x.label === 'n')!;
+      return readoutText(spec as never, spec.value({ t: 0 }, p), p, { t: 0 });
+    };
+    for (const T of [10, 30, 100]) {
+      const p = { mat: 'diamond', T, scale: 'log' };
+      // n_i and f(E_c) (E_F = 0 is exact for diamond: N_v = N_c).
+      const all = fillingLines(p)
+        .filter((l) => /cm\^\{-3\}|^f\(E/.test(l))
+        .join('\n');
+      expect(all).not.toMatch(/= 0(\.0+)?(\\ |$)/m);
+      expect(all).toMatch(/\\times 10\^\{-\d{3,4}\}\\ \\mathrm\{cm\^\{-3\}\}/);
+      expect(ro(p)).toBe('< 1');
+    }
+    expect(fillingLines({ mat: 'diamond', T: 30, scale: 'log' }).join('\n')).toContain('= 1.10\\times 10^{-442}\\ \\mathrm{cm^{-3}}');
+    expect(ro({ mat: 'diamond', T: 0, scale: 'log' })).toBe('0');
+  });
+
+  it('one diamond gap everywhere (5.47 eV), Ge as its table value (0.66, not 0.660); one n_i for Si at 300 K in ⓘ (the model value)', async () => {
+    const { filling } = await import('../src/sims/ch41/filling');
+    const { readoutText } = await import('../src/core/tex');
+    const ko = (await import('../src/sims/ch41/i18n.ko.json')).default as Record<string, string>;
+    const en = (await import('../src/sims/ch41/i18n.en.json')).default as Record<string, string>;
+    const eg = filling.readouts!.find((x) => x.label === 'E_\\text{g}')!;
+    const txt = (mat: string) => readoutText(eg as never, eg.value({ t: 0 }, { mat, T: 300, scale: 'log' }), { mat, T: 300, scale: 'log' } as never);
+    expect(txt('diamond')).toBe('5.47');
+    expect(txt('ge')).toBe('0.66');
+    expect(txt('si')).toBe('1.12');
+    for (const d of [ko, en]) {
+      expect(d['ch41.mat.diamond']).toContain('5.47 eV');
+      for (const v of Object.values(d)) expect(v).not.toMatch(/5\.5 eV|5–5\.5|7\\times10\^\{9\}|10\^\{10\}/);
+      expect(d['ch41.d.obs.i']).toContain('6.68\\times10^{9}');
+      expect(d['ch41.d.obs.intr']).toContain('6.68\\times10^{9}');
+    }
+    expect(ni(MATERIALS.si, 300).toPrecision(3)).toBe('6.68e+9');
+    // Conduction: steady after a few τ (1 − e⁻¹ = 63 % at τ), the energy zero named on the filling tab.
+    expect(ko['ch41.c.obs.half']).toContain('63 %');
+    expect(en['ch41.c.obs.half']).toContain('a few $\\tau$');
+    expect(filling.info.assumptions).toContain('ch41.f.assume.zero');
+  });
+});

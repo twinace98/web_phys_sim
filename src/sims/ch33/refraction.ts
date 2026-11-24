@@ -4,7 +4,8 @@ import { t } from '../../core/i18n';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { TICK } from '../inset/inset';
-import { slider, tn, tnCmp } from '../../core/tex';
+import { fmt } from '../../core/format';
+import { readBack, slider, texOf, tn, tnCmp } from '../../core/tex';
 import { MEDIA, acceptance, coreAngle, criticalAngle, reflectance, snell, wallIncidence, type Fibre } from './physics';
 
 const DEG = Math.PI / 180;
@@ -68,15 +69,19 @@ type PR = { n1: string; n2: string; theta: number };
 const mediumOptions = ['air', 'water', 'glass', 'diamond'].map((m) => ({ value: m, label: `ch33.m.${m}` }));
 
 const refrParams: ParamSchema<PR> = {
+  // θ₁ is the scene's main variable: with the incident medium in the control bar (two main
+  // controls at most); the second medium goes to the drawer (QA 2026-11-24).
   n1: { kind: 'select', label: 'ch33.p.n1', desc: 'ch33.d.n1', group: 'main', live: true, default: 'glass', options: mediumOptions },
-  n2: { kind: 'select', label: 'ch33.p.n2', desc: 'ch33.d.n2', group: 'main', live: true, default: 'air', options: mediumOptions },
+  n2: { kind: 'select', label: 'ch33.p.n2', desc: 'ch33.d.n2', group: 'advanced', live: true, default: 'air', options: mediumOptions },
   theta: {
     kind: 'number',
     label: 'ch33.p.theta1',
     desc: 'ch33.d.theta1',
-    group: 'advanced',
+    group: 'main',
     live: true,
     control: 'slider',
+    // The drag snaps onto θc (41.8103…°), between the grid points: a link keeps it as it is.
+    free: true,
     min: 0,
     max: 89,
     // Fine steps: the reflectance rises from 0.38 to 1 within the last degree below θc (glass → air).
@@ -222,6 +227,8 @@ const fibreParams: ParamSchema<PF> = {
     group: 'main',
     live: true,
     control: 'slider',
+    // The drag snaps onto the acceptance angle, between the grid points: a link keeps it as it is.
+    free: true,
     min: 0,
     max: 80,
     step: 0.1,
@@ -373,6 +380,25 @@ export function indexLabels(g: Draw, f: Fibre): 'beside' | 'leader' {
 }
 
 /**
+ * θ and θc [°] as the readouts and the Σ panel print them: 3 figures, or as many more (up to 8)
+ * as make the printed pair show the side θ is on (R6, like tnCmp): θ = 76.66° against
+ * θc = 76.73° printed both as 76.7° under "θc > θ" (QA 2026-11-24). At the acceptance angle
+ * itself (where the drag snaps) θ = θc up to rounding: equal strings, guided.
+ */
+export function wallTexts(p: PF): { th: string; tc: string } {
+  const f = fibreOf(p);
+  const th = wallIncidence(f, p.alpha * DEG) / DEG;
+  const tc = criticalAngle(f.n1, f.n2) / DEG;
+  const side = Math.abs(th - tc) < 1e-9 ? 0 : Math.sign(th - tc);
+  for (let s = 3; s <= 8; s++) {
+    const a = fmt(th, s, 0);
+    const b = fmt(tc, s, 0);
+    if (side === 0 || Math.sign(readBack(a) - readBack(b)) === side) return { th: a, tc: b };
+  }
+  return { th: fmt(th, 8, 0), tc: fmt(tc, 8, 0) };
+}
+
+/**
  * Σ panel: the wall incidence θ from n₀ sin α = n₁ cos θ, the critical angle compared with it,
  * and the acceptance angle (90° once √(n₁² − n₂²) ≥ 1).
  */
@@ -380,14 +406,15 @@ export function formulaFibre(p: PF): string[] {
   const f = fibreOf(p);
   const th = wallIncidence(f, p.alpha * DEG) / DEG;
   const tc = criticalAngle(f.n1, f.n2) / DEG;
+  const w = wallTexts(p);
   const na = Math.sqrt(f.n1 * f.n1 - f.n2 * f.n2);
   const am = acceptance(f) / DEG;
   const n1 = nTex(f.n1);
   const n2 = nTex(f.n2);
   const lines = [
-    `\\theta = \\cos^{-1}\\frac{\\sin\\alpha}{n_1} = \\cos^{-1}\\frac{\\sin ${slider(fibreParams.alpha, p.alpha)}^\\circ}{${n1}} = ${tn(th)}^\\circ`,
+    `\\theta = \\cos^{-1}\\frac{\\sin\\alpha}{n_1} = \\cos^{-1}\\frac{\\sin ${slider(fibreParams.alpha, p.alpha)}^\\circ}{${n1}} = ${texOf(w.th)}^\\circ`,
     // At the acceptance angle (where the drag snaps) θ = θc up to rounding: guided, so ≤.
-    `\\theta_c = \\sin^{-1}\\frac{n_2}{n_1} = \\sin^{-1}\\frac{${n2}}{${n1}} = ${tn(tc)}^\\circ ${th >= tc - 1e-9 ? '\\le' : '>'} \\theta`,
+    `\\theta_c = \\sin^{-1}\\frac{n_2}{n_1} = \\sin^{-1}\\frac{${n2}}{${n1}} = ${texOf(w.tc)}^\\circ ${th >= tc - 1e-9 ? '\\le' : '>'} \\theta`,
   ];
   if (na >= 1) lines.push(`\\sin\\alpha_\\text{max} = \\sqrt{n_1^2 - n_2^2} = \\sqrt{${n1}^2 - ${n2}^2} = ${tnCmp(na, 1)} \\ge 1`, `\\alpha_\\text{max} = ${tn(am)}^\\circ`);
   else lines.push(`\\sin\\alpha_\\text{max} = \\sqrt{n_1^2 - n_2^2} = \\sqrt{${n1}^2 - ${n2}^2} = ${tn(na)}`, `\\alpha_\\text{max} = \\sin^{-1}(${tn(na)}) = ${tn(am)}^\\circ`);
@@ -445,8 +472,8 @@ export const fibre: Scene<PF, { t: number }> = {
   ],
 
   readouts: [
-    { label: '\\theta', unit: '°', value: (_s, p) => wallIncidence(fibreOf(p), p.alpha * DEG) / DEG },
-    { label: '\\theta_c', unit: '°', value: (_s, p) => criticalAngle(N_CORE, Number(p.clad)) / DEG },
+    { label: '\\theta', unit: '°', value: (_s, p) => wallIncidence(fibreOf(p), p.alpha * DEG) / DEG, format: (_v, _s, p) => wallTexts(p).th },
+    { label: '\\theta_c', unit: '°', value: (_s, p) => criticalAngle(N_CORE, Number(p.clad)) / DEG, format: (_v, _s, p) => wallTexts(p).tc },
     { label: '\\alpha_\\text{max}', unit: '°', value: (_s, p) => acceptance(fibreOf(p)) / DEG },
   ],
 

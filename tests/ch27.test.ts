@@ -120,12 +120,13 @@ describe('ch27 RC circuit', () => {
     const lines = rcCircuit.formula!(run.state, run.params);
     // q = Cε + (q₀ − Cε) e^{−(t − t_s)/τ} with t − t_s = 0: the present charge, not the old elapsed
     // time under the new τ ((12.0 mC)(1 − e^{−2.49/0.500}) = 8.55 mC was printed against 11.9 mC).
-    const qLine = lines.find((l) => l.startsWith('q = ') && /e\^\{-/.test(l) && /mC/.test(l))!;
+    // The substituted numbers continue on the row after the symbolic form ("= …").
+    const qLine = lines.find((l) => l.startsWith('= ') && /e\^\{-/.test(l) && /mC\}$/.test(l))!;
     expect(qLine).toMatch(/e\^\{-0\/0\.500\}/);
     expect(qLine).toContain(`= ${(q * 1e3).toPrecision(3)}\\ \\mathrm{mC}`);
     run.play();
     run.advance(0.5);
-    const after = rcCircuit.formula!(run.state, run.params).find((l) => l.startsWith('q = ') && /e\^\{-/.test(l) && /mC/.test(l))!;
+    const after = rcCircuit.formula!(run.state, run.params).find((l) => l.startsWith('= ') && /e\^\{-/.test(l) && /mC\}$/.test(l))!;
     expect(after).toMatch(/e\^\{-0\.(49|5)\d*\/0\.500\}/);
   });
 
@@ -192,5 +193,67 @@ describe('ch27 time axis follows τ (QA E5)', () => {
     expect(timeScale(rcCircuit.time, at(1, 250))).toBeCloseTo(0.5, 12);
     expect(timeScale(rcCircuit.time, at(2, 250))).toBe(1);
     expect(timeScale(rcCircuit.time, defaults(rcCircuit.params))).toBe(1);
+  });
+});
+
+describe('QA 2026-11-24 (P3): one-electron floor, readouts and Σ agree over the controls and mid-run changes', () => {
+  const text = (label: string, run: Runner<never, never>) => {
+    const spec = rcCircuit.readouts!.find((r) => r.label === label)!;
+    const v = spec.value(run.state as never, run.params as never);
+    return spec.format?.(v, run.state as never, run.params as never) ?? null;
+  };
+  it('R, C at min, max and in between, both switch positions, C and the switch changed mid-run and while paused', () => {
+    const h = rcCircuit.time!.h;
+    for (const R of [0.5, 2.3, 4])
+      for (const C of [100, 470, 1000])
+        for (const sw of ['charge', 'discharge']) {
+          const run = new Runner(rcCircuit, { ...defaults(rcCircuit.params), R, C, sw }) as unknown as Runner<never, never>;
+          run.play();
+          for (let k = 1; k <= 2400; k++) {
+            run.advance(h);
+            if (k === 600) (run.params as { C: number }).C = C === 1000 ? 100 : 1000;
+            if (k === 1200) {
+              run.pause();
+              (run.params as { sw: string }).sw = sw === 'charge' ? 'discharge' : 'charge';
+            }
+            if (k === 1201) run.play();
+            if (k % 300 !== 0 && k !== 1200) continue;
+            const lines = rcCircuit.formula!(run.state as never, run.params as never);
+            const tag = JSON.stringify({ R, C, sw, k });
+            for (const l of lines) expect(l, tag).not.toMatch(/NaN|Infinity|undefined|10\^\{-(\d{3}|[2-9]\d)\}/);
+            const iText = text('i', run);
+            const last = lines.at(-1)!;
+            if (iText) {
+              // Settled: the bound, never a bare 0.
+              expect(iText, tag).toMatch(/^(< 10|> −10)[⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+$/);
+              expect(last, tag).toMatch(/ [<>] -?10\^\{-\d+\}\\ \\mathrm\{mA\}$/);
+            } else expect(last, tag).toMatch(/ = -?[\d.]+(\\times 10\^\{-?\d+\})?\\ \\mathrm\{mA\}$/);
+            const vc = text('V_C', run);
+            const vcLine = lines.find((l) => l.endsWith('\\ \\mathrm{V}') && l.startsWith('= \\frac'))!;
+            if (vc === '0') expect(vcLine, tag).toMatch(/= 0\\ \\mathrm\{V\}$/);
+          }
+        }
+  });
+});
+
+describe('QA 2026-11-24 (P3): plate symbols after C is cut to 1/10 mid-run', () => {
+  it('at most one full row (6) per plate, and the row shrinks as the extra charge flows back', async () => {
+    const { probe } = await import('./stage-probe');
+    for (const [w, h] of [
+      [560, 640],
+      [390, 300],
+    ]) {
+      const run = new Runner(rcCircuit, defaults(rcCircuit.params));
+      run.play();
+      run.advance(12);
+      run.setParam('C', 100);
+      run.advance(1 / 60);
+      const plus = () => probe(rcCircuit, run.state, run.params, w, h).marks.filter((m) => m.kind === 'text' && m.text === '+').length;
+      const before = plus();
+      expect(before).toBeLessThanOrEqual(6);
+      expect(before).toBeGreaterThan(0);
+      run.advance(2);
+      expect(plus()).toBeLessThan(before);
+    }
   });
 });

@@ -457,7 +457,7 @@ export function drawBars(g: Draw, r0: Rect, groups: BarGroup[], yr: [number, num
   });
 }
 
-/** Energy value: whole joules, as the readouts and the Σ panel print it (policy D, R8). */
+/** Energy value: 3 figures on the run scale, as the readouts and the Σ panel print it (policy D, R7a, R8). */
 const fmtE = fmtJ;
 
 /** Wide stage: panels side by side; narrow: stacked. */

@@ -8,7 +8,6 @@ import { INPUT_SIG, readoutText, texOf, tn, u } from '../src/core/tex';
 import type { Params, Scene } from '../src/core/types';
 import { CHAPTERS } from '../src/sims/registry';
 import { kinetic } from '../src/sims/ch07/physics';
-import { sigFit, tnFit } from '../src/sims/ch07/sigfit';
 import { fitSig } from '../src/sims/ch31/fit';
 import { POTENTIALS } from '../src/sims/ch08/physics';
 import { inertiaCm } from '../src/sims/ch10/physics';
@@ -56,15 +55,6 @@ function shows(lines: string[], v: number, unit: string, sig = 3): void {
 }
 
 describe('digit-fitting helpers (policy D: at most 3 figures)', () => {
-  it('sigFit and tnFit: 3 figures, also where the shown arithmetic would need more', () => {
-    // 0.167 + 0.442 = 0.609, but 1/6 + 0.4418 = 0.6085 prints 0.608: still 3 figures (R3).
-    expect(sigFit([1 / 6, 0.4418], (a, b) => a + b, 1 / 6 + 0.4418)).toBe(3);
-    expect(sigFit([2, 3], (a, b) => a * b, 6)).toBe(3);
-    expect(sigFit([-1.7390774, 0.56099271 * 3.1], (a, b) => a + b, 0)).toBe(3);
-    expect(sigFit([1.2542], (t) => 2 * t, 2 * 1.2542, 3, 4)).toBe(3);
-    expect(tnFit(0.44183, 5)).toBe('0.442');
-    expect(tnFit(0.5, 2)).toBe('0.50');
-  });
   it('fitSig: 3 figures at most; fitSig keeps 2 when allowed and enough', () => {
     expect(fitSig((r) => tn(r(1 / 6) + r(0.4418)), tn(1 / 6 + 0.4418), 3, 8)).toBe(3);
     expect(fitSig((r) => tn(r(2.4) * 2, 2), tn(4.8, 2), 2)).toBe(2);
@@ -80,7 +70,7 @@ describe('Σ panel agrees with the simulation (group B)', () => {
       [{}, 0],
       [{}, 700],
       [{ preset: 'spring' }, 400],
-      [{ preset: 'custom', custom: [2, -0.5, 1.5, -2] }, 900],
+      [{ preset: 'custom', F1: 2, F2: -0.5, F3: 1.5, F4: -2 }, 900],
       [{ preset: 'const' }, 500],
     ] as [Params, number][]) {
       const { s, lines, roText } = run(sc, over, steps);
@@ -102,7 +92,7 @@ describe('Σ panel agrees with the simulation (group B)', () => {
       [{}, 0],
       [{}, 500],
       [{ pot: 'hill', friction: true }, 600],
-      [{ x0s: [-2.05, 2.9] }, 300],
+      [{ x0Double: -2.05 }, 300],
     ] as [Params, number][]) {
       const { s, p, lines, roText } = run(sc, over, steps);
       showsText(lines, roText('K'), 'J');
@@ -201,8 +191,11 @@ describe('Σ panel agrees with the simulation (group B)', () => {
     ] as [Params, number][]) {
       const { p, lines, ro } = run(sc, over, steps);
       shows(lines, ro('I'), 'kg\\,m^2');
-      shows(lines, ro('L'), 'kg\\,m^2/s');
-      if (p.sys !== 'chair') shows(lines, ro('L') / (2 * (p.m as number)), 'm^2/s');
+      // L = Iω (constant, no readout since QA 2026-11-24): the readouts I and ω give it.
+      const L = ro('I') * ro('\\omega');
+      shows(lines, L, 'kg\\,m^2/s');
+      shows(lines, ro('K'), 'J');
+      if (p.sys !== 'chair') shows(lines, L / (2 * (p.m as number)), 'm^2/s');
     }
   });
 

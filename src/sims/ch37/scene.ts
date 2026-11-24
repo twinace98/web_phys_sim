@@ -4,7 +4,7 @@
 // order of two events are read off; the fourth is the train-flash experiment.
 import { fmt } from '../../core/format';
 import { t } from '../../core/i18n';
-import { paren, slider, tn, u } from '../../core/tex';
+import { paren, readBack, slider, texOf, tn, u } from '../../core/tex';
 import type { NumberParam, ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { ROLE_COLOR, theme } from '../../draw/theme';
@@ -18,6 +18,8 @@ export const SP_COLOR = ROLE_COLOR.energyU;
 const LIGHT = '#1a1a1a';
 const TRAIL = '#9a9a9a';
 const GROUND = '#c8c8c8';
+/** World strip of the rod on the spacetime diagram: bluish green, apart from the orange S' axes and grid. */
+export const ROD_COLOR = '#009E73';
 
 const betaParam = (def: number, min: number, max: number, live = false): NumberParam => ({
   kind: 'number',
@@ -408,8 +410,10 @@ export const spacetime: Scene<PD, { t: number }> = {
         // Lines of constant x' (slope 1/β) and constant ct' (slope β), spaced by one unit of S'.
         for (let k = -12; k <= 12; k++) {
           // x' = k: x = βct + k/γ ; ct' = k: ct = βx + k/γ
-          g.line(P(b * (CT_LO - 2) + k / gm, CT_LO - 2), P(b * (CT_HI + 2) + k / gm, CT_HI + 2), { color: SP_COLOR, width: 1, alpha: 0.22 });
-          g.line(P(-X_HALF - 2, b * (-X_HALF - 2) + k / gm), P(X_HALF + 2, b * (X_HALF + 2) + k / gm), { color: SP_COLOR, width: 1, alpha: 0.22 });
+          // Dashed, so the S' grid reads apart from the solid S' axes and world lines (QA 2026-11-24).
+          const gs = { color: SP_COLOR, width: 1, alpha: 0.4, dash: [2, 4] };
+          g.line(P(b * (CT_LO - 2) + k / gm, CT_LO - 2), P(b * (CT_HI + 2) + k / gm, CT_HI + 2), gs);
+          g.line(P(-X_HALF - 2, b * (-X_HALF - 2) + k / gm), P(X_HALF + 2, b * (X_HALF + 2) + k / gm), gs);
         }
       }
     }
@@ -423,8 +427,8 @@ export const spacetime: Scene<PD, { t: number }> = {
       const rear = ROD_FRONT - ROD_L0;
       const t0 = CT_LO - 2;
       const t1 = CT_HI + 2;
-      g.polygon([P(xs(rear, t0), t0), P(xs(ROD_FRONT, t0), t0), P(xs(ROD_FRONT, t1), t1), P(xs(rear, t1), t1)], { fill: SP_COLOR, fillAlpha: 0.12 });
-      for (const xp of [rear, ROD_FRONT]) g.line(P(xs(xp, t0), t0), P(xs(xp, t1), t1), { color: SP_COLOR, width: 2 });
+      g.polygon([P(xs(rear, t0), t0), P(xs(ROD_FRONT, t0), t0), P(xs(ROD_FRONT, t1), t1), P(xs(rear, t1), t1)], { fill: ROD_COLOR, fillAlpha: 0.12 });
+      for (const xp of [rear, ROD_FRONT]) g.line(P(xs(xp, t0), t0), P(xs(xp, t1), t1), { color: ROD_COLOR, width: 2 });
     }
     // Light cone through the origin.
     g.line(P(-8, -8), P(8, 8), { color: '#9a9a9a', width: 1.25, dash: [5, 4] });
@@ -453,11 +457,11 @@ export const spacetime: Scene<PD, { t: number }> = {
     g.text(P(0, CT_HI), '*ct*', { size: 14, color: S_COLOR, dx: -8, dy: 4, align: 'right' });
     if (b > 0) {
       const tEnd = Math.min(CT_HI, X_HALF / b);
-      g.arrow(P(b * CT_LO, CT_LO), P(b * (tEnd - CT_LO), tEnd - CT_LO), { color: SP_COLOR, width: 1.5 });
+      g.arrow(P(b * CT_LO, CT_LO), P(b * (tEnd - CT_LO), tEnd - CT_LO), { color: SP_COLOR, width: 2 });
       g.text(P(b * tEnd, tEnd), '*ct*′', { size: 14, color: SP_COLOR, dx: 10, dy: 4 });
       const xEnd = Math.min(X_HALF, CT_HI / b);
       const xStart = Math.max(-X_HALF, CT_LO / b);
-      g.arrow(P(xStart, b * xStart), P(xEnd - xStart, b * (xEnd - xStart)), { color: SP_COLOR, width: 1.5 });
+      g.arrow(P(xStart, b * xStart), P(xEnd - xStart, b * (xEnd - xStart)), { color: SP_COLOR, width: 2 });
       g.text(P(xEnd, b * xEnd), '*x*′', { size: 14, color: SP_COLOR, dx: 2, dy: -10, align: 'right' });
     }
 
@@ -646,6 +650,23 @@ const bTex = (beta: number) => slider(betaParam(0, 0, 1), beta);
 
 const gammaLine = (beta: number) => `\\gamma = \\frac{1}{\\sqrt{1 - \\beta^2}} = \\frac{1}{\\sqrt{1 - (${bTex(beta)})^2}} = ${tn(gamma(beta))}`;
 
+/**
+ * R6 for a floor: t and the tick period printed so that the floor of the printed quotient is the
+ * tick count n. 3 figures where they do it; near a tick (t = 11.99 s: ⌊12.0/2.00⌋ = 6, but n = 5)
+ * both get the same, larger number of decimals (⌊11.99/2.00⌋ = 5), which also keeps an exact tick
+ * t = nΔt at n (⌊13.33/3.33⌋ = 4 at β = 0.8).
+ */
+export function floorInputs(time: number, period: number, n: number): [string, string] {
+  const ok = (a: string, b: string) => Math.floor(readBack(a) / readBack(b) + 1e-9) === n;
+  const a3 = fmt(time, 3, 0);
+  const b3 = fmt(period, 3, 0);
+  if (ok(a3, b3)) return [texOf(a3), texOf(b3)];
+  const decs = (v: string) => (v.includes('.') ? v.split('.')[1].length : 0);
+  const d0 = Math.max(decs(a3), decs(b3));
+  for (let d = d0; d < d0 + 6; d++) if (ok(time.toFixed(d), period.toFixed(d))) return [time.toFixed(d), period.toFixed(d)];
+  return [time.toFixed(d0 + 6), period.toFixed(d0 + 6)];
+}
+
 /** Light clocks: γ, the two tick periods and the ticks counted so far. */
 export function clockLines(time: number, beta: number): string[] {
   const P0 = restPeriod(D_CLOCK);
@@ -654,9 +675,16 @@ export function clockLines(time: number, beta: number): string[] {
     gammaLine(beta),
     `\\Delta t_0 = \\frac{2D}{c} = \\frac{2 \\times ${D_CLOCK}\\ \\mathrm{ls}}{c} = ${tn(P0)}${u('s')}`,
     `\\Delta t = \\gamma\\,\\Delta t_0 = ${tn(gamma(beta))} \\times ${tn(P0)} = ${tn(P)}${u('s')}`,
-    `n_0 = \\lfloor t/\\Delta t_0 \\rfloor = \\lfloor ${tn(time)}/${tn(P0)} \\rfloor = ${ticks(time, P0)}`,
-    `n = \\lfloor t/\\Delta t \\rfloor = \\lfloor ${tn(time)}/${tn(P)} \\rfloor = ${ticks(time, P)}`,
+    floorLine('n_0', '\\Delta t_0', time, P0),
+    floorLine('n', '\\Delta t', time, P),
   ];
+}
+
+/** n = ⌊t/Δt⌋ with inputs that keep the floor visible (floorInputs). */
+function floorLine(nSym: string, pSym: string, time: number, period: number): string {
+  const n = ticks(time, period);
+  const [a, b] = floorInputs(time, period, n);
+  return `${nSym} = \\lfloor t/${pSym} \\rfloor = \\lfloor ${a}/${b} \\rfloor = ${n}`;
 }
 
 /** Rods: γ and the contracted length. */

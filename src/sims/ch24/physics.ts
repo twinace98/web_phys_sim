@@ -4,7 +4,7 @@ import { E, clearOf } from '../field/charges';
 import type { Src } from '../field/physics';
 
 /** Closest distance from point c to the segment a→b. */
-function segDist(ax: number, ay: number, bx: number, by: number, cx: number, cy: number): number {
+export function segDist(ax: number, ay: number, bx: number, by: number, cx: number, cy: number): number {
   const dx = bx - ax;
   const dy = by - ay;
   const l2 = dx * dx + dy * dy;

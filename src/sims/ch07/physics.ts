@@ -178,6 +178,9 @@ export function trajectory(su: Setup, rate: number, tMax: number): Trajectory {
     xs[n] = x;
     vs[n] = v;
     n += 1;
+    // At rest where no force acts (K used up exactly on a segment edge with F = 0 beyond it): the
+    // block stays there for good, so the run ends instead of idling to tMax (QA 2026-11-24: 11 s).
+    if (v === 0 && vs[n - 2] === 0 && x === xs[n - 2]) return { x: xs, v: vs, n, rate, tEnd: (n - 1) / rate };
   }
   return { x: xs, v: vs, n, rate, tEnd: (n - 1) / rate };
 }

@@ -15,5 +15,6 @@
   "ch42.obs.large": "$N_0 = 10000$: the steps almost vanish and the count lies on the exponential (relative fluctuation $\\sim 1/\\sqrt N$)",
   "ch42.obs.iso": "Changing the isotope only changes the time unit; the curve has the same shape (identical in $t/T_{1/2}$)",
   "ch42.assume.indep": "Nuclei do not affect each other; the decay probability per unit time is constant",
-  "ch42.assume.daughter": "Daughter nuclei are taken as stable (²³⁸U's daughter ²³⁴Th actually decays further)"
+  "ch42.assume.daughter": "Daughter nuclei are taken as stable (²³⁸U's daughter ²³⁴Th actually decays further)",
+  "ch42.assume.sym": "Symbols: $N$ = parent nuclei not yet decayed, $\\lambda$ = decay constant, $R = \\lambda N$ = activity (expected decays per unit time; the readout is in y⁻¹ = decays per year, d⁻¹ = per day for ¹³¹I)"
 }

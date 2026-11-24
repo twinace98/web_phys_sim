@@ -15,7 +15,6 @@
   "damped.regime.under": "부족감쇠",
   "damped.regime.critical": "임계감쇠",
   "damped.regime.over": "과감쇠",
-  "damped.nopeak": "봉우리 없음",
   "damped.f.goal.env": "감쇠력 $F_d = -bv$가 역학적 에너지를 빼앗음 → 진폭이 $x_m e^{-bt/2m}$로 지수 감소, 각진동수는 $\\omega' = \\sqrt{\\omega_0^2 - \\gamma^2}$로 조금 작아짐 ($\\gamma = b/2m$)",
   "damped.f.goal.regimes": "$b$와 $b_c = 2\\sqrt{km}$의 비교로 운동이 갈림: 부족감쇠 ($b < b_c$, 진동하며 감쇠), 임계감쇠 ($b = b_c$, 진동 없이 가장 빨리 평형으로 복귀), 과감쇠 ($b > b_c$, 진동 없이 더 천천히 복귀)",
   "damped.f.obs.default": "기본값 $b$ = 1.0 kg/s: 진동하며 진폭이 회색 파선 포락선 $\\pm x_m e^{-bt/2m}$을 따라 줄어듦, $2m/b$ = 2 s마다 $1/e$배",
@@ -32,8 +31,7 @@
   "damped.d.obs.build": "기본값 ($\\omega_d = \\omega_0$, $b$ = 1.0 kg/s): 진폭이 0에서 몇 초에 걸쳐 커져 파선 $\\pm x_m$ = 0.080 m에 도달, 지지대 진폭 $d$ = 0.020 m의 4배",
   "damped.d.obs.sweep": "실행 중 $\\omega_d/\\omega_0$를 바꾸면 고리 (현재 진폭)가 곡선 위 점 (정상 상태 진폭)으로 다가감. 0.5에서 $x_m \\approx 1.3d$, 2에서 $x_m \\approx 0.33d$",
   "damped.d.obs.b": "회색 곡선 = $b$ 0.5 (실선), 1 (파선), 2 kg/s (점선): $b$가 2배가 될 때마다 봉우리 높이가 약 절반, 폭은 넓어짐",
-  "damped.d.obs.phase": "$\\omega_d \\ll \\omega_0$: 물체가 지지대 (회색 $y_s$)와 함께 움직임 ($\\phi \\approx 0$). $\\omega_d = \\omega_0$: 1/4 주기 늦음 ($\\phi = 90^\\circ$). $\\omega_d \\gg \\omega_0$: 반대로 움직임 ($\\phi \\approx 180^\\circ$)",
-  "damped.d.obs.ring": "고리 = 현재 진폭 $\\sqrt{x^2 + (v/\\omega_d)^2}$, 정상 상태에서 점 ($x_m$)과 일치. 과도 상태에서는 맥놀이처럼 출렁임",
-  "damped.d.assume.drive": "지지대 진폭 $d$ = 0.020 m: 회전 원판의 핀이 지지대의 홈을 밀어 $y_s = d\\cos\\omega_d t$ (스카치 요크). 용수철 힘 $k(y_s - x)$ → 구동력 $F_m = kd$. 자유물체도는 이 힘을 $F_s = mg - kx$와 구동력 $F = ky_s$로 나눠 그림",
+  "damped.d.obs.ring": "고리 = 현재 진폭, 정상 상태에서 점 ($x_m$)과 일치. 처음 몇 초 (과도 상태)에는 출렁이며 다가감",
+  "damped.d.assume.drive": "지지대 진폭 $d$ = 0.020 m: 회전 원판의 핀이 지지대를 위아래로 밀어 $y_s = d\\cos\\omega_d t$. 용수철 힘 $k(y_s - x)$ → 구동력 $F_m = kd$. 자유물체도는 이 힘을 $F_s = mg - kx$와 구동력 $F = ky_s$로 나눠 그림",
   "damped.d.assume.start": "물체는 평형 위치에서 정지 상태로 출발. RK4 수치 적분 (시간 간격 1 ms), 공명 곡선과 파선은 정상 상태 해석해"
 }

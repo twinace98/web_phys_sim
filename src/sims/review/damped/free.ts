@@ -24,8 +24,7 @@ import {
   rk4,
   type Osc,
 } from './physics';
-import { slider, tnCmp } from '../../../core/tex';
-import { tn, tp, u } from './tex';
+import { readBack, sigCancel, slider, tn, tnCancel, tnCmp, tp, u } from '../../../core/tex';
 
 type P = { b: number; m: number; k: number; vectors: boolean; fbd: boolean };
 type S = { t: number; x: number; v: number };
@@ -228,7 +227,8 @@ export const freeScene: Scene<P, S> = {
 
   readouts: [
     { label: "\\omega'", unit: 'rad/s', value: (_s, p) => omegaPrime(oscOf(p)) },
-    { label: 'E', unit: 'J', value: (s, p) => energy(oscOf(p), s.x, s.v).E },
+    // A physical small value late in a heavily damped run (R7b): 3 figures, never 0 (zeroTol 0).
+    { label: 'E', unit: 'J', value: (s, p) => energy(oscOf(p), s.x, s.v).E, zeroTol: 0 },
   ],
 
   formula: (s, p) => {
@@ -238,6 +238,9 @@ export const freeScene: Scene<P, S> = {
     const r = regime(o);
     const E = energy(o, s.x, s.v).E;
     const cmp = r === 'under' ? '<' : r === 'critical' ? '=' : '>';
+    // x, E and the envelope decay to physical small values (2.90×10⁻¹² m near b_c at t = 10 s):
+    // 3 figures down to any size, never 0 (R7b), the same string as the E readout (R8).
+    const sm = (v: number) => tn(v, 3, 0);
     // Policy D: b, m, k as their slider labels (R1), derived values at 3 figures (R3); b_c against
     // b keeps the figures that show the inequality (R6).
     const [bS, mS, kS] = [slider(params.b, p.b), slider(params.m, p.m), slider(params.k, p.k)];
@@ -248,24 +251,28 @@ export const freeScene: Scene<P, S> = {
       `\\gamma = \\frac{b}{2m} = \\frac{${bS}}{2 \\times ${mS}} = ${tn(g)}${u('s^{-1}')}`,
     ];
     if (r === 'under') {
-      const xm = amplitudeConst(o, X0);
+      const xm = tn(amplitudeConst(o, X0));
+      const env = sm(envelope(o, X0, s.t));
+      // A large exponent γt needs more figures of γ and t for e^{−γt} to reproduce the printed
+      // envelope (R5b: e^{−7.95 × 10.0} is 5 % off e^{−79.497}).
+      const sg = sigCancel((rd) => readBack(xm) * Math.exp(-rd(g) * rd(s.t)), env);
       lines.push(
         `\\omega' = \\sqrt{\\omega_0^2 - \\gamma^2} = ${tn(omegaPrime(o))}${u('rad/s')}`,
-        `x_m e^{-bt/2m} = ${tn(xm)}\\, e^{-${tn(g)} \\times ${tn(s.t, 3)}} = ${tn(envelope(o, X0, s.t))}${u('m')}`,
+        `x_m e^{-bt/2m} = ${xm}\\, e^{-${tnCancel(g, sg)} \\times ${tnCancel(s.t, sg)}} = ${env}${u('m')}`,
         light(p)
-          ? `E = ${tn(E)}${u('J')} \\approx \\tfrac{1}{2}k x_m^2 e^{-bt/m} = ${tn(energyApprox(o, X0, s.t))}${u('J')}`
-          : `E = K + U = ${tn(E)}${u('J')}`,
+          ? `E = ${sm(E)}${u('J')} \\approx \\tfrac{1}{2}k x_m^2 e^{-bt/m} = ${sm(energyApprox(o, X0, s.t))}${u('J')}`
+          : `E = K + U = ${sm(E)}${u('J')}`,
       );
     } else if (r === 'critical') {
       lines.push(
-        `\\gamma = \\omega_0:\\ x = x_0(1 + \\gamma t)e^{-\\gamma t} = ${tn(s.x)}${u('m')}`,
-        `E = K + U = ${tn(E)}${u('J')}`,
+        `\\gamma = \\omega_0:\\ x = x_0(1 + \\gamma t)e^{-\\gamma t} = ${sm(s.x)}${u('m')}`,
+        `E = K + U = ${sm(E)}${u('J')}`,
       );
     } else {
       lines.push(
         `\\gamma > \\omega_0:\\ \\beta = \\sqrt{\\gamma^2 - \\omega_0^2} = ${tn(betaOver(o))}${u('s^{-1}')}`,
-        `x = x_0 e^{-\\gamma t}\\left(\\cosh\\beta t + \\tfrac{\\gamma}{\\beta}\\sinh\\beta t\\right) = ${tn(s.x)}${u('m')}`,
-        `E = K + U = ${tn(E)}${u('J')}`,
+        `x = x_0 e^{-\\gamma t}\\left(\\cosh\\beta t + \\tfrac{\\gamma}{\\beta}\\sinh\\beta t\\right) = ${sm(s.x)}${u('m')}`,
+        `E = K + U = ${sm(E)}${u('J')}`,
       );
     }
     if (p.fbd) {

@@ -16,6 +16,22 @@ export function tz(v: number, sig = 3): string {
   return `${m.toFixed(sig - 1)}\\times 10^{${e}}`;
 }
 
+/**
+ * tz() of e^{lnv}, from its natural logarithm: a density or occupation below the double range
+ * (diamond at 30 K: n_i = 10⁻⁷⁸⁵ cm⁻³, which e^x rounds to an exact 0) still prints its value (R7b).
+ */
+export function tzExp(lnv: number, sig = 3): string {
+  if (lnv > -690) return tz(Math.exp(lnv), sig);
+  const l10 = lnv / Math.LN10;
+  let e = Math.floor(l10);
+  let m = 10 ** (l10 - e);
+  if (Number(m.toFixed(sig - 1)) >= 10) {
+    e += 1;
+    m /= 10;
+  }
+  return `${m.toFixed(sig - 1)}\\times 10^{${e}}`;
+}
+
 export const BAND = '#eef1f4';
 export const BAND_EDGE = '#9a9a9a';
 export const ELECTRON = ROLE_COLOR.negative;

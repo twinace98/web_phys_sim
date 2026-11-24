@@ -1,7 +1,7 @@
 // Ch 15 scene: SHM as the projection of uniform circular motion. Reference circle (left) and
 // mass on a spring (right) share one horizontal projection line. Free-body diagram of the hanging
 // mass: spring force F_s = mg − kx (x from equilibrium, up +), weight mg and, with damping, F_d.
-import { RESIDUE, slider, tn, tnScale, tp, u } from '../../core/tex';
+import { RESIDUE, fmtScale, slider, texOf, tn, tnScale, tp, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { drawFbd, fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
@@ -150,19 +150,27 @@ export function formulaLines(s: S, p: P): string[] {
   return lines;
 }
 
+/** Energy at release, ½kA² [J]: the run scale of E, K and U (R7a). */
+export const releaseEnergy = (p: P) => 0.5 * p.k * p.A * p.A;
+/** E as the readout and the Σ panel print it (R7a, R8). */
+export const energyText = (E: number, p: P) => fmtScale(E, releaseEnergy(p));
+
 function oscLines(s: S, p: P): string[] {
   const o = oscOf(p);
   const w0 = omega0(o);
   const w = omegaD(o);
   const T = period(o);
   // Policy D: slider values as their labels (R1), state values to 3 figures (R3); a numerical residue
-  // of the run scale prints as an exact 0 (R7a: v at a turning point). K and U share the decimals of
-  // the current E (R7a), so K = 0 at a turning point and the sum reads 0.161 + 0.000 = 0.161.
+  // of the run scale prints as an exact 0 (R7a: v at a turning point, K there).
   const [A, k, m, z] = [slider(params.A, p.A), slider(params.k, p.k), slider(params.m, p.m), slider(params.zeta, p.zeta)];
   const km = `\\sqrt{${k}/${m}}`;
-  const E0 = 0.5 * p.k * p.A * p.A;
-  const t0 = (v: number, scale: number) => (Math.abs(v) < RESIDUE * scale ? '0' : tn(v));
-  const energy = `E = K + U = ${tnScale(s.K, s.E)} + ${tnScale(s.U, s.E)} = ${tn(s.E)}${u('J')}`;
+  const E0 = releaseEnergy(p);
+  // One run scale for the energy, the release energy ½kA² (R7a): E prints as its readout, an exact 0
+  // once damping has taken it below 10⁻³ of that, and then K and U print 0 with it. While E shows, K
+  // and U are zero only as a residue of the current E, so K + U reproduces E.
+  const Et = energyText(s.E, p);
+  const kuText = (v: number) => (Et === '0' ? '0' : tnScale(v, s.E));
+  const energy = `E = K + U = ${kuText(s.K)} + ${kuText(s.U)} = ${texOf(Et)}${u('J')}`;
   if (p.zeta === 0) {
     // Phase in (−180°, 180°], 3 figures: 0.1° near the zero crossings at ±90°. Where x is small, the
     // last figure of the phase still moves x by up to 2×10⁻³ A (tests/sigma-policy.ts ALLOW).
@@ -174,7 +182,7 @@ function oscLines(s: S, p: P): string[] {
       `x = A\\cos\\omega t = (${A})\\cos(${ph === 0 ? 0 : tn(ph)}^\\circ) = ${tn(s.x)}${u('m')}`,
       `a = -\\omega^2 x = -(${tn(w)})^2(${tn(s.x)}) = ${tn(s.a)}${u('m/s^2')}`,
       energy,
-      `= \\tfrac12 kA^2 = \\tfrac12(${k})(${A})^2 = ${tn(E0)}${u('J')}`,
+      `= \\tfrac12 kA^2 = \\tfrac12(${k})(${A})^2 = ${texOf(energyText(E0, p))}${u('J')}`,
     ];
   }
   return [
@@ -182,7 +190,9 @@ function oscLines(s: S, p: P): string[] {
     `\\omega = \\omega_0\\sqrt{1 - \\zeta^2} = (${tn(w0)})\\sqrt{1 - (${z})^2} = ${tn(w)}${u('rad/s')}`,
     `T = \\frac{2\\pi}{\\omega} = \\frac{2\\pi}{${tn(w)}} = ${tn(T)}${u('s')}`,
     `a = -\\omega_0^2 x - 2\\zeta\\omega_0 v`,
-    `= -(${tn(w0)})^2(${tn(s.x)}) - 2(${z})(${tn(w0)})(${t0(s.v, w0 * p.A)}) = ${tn(s.a)}${u('m/s^2')}`,
+    // x, v and a on their run scales A, ω₀A, ω₀²A (R7a): once damping has taken them below 10⁻³ of
+    // those, all three print 0 together, so the line still reproduces (−(4.47)²(0) − … = 0).
+    `= -(${tn(w0)})^2(${tnScale(s.x, p.A)}) - 2(${z})(${tn(w0)})(${tnScale(s.v, w0 * p.A)}) = ${tnScale(s.a, w0 * w0 * p.A)}${u('m/s^2')}`,
     energy,
   ];
 }
@@ -300,7 +310,8 @@ export const shm: Scene<P, S> = {
     // With damping both show the damped oscillation: ω = ω_d and T = 2π/ω_d.
     { label: '\\omega', unit: 'rad/s', value: (_s, p) => omegaD(oscOf(p)) },
     { label: 'T', unit: 's', value: (_s, p) => period(oscOf(p)) },
-    { label: 'E', unit: 'J', value: (s) => s.E },
+    // Run scale ½kA² (R7a): the same string as E in the Σ panel.
+    { label: 'E', unit: 'J', value: (s) => s.E, scale: (p) => releaseEnergy(p) },
   ],
 
   formula: (s, p) => formulaLines(s, p),

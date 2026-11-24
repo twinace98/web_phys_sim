@@ -1,6 +1,7 @@
 // Addition under review: damped and forced oscillations (#/ch/108).
 import { describe, expect, it } from 'vitest';
 import { defaults } from '../src/core/params';
+import { readoutText, texOf } from '../src/core/precision';
 import { register } from '../src/core/i18n';
 import type { Scene } from '../src/core/types';
 import page from '../src/sims/review/damped';
@@ -253,16 +254,14 @@ describe('driven Σ: printed inputs reproduce the results, no zero denominator',
   const p0 = defaults(drivenScene.params);
   const lines = (q: typeof p0) => drivenScene.formula!(drivenScene.init(q, undefined as never), q);
 
-  it('review case (defaults, ω_d = ω_0): φ = 90° stated directly, no 4.00/0.00', () => {
+  it('review case (defaults, ω_d = ω_0): no 4.00/0.00 denominator', () => {
     const f = lines(p0).join(' ');
     expect(f).not.toMatch(/\{-?0(\.0+)?\}/);
-    expect(f).toContain('\\omega_d = \\omega_0');
-    expect(f).toMatch(/\\phi = 90\^\\circ/);
   });
 
   it('every ω_d/ω_0 stop (0.20 … 2.00) at the ends and middle of b, m, k', () => {
     const bad: string[] = [];
-    const hits = { xm: 0, phi: 0, res: 0 };
+    let hits = 0;
     for (let i = 20; i <= 200; i++)
       for (const b of [0.2, 1, 2.5, 4])
         for (const m of [0.2, 1, 2])
@@ -273,21 +272,11 @@ describe('driven Σ: printed inputs reproduce the results, no zero denominator',
             const all = f.join(' ');
             if (/\{-?0(\.0+)?\}/.test(all)) bad.push(`${tag} zero denominator`);
             const [Fm, den, xm] = grab(f[2], R(String.raw`= \\frac\{N#\}\{N#\} = N#\\ \\mathrm\{m\}$`));
-            hits.xm++;
+            hits++;
             if (!agrees(val(Fm) / val(den), xm)) bad.push(`${tag} x_m ${f[2]}`);
-            const ph = f[3].match(R(String.raw`= \\frac\{N#\}\{N#\},\\quad \\phi = N#\^\\circ$`));
-            if (ph) {
-              hits.phi++;
-              if (!agrees((Math.atan2(val(ph[1]), val(ph[2])) * 180) / Math.PI, ph[3])) bad.push(`${tag} φ ${f[3]}`);
-            } else {
-              hits.res++;
-              expect(i, f[3]).toBe(100);
-              expect(f[3]).toMatch(/\\phi = 90\^\\circ$/);
-            }
           }
     expect(bad.length, bad.slice(0, 5).join('\n')).toBe(0);
-    expect(hits.res).toBe(36);
-    expect(hits.phi).toBe(180 * 36);
+    expect(hits).toBe(181 * 36);
   });
 });
 
@@ -303,9 +292,47 @@ describe('damped Σ: policy D (slider labels, 3-figure inputs, R5 net force, R6 
     expect(f[1]).toBe('b = 0.0 < b_c = 2\\sqrt{km} = 17.9\\ \\mathrm{kg/s}');
     const d = driven({ ...pd, ratio: 0.99 });
     expect(d[0]).toBe('\\omega_d = 0.99\\,\\omega_0 = 0.99\\sqrt{16/1.0} = 3.96\\ \\mathrm{rad/s}');
-    // k − mω_d² computed directly (R5): 16 − 15.68 = 0.318, not 16.0 − 15.7.
-    expect(d[3]).toBe('\\tan\\phi = \\frac{b\\omega_d}{k - m\\omega_d^2} = \\frac{3.96}{0.318},\\quad \\phi = 85.4^\\circ');
     expect(d[2]).toBe('x_m = \\frac{F_m}{\\sqrt{(k - m\\omega_d^2)^2 + (b\\omega_d)^2}} = \\frac{0.320}{3.97} = 0.0805\\ \\mathrm{m}');
+    // Forced oscillation kept light (QA 2026-11-24): ω_d, F_m, x_m; no phase lag, no peak shift.
+    expect(d.length).toBe(3);
+    expect(d.join(' ')).not.toMatch(/\\phi|peak/);
+  });
+
+  it('R7b: the envelope, x and E are physical small values, never 0 (b = 7.9 near b_c at t = 10 s)', () => {
+    for (const [b, m, k] of [
+      [7.9, 1, 16],
+      [17.8, 2, 40],
+      [9.7, 0.6, 40],
+      [1, 1, 16],
+      [8, 1, 16],
+      [20, 0.2, 40],
+    ]) {
+      const q = { ...pf, b, m, k };
+      const s = freeScene.init(q, undefined as never);
+      for (let i = 0; i < 10 / H; i++) freeScene.step!(s, H, q);
+      const l = freeScene.formula!(s, q);
+      const o = { m, k, b };
+      if (b >= bCrit(o)) {
+        // Critical and overdamped runs: x itself is the small value.
+        expect(l.find((x) => /(^|\\ )x = /.test(x))).toMatch(/= \d\.\d\d\\times 10\^\{-\d+\}\\ \\mathrm\{m\}$/);
+      } else {
+        const env = envelope(o, X0, s.t);
+        const envLine = l.find((x) => x.startsWith('x_m e^{-bt/2m}'))!;
+        // 3 figures down to any size (2.90×10⁻¹² m, not 0).
+        expect(envLine).toMatch(/= (\d\.\d\d(\\times 10\^\{-\d+\})?|0\.0*[1-9]\d\d)\\ \\mathrm\{m\}$/);
+        const [, xm, g, t, res] = /= ([\d.]+)\\, e\^\{-([\d.]+) \\times ([\d.]+)\} = (.+)\\ \\mathrm/.exec(envLine)!;
+        const r = Number(res.replace(/\\times 10\^\{(-?\d+)\}/, 'e$1'));
+        expect(Math.abs(r - env) / env, envLine).toBeLessThan(0.006);
+        // The printed exponent reproduces the printed envelope (R5b: γ and t keep the figures it needs).
+        expect(Math.abs(Number(xm) * Math.exp(-Number(g) * Number(t)) - r) / r, envLine).toBeLessThanOrEqual(0.01);
+      }
+      // E: the readout and Σ print the same string, never 0.
+      const ro = freeScene.readouts!.find((x) => x.label === 'E')!;
+      const roText = readoutText(ro as never, ro.value(s, q), q, s);
+      expect(roText).not.toMatch(/^0$|^0\.0+$/);
+      const eTex = texOf(roText);
+      expect(l.some((x) => x.startsWith(`E = ${eTex}\\ `) || x.startsWith(`E = K + U = ${eTex}\\ `)), `${eTex} ${l.join(' | ')}`).toBe(true);
+    }
   });
 
   it('R6: b just below b_c keeps the figures that show b < b_c; b = b_c prints =', () => {

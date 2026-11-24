@@ -3,12 +3,12 @@
 // constant (velocity Verlet); with friction E falls and the turning points close in.
 import { t as tr } from '../../core/i18n';
 import { fmtTick, niceTicks } from '../../core/format';
-import { num, paren, tn, tnScale, u } from '../../core/tex';
-import type { ParamSchema, Scene, Vec2 } from '../../core/types';
+import { ZERO, num, paren, readBack, reproduces, sigCancel, tnCancel, tnScale, u } from '../../core/tex';
+import type { NumberParam, ParamSchema, Params, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { POTENTIALS, equilibria, forbidden, stepParticle, turningPoints, type PotKind, type Potential } from './physics';
 
-type P = { pot: string; friction: boolean; x0s: number[] };
+type P = { pot: string; friction: boolean; x0Double: number; x0Hill: number };
 
 interface S {
   t: number;
@@ -31,7 +31,23 @@ const SHADE = '#f0f0f0';
 
 const idx = (p: P) => Math.max(0, KINDS.indexOf(p.pot as PotKind));
 const potOf = (p: P): Potential => POTENTIALS[KINDS[idx(p)]];
-const x0Of = (p: P) => p.x0s[idx(p)];
+/** Start of each potential: a slider each (QA 2026-11-24: drag-only before), also set by dragging the particle. */
+const X0_KEY = { double: 'x0Double', hill: 'x0Hill' } as const satisfies Record<PotKind, keyof P>;
+const x0Of = (p: P) => p[X0_KEY[KINDS[idx(p)]]];
+const x0Param = (pot: PotKind, def: number): NumberParam => ({
+  kind: 'number',
+  label: 'ch08.e.p.x0',
+  desc: 'ch08.e.d.x0',
+  group: 'advanced',
+  live: false,
+  control: 'slider',
+  min: -3.1,
+  max: 3.1,
+  step: 0.05,
+  default: def,
+  unit: 'm',
+  visibleIf: (p: Params) => (KINDS.includes(p.pot as PotKind) ? p.pot : 'double') === pot,
+});
 
 const params: ParamSchema<P> = {
   pot: {
@@ -48,7 +64,8 @@ const params: ParamSchema<P> = {
   },
   // Structural: the run is fixed by (potential, start, friction), so its end time is known in advance.
   friction: { kind: 'toggle', label: 'ch08.e.p.friction', desc: 'ch08.e.d.friction', group: 'main', live: false, default: false },
-  x0s: { kind: 'array', label: 'ch08.e.p.x0', desc: 'ch08.e.d.x0', group: 'hidden', live: false, default: [-2.7, 2.9], min: -3.1, max: 3.1 },
+  x0Double: x0Param('double', -2.7),
+  x0Hill: x0Param('hill', 2.9),
 };
 
 const T_MAX = 120; // s: longest run searched for an end
@@ -119,6 +136,19 @@ export function energyRange(p: P): [number, number] {
  * The run scale, so K at a turning point reads 0, not a sampling residue (policy D, R7a).
  */
 const eScale = (p: P) => Math.abs(potOf(p).U(x0Of(p)));
+
+/**
+ * Run scale of F = −dU/dx: the largest |dU/dx| where U ≤ U(x₀), the part of the curve the particle can
+ * reach. Passing an equilibrium F is a residue below 10⁻³ of it and prints as an exact 0 (R7a), not
+ * 3.82×10⁻⁴ N with x = −2.0001.
+ */
+function fScale(p: P): number {
+  const pot = potOf(p);
+  const E0 = pot.U(x0Of(p));
+  let top = 0;
+  for (let x = pot.lo; x <= pot.hi; x += 0.01) if (pot.U(x) <= E0 + 1e-12) top = Math.max(top, Math.abs(pot.dU(x)));
+  return Math.max(top, Math.abs(pot.dU(x0Of(p))));
+}
 
 const energies = (s: S, p: P) => {
   const U = potOf(p).U(s.x);
@@ -270,9 +300,7 @@ export const energyScene: Scene<P, S> = {
         const p = ctx.params;
         const x = Math.round(Math.min(3.1, Math.max(-3.1, w.x)) * 20) / 20;
         if (x === x0Of(p)) return;
-        const next = [...p.x0s];
-        next[idx(p)] = x;
-        ctx.set('x0s', next);
+        ctx.set(X0_KEY[KINDS[idx(p)]], x);
       },
     },
   ],
@@ -310,22 +338,35 @@ export const energyScene: Scene<P, S> = {
     const sc = eScale(p);
     const [K, U, E] = [e.K, e.U, e.E].map((v) => tnScale(v, sc));
     const F = -pot.dU(s.x);
-    const x = tn(s.x);
+    const fs = fScale(p);
+    const Ft = tnScale(F, fs);
+    // R5b: near x = ±2 (double well) or ±1.5 (hill) the bracket cancels and the square or cube
+    // amplifies x's rounding (⅛[(−2.61)² − 4]² = 0.989 against 0.976); x then keeps the figures
+    // that reproduce U and F, one string on all lines (R8).
+    const kx = Math.max(sigCancel((r) => pot.U(r(s.x)), U, ZERO * sc), sigCancel((r) => -pot.dU(r(s.x)), Ft, ZERO * fs));
+    const x = tnCancel(s.x, kx);
     const lines =
       KINDS[idx(p)] === 'double'
         ? [
             `U = \\tfrac18(x^2 - 4)^2 = \\tfrac18[(${x})^2 - 4]^2 = ${U}${u('J')}`,
             `F = -\\frac{dU}{dx} = -\\tfrac12 x(x^2 - 4)`,
-            `= -\\tfrac12(${x})[(${x})^2 - 4] = ${tn(F)}${u('N')}`,
+            `= -\\tfrac12(${x})[(${x})^2 - 4] = ${Ft}${u('N')}`,
           ]
         : [
             `U = 1.2 + \\tfrac49\\left(\\tfrac13 x^3 - 2.25x\\right)`,
             `= 1.2 + \\tfrac49\\left[\\tfrac13(${x})^3 - 2.25(${x})\\right] = ${U}${u('J')}`,
             `F = -\\frac{dU}{dx} = -\\tfrac49(x^2 - 2.25)`,
-            `= -\\tfrac49[(${x})^2 - 2.25] = ${tn(F)}${u('N')}`,
+            `= -\\tfrac49[(${x})^2 - 2.25] = ${Ft}${u('N')}`,
           ];
-    lines.push(`K = \\tfrac12 mv^2 = \\tfrac12(${num(M)})(${tn(s.v)})^2 = ${K}${u('J')}`);
-    lines.push(`E = K + U = ${K} + ${paren(U)} = ${E}${u('J')}`);
+    // K from v: v keeps the figures that reproduce K through the square (R5b).
+    const kv = sigCancel((r) => 0.5 * M * r(s.v) ** 2, K, ZERO * sc);
+    lines.push(`K = \\tfrac12 mv^2 = \\tfrac12(${num(M)})(${tnCancel(s.v, kv)})^2 = ${K}${u('J')}`);
+    // E = K + U on the readout strings; where a residue printed as 0 (U = 0.0012 J beside K = 0.0998 J
+    // with friction) leaves the sum short, K and U take the figures that reproduce E (R5b).
+    const sum = readBack(K) + readBack(U);
+    const ke = reproduces(sum, E, ZERO * sc) ? 0 : sigCancel((r) => r(e.K) + r(e.U), E, ZERO * sc);
+    const [Ki, Ui] = ke ? [tnCancel(e.K, ke), tnCancel(e.U, ke)] : [K, U];
+    lines.push(`E = K + U = ${Ki} + ${paren(Ui)} = ${E}${u('J')}`);
     return lines;
   },
 

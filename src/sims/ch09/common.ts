@@ -2,6 +2,8 @@
 import type { Vec2 } from '../../core/types';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { ROLE_COLOR } from '../../draw/theme';
+import { fmt } from '../../core/format';
+import { CANCEL_SIG, INPUT_SIG, readBack, reproduces, sigCancel, texOf } from '../../core/tex';
 
 /** Body 1 blue, body 2 orange, totals black (same as vector sums in Ch 3 and Ch 4). */
 export const C1 = ROLE_COLOR.position;
@@ -57,4 +59,33 @@ export function halo(pd: PlotDraw, f: (t: number) => number, t1: number, jumps: 
     ts.map((t) => [t, f(t)]),
     { color: C1, width: 7, alpha: 0.25 },
   );
+}
+
+/**
+ * R5b with figures per input: the inputs xs of a Σ line (calc gets them as printed numbers) as TeX
+ * strings that reproduce the printed result. The figures sigCancel finds are given only to the
+ * inputs that need them (the others keep 3), and a string whose last kept digit is a 5 (1.005)
+ * takes one figure more: rounded back to 3 figures it could go either way.
+ */
+export function fitInputs(xs: number[], calc: (v: number[]) => number, result: string, zero = 0): string[] {
+  const k = sigCancel((r) => calc(xs.map(r)), result, zero);
+  const sig = xs.map(() => k);
+  const at = (i: number, s: number) => readBack(fmt(xs[i], s, 0));
+  const ok = () => reproduces(calc(xs.map((_x, i) => at(i, sig[i]))), result, zero);
+  if (k > INPUT_SIG && ok())
+    for (let i = 0; i < xs.length; i++)
+      while (sig[i] > INPUT_SIG) {
+        sig[i]--;
+        if (!ok()) {
+          sig[i]++;
+          break;
+        }
+      }
+  return xs.map((x, i) => {
+    let s = sig[i];
+    // Trailing zeros the value does not need go (as tnCancel), never below 3 figures.
+    while (s > INPUT_SIG && at(i, s - 1) === at(i, s)) s--;
+    if (s > INPUT_SIG && s < CANCEL_SIG && /5$/.test(fmt(x, s, 0).split('×')[0])) s++;
+    return texOf(fmt(x, s, 0));
+  });
 }

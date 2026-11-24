@@ -1,10 +1,11 @@
 // Ch 41 scene: filling the bands. Band diagram with electrons and holes beside the Fermi-Dirac
 // occupation f(E); metal, two semiconductors and an insulator, at a chosen temperature.
+import { fmtTick } from '../../core/format';
 import { CONST, num, slider, texOf, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { Frame, PX_WORLD, TICK, canvasBox, linePx, pow10, split, textPx } from '../modern/frame';
-import { BAND, ELECTRON, bandBox, electron, hole, scatter, tz } from './common';
-import { KB, MATERIALS, N_METAL, Nc, Nv, fermi, intrinsicMu, ni, shownPairs, type MaterialId } from './physics';
+import { BAND, ELECTRON, bandBox, electron, hole, scatter, tz, tzExp } from './common';
+import { KB, MATERIALS, N_METAL, Nc, Nv, fermi, intrinsicMu, lnNi, ni, shownPairs, type MaterialId } from './physics';
 
 type P = { mat: string; T: number; scale: string };
 
@@ -120,9 +121,10 @@ export const expTex = (x: number) => texOf(x.toFixed(2));
 
 /**
  * Carrier density readout (R7b): 0 only at T = 0 (exactly none), "< 1" below one carrier per cm³
- * (diamond at 300 K: 1.13×10⁻²⁷ cm⁻³ in the Σ panel), else 3 figures.
+ * (diamond at 300 K: 1.13×10⁻²⁷ cm⁻³ in the Σ panel; at 30 K the value underflows to 0 in double
+ * precision but still reads "< 1"), else 3 figures.
  */
-export const densityText = (v: number): string | undefined => (v === 0 ? '0' : v < 1 ? '< 1' : undefined);
+export const densityText = (v: number, T: number): string | undefined => (T <= 0 ? '0' : v < 1 ? '< 1' : undefined);
 
 /**
  * Formula panel: kT, then n_i from √(N_c N_v) e^{−E_g/2kT}, the intrinsic Fermi level and the
@@ -145,14 +147,16 @@ export function fillingLines(p: P): string[] {
   }
   const x = m.Eg / (2 * kT);
   const xc = (L.Ec! - L.mu) / kT;
+  // From the logarithms (R7b): e^{−x} underflows to an exact 0 for diamond below about 40 K.
+  const lnF = -xc - Math.log1p(Math.exp(-xc));
   lines.push(
     `\\frac{E_\\text{g}}{2kT} = \\frac{${num(m.Eg)}\\ \\mathrm{eV}}{2 \\times ${tn(kT)}\\ \\mathrm{eV}} = ${expTex(x)}`,
     // n_i over two lines: one line would shrink to about 0.64 × in the docked panel. Diamond: no
     // 0.00 for 1.13×10⁻²⁷ cm⁻³ (R7b).
     `n_i = \\sqrt{N_\\text{c}N_\\text{v}}\\,e^{-E_\\text{g}/2kT}`,
-    `= (${tz(Math.sqrt(Nc(m, p.T) * Nv(m, p.T)))}\\ \\mathrm{cm^{-3}})\\,e^{-${expTex(x)}} = ${tz(L.n)}${u('cm^{-3}')}`,
+    `= (${tz(Math.sqrt(Nc(m, p.T) * Nv(m, p.T)))}\\ \\mathrm{cm^{-3}})\\,e^{-${expTex(x)}} = ${tzExp(lnNi(m, p.T))}${u('cm^{-3}')}`,
     `E_\\text{F} = \\tfrac12 kT\\ln(N_\\text{v}/N_\\text{c}) = ${Math.abs(L.mu) < 1e-12 ? '0' : tn(L.mu)}${u('eV')}`,
-    `f(E_\\text{c}) = \\frac{1}{e^{(E_\\text{c} - E_\\text{F})/kT} + 1} = \\frac{1}{e^{${expTex(xc)}} + 1} = ${tz(fermi(L.Ec!, L.mu, p.T))}`,
+    `f(E_\\text{c}) = \\frac{1}{e^{(E_\\text{c} - E_\\text{F})/kT} + 1} = \\frac{1}{e^{${expTex(xc)}} + 1} = ${tzExp(lnF)}`,
   );
   return lines;
 }
@@ -221,7 +225,10 @@ export const filling: Scene<P, { t: number }> = {
       linePx(g, xg - 4, y1, xg + 4, y1, { color: TICK, width: 1.25 });
       if (y0 - y1 > 18) textPx(g, xg + 6, (y0 + y1) / 2 + (Math.abs((y0 + y1) / 2 - f.Y(L.mu)) < 10 ? -12 : 0), '*E*_{g}', { size: 13, color: TICK, baseline: 'middle' });
     }
-    f.axes({ yLabel: '*E* (eV)', xTicks: false });
+    // Axis names outside the frames: inside, E (eV) sat on the conduction band of diamond and the
+    // metal (it reaches the top), and f(E) on the f = 1 edge the curve runs down (390 px).
+    f.axes({ xTicks: false });
+    textPx(g, f.box.l, f.box.t - 8, '*E* (eV)', { size: 12, color: TICK, align: 'left' });
 
     // Fermi-Dirac occupation, same energy axis.
     const log = p.scale === 'log';
@@ -241,11 +248,11 @@ export const filling: Scene<P, { t: number }> = {
       }
     });
     fr.axes({
-      xLabel: '*f*(*E*)',
       xTicks: log ? [1e-30, 1e-20, 1e-10, 1] : [0, 0.5, 1],
       xFmt: log ? (v) => pow10(Math.round(Math.log10(v))) : undefined,
       yTicks: false,
     });
+    textPx(g, fr.box.r, fr.box.b + 30, '*f*(*E*)', { size: 12, color: TICK, align: 'right' });
 
     // Fermi level across both panels.
     const yF = f.Y(L.mu);
@@ -254,8 +261,14 @@ export const filling: Scene<P, { t: number }> = {
   },
 
   readouts: [
-    { label: 'E_\\text{g}', unit: 'eV', value: (_s, p) => (p.mat === 'metal' ? NaN : MATERIALS[p.mat as Exclude<MaterialId, 'metal'>].Eg) },
-    { label: 'n', unit: 'cm⁻³', value: (_s, p) => layout(p.mat as MaterialId, p.T).n, zeroTol: 0, format: densityText },
+    // The table value as its dropdown option and the Σ panel print it (R1, R8): Ge 0.66 eV, not 0.660.
+    {
+      label: 'E_\\text{g}',
+      unit: 'eV',
+      value: (_s, p) => (p.mat === 'metal' ? NaN : MATERIALS[p.mat as Exclude<MaterialId, 'metal'>].Eg),
+      format: (v) => (Number.isFinite(v) ? fmtTick(v) : undefined),
+    },
+    { label: 'n', unit: 'cm⁻³', value: (_s, p) => layout(p.mat as MaterialId, p.T).n, zeroTol: 0, format: (v, _s, p) => densityText(v, p.T) },
   ],
 
   formula: (_s, p) => fillingLines(p),
@@ -264,6 +277,6 @@ export const filling: Scene<P, { t: number }> = {
     goals: ['ch41.f.goal.class', 'ch41.f.goal.T'],
     observe: ['ch41.f.obs.metal', 'ch41.f.obs.semi', 'ch41.f.obs.ins', 'ch41.f.obs.log', 'ch41.f.obs.zero'],
     equations: ['f(E) = \\frac{1}{e^{(E - E_\\text{F})/kT} + 1}', 'n_i = \\sqrt{N_c N_v}\\, e^{-E_\\text{g}/2kT}'],
-    assumptions: ['ch41.f.assume.dots', 'ch41.f.assume.param', 'ch41.f.assume.metal'],
+    assumptions: ['ch41.f.assume.dots', 'ch41.f.assume.param', 'ch41.f.assume.metal', 'ch41.f.assume.zero'],
   },
 };

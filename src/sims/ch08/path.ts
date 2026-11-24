@@ -2,12 +2,12 @@
 // cumulative work of gravity or a spring ends at the same value on every path (zero around a
 // closed path), while the work of kinetic friction grows with the path length.
 import { fmtTick, niceTicks } from '../../core/format';
-import { CONST, num, tn, tnScale, u } from '../../core/tex';
-import type { ParamSchema, Scene, Vec2 } from '../../core/types';
+import { CONST, ZERO, num, sigCancel, tn, tnCancel, tnScale, u } from '../../core/tex';
+import type { NumberParam, ParamSchema, Params, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { A, ANCHOR, B, K_SPRING, MASS, MU_K, along, forceAt, pathPoints, pathWork, pieceWork, type ForceKind, type PathKind, type PathWork, type V2 } from './physics';
 
-type P = { path: string; force: string; closed: boolean; via: number[] };
+type P = { path: string; force: string; closed: boolean; viaX: number; viaY: number };
 
 interface S {
   t: number;
@@ -29,12 +29,12 @@ const box = () => (narrow() ? { x0: -2.6, x1: 3.0, y0: -6.6, y1: -3.4 } : { x0: 
 
 const kindOf = (p: P) => (KINDS.includes(p.path as PathKind) ? p.path : 'straight') as PathKind;
 const forceOf = (p: P) => (['gravity', 'spring', 'friction'].includes(p.force) ? p.force : 'gravity') as ForceKind;
-const via = (p: P): V2 => [p.via[0], p.via[1]];
+const via = (p: P): V2 => [p.viaX, p.viaY];
 
 let memoKey = '';
 let memo: { all: Record<PathKind, PathWork>; Lmax: number; W: [number, number] } | null = null;
 function model(p: P) {
-  const key = `${p.force}|${p.closed}|${p.via.join(',')}`;
+  const key = `${p.force}|${p.closed}|${p.viaX},${p.viaY}`;
   if (key !== memoKey || !memo) {
     const f = forceOf(p);
     const all = {} as Record<PathKind, PathWork>;
@@ -63,6 +63,21 @@ const tEnd = (p: P) => current(p).L / SPEED;
 /** Run scale of W: the largest |W| along the path. Back at A on a closed path W is a sum residue
  * and prints as an exact 0 (policy D, R7a). */
 const wScale = (p: P) => Math.max(...current(p).W.map(Math.abs));
+
+const viaParam = (label: string, def: number): NumberParam => ({
+  kind: 'number',
+  label,
+  desc: 'ch08.p.d.via',
+  group: 'advanced',
+  live: false,
+  control: 'slider',
+  min: -LIM,
+  max: LIM,
+  step: 0.1,
+  default: def,
+  unit: 'm',
+  visibleIf: (p: Params) => p.path === 'custom',
+});
 
 const params: ParamSchema<P> = {
   path: {
@@ -93,7 +108,10 @@ const params: ParamSchema<P> = {
     ],
   },
   closed: { kind: 'toggle', label: 'ch08.p.p.closed', desc: 'ch08.p.d.closed', group: 'advanced', live: false, default: false },
-  via: { kind: 'array', label: 'ch08.p.p.via', desc: 'ch08.p.d.via', group: 'hidden', live: false, default: [1, -1.2], min: -LIM, max: LIM },
+  // The waypoint of the custom path (QA 2026-11-24: drag-only before): two sliders, 0.1 m steps as
+  // the handle snaps, also set by dragging the orange circle.
+  viaX: viaParam('ch08.p.p.viaX', 1),
+  viaY: viaParam('ch08.p.p.viaY', -1.2),
 };
 
 const P2 = (v: V2): Vec2 => ({ x: v[0], y: v[1] });
@@ -189,9 +207,13 @@ export function formulaLines(st: S, p: P): string[] {
   if (f === 'spring') {
     const rA2 = sq(rel(A));
     const k = `\\tfrac12(${num(K_SPRING)})`;
+    // R5b: near A, r² ≈ r_A² and the bracket cancels (−½(2)(6.41 − 6.25) = −0.162); r² then keeps
+    // the figures that reproduce the printed W.
+    const r2 = sq(rel(here.p));
+    const kr = sigCancel((r) => -0.5 * K_SPRING * (r(r2) - Number(num(rA2))), W, ZERO * sc);
     return [
       `W_s = -\\tfrac12 k(r^2 - r_A^2)`,
-      `= -${k}(${tn(sq(rel(here.p)))} - ${num(rA2)}) = ${W}${u('J')}`,
+      `= -${k}(${tnCancel(r2, kr)} - ${num(rA2)}) = ${W}${u('J')}`,
       ...(p.closed
         ? [`\\oint \\vec F_s\\cdot d\\vec r = ${end}${u('J')}`]
         : [`W_{AB} = -\\tfrac12 k(r_B^2 - r_A^2)`, `= -${k}(${num(sq(rel(B)))} - ${num(rA2)}) = ${end}${u('J')}`]),
@@ -279,7 +301,8 @@ export const pathScene: Scene<P, S> = {
       onDrag: (ctx, _s, w) => {
         const x = Math.round(Math.min(LIM, Math.max(-LIM, w.x)) * 10) / 10;
         const y = Math.round(Math.min(LIM, Math.max(-LIM, w.y)) * 10) / 10;
-        if (x !== ctx.params.via[0] || y !== ctx.params.via[1]) ctx.set('via', [x, y]);
+        if (x !== ctx.params.viaX) ctx.set('viaX', x);
+        if (y !== ctx.params.viaY) ctx.set('viaY', y);
       },
     },
   ],

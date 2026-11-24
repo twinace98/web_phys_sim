@@ -118,7 +118,9 @@ function stageIssues(scene: Scene<any, any>, s: any, p: Params, labels: string[]
 describe('Ch 11 roll: free-body diagram of the chosen body', () => {
   const base = { ...(defaults(rollScene.params) as any), fbd: true };
 
-  it('has the shared toggle', () => expectToggle(rollScene as Scene));
+  // In the drawer: θ and the body are the 2 main controls (design.md §4.1, QA 2026-11-24).
+  it('has the shared toggle', () =>
+    expect(rollScene.params.fbd).toMatchObject({ kind: 'toggle', label: 'fbd.p', desc: 'fbd.d', group: 'advanced', default: false }));
 
   it('Mg, N and f_s (none for the frictionless block); ΣF = M a down the incline at every angle', () => {
     for (const theta of [5, 17, 30, 40])
@@ -388,10 +390,10 @@ describe('review damped: F_s, mg, F_d (and the driving force F) on the block', (
   it('Σ panel: ΣF line with the substituted forces', () => {
     const s = freeScene.init(freeBase, undefined as never);
     // x0 = 0.2 m, k = 16 N/m, m = 1 kg, at rest: F_s = 9.8 − 3.2 = 6.60 N, ΣF = −3.20 N.
-    expect(freeScene.formula!(s, freeBase).at(-1)).toBe('\\Sigma F = F_s - mg + F_d = 6.60 - 9.80 + 0.00 = -3.20\\ \\mathrm{N} = ma');
+    expect(freeScene.formula!(s, freeBase).at(-1)).toBe('\\Sigma F = F_s - mg + F_d = 6.60 - 9.80 + 0 = -3.20\\ \\mathrm{N} = ma');
     const d = drivenScene.init(drivenBase, undefined as never);
     // At rest at equilibrium, support at +d: F = kd = 0.320 N is the net force.
-    expect(drivenScene.formula!(d, drivenBase).at(-1)).toBe('\\Sigma F = F_s - mg + F_d + F = 9.80 - 9.80 + 0.00 + 0.320 = 0.320\\ \\mathrm{N} = ma');
+    expect(drivenScene.formula!(d, drivenBase).at(-1)).toBe('\\Sigma F = F_s - mg + F_d + F = 9.80 - 9.80 + 0 + 0.320 = 0.320\\ \\mathrm{N} = ma');
   });
 });
 

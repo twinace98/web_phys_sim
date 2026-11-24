@@ -11,6 +11,9 @@ import { applyLang, initLecture, initialLang } from './prefs';
 import { clearReloadGuard, reloadOnce, sessionStore } from './reload';
 import { SimView } from './simview';
 
+/** Chapters of the textbook (Fundamentals of Physics, 12th ed.). */
+const HALLIDAY_CHAPTERS = 44;
+
 export function startApp(root: HTMLElement): void {
   register(ko, en);
   initLecture();
@@ -55,7 +58,8 @@ export function startApp(root: HTMLElement): void {
       current = new SimView(root, page, meta, r.query);
     } else {
       current?.dispose();
-      current = new HomeView(root);
+      // Halliday has 44 chapters: one of them without a page here "has no simulation yet".
+      current = new HomeView(root, r.page === 'chapter' ? { ch: r.ch, known: meta !== undefined || (r.ch >= 1 && r.ch <= HALLIDAY_CHAPTERS) } : undefined);
     }
   };
 

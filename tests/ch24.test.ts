@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { KQ, POINT_POOL, V, pointSources, pointWorld } from '../src/sims/field/charges';
 import { FieldLayers, clipDense } from '../src/sims/field/layers';
 import { extendPath, thinPath, workAlong } from '../src/sims/ch24/physics';
-import { potential } from '../src/sims/ch24/scene';
+import { VA, Vq, deltaV, potential } from '../src/sims/ch24/scene';
 import { defaults } from '../src/core/params';
 import { Rng } from '../src/core/rng';
 import { ProbeDraw } from './stage-probe';
@@ -198,5 +198,52 @@ describe('clipDense: equipotentials end where the spacing reaches the gap', () =
     const two = clipDense([0, 0, 1.5, 0, 2.5, 0, 4, 0], (x) => (x < 1 || x > 3 ? 2 : 0.5));
     expect(two.length).toBe(2);
     expect(clipDense([0, 0, 1.5, 0, 2.5, 0, 4, 0], (x) => (x < 1 || x > 3 ? 2 : 0.5), 1.5).length).toBe(0);
+  });
+});
+
+describe('QA 2026-11-24 (P3): a source on A or on the path, and a closed path', () => {
+  const ro = (label: string, s: never, p: never) => {
+    const spec = potential.readouts!.find((r) => r.label === label)!;
+    const v = spec.value(s, p);
+    return spec.format?.(v, s, p) ?? String(v);
+  };
+  it('a charge on A or across the path pushes them aside, so W = −q0 ΔV (not 26 times off)', () => {
+    for (const preset of ['single', 'dipole', 'plates']) {
+      const p = { ...defaults(potential.params), preset } as never;
+      const src = pointSources(p);
+      const c = src[0];
+      for (const make of [
+        // A exactly on the charge, the path leaving from there.
+        () => ({ A: { x: c.x, y: c.y }, path: [c.x, c.y, c.x + 0.3, c.y + 0.2] }),
+        // A beside the charge, the path straight through it and on.
+        () => ({ A: { x: c.x - 0.2, y: c.y + 0.01 }, path: [c.x - 0.2, c.y + 0.01, c.x + 0.25, c.y - 0.005] }),
+        // A closed loop through the charge back to A.
+        () => ({ A: { x: c.x - 0.2, y: c.y }, path: [c.x - 0.2, c.y, c.x + 0.2, c.y + 0.002, c.x, c.y + 0.3, c.x - 0.2, c.y] }),
+      ]) {
+        const s = { ...potential.init(p, new Rng(1)), ...make() } as never as { A: { x: number; y: number }; path: number[] };
+        const dV = Vq(s as never, p) - VA(s as never, p);
+        for (const q of src) expect(Math.hypot(s.A.x - q.x, s.A.y - q.y)).toBeGreaterThanOrEqual(0.05 * 0.999);
+        expect(Math.abs(VA(s as never, p))).toBeLessThan(1000);
+        const w = workAlong(src, s.path, 1);
+        expect(Math.abs(w + dV), `${preset} ${JSON.stringify(s.path.slice(0, 4))}`).toBeLessThan(1e-3 * Math.max(1, Math.abs(dV)));
+        expect(Number(ro('W', s as never, p)) + deltaV(s as never, p)).toBeCloseTo(0, 3);
+      }
+    }
+  });
+
+  it('a path closed on A prints ΔV = 0 and W = 0 (not 1.69×10⁻⁵ nJ)', () => {
+    for (const preset of ['single', 'dipole', 'like', 'plates']) {
+      const p = { ...defaults(potential.params), preset } as never;
+      const s = potential.init(p, new Rng(1)) as { A: { x: number; y: number }; path: number[] };
+      const { x, y } = s.A;
+      // Out across the equipotentials and back to A in many short drags.
+      const target = (u: number): [number, number] => [x + 0.5 * Math.sin(Math.PI * u), y - 0.6 * Math.sin(Math.PI * u) ** 2 + 0.2 * Math.sin(2 * Math.PI * u)];
+      for (let k = 1; k <= 200; k++) extendPath(pointSources(p), s.path, ...target(k / 200));
+      s.path.push(x, y);
+      expect(ro('\\Delta V', s as never, p)).toBe('0');
+      expect(ro('W', s as never, p)).toBe('0');
+      const lines = potential.formula!(s as never, p);
+      expect(lines[2]).toMatch(/= 0\\ \\mathrm\{nJ\}$/);
+    }
   });
 });

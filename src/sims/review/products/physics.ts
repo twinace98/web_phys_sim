@@ -1,4 +1,5 @@
 // Dot and cross products of two vectors in the xy plane. DOM-free.
+import { fmt } from '../../../core/format';
 
 export type V2 = [number, number];
 
@@ -59,14 +60,29 @@ export function placeTip(w: V2, snap: boolean, lim: number, step = 0.5): V2 {
 }
 
 /**
- * b turned so that the signed angle from a to it is phi (radians); its length is kept. Components
- * rounded to 3 decimals, so the shown length (3 significant figures) does not flicker while turning.
+ * b turned so that the signed angle from a to it is phi (radians); its length is kept. Components on
+ * the 0.01 grid of their sliders: of the four grid points around the exact tip, the nearest one whose
+ * length prints the same 3 figures as |b| (so the shown length does not flicker while turning),
+ * else the nearest grid point.
  */
 export function rotateTo(a: V2, b: V2, phi: number): V2 {
   const th = mag(a) === 0 ? 0 : Math.atan2(a[1], a[0]);
   const m = mag(b);
-  const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
-  return [r3(m * Math.cos(th + phi)), r3(m * Math.sin(th + phi))];
+  const x = m * Math.cos(th + phi);
+  const y = m * Math.sin(th + phi);
+  const shown = fmt(m, 3);
+  let best: V2 | null = null;
+  let bestD = Infinity;
+  for (const gx of [Math.floor(x * 100), Math.ceil(x * 100)])
+    for (const gy of [Math.floor(y * 100), Math.ceil(y * 100)]) {
+      const c: V2 = [r2(gx / 100), r2(gy / 100)];
+      const d = Math.hypot(c[0] - x, c[1] - y);
+      if (fmt(mag(c), 3) === shown && d < bestD) {
+        best = c;
+        bestD = d;
+      }
+    }
+  return best ?? [r2(x), r2(y)];
 }
 
 /** Signed length of v along u: v cos φ (negative when v points backwards); 0 when u = 0. */

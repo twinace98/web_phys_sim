@@ -1,6 +1,6 @@
 // Ch 2 scene: x(t), v(t), a(t) linked by slope (derivative) and area (integral).
 import { fmtTick, niceTicks } from '../../core/format';
-import { num, paren, slider, tn, tp, u } from '../../core/tex';
+import { num, paren, readBack, sigCancel, slider, tn, tnCancel, tp, u } from '../../core/tex';
 import type { NumberParam, ParamSchema, Scene } from '../../core/types';
 import { kinematicPlots, padded } from './common';
 import { CUSTOM_A_MAX, CUSTOM_SEGS, T_END, areaUnderA, areaUnderV, makeProfile, ranges, stateAt, type Motion, type Profile, type Ranges } from './physics';
@@ -109,10 +109,16 @@ export function graphsFormula(pr: Profile, s: S, p?: P): string[] {
   const dv = areaUnderA(pr, 0, s.t);
   const dx = areaUnderV(pr, 0, s.t);
   const v0 = p?.motion === 'custom' ? slider(params.v0 as NumberParam, pr.v0) : num(pr.v0);
+  // R5b: where v (or x) passes near 0 the start value and the area nearly cancel (4 + (−3.74));
+  // the area then keeps the figures that reproduce the printed result.
+  const V = tn(s.v);
+  const X = tn(s.x);
+  const kv = sigCancel((r) => readBack(v0) + r(dv), V);
+  const kx = sigCancel((r) => pr.x0 + r(dx), X);
   return [
     `a = \\frac{\\Delta v}{\\Delta t} = \\frac{${tn(vb)} - ${tp(va)}}{${num(seg.t1)} - ${num(seg.t0)}} = ${tn(s.a)}${u('m/s^2')}`,
-    `v = v_0 + \\int_0^t a\\,dt = ${paren(v0)} + ${tp(dv)} = ${tn(s.v)}${u('m/s')}`,
-    `x = x_0 + \\int_0^t v\\,dt = ${num(pr.x0)} + ${tp(dx)} = ${tn(s.x)}${u('m')}`,
+    `v = v_0 + \\int_0^t a\\,dt = ${paren(v0)} + ${paren(tnCancel(dv, kv))} = ${V}${u('m/s')}`,
+    `x = x_0 + \\int_0^t v\\,dt = ${num(pr.x0)} + ${paren(tnCancel(dx, kx))} = ${X}${u('m')}`,
   ];
 }
 

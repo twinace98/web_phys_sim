@@ -66,6 +66,11 @@ export interface NumberParam extends ParamBase {
   min?: number;
   max?: number;
   step?: number;
+  /**
+   * slider only: a stage handle sets values between the grid points (θ = θc in Ch 33), so a URL
+   * value is kept as it is instead of snapped to the grid.
+   */
+  free?: boolean;
 }
 
 export interface ToggleParam extends ParamBase {
@@ -157,6 +162,8 @@ export interface TangentOverlay {
   unit: string;
   /** Plot/channel whose value equals the slope (gets a marker). */
   target?: { plot: string; channel: string };
+  /** Text of the slope (default 3 figures): the readout's string for the same quantity (R8). */
+  format?: (k: number) => string;
 }
 
 export interface AreaOverlay {

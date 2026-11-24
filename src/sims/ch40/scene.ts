@@ -193,7 +193,7 @@ export const single: Scene<P1, S1> = {
     goals: ['ch40.s.goal.quant', 'ch40.s.goal.classical'],
     observe: ['ch40.s.obs.band', 'ch40.s.obs.two', 'ch40.s.obs.random'],
     equations: ['F_z = \\mu_z \\frac{\\partial B}{\\partial z}', '\\mu_z = -g_s \\frac{e}{2m} S_z, \\quad S_z = \\pm\\tfrac12\\hbar'],
-    assumptions: ['ch40.s.assume.atom', 'ch40.s.assume.view'],
+    assumptions: ['ch40.s.assume.atom', 'ch40.s.assume.view', 'ch40.s.assume.sym'],
   },
 };
 
@@ -397,7 +397,9 @@ export const angle: Scene<P3, ChainState> = {
     const n = c[0] + c[1];
     if (n > 0) {
       const fr = c[0] / n;
-      const err = Math.sqrt((fr * (1 - fr)) / n);
+      // Error bar: ±σ_P = √(P(1−P)/N) about the measured fraction, P the prediction (the Σ panel's σ_P).
+      const P = probUp(p.theta * DEG, 0);
+      const err = Math.sqrt((P * (1 - P)) / n);
       f.line(p.theta, Math.max(0, fr - err), p.theta, Math.min(1, fr + err), { color: UP_COLOR, width: 2 });
       g.circle(f.P(p.theta, fr), 4, { fill: UP_COLOR });
     }
@@ -423,13 +425,14 @@ export const angle: Scene<P3, ChainState> = {
   },
   readouts: [
     { label: 'N_+/(N_+ + N_-)', unit: '', value: (s) => fracUp(s), sig: 2 },
-    { label: '\\cos^2(\\theta/2)', unit: '', value: (_s, p) => probUp(p.theta * DEG, 0), sig: 2 },
+    // A prediction: 3 figures (0.998 at 5°, not 1.0), the measured fraction beside it keeps 2.
+    { label: '\\cos^2(\\theta/2)', unit: '', value: (_s, p) => probUp(p.theta * DEG, 0) },
   ],
   formula: (s, p) => {
     const P = probUp(p.theta * DEG, 0);
     const c = lastCounts(s);
     return [
-      `P(+\\theta \\mid +z) = \\cos^2\\frac{\\theta}{2} = \\cos^2 ${num(p.theta / 2)}^\\circ = ${tn(P, 2)}`,
+      `P(+\\theta \\mid +z) = \\cos^2\\frac{\\theta}{2} = \\cos^2 ${num(p.theta / 2)}^\\circ = ${tn(P)}`,
       ...statLines(c[0], c[1], P, 'N_+/(N_+ + N_-)', 'N_+ + N_-'),
     ];
   },

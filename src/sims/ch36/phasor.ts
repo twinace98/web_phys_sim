@@ -2,7 +2,7 @@
 // head-to-tail sum of their phasors. At a sin θ = λ the chain closes into a circle: I = 0.
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { ROLE_COLOR } from '../../draw/theme';
+import { ROLE_COLOR, theme } from '../../draw/theme';
 import { Inset, Obstacles, TICK } from '../inset/inset';
 import { fmt } from '../../core/format';
 import { num, slider, texOf, tn, tnCmp } from '../../core/tex';
@@ -234,6 +234,95 @@ function drawChain(g: Draw, p: P, obs: Obstacles): void {
     }
   const [wx, wy] = g.vp.toWorld(best[0], best[1]);
   g.text({ x: wx, y: wy }, '*E*_{*θ*}', { size: 14, align: 'center', baseline: 'middle' });
+  obs.box(best[0] - hw, best[1] - hh, best[0] + hw, best[1] + hh, 2);
+  loupe(g, p, cx0, obs);
+}
+
+/** Chain extent [px] below which it is also drawn magnified in a loupe (more than two turns on a phone, QA 2026-11-20). */
+export const LOUPE_BELOW = 32;
+/** Loupe radius [px]. */
+const LOUPE_R = 54;
+
+/** Bounding box of the chain points [world], with its centre. */
+function chainBox(pts: [number, number][], cx0: number) {
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let y0 = Infinity;
+  let y1 = -Infinity;
+  for (const [x, y] of pts) {
+    x0 = Math.min(x0, cx0 + x);
+    x1 = Math.max(x1, cx0 + x);
+    y0 = Math.min(y0, y);
+    y1 = Math.max(y1, y);
+  }
+  return { w: x1 - x0, h: y1 - y0, c: { x: (x0 + x1) / 2, y: (y0 + y1) / 2 } };
+}
+
+/**
+ * Magnification of the loupe: 0 (no loupe) while the chain spans LOUPE_BELOW px or more, else
+ * a whole number (2–12) that makes it about 1.5 loupe radii across.
+ */
+export function loupeZoom(extentPx: number, scale = 1): number {
+  if (!(extentPx < LOUPE_BELOW * scale)) return 0;
+  return Math.max(2, Math.min(12, Math.floor((1.5 * LOUPE_R * scale) / Math.max(extentPx, 1e-9))));
+}
+
+/**
+ * A tightly curled chain (large φ: several turns of N short arrows) is a few pixels across. It is
+ * then repeated, magnified z times, in a round loupe beside it, placed where it covers least; a grey
+ * ring marks the original and "×z" the magnification. Ratios (E_θ/E_m) are read from the readout.
+ */
+function loupe(g: Draw, p: P, cx0: number, obs: Obstacles): void {
+  const N = p.N;
+  const pts = phasorChain(N, phiOf(p), CHAIN / N);
+  const box = chainBox(pts, cx0);
+  const sc = theme.scale;
+  const ext = Math.max(box.w, box.h) * g.vp.scale;
+  const z = loupeZoom(ext, sc);
+  if (!z) return;
+  const R = LOUPE_R * sc;
+  const [cx, cy] = g.vp.toPx(box.c.x, box.c.y);
+  const ring = ext / 2 + 5 * sc;
+  const d = R + ring + 14 * sc;
+  let best: [number, number] = [cx, cy - d];
+  let bestScore = Infinity;
+  for (let k = 0; k < 8; k++) {
+    // Above first, then around the circle.
+    const a = -Math.PI / 2 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 4);
+    const x = cx + Math.cos(a) * d;
+    const y = cy + Math.sin(a) * d;
+    let score = obs.cost(x - R, y - R, x + R, y + R) + Math.ceil(k / 2) * 0.05;
+    if (x - R < 2 || x + R > g.vp.w - 2 || y - R < 2 || y + R > g.vp.h - 2) score += 1000;
+    if (score < bestScore) {
+      bestScore = score;
+      best = [x, y];
+    }
+  }
+  const [lx, ly] = g.vp.toWorld(best[0], best[1]);
+  const L = { x: lx, y: ly };
+  const rW = R / g.vp.scale;
+  const ringW = ring / g.vp.scale;
+  const C = box.c;
+  // Ring round the original and a connector from it to the loupe.
+  const dx = L.x - C.x;
+  const dy = L.y - C.y;
+  const dl = Math.hypot(dx, dy) || 1;
+  g.circle(C, ring / sc, { color: '#9a9a9a', width: 1 });
+  g.line({ x: C.x + (dx / dl) * ringW, y: C.y + (dy / dl) * ringW }, { x: L.x - (dx / dl) * rW, y: L.y - (dy / dl) * rW }, { color: '#9a9a9a', width: 1 });
+  g.circle(L, LOUPE_R, { fill: '#ffffff', color: '#9a9a9a', width: 1.25 });
+  // The chain about its box centre, z times larger; the resultant from its start.
+  const at = ([x, y]: [number, number]): Vec2 => ({ x: L.x + (cx0 + x - C.x) * z, y: L.y + (y - C.y) * z });
+  for (let k = 0; k < N; k++) {
+    const a = at(pts[k]);
+    const b = at(pts[k + 1]);
+    g.arrow(a, { x: b.x - a.x, y: b.y - a.y }, { role: k < N / 2 ? 'position' : 'energyU', width: 2 });
+  }
+  const O = at(pts[0]);
+  const E = at(pts[N]);
+  if (Math.hypot(E.x - O.x, E.y - O.y) > g.px(6)) g.arrow(O, { x: E.x - O.x, y: E.y - O.y }, { role: 'fg', width: 3 });
+  g.circle(O, 3, { fill: 'fg' });
+  g.text({ x: L.x, y: L.y - rW }, `×${z}`, { size: 12, color: TICK, align: 'center', baseline: 'bottom', dy: -3 });
+  obs.box(best[0] - R, best[1] - R, best[0] + R, best[1] + R, 3);
 }
 
 function drawPlot(g: Draw, p: P): void {
@@ -321,6 +410,11 @@ export const phasor: Scene<P, { t: number }> = {
 
   draw: (g, _s, p) => {
     const obs = new Obstacles(g);
+    // The I(θ) plot with its tick and axis labels, kept clear by the chain's labels and loupe.
+    const pr = plotRect();
+    const [pl, pt] = g.vp.toPx(pr.x0, pr.y1);
+    const [prr, pb] = g.vp.toPx(pr.x1, pr.y0);
+    obs.box(pl - 30 * theme.scale, pt - 22 * theme.scale, prr + 10 * theme.scale, pb + 36 * theme.scale, 3);
     drawSlit(g, p, obs);
     drawChain(g, p, obs);
     drawPlot(g, p);

@@ -219,7 +219,12 @@ export function turningPoints(pot: Potential, E: number, x: number): [number | n
   let left: number | null = null;
   let right: number | null = null;
   for (const q of r) {
-    if (q <= x + 1e-9) left = q;
+    // At rest on a turning point (the start, t = 0) the root found by bisection can land a hair
+    // to either side of x: the side the forbidden region lies on decides (U rising to the right →
+    // x is the right turning point). Else the far turning point was dropped (QA 2026-11-24).
+    const own = Math.abs(q - x) < 1e-6;
+    const isLeft = own ? pot.dU(q) < 0 : q < x;
+    if (isLeft) left = q;
     else if (right === null) right = q;
   }
   return [left, right];

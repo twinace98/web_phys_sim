@@ -27,9 +27,12 @@ import {
   type V2,
 } from '../src/sims/review/products/physics';
 import { crossScene, dotBox, dotScene, dotSplit, panels, plotBars, plotBound } from '../src/sims/review/products/scene';
+import { recomputes, toks } from './sigma-policy';
 import { ProbeDraw } from './stage-probe';
 
 const DEG = Math.PI / 180;
+/** Component params of vectors a and b (the four sliders). */
+const ab = (A: V2, B: V2) => ({ ax: A[0], ay: A[1], bx: B[0], by: B[1] });
 
 function randomVectors(n: number, seed = 7): [V2, V2][] {
   const rng = new Rng(seed);
@@ -146,16 +149,25 @@ describe('products: dragging', () => {
     }
   });
 
-  it('rotateTo sets the signed angle from a, length kept (to the 0.001 rounding)', () => {
+  it('rotateTo sets the signed angle from a on the 0.01 slider grid, printed length kept', () => {
     const a: V2 = [4, 1];
-    const b: V2 = [1, 3];
-    for (const phiDeg of [-180, -135, -90, -30, 0, 45, 90, 120, 179]) {
-      const r = rotateTo(a, b, phiDeg * DEG);
-      expect(Math.abs(mag(r) - mag(b))).toBeLessThan(0.001);
-      const got = signedAngle(a, r) / DEG;
-      const diff = ((got - phiDeg + 540) % 360) - 180;
-      expect(Math.abs(diff)).toBeLessThan(0.3);
-    }
+    for (const b of [[1, 3], [0.7, -2.2], [-4.4, 0.9], [0.31, 0.05]] as V2[])
+      for (let phiDeg = -180; phiDeg <= 180; phiDeg += 7.5) {
+        const r = rotateTo(a, b, phiDeg * DEG);
+        // Components on the slider grid (0.01), never −0.
+        for (const c of r) {
+          expect(Math.abs(c * 100 - Math.round(c * 100))).toBeLessThan(1e-9);
+          expect(Object.is(c, -0)).toBe(false);
+        }
+        expect(Math.abs(mag(r) - mag(b))).toBeLessThan(0.01);
+        // The shown length does not flicker while turning (b = 3.16 stays 3.16); a short b may
+        // have no grid point at its printed length.
+        if (mag(b) >= 1) expect(fmt(mag(r), 3), `${b} ${phiDeg}`).toBe(fmt(mag(b), 3));
+        // Within a grid cell (diagonal 0.0141) of the exact tip.
+        const got = signedAngle(a, r) / DEG;
+        const diff = ((got - phiDeg + 540) % 360) - 180;
+        expect(Math.abs(diff)).toBeLessThan(Math.asin(Math.min(1, 0.0142 / mag(b))) / DEG);
+      }
   });
 });
 
@@ -176,7 +188,7 @@ describe('products: scenes', () => {
     expect(la[1]).toBe('a\\cos\\varphi = (4.12)\\cos 57.5^\\circ = 2.21');
     expect(la[2]).toBe('b\\,(a\\cos\\varphi) = (3.16)(2.21) = 7.00');
     // Obtuse: negative projection, negative product.
-    const ob = run(dotScene, { ...base, B: [-3, 1] });
+    const ob = run(dotScene, { ...base, ...ab([4, 1], [-3, 1]) });
     expect(ob[1]).toMatch(/= -2\.67$/);
     expect(ob[2]).toBe('a\\,(b\\cos\\varphi) = (4.12)(-2.67) = -11.0');
   });
@@ -190,7 +202,7 @@ describe('products: scenes', () => {
     expect(lines[2]).toBe('a\\,(b\\sin\\varphi) = (4.12)(2.67) = 11.0');
     expect(lines[3]).toMatch(/= 11\.0$/);
     expect(lines[4]).toContain('\\odot');
-    const sw = run(crossScene, { ...p, A: [1, 3], B: [4, 1] });
+    const sw = run(crossScene, { ...p, ...ab([1, 3], [4, 1]) });
     expect(sw[1]).toMatch(/= -3\.48$/);
     expect(sw[2]).toMatch(/= -11\.0$/);
     expect(sw[3]).toMatch(/= -11\.0$/);
@@ -203,16 +215,25 @@ describe('products: scenes', () => {
       const spec = sc.readouts!.find((r) => r.label === '\\varphi')!;
       return readoutText(spec as never, spec.value({ t: 0 } as never, p as never), p);
     };
-    expect(run(dotScene, { ...base, B: [-3, 0.5] })[1]).toBe('b\\cos\\varphi = (3.04)\\cos 157^\\circ = -2.79');
+    expect(run(dotScene, { ...base, ...ab([4, 1], [-3, 0.5]) })[1]).toBe('b\\cos\\varphi = (3.04)\\cos 157^\\circ = -2.79');
+    // The readout string wherever it reproduces the result; else more figures (R5b), as in the
+    // cross tab at 156.5° (sin 157° × 3.04 = 1.19, not 1.21).
     for (const B of [[-3, 0.5], [-1.25, 3.5], [1, 3], [0.1, 5], [-5, -0.2], [3, -4.5]])
       for (const sc of [dotScene, crossScene]) {
-        const p = { ...(defaults(sc.params) as Params), B };
-        expect(run(sc, p)[1], JSON.stringify(B)).toContain(sc === dotScene ? `\\cos ${phiText(sc, p).replace('−', '-')}^\\circ` : `\\sin(${phiText(sc, p).replace('−', '-')}^\\circ)`);
+        const p = { ...(defaults(sc.params) as Params), ...ab([4, 1], B as V2) };
+        const line = run(sc, p)[1];
+        const ro = phiText(sc, p).replace('−', '-');
+        const [, ang, res] = /(?:cos |sin\()(-?[\d.]+)\^\\circ\)? = (.+)$/.exec(line)!;
+        const fn = sc === dotScene ? Math.cos : Math.sin;
+        const m = Number(/= \(([\d.]+)\)/.exec(line)![1]);
+        expect(recomputes(m * fn(Number(ang) * DEG), toks(res)[0]), line).toBe(true);
+        if (ang !== ro) expect(recomputes(m * fn(Number(ro) * DEG), toks(res)[0]), `${B}: ${line}`).toBe(false);
       }
+    expect(run(crossScene, { ...(defaults(crossScene.params) as Params), ...ab([4, 1], [-3, 0.5]) })[1]).toBe('b\\sin\\varphi = (3.04)\\sin(156.5^\\circ) = 1.21');
     // The zero vector only where (a × b)_z prints 0; a small cross product keeps its value.
     const cp = defaults(crossScene.params) as Params;
-    expect(run(crossScene, { ...cp, A: [4, 1], B: [8, 2] })[4]).toBe('\\vec a\\times\\vec b = \\vec 0');
-    expect(run(crossScene, { ...cp, A: [4, 1], B: [4, 1.01] })[4]).toBe('\\vec a\\times\\vec b = 0.0400\\,\\hat k\\ (\\odot)');
+    expect(run(crossScene, { ...cp, ...ab([4, 1], [8, 2]) })[4]).toBe('\\vec a\\times\\vec b = \\vec 0');
+    expect(run(crossScene, { ...cp, ...ab([4, 1], [4, 1.01]) })[4]).toBe('\\vec a\\times\\vec b = 0.0400\\,\\hat k\\ (\\odot)');
   });
 
   it('formula lines stay finite for zero, parallel and antiparallel vectors', () => {
@@ -224,7 +245,7 @@ describe('products: scenes', () => {
         [[2, 1], [4, 2]],
         [[2, 1], [-4, -2]],
       ]) {
-        for (const line of run(sc, { ...base, A, B })) expect(line).not.toMatch(/NaN|Infinity|undefined/);
+        for (const line of run(sc, { ...base, ...ab(A as V2, B as V2) })) expect(line).not.toMatch(/NaN|Infinity|undefined/);
       }
     }
   });
@@ -378,7 +399,7 @@ describe('products: drawn bars and areas equal the products', () => {
       const base = defaults(dotScene.params) as Params;
       for (const proj of ['b', 'a'])
         for (const [A, B] of cases(5)) {
-          const p = { ...base, proj, A, B } as unknown as Parameters<typeof dotSplit>[0];
+          const p = { ...base, proj, ...ab(A, B) } as unknown as Parameters<typeof dotSplit>[0];
           const g = rec(dotScene as unknown as Scene, p as unknown as Params, st.w, st.h);
           const sp = dotSplit(p);
           const d = dot(A, B);
@@ -434,7 +455,7 @@ describe('products: drawn bars and areas equal the products', () => {
       phone(st.narrow);
       const base = defaults(crossScene.params) as Params;
       for (const [A, B] of cases(4.5)) {
-        const g = rec(crossScene as unknown as Scene, { ...base, A, B }, st.w, st.h);
+        const g = rec(crossScene as unknown as Scene, { ...base, ...ab(A, B) }, st.w, st.h);
         const cz = crossZ(A, B);
         const hs = across(B, A);
         const r = shearRect(A, B);
@@ -487,7 +508,7 @@ describe('products: labels', () => {
         const base = defaults(sc.params) as Params;
         for (const proj of sc === dotScene ? ['b', 'a'] : ['b'])
           for (const [A, B] of cases(lim)) {
-            const g = rec(sc as unknown as Scene, { ...base, proj, A, B }, st.w, st.h);
+            const g = rec(sc as unknown as Scene, { ...base, proj, ...ab(A, B) }, st.w, st.h);
             const ls = g.labels;
             for (let i = 0; i < ls.length; i++) {
               const bi = boxOf(ls[i]);

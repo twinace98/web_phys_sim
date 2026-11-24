@@ -22,5 +22,7 @@
   "ch23.as.2d": "Cross-section of infinitely long line charges perpendicular to the page (a ringed ± symbol, unlike a point charge). In 2D $E \\propto 1/r$ and Gauss' law holds exactly; flux is per unit length",
   "ch23.as.units": "Linear charge density in nC/m, lengths in m",
   "ch23.as.num": "$\\oint E_n\\,dl$ is a numerical integral along the path (adaptive Simpson); $\\lambda_\\text{enc}$ counts each charge by how many times the path winds around it",
-  "ch23.as.snap": "Charges keep at least 3.5 cm from the surface (a charge on the surface is neither inside nor outside). The free curve cannot be dragged into crossing itself (a figure 8 does not enclose a region)"
+  "ch23.as.snap": "Charges keep at least 3.5 cm from the surface (a charge on the surface is neither inside nor outside). The free curve cannot be dragged into crossing itself (a figure 8 does not enclose a region)",
+  "ch23.as.sym": "$\\varepsilon_0$ = 8.85×10⁻¹² C²/(N·m²): permittivity of free space. $E_n$: field component normal to the surface, outward positive; $dl$: short length of the slice curve. $\\lambda$: linear charge density (charge per unit length), $\\lambda_\\text{enc}$: sum of the densities inside. In the textbook form, $q_\\text{enc}$: enclosed charge, $d\\vec A$: small area along the outward normal",
+  "ch23.as.box": "The Gaussian surface and its knobs stay on the stage: its size grows only as far as the ±0.75 m box allows"
 }

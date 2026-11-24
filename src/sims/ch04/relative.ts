@@ -1,7 +1,8 @@
 // Ch 4 scene: relative motion. A boat crosses a river: v_BG = v_BW + v_WG.
 // The same crossing is drawn at once from the ground frame (top) and from the water frame (bottom).
 import { t } from '../../core/i18n';
-import { paren, slider, tn, tp, u } from '../../core/tex';
+import { clockDecimals, fmtClock } from '../../core/format';
+import { paren, slider, texOf, tn, tp, u } from '../../core/tex';
 import type { ParamSchema, Role, Scene, Vec2 } from '../../core/types';
 import type { Viewport } from '../../core/viewport';
 import type { Draw } from '../../draw/draw';
@@ -28,6 +29,18 @@ const POST = '#9a9a9a';
 const EDGE = '#e3e3e3';
 
 const riverOf = (p: P): River => ({ W, vb: p.vb, u: p.u, theta: p.heading * DEG });
+
+/** Step button [s]: 0.05 s, so the clock shows 2 decimals over the whole crossing (6.67 to 40 s). */
+const FRAME_STEP = 0.05;
+/**
+ * A time in the Σ panel: the clock's string (2 decimals) from 1 s on, so the panel and the clock
+ * agree (R8: 6.06 s, not 6.1 against 6.06); below 1 s the clock has fewer than 3 figures and the
+ * panel keeps 3 (0.108).
+ */
+export function timeTex(t: number, p: P): string {
+  if (t < 1) return tn(t);
+  return texOf(fmtClock(t, clockDecimals(FRAME_STEP, crossingTime(riverOf(p)))));
+}
 
 /** x-extent covering the whole crossing in both frames, so the two panels can share it. */
 function xSpan(p: P): [number, number] {
@@ -274,7 +287,7 @@ export const relative: Scene<P, { t: number; n: number }> = {
   id: 'relative',
   title: 'ch04.r.scene',
   params,
-  time: { h: 1 / 120, recordEvery: 4, frameStep: 0.1, tEnd: (p) => crossingTime(riverOf(p as P)) },
+  time: { h: 1 / 120, recordEvery: 4, frameStep: FRAME_STEP, tEnd: (p) => crossingTime(riverOf(p as P)) },
   world: PX_WORLD,
   init: () => ({ t: 0, n: 0 }),
   step: (s, _h, p) => {
@@ -327,14 +340,18 @@ export const relative: Scene<P, { t: number; n: number }> = {
     const bg = vBG(r);
     const vb = slider(params.vb, p.vb);
     const th = slider(params.heading, p.heading);
-    const T = tn(s.t);
+    const T = timeTex(s.t, p);
+    // x and y with the velocity components written from the sliders: the arithmetic on the printed
+    // inputs then reproduces the result (1.13 × 1.18 = 1.33 against 1.32 with v_BG,y rounded).
+    const vx = `(-${vb}\\sin ${th}^\\circ + ${slider(params.u, p.u)})`;
+    const vy = `${vb}\\cos ${th}^\\circ`;
     return [
       `v_{BG,x} = -v_{BW}\\sin\\theta + v_{WG}`,
       `= -${vb}\\sin ${th}^\\circ + ${slider(params.u, p.u)} = ${tn(bg[0])}${u('m/s')}`,
-      `v_{BG,y} = v_{BW}\\cos\\theta = ${vb}\\cos ${th}^\\circ = ${tn(bg[1])}${u('m/s')}`,
-      `x_{BG} = v_{BG,x}\\,t = ${tp(bg[0])} \\times ${T} = ${tn(bg[0] * s.t)}${u('m')}`,
-      `y = v_{BG,y}\\,t = ${tn(bg[1])} \\times ${T} = ${tn(bg[1] * s.t)}${u('m')}`,
-      `y = W:\\ t = \\frac{W}{v_{BW}\\cos\\theta} = \\frac{${W}}{${vb}\\cos ${th}^\\circ} = ${tn(crossingTime(r))}${u('s')}`,
+      `v_{BG,y} = v_{BW}\\cos\\theta = ${vy} = ${tn(bg[1])}${u('m/s')}`,
+      `x_{BG} = v_{BG,x}\\,t = ${vx} \\times ${T} = ${tn(bg[0] * s.t)}${u('m')}`,
+      `y = v_{BG,y}\\,t = ${vy} \\times ${T} = ${tn(bg[1] * s.t)}${u('m')}`,
+      `y = W:\\ t = \\frac{W}{v_{BW}\\cos\\theta} = \\frac{${W}}{${vy}} = ${timeTex(crossingTime(r), p)}${u('s')}`,
     ];
   },
 

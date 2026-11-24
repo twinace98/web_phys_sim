@@ -6,7 +6,7 @@
 //    ω = L / I rises while L stays fixed.
 // Both share the plots I(t), ω(t), L(t) and K(t).
 import { fmt } from '../../core/format';
-import { num, slider, tn, u } from '../../core/tex';
+import { num, sigCancel, slider, tn, tnCancel, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import {
@@ -243,7 +243,8 @@ const params: ParamSchema<P> = {
   rIn: { kind: 'number', label: 'ch11.p.rIn', desc: 'ch11.d.rIn', group: 'advanced', live: false, control: 'slider', min: 0.3, max: 0.8, step: 0.05, default: 0.5, unit: 'm', visibleIf: puckOnly },
   wOut: { kind: 'number', label: 'ch11.p.wOut', desc: 'ch11.d.wOut', group: 'advanced', live: false, control: 'slider', min: 1, max: 3, step: 0.1, default: 2, unit: 'rad/s', visibleIf: puckOnly },
   m: { kind: 'number', label: 'ch11.p.m', desc: 'ch11.d.m', group: 'advanced', live: false, control: 'slider', min: 0.1, max: 0.5, step: 0.05, default: 0.2, unit: 'kg', visibleIf: puckOnly },
-  areas: { kind: 'toggle', label: 'ch11.p.areas', desc: 'ch11.d.areas', group: 'main', live: true, default: true, visibleIf: puckOnly },
+  // design.md §4.1: at most 2 main controls (system and motion); the area display goes to the drawer.
+  areas: { kind: 'toggle', label: 'ch11.p.areas', desc: 'ch11.d.areas', group: 'advanced', live: true, default: true, visibleIf: puckOnly },
   mDb: { kind: 'number', label: 'ch11.c.p.m', desc: 'ch11.c.d.m', group: 'advanced', live: false, control: 'slider', min: 0.5, max: 4, step: 0.1, default: 2, unit: 'kg', visibleIf: chairOnly },
   wArms: { kind: 'number', label: 'ch11.c.p.wOut', desc: 'ch11.c.d.wOut', group: 'advanced', live: false, control: 'slider', min: 1, max: 2, step: 0.1, default: 1.5, unit: 'rad/s', visibleIf: chairOnly },
 };
@@ -508,13 +509,18 @@ export function formulaLines(s: S, p: P): string[] {
   ];
   lines.push(`L = I\\omega = (${tn(k.I)})(${tn(k.w)}) = ${tn(L)}${u(kgm2 + '/s')}`);
   const rd = radius(c, s.t).v;
+  const K = tn(k.K);
   if (rd === 0) {
-    lines.push(`K = \\frac{L^2}{2I} = \\frac{(${tn(L)})^2}{2(${tn(k.I)})} = ${tn(k.K)}${u('J')}`);
+    lines.push(`K = \\frac{L^2}{2I} = \\frac{(${tn(L)})^2}{2(${tn(k.I)})} = ${K}${u('J')}`);
   } else {
-    // The radial term: ½ m ṙ² for the puck, ½ (2m) ṙ² for the two dumbbells.
+    // The radial term: ½ m ṙ² for the puck, ½ (2m) ṙ² for the two dumbbells. R5b: through ω² a
+    // 3-figure I and ω can miss K by more than 1 % (8.08 against 8.16); they then keep the figures
+    // that reproduce it.
+    const mr = chair ? c.m : 0.5 * c.m;
+    const kk = sigCancel((r) => 0.5 * r(k.I) * r(k.w) ** 2 + mr * r(rd) ** 2, K);
     lines.push(
       `K = \\tfrac12 I\\omega^2 + ${chair ? 'm\\dot r^2' : '\\tfrac12 m\\dot r^2'}`,
-      `= \\tfrac12(${tn(k.I)})(${tn(k.w)})^2 + ${chair ? `(${m})` : `\\tfrac12(${m})`}(${tn(rd)})^2 = ${tn(k.K)}${u('J')}`,
+      `= \\tfrac12(${tnCancel(k.I, kk)})(${tnCancel(k.w, kk)})^2 + ${chair ? `(${m})` : `\\tfrac12(${m})`}(${tnCancel(rd, kk)})^2 = ${K}${u('J')}`,
     );
   }
   if (!chair) lines.push(`\\frac{dA}{dt} = \\frac{L}{2m} = \\frac{${tn(L)}}{2(${m})} = ${tn(L / (2 * c.m))}${u('m^2/s')}`);
@@ -573,7 +579,9 @@ export const spinScene: Scene<P, S> = {
     { label: 'r', unit: 'm', value: (s, p) => sample(p, s.t).r },
     { label: 'I', unit: 'kg·m²', value: (s, p) => sample(p, s.t).I },
     { label: '\\omega', unit: 'rad/s', value: (s, p) => sample(p, s.t).w },
-    { label: 'L', unit: 'kg·m²/s', value: (_s, p) => extremes(p).L },
+    // K changes as the radius does (QA 2026-11-24: an L readout never changed; its constancy is the
+    // L plot and the Σ panel's L = Iω line).
+    { label: 'K', unit: 'J', value: (s, p) => sample(p, s.t).K },
   ],
 
   formula: (s, p) => formulaLines(s, p),

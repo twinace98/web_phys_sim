@@ -18,8 +18,11 @@ describe('ch25 drawn charges and field lines follow the readouts', () => {
       expect(water.lines).toBe(air.lines);
       expect(shown(water) / shown(air)).toBeGreaterThan(60);
       expect(shown(water) / shown(air)).toBeLessThan(100);
-      // Induced charge cancels 1 − 1/κ ≈ 98.8 % of the free charge.
-      expect(water.bound / water.free).toBeGreaterThan(0.9);
+      // Induced charge cancels 1 − 1/κ ≈ 98.8 % of the free charge, but the uncancelled charge
+      // behind the 5 field lines still shows as one free symbol without a partner (QA 2026-11-24:
+      // 20 against 20 with 5 field lines).
+      expect(water.bound / water.free).toBeGreaterThanOrEqual(0.75);
+      expect(water.free - water.bound).toBe(1);
     }
   });
 
@@ -42,7 +45,10 @@ describe('ch25 drawn charges and field lines follow the readouts', () => {
         expect(r.c.lines).toBeLessThanOrEqual(maxN);
         expect(r.c.bound).toBeLessThanOrEqual(r.c.free);
         const k = KAPPA[r.p.dielectric];
-        if (r.p.dielectric !== 'air') expect(Math.abs(r.c.bound / r.c.free - (1 - 1 / k))).toBeLessThan(0.21);
+        // Bound fraction 1 − 1/κ, except that one symbol stays uncancelled while field lines are drawn.
+        if (k > 1.01) expect(Math.abs(r.c.bound / r.c.free - (1 - 1 / k))).toBeLessThan(r.c.unit > 1 && r.c.lines > 0 ? Math.max(0.21, 1 / r.c.free) : 0.21);
+        else expect(r.c.bound).toBe(0);
+        if (k > 1.01 && r.c.lines > 0) expect(r.c.free - r.c.bound).toBeGreaterThanOrEqual(1);
         // Gauss in unscaled units: field lines = free charge / κ.
         expect(r.c.rawLines).toBeCloseTo(r.c.rawFree / k, 9);
       }

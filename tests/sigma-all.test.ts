@@ -24,7 +24,7 @@ describe('tn: TeX numbers', () => {
     const { tn, tp } = await import('../src/core/tex');
     expect(tn(1.602176634e-19, 3, 0)).toBe('1.60\\times 10^{-19}');
     expect(tn(8.854e-12, 4, 0)).toBe('8.854\\times 10^{-12}');
-    expect(tn(1e-13)).toBe('0.00');
+    expect(tn(1e-13)).toBe('0');
     expect(tp(-2.5e-19, 2, 0)).toBe('(-2.5\\times 10^{-19})');
   });
 });

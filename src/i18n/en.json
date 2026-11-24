@@ -38,5 +38,8 @@
   "ui.review": "Review",
   "key.formula": "Formulas with the current values",
   "fbd.p": "Free-body diagram",
-  "fbd.d": "Every force on the body, drawn from its centre on one scale. Forces acting at a distance (gravity) dashed, contact forces solid"
+  "fbd.d": "Every force on the body, drawn from its centre on one scale. Forces acting at a distance (gravity) dashed, contact forces solid",
+  "ui.noSim": "Ch {ch} has no simulation yet. Pick another chapter from the list.",
+  "ui.noChapter": "There is no chapter {ch}. Pick a chapter from the list.",
+  "key.close": "Close the open panel"
 }

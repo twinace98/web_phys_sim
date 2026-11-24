@@ -1,6 +1,7 @@
 // Ch 42 scene: a grid of N0 nuclei, each decaying at its own random moment. The count left,
 // N(t), is a staircase that follows N0 e^{−λt} more closely the larger N0 is; it halves every T½.
-import { num, tn, u } from '../../core/tex';
+import { fmt } from '../../core/format';
+import { num, texOf, tn, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { drawRich, measureRich } from '../../draw/text';
@@ -17,15 +18,24 @@ export function unitParts(unit: string): [number, string] {
   return m ? [Number([...m[1]].map((c) => SUP_DIGIT[c]).join('')), m[2]] : [0, unit];
 }
 
-/** λ = ln 2/T½ in the base unit, t/T½, the expected N₀(½)^{t/T½} and the counted N/N₀ (the readouts). */
+/** λ = ln 2/T½ in the base time unit of the isotope (y⁻¹ or d⁻¹, not per 10³ y). */
+export const lambdaBase = (iso: Isotope): number => lambdaOf(iso.half) / 10 ** unitParts(iso.unit)[0];
+
+/** A rate in the base unit, 3 figures without a zero tolerance: 1.55×10⁻¹⁰ y⁻¹ (²³⁸U), not 0. */
+const rateText = (v: number): string => fmt(v, 3, 0);
+const rateTex = (v: number): string => texOf(rateText(v));
+
+/**
+ * λ = ln 2/T½ in the base unit, t/T½, the expected N₀(½)^{t/T½}, the counted N/N₀ and the activity
+ * R = λN (the readouts).
+ */
 export function decayLines(time: number, N: number, p: { iso: string; N0: number }): string[] {
   const iso: Isotope = isotope(p.iso);
   const [e, base] = unitParts(iso.unit);
   const pow = e ? `\\times 10^{${e}}` : '';
   // λ in the base unit; tn() would print 1.55×10⁻¹⁰ y⁻¹ (²³⁸U) as zero.
-  const lam = lambdaOf(iso.half) / 10 ** e;
-  const le = Math.floor(Math.log10(lam));
-  const lamTex = lam >= 1e-3 ? tn(lam) : `${tn(lam / 10 ** le)}\\times 10^{${le}}`;
+  const lam = lambdaBase(iso);
+  const lamTex = rateTex(lam);
   const ratio = time / iso.half;
   // t/T½ as its readout prints it (R8), also in the exponent of 0.5 (last-digit differences, R3).
   const r = tn(ratio);
@@ -34,6 +44,7 @@ export function decayLines(time: number, N: number, p: { iso: string; N0: number
     `\\frac{t}{T_{1/2}} = \\frac{${tn(time)}}{${num(iso.half)}} = ${r}`,
     `N_0\\,e^{-\\lambda t} = N_0\\,0.5^{t/T_{1/2}} = ${p.N0} \\times 0.5^{${r}} = ${tn(expected(p.N0, iso.half, time))}`,
     `N/N_0 = ${N}/${p.N0} = ${tn(N / p.N0)}`,
+    `R = \\lambda N = (${lamTex}${u(`${base}^{-1}`)})(${N}) = ${rateTex(lam * N)}${u(`${base}^{-1}`)}`,
   ];
 }
 
@@ -210,6 +221,13 @@ export const decayScene: Scene<P, S> = {
     { label: 'N', unit: '', value: (s) => remaining(s.sorted, s.t), sig: 1 },
     { label: 'N/N_0', unit: '', value: (s, p) => remaining(s.sorted, s.t) / p.N0 },
     { label: 't/T_{1/2}', unit: '', value: (s, p) => s.t / isotope(p.iso).half },
+    // Activity: decays per year (per day for ¹³¹I), the unit following the isotope.
+    {
+      label: 'R',
+      unit: '',
+      value: (s, p) => lambdaBase(isotope(p.iso)) * remaining(s.sorted, s.t),
+      format: (v, _s, p) => `${rateText(v)} ${unitParts(isotope(p.iso).unit)[1]}⁻¹`,
+    },
   ],
 
   formula: (s, p) => decayLines(s.t, remaining(s.sorted, s.t), p),
@@ -218,6 +236,6 @@ export const decayScene: Scene<P, S> = {
     goals: ['ch42.goal.random', 'ch42.goal.half'],
     observe: ['ch42.obs.single', 'ch42.obs.half', 'ch42.obs.small', 'ch42.obs.large', 'ch42.obs.iso'],
     equations: ['N(t) = N_0\\,e^{-\\lambda t} = N_0 \\left(\\tfrac{1}{2}\\right)^{t/T_{1/2}}', 'T_{1/2} = \\frac{\\ln 2}{\\lambda}', 'R = -\\frac{dN}{dt} = \\lambda N'],
-    assumptions: ['ch42.assume.indep', 'ch42.assume.daughter'],
+    assumptions: ['ch42.assume.indep', 'ch42.assume.daughter', 'ch42.assume.sym'],
   },
 };

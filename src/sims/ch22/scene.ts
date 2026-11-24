@@ -44,13 +44,42 @@ const testPos = (p: P): Vec2 => {
   return { x, y };
 };
 
-/** Force arrows on the test charge [world vectors]: the individual forces (if few) and the net. */
+/** Closest distance from point c to the segment a→b. */
+function segDist(a: Vec2, b: Vec2, c: Vec2): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const l2 = dx * dx + dy * dy;
+  const u = l2 > 0 ? Math.max(0, Math.min(1, ((c.x - a.x) * dx + (c.y - a.y) * dy) / l2)) : 0;
+  return Math.hypot(a.x + u * dx - c.x, a.y + u * dy - c.y);
+}
+
+/**
+ * Force arrows on the test charge [world vectors]: the individual forces (if few) and the net, on
+ * one linear scale (90 px for the largest). On a small stage a 90 px arrow toward a nearby charge
+ * would end on top of it: the common scale shrinks (to 35 %, with the F label; to 15 % without)
+ * until every arrow stays clear of every charge glyph it does not start inside.
+ */
 function forceArrows(g: Draw, p: P): { parts: Vec2[]; net: Vec2 } {
   const src = pointSources(p);
   const at = testPos(p);
   const { parts, net } = coulombForces(src, at.x, at.y, 1);
   const big = Math.max(Math.hypot(net[0], net[1]), ...parts.map((f) => Math.hypot(f[0], f[1])), 1e-30);
-  const k = g.px(90) / big;
+  const k0 = g.px(90) / big;
+  const vecs = [net, ...(src.length <= MAX_PARTS ? parts : [])];
+  // Glyph radius (10 or 13 px) plus a 4 px gap; charges the test charge already overlaps are skipped.
+  const keep = src.map((c) => ({ c: { x: c.x, y: c.y }, r: g.px((Math.abs(c.s) > 1.5 ? 13 : 10) + 4) })).filter(({ c, r }) => Math.hypot(c.x - at.x, c.y - at.y) > r);
+  // The net arrow also keeps its "F" label (about 16 px beyond the tip) off the charges.
+  const ext = (f: number[], k: number, i: number) => {
+    const m = Math.hypot(f[0], f[1]) * k || 1;
+    const e = i === 0 ? g.px(16) / m : 0;
+    return { x: at.x + f[0] * k * (1 + e), y: at.y + f[1] * k * (1 + e) };
+  };
+  const clear = (k: number, label: boolean) => vecs.every((f, i) => keep.every(({ c, r }) => segDist(at, label ? ext(f, k, i) : { x: at.x + f[0] * k, y: at.y + f[1] * k }, c) >= r));
+  let k = k0;
+  while (k > 0.35 * k0 && !clear(k, true)) k *= 0.9;
+  // Right next to a charge there may be no room for the label: then the arrows alone stay clear,
+  // down to 15 % (14 px, still an arrow with its head).
+  if (!clear(k, true)) for (k = k0; k > 0.15 * k0 && !clear(k, false); ) k *= 0.9;
   return { parts: src.length <= MAX_PARTS ? parts.map((f) => ({ x: f[0] * k, y: f[1] * k })) : [], net: { x: net[0] * k, y: net[1] * k } };
 }
 
@@ -65,7 +94,31 @@ function q0Spot(g: Draw, p: P): Spot {
   return freeSpot(g, at, blockers, 0, 12, 12);
 }
 
-/** Points the grid arrows must keep clear of: along every force arrow, and the two labels. */
+/** Index of the source nearest to the test charge: q₁ of the Σ line F₁ (−1 without sources). */
+function nearest(p: P): number {
+  const src = pointSources(p);
+  const at = testPos(p);
+  let i1 = -1;
+  for (let i = 0; i < src.length; i++) if (i1 < 0 || Math.hypot(at.x - src[i].x, at.y - src[i].y) < Math.hypot(at.x - src[i1].x, at.y - src[i1].y)) i1 = i;
+  return i1;
+}
+
+/** q₁ label spot beside the nearest charge, away from the other charges, the test charge and the arrows. */
+function q1Spot(g: Draw, p: P): Spot | null {
+  const i1 = nearest(p);
+  if (i1 < 0) return null;
+  const src = pointSources(p);
+  const at = testPos(p);
+  const c = src[i1];
+  const blockers: Vec2[] = src.filter((_, i) => i !== i1).map((q) => ({ x: q.x, y: q.y }));
+  blockers.push(at);
+  const { parts, net } = forceArrows(g, p);
+  for (const v of [...parts, net]) for (let i = 1; i <= 6; i++) blockers.push({ x: at.x + (v.x * i) / 6, y: at.y + (v.y * i) / 6 });
+  const r = Math.abs(c.s) > 1.5 ? 15 : 13;
+  return freeSpot(g, { x: c.x, y: c.y }, blockers, 2, r, r);
+}
+
+/** Points the grid arrows must keep clear of: along every force arrow, and the three labels. */
 function forceAvoid(g: Draw, p: P): { x: number; y: number; s: number }[] {
   const at = testPos(p);
   const { parts, net } = forceArrows(g, p);
@@ -79,6 +132,8 @@ function forceAvoid(g: Draw, p: P): { x: number; y: number; s: number }[] {
   out.push({ x: at.x + net.x + (net.x / nl) * g.px(14), y: at.y + net.y + (net.y / nl) * g.px(14), s: 0 });
   const q0 = q0Spot(g, p);
   out.push({ x: q0.at.x + (q0.align === 'left' ? 1 : -1) * g.px(8), y: q0.at.y, s: 0 });
+  const q1 = q1Spot(g, p);
+  if (q1) out.push({ x: q1.at.x + (q1.align === 'left' ? 1 : -1) * g.px(8), y: q1.at.y, s: 0 });
   return out;
 }
 
@@ -109,18 +164,20 @@ export function formulaLines(p: P): string[] {
   const at = testPos(p);
   const { parts } = coulombForces(src, at.x, at.y, 1);
   const dist = (i: number) => Math.hypot(at.x - src[i].x, at.y - src[i].y);
-  // q_1: the source nearest to the test charge.
-  let i1 = 0;
-  for (let i = 1; i < src.length; i++) if (dist(i) < dist(i1)) i1 = i;
+  // q_1: the source nearest to the test charge (labelled q₁ on the stage).
+  const i1 = nearest(p);
   const F1 = Math.hypot(parts[i1][0], parts[i1][1]) * 1e9;
   const [ex, ey] = fieldAtTest(p);
   const Em = Math.hypot(ex, ey);
   // A component that vanishes by symmetry (below 10⁻³ of E) is an exact 0 (policy D, R7a).
   const comp = (c: number) => (Math.abs(c) < RESIDUE * Em ? '0' : tp(c));
   return [
-    `F_1 = k\\,\\frac{\\lvert q_1\\rvert q_0}{r_1^2} = \\frac{(${CONST.k.tex})(${Math.abs(src[i1].s)})(1)\\times 10^{-18}}{(${tn(dist(i1))})^2}\\ \\mathrm{N} = ${tn(F1)}${u('nN')}`,
+    // Symbolic form, then the substituted numbers on their own row.
+    `F_1 = k\\,\\frac{\\lvert q_1\\rvert q_0}{r_1^2}`,
+    `= \\frac{(${CONST.k.tex})(${Math.abs(src[i1].s)})(1)\\times 10^{-18}}{(${tn(dist(i1))})^2}\\ \\mathrm{N} = ${tn(F1)}${u('nN')}`,
     `\\vec E = \\sum_i k\\,\\frac{q_i}{r_i^2}\\,\\hat r_i = (${comp(ex).replace(/^\((.*)\)$/, '$1')},\\ ${comp(ey).replace(/^\((.*)\)$/, '$1')})${u('N/C')}`,
-    `E = \\sqrt{E_x^2 + E_y^2} = \\sqrt{${comp(ex)}^2 + ${comp(ey)}^2} = ${tn(Em)}${u('N/C')}`,
+    `E = \\sqrt{E_x^2 + E_y^2}`,
+    `= \\sqrt{${comp(ex)}^2 + ${comp(ey)}^2} = ${tn(Em)}${u('N/C')}`,
     `F = q_0 E = (1\\ \\mathrm{nC})(${tn(Em)}\\ \\mathrm{N/C}) = ${tn(forceOnTest(p))}${u('nN')}`,
   ];
 }
@@ -146,6 +203,9 @@ export const field: Scene<P, S> = {
       g.text(at, '+', { size: 12, color: '#1a1a1a', align: 'center', baseline: 'middle', dy: 0.5 });
       const q0 = q0Spot(g, p);
       g.text(q0.at, '*q*_{0}', { size: 13, color: '#1a1a1a', align: q0.align, baseline: 'middle' });
+      // q₁: the charge whose force F₁ the Σ panel writes out (the nearest one).
+      const q1 = q1Spot(g, p);
+      if (q1) g.text(q1.at, '*q*_{1}', { size: 13, color: '#1a1a1a', align: q1.align, baseline: 'middle' });
     }
     palette(g, s, POINT_POOL, pointCoords(p), chargeGlyph, ui);
   },
@@ -183,6 +243,6 @@ export const field: Scene<P, S> = {
     goals: ['ch22.goal.field', 'ch22.goal.super'],
     observe: ['ch22.obs.drag', 'ch22.obs.tray', 'ch22.obs.dipole', 'ch22.obs.like', 'ch22.obs.plates', 'ch22.obs.test'],
     equations: ['\\vec F = k\\,\\frac{q\\,q_0}{r^2}\\,\\hat r, \\quad k = \\frac{1}{4\\pi\\varepsilon_0}', '\\vec E = \\frac{\\vec F}{q_0} = \\sum_i k\\,\\frac{q_i}{r_i^2}\\,\\hat r_i'],
-    assumptions: ['ch22.as.units', 'ch22.as.test', 'ch22.as.log', 'ch22.as.force', 'ch22.as.plates'],
+    assumptions: ['ch22.as.sym', 'ch22.as.units', 'ch22.as.test', 'ch22.as.log', 'ch22.as.force', 'ch22.as.plates'],
   },
 };

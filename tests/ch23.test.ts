@@ -146,3 +146,57 @@ describe('ch23 line charges drawn end-on, distinct from point charges (review §
     expect(rec((g) => chargeGlyph(g, { x: 0, y: 0 }, 2)).map((c) => c.role)).toEqual([undefined]);
   });
 });
+
+describe('QA 2026-11-24 (P3): the Gaussian surface and its knobs stay on the ±0.8 m stage', () => {
+  type PP = Params & { shape: string; G: number[]; F: number[] };
+  class Ctx {
+    constructor(public params: PP) {}
+    set(k: string, v: ParamValue) {
+      this.params = { ...this.params, [k]: v };
+    }
+  }
+  const hs = gaussScene.handles as unknown as Handle<{ t: number }, PP>[];
+  const centre = hs[hs.length - 10];
+  const rim = hs[hs.length - 9];
+  const inBox = (p: PP) => {
+    for (const [x, y] of surfacePoly(p.shape, p.G, p.F)) {
+      expect(Math.abs(x)).toBeLessThanOrEqual(1.15 + 0.01);
+      expect(Math.abs(y)).toBeLessThanOrEqual(0.75 + 0.01);
+    }
+    for (const h of [centre, rim]) {
+      if (h.when && !h.when(p)) continue;
+      const k = h.pos({ t: 0 }, p);
+      expect(Math.abs(k.y)).toBeLessThanOrEqual(0.75 + 1e-9);
+      expect(Math.abs(k.x)).toBeLessThanOrEqual(1.15 + 1e-9);
+    }
+  };
+  it('rim pulled far out, centre pushed to every corner, for the circle, the square and the free curve', () => {
+    for (const shape of ['circle', 'square', 'free']) {
+      const c = new Ctx({ ...(defaults(gaussScene.params) as PP), shape });
+      for (const w of [
+        { x: 2, y: -2 },
+        { x: 0.3, y: -1.5 },
+        { x: 1.9, y: 0.1 },
+      ]) {
+        if (shape !== 'free') rim.onDrag(c as never, { t: 0 }, w);
+        inBox(c.params);
+        for (const corner of [
+          { x: 2, y: 2 },
+          { x: -2, y: -2 },
+          { x: 1.3, y: -0.2 },
+          { x: -0.1, y: 0.9 },
+        ]) {
+          centre.onDrag(c as never, { t: 0 }, corner);
+          inBox(c.params);
+        }
+      }
+      // The circle still grows to the largest size that fits (0.75 m about the stage centre).
+      if (shape === 'circle') {
+        centre.onDrag(c as never, { t: 0 }, { x: 0, y: 0 });
+        rim.onDrag(c as never, { t: 0 }, { x: 3, y: -3 });
+        expect(c.params.G[2]).toBeGreaterThan(0.7);
+        expect(c.params.G[2]).toBeLessThanOrEqual(0.75);
+      }
+    }
+  });
+});

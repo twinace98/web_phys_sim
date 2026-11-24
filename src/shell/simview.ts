@@ -11,6 +11,7 @@ import { Viewport } from '../core/viewport';
 import { CanvasDraw } from '../draw/draw';
 import { PlotGroup } from '../plot/plot';
 import type { ChapterMeta } from '../sims/registry';
+import { fitFormula, type FormulaMemo } from './formulafit';
 import { h, iconButton, rich, tex } from './dom';
 import { nearestHandle } from './hit';
 import { ICON } from './icons';
@@ -72,12 +73,18 @@ export class SimView {
   private formulaTex = '';
   private formulaAt = -Infinity;
   private formulaW = 0;
+  /** Row breaks of the Σ lines, kept while a line keeps its shape (formulafit.ts). */
+  private formulaMemo: FormulaMemo = new Map();
+  /** The Σ lines last drawn, to fit again when fonts arrive. */
+  private formulaLines: string[] = [];
   private mainEl: HTMLElement | null = null;
   private dockRo?: ResizeObserver;
   private playBtn: HTMLButtonElement | null = null;
   private shownPlaying: boolean | null = null;
   private timeVal: HTMLElement | null = null;
   private readoutVals: HTMLElement[] = [];
+  /** The " = " after each readout label: a bound ("< 1", "> −10⁻¹⁴") reads "n < 1", not "n = < 1". */
+  private readoutEqs: HTMLElement[] = [];
   private readoutUnits: HTMLElement[] = [];
   private stagePanel: StagePanel | null = null;
 
@@ -122,7 +129,17 @@ export class SimView {
     window.addEventListener('focusin', onFocus, true);
     document.addEventListener('visibilitychange', onVis);
     phone.addEventListener('change', onPhone);
+    // KaTeX fonts that finish loading after a fit change every width: fit the Σ lines and the ⓘ
+    // equations again (a cold load under load once left a Σ line 12 px too wide).
+    const onFonts = () => {
+      this.formulaMemo.clear();
+      if (this.formulaBox && this.formulaLines.length) fitFormula(this.formulaBox, this.formulaLines, this.formulaMemo);
+      this.formulaW = this.formulaBox?.clientWidth ?? 0;
+      if (this.eqBox) fitEquations(this.eqBox);
+    };
+    document.fonts?.addEventListener('loadingdone', onFonts);
     this.off.push(
+      () => document.fonts?.removeEventListener('loadingdone', onFonts),
       () => window.removeEventListener('keydown', onKey),
       () => phone.removeEventListener('change', onPhone),
       () => window.removeEventListener('resize', onResize),
@@ -156,8 +173,10 @@ export class SimView {
   private build(): void {
     const scene = this.scene;
     const lang = getLang();
-    const title = this.meta.review ? `${t('ui.review')} · Ch ${this.meta.review} · ${this.meta.title[lang]}` : `Ch ${this.meta.ch} · ${this.meta.title[lang]}`;
-    document.title = `${title} · ${t('app.title')}`;
+    // No break inside "Ch 15": a narrow header wraps the title onto a second line between its parts.
+    const ch = (n: number) => `Ch\u00a0${n}`;
+    const title = this.meta.review ? `${t('ui.review')} · ${ch(this.meta.review)} · ${this.meta.title[lang]}` : `${ch(this.meta.ch)} · ${this.meta.title[lang]}`;
+    document.title = `${title.replace(/\u00a0/g, ' ')} · ${t('app.title')}`;
 
     const header = h(
       'header',
@@ -217,7 +236,7 @@ export class SimView {
   private buildTabs(): HTMLElement {
     const nav = h('nav', { class: 'tabs', 'aria-label': t('ui.scenes') });
     this.page.scenes.forEach((s, i) => {
-      const b = h('button', { type: 'button', class: 'tab', 'aria-selected': i === this.sceneIdx ? 'true' : 'false' }, t(s.title));
+      const b = h('button', { type: 'button', class: 'tab', 'aria-current': i === this.sceneIdx ? 'true' : 'false' }, t(s.title));
       b.addEventListener('click', () => this.switchScene(i));
       nav.append(b);
     });
@@ -295,14 +314,17 @@ export class SimView {
 
     const ros = h('div', { class: 'readouts' });
     this.readoutVals = [];
+    this.readoutEqs = [];
     this.readoutUnits = [];
     for (const spec of this.scene.readouts ?? []) {
       const val = h('span', { class: 'val' });
       const el = h('span', { class: 'ro' });
-      el.innerHTML = `${tex(spec.label)} = `;
+      el.innerHTML = tex(spec.label);
+      const eq = h('span', null, ' = ');
       const unit = h('span', null, unitAfter(spec.unit));
-      el.append(val, unit);
+      el.append(eq, val, unit);
       ros.append(el);
+      this.readoutEqs.push(eq);
       this.readoutVals.push(val);
       this.readoutUnits.push(unit);
     }
@@ -466,18 +488,26 @@ export class SimView {
       for (const k of ctls) ul.append(h('li', null, rich('strong', t(schema[k].label)), ': ', rich('span', t(schema[k].desc!))));
       body.append(h('h3', null, t('info.controls')), ul);
     }
+    // A static scene has no clock: no play, step or graph-scrub keys (QA 2026-11-24).
+    const timed = !this.runner.isStatic;
     const keys: [string, string][] = [
-      ['Space', 'key.play'],
-      ['→', 'key.step'],
+      ...(timed
+        ? ([
+            ['Space', 'key.play'],
+            ['→', 'key.step'],
+          ] as [string, string][])
+        : []),
       ['R', 'key.reset'],
       ['L', 'key.lang'],
       ['I', 'key.info'],
       ['F', 'key.lecture'],
       ...(this.scene.formula ? ([['E', 'key.formula']] as [string, string][]) : []),
+      ['Esc', 'key.close'],
     ];
     const dl = h('dl', { class: 'keys' });
     for (const [k, m] of keys) dl.append(h('dt', null, h('kbd', null, k)), h('dd', null, t(m)));
-    body.append(h('h3', null, t('info.shortcuts')), dl, h('p', { class: 'note' }, t('key.scrub')));
+    body.append(h('h3', null, t('info.shortcuts')), dl);
+    if (timed && this.plots) body.append(h('p', { class: 'note' }, t('key.scrub')));
     return panel;
   }
 
@@ -532,22 +562,22 @@ export class SimView {
     const lines = f(s as never, p as never);
     const key = lines.join('\n');
     const w = this.formulaBox.clientWidth;
-    if (key === this.formulaTex) {
-      // Same text, but the panel was resized: fit the lines again.
-      if (w !== this.formulaW) {
-        this.formulaW = w;
-        fitEquations(this.formulaBox, 0.6);
-      }
-      return;
-    }
+    // A resized panel chooses its row breaks afresh.
+    if (w !== this.formulaW) this.formulaMemo.clear();
+    if (key === this.formulaTex && w === this.formulaW) return;
     this.formulaW = w;
     this.formulaTex = key;
-    this.formulaBox.innerHTML = lines.map((l) => tex(l, true)).join('');
-    // Substituted lines are long: let them shrink further than the ⓘ equations before scrolling.
-    fitEquations(this.formulaBox, 0.6);
+    this.formulaLines = lines;
+    // One font size for every line; a long line breaks after "=" into rows (formulafit.ts).
+    fitFormula(this.formulaBox, lines, this.formulaMemo);
+    this.formulaW = this.formulaBox.clientWidth;
     // On a cold load KaTeX's fonts may still be arriving: measure again once they are in.
     const box = this.formulaBox;
-    void document.fonts?.ready.then(() => fitEquations(box, 0.6));
+    void document.fonts?.ready.then(() => {
+      if (this.formulaBox !== box || this.formulaTex !== key) return;
+      this.formulaMemo.clear();
+      fitFormula(box, lines, this.formulaMemo);
+    });
   }
 
   /**
@@ -873,7 +903,9 @@ export class SimView {
     (scene.readouts ?? []).forEach((spec, i) => {
       // An undefined value reads "–" alone: no unit after it.
       const v = spec.value(s, p);
-      this.readoutVals[i].textContent = readoutText(spec, v, p, s);
+      const text = readoutText(spec, v, p, s);
+      this.readoutVals[i].textContent = text;
+      this.readoutEqs[i].textContent = /^[<>≤≥]/.test(text) ? ' ' : ' = ';
       this.readoutUnits[i].hidden = !Number.isFinite(v);
     });
     if (this.playBtn && this.shownPlaying !== r.playing) {

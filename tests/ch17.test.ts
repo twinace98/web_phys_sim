@@ -5,7 +5,7 @@ import { fmt } from '../src/core/format';
 import { u } from '../src/core/tex';
 import { beats } from '../src/sims/ch17/beats';
 import { NUM, agrees, agreesWithin, grab, val } from './sigma-digits';
-import { doppler, setup } from '../src/sims/ch17/doppler';
+import { doppler, heardB, setup } from '../src/sims/ch17/doppler';
 import { arrival, arrivalAt, flashing, heardAt, beatEnvelope, beatFrequency, fronts, heard, machAngle, wave, wavelengths, type Doppler } from '../src/sims/ch17/physics';
 
 describe('ch17 beats', () => {
@@ -137,13 +137,27 @@ describe('ch17 Doppler: readouts and flashes agree with the arriving fronts', ()
     return fronts(d, t1).map((f) => arrivalAt(d, f.te, w)).filter((x) => x >= t0 && x <= t1).length;
   };
 
+  /** Arrival instants at observer w in [t0, t1], fronts arriving within 1 µs of each other counted once. */
+  const distinctArrivals = (p: ReturnType<typeof P>, w: 'A' | 'B', t0: number, t1: number) => {
+    const d = setup(p).d;
+    const ts = fronts(d, t1)
+      .map((f) => arrivalAt(d, f.te, w))
+      .filter((x) => x >= t0 && x <= t1)
+      .sort((a, b) => a - b);
+    return ts.filter((x, i) => i === 0 || x - ts[i - 1] > 1e-6).length;
+  };
+
   it('510 m/s: B hears 40 Hz and 200 Hz at once; the flash rate is their sum, not 40 Hz alone', () => {
     const p = P(510);
-    const { run } = setup(p);
-    const [fA, fB, fB2] = ro(p, run / 2);
+    const { d, run } = setup(p);
+    const [fA] = ro(p, run / 2);
+    const { B: fB, B2: fB2 } = heardAt(d, run / 2);
     expect(Number.isNaN(fA)).toBe(true);
     expect(fB).toBeCloseTo(40, 9);
     expect(fB2).toBeCloseTo(200, 9);
+    // B's readout shows both (QA 2026-11-24: no third readout sitting at "–" below the speed of sound).
+    expect(doppler.readouts!.map((r) => r.label)).toEqual(["f'_A", "f'_B"]);
+    expect(heardB(p, run / 2).text).toBe('40.0 Hz, 200');
     // Fronts arriving at B per second over the second half of the run.
     const rate = arrivals(p, 'B', run / 2, run) / (run / 2);
     expect(Math.abs(rate - (fB + fB2)) / (fB + fB2)).toBeLessThan(0.15);
@@ -167,8 +181,9 @@ describe('ch17 Doppler: readouts and flashes agree with the arriving fronts', ()
     const d = { ...setup(p).d, tPre: 0.01 };
     expect(Number.isNaN(heardAt(d, 0).A)).toBe(true);
     expect(heardAt(d, 0.2).A).toBeCloseTo(200, 9);
-    // Subsonic: no second sound at B.
-    expect(Number.isNaN(ro(p, 0.1)[2])).toBe(true);
+    // Subsonic: no second sound at B, B's readout is f'_B alone.
+    expect(Number.isNaN(heardAt(setup(p).d, 0.1).B2)).toBe(true);
+    expect(heardB(p, 0.1).text).toBeUndefined();
   });
 
   it('flashes stay apart at 1× and 60 frames per second: one flash per arriving front, at every source speed', () => {
@@ -184,7 +199,9 @@ describe('ch17 Doppler: readouts and flashes agree with the arriving fronts', ()
           if (f && !prev) on++;
           prev = f;
         }
-        const n = arrivals(p, w, 0, run);
+        // At the speed of sound every front sent before the pass reaches B at once, as the source
+        // passes it (the boom): one flash for all of them, so count distinct arrival times there.
+        const n = vs === 340 && w === 'B' ? distinctArrivals(p, w, 0, run) : arrivals(p, w, 0, run);
         // Two branches at B can coincide now and then (above the speed of sound).
         const tol = w === 'B' && vs > 340 ? Math.max(2, 0.2 * n) : 1;
         expect(Math.abs(on - n), `vs = ${vs}, ${w}: ${on} flashes, ${n} fronts`).toBeLessThanOrEqual(tol);
