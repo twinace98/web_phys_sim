@@ -18,6 +18,17 @@ const DL = '#0072B2';
 const R_COL = '#9a9a9a';
 const D_MIN = 0.06;
 const BOX: [number, number, number, number] = [-1.15, -0.62, 1.15, 0.62];
+/**
+ * Straight wire: P stays over the middle of the 2.2 m wire (|x| ≤ 0.5 m, d ≤ 0.45 m), where the
+ * finite wire gives within 12 % of the infinite-wire reference μ0 I/2πd. In the box corner the
+ * sum was 1.43 μT against 3.23 μT (−56 %, QA 2026-11-24).
+ */
+const BOX_STRAIGHT: [number, number, number, number] = [-0.5, -0.45, 0.5, 0.45];
+const boxOf = (wire: string) => (wire === 'loop' ? BOX : BOX_STRAIGHT);
+const clampTo = (b: [number, number, number, number], x: number, y: number): Vec2 => ({
+  x: Math.min(b[2], Math.max(b[0], x)),
+  y: Math.min(b[3], Math.max(b[1], y)),
+});
 
 const params: ParamSchema<P> = {
   wire: {
@@ -32,15 +43,17 @@ const params: ParamSchema<P> = {
       { value: 'loop', label: 'ch29.b.wire.loop' },
     ],
   },
-  n: { kind: 'number', label: 'ch29.b.p.n', desc: 'ch29.b.d.n', group: 'main', live: false, control: 'slider', min: 4, max: 48, step: 1, default: 24 },
+  // A count: a stepper (policy), in steps of 4 so 4 … 48 is a dozen presses, not 44.
+  n: { kind: 'number', label: 'ch29.b.p.n', desc: 'ch29.b.d.n', group: 'main', live: false, control: 'stepper', min: 4, max: 48, step: 4, default: 24 },
   Ps: { kind: 'array', label: 'ch29.b.p.P', group: 'hidden', live: false, default: [0.15, 0.3], min: -2, max: 2 },
   Pl: { kind: 'array', label: 'ch29.b.p.P', group: 'hidden', live: false, default: [0, 0], min: -2, max: 2 },
 };
 
 const wireOf = (p: P) => (p.wire === 'loop' ? 'loop' : 'straight');
+/** Observation point; a stored point outside the drag range (an older link) is brought into it. */
 const obs = (p: P): Vec2 => {
   const a = p.wire === 'loop' ? p.Pl : p.Ps;
-  return { x: a[0], y: a[1] };
+  return clampTo(boxOf(wireOf(p)), a[0], a[1]);
 };
 
 /** P at the centre of the loop (within rounding of the drag). */
@@ -111,7 +124,12 @@ export function formulaLines(s: S, p: P): string[] {
     `dB_{${k}} = 10^{-7}\\,\\frac{(10)(${tn(dl)})(${tn(Math.sin((phi * Math.PI) / 180))})}{(${tn(r)})^2}\\ \\mathrm{T} = ${tn(m.dB[k - 1])}${u('\\mu T')}`,
     `B = \\sum_{i=1}^{${k}} dB_i = ${tn(readB(s, p))}${u('\\mu T')}`,
   ];
-  if (p.wire !== 'loop') lines.push(`\\frac{\\mu_0 I}{2\\pi d} = \\frac{${mu}}{2\\pi(${tn(readD(p), 2)})}\\ \\mathrm{T} = ${tn(Math.abs(m.ref))}${u('\\mu T')}`);
+  // Straight wire: the reference with the sign of the sum (⊗ below the wire is negative), the same
+  // string as the dashed line's label in the B graph (R8).
+  if (p.wire !== 'loop') {
+    const sg = m.ref < 0 ? '-' : '';
+    lines.push(`${sg}\\frac{\\mu_0 I}{2\\pi d} = ${sg}\\frac{${mu}}{2\\pi(${tn(readD(p), 2)})}\\ \\mathrm{T} = ${tn(m.ref)}${u('\\mu T')}`);
+  }
   else if (atCentre(P0)) lines.push(`\\frac{\\mu_0 I}{2R} = \\frac{${mu}}{2(${num(R_LOOP)})}\\ \\mathrm{T} = ${tn(m.ref)}${u('\\mu T')}`);
   else lines.push(`B_{n\\to\\infty} = ${tn(m.ref)}${u('\\mu T')}`);
   return lines;
@@ -232,7 +250,8 @@ export const biot: Scene<P, S> = {
     // Left end, below the line when it is positive (the running sum starts near 0 there).
     const [x, y] = pd.toPx(T_END * 0.02, m.ref);
     const label =
-      p.wire !== 'loop' ? `μ_{0}*I*/2π*d* = ${fmt(m.ref)} μT` : atCentre(obs(p)) ? `μ_{0}*I*/2*R* = ${fmt(m.ref)} μT` : `*n* → ∞: ${fmt(m.ref)} μT`;
+      p.wire !== 'loop'
+        ? `${m.ref < 0 ? '−' : ''}μ_{0}*I*/2π*d* = ${fmt(m.ref)} μT` : atCentre(obs(p)) ? `μ_{0}*I*/2*R* = ${fmt(m.ref)} μT` : `*n* → ∞: ${fmt(m.ref)} μT`;
     drawRich(pd.ctx, label, x, y + (m.ref >= 0 ? 15 : -6) * theme.scale, { size: 11, color: '#6b6b6b' });
   },
 
@@ -248,9 +267,8 @@ export const biot: Scene<P, S> = {
       radiusPx: 16,
       pos: (_s, p) => obs(p),
       onDrag: (ctx, _s, w) => {
-        let x = Math.min(BOX[2], Math.max(BOX[0], w.x));
-        let y = Math.min(BOX[3], Math.max(BOX[1], w.y));
         const wire = wireOf(ctx.params);
+        let { x, y } = clampTo(boxOf(wire), w.x, w.y);
         if (distToWire(wire, x, y) < D_MIN) {
           if (wire === 'straight') y = (y >= 0 ? 1 : -1) * D_MIN;
           else {
@@ -273,7 +291,7 @@ export const biot: Scene<P, S> = {
     observe: ['ch29.b.obs.play', 'ch29.b.obs.far', 'ch29.b.obs.r', 'ch29.b.obs.loop', 'ch29.b.obs.inside', 'ch29.b.obs.n'],
     equations: [
       'd\\vec B = \\frac{\\mu_0}{4\\pi}\\,\\frac{I\\,d\\vec l\\times\\hat r}{r^2}, \\quad B = \\sum dB',
-      '\\text{long wire: } B = \\frac{\\mu_0 I}{2\\pi d}, \\qquad \\text{loop centre: } B = \\frac{\\mu_0 I}{2R}',
+      'B = \\frac{\\mu_0 I}{2\\pi d}, \\qquad B = \\frac{\\mu_0 I}{2R}',
     ],
     assumptions: ['ch29.b.as.units', 'ch29.b.as.plane', 'ch29.b.as.mid', 'ch29.b.as.ref'],
   },

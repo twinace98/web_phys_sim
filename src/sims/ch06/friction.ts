@@ -2,7 +2,7 @@
 // steadily) meets static friction that matches it up to μs N; then the block slips and the
 // friction drops to μk N.
 import { fmt } from '../../core/format';
-import { CONST, slider, tn, u } from '../../core/tex';
+import { CONST, paren, sigCancel, slider, tn, tnCancel, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { drawRich } from '../../draw/text';
@@ -248,7 +248,11 @@ export const friction: Scene<P, S> = {
         lines.push(`f_s = F = ${tn(s.f)}${u('N')} \\le \\mu_s N`);
         return lines;
       }
-      lines.push(kinetic, `a = \\frac{F - f_k}{m} = \\frac{${tn(s.F)} - ${tn(s.f)}}{${m}} = ${tn(s.a)}${u('m/s^2')}`);
+      // R5b: F − f_k is a small difference just after the slip ((17.0 − 13.3)/1.7 = 2.13 against
+      // 2.18); F and f_k then keep the figures that reproduce the printed a.
+      const A = tn(s.a);
+      const k = sigCancel((r) => (r(s.F) - r(s.f)) / p.m, A);
+      lines.push(kinetic, `a = \\frac{F - f_k}{m} = \\frac{${tnCancel(s.F, k)} - ${paren(tnCancel(s.f, k))}}{${m}} = ${A}${u('m/s^2')}`);
       return lines;
     }
     const deg = s.theta / DEG;

@@ -18,8 +18,7 @@ import {
   particleX,
   type PipeType,
 } from './physics';
-import { slider } from '../../../core/tex';
-import { tn, u } from './tex';
+import { slider, tn, u } from '../../../core/tex';
 
 type P = { type: PipeType; nOpen: number; nClosed: number; L: number; sound: boolean };
 type S = { t: number };

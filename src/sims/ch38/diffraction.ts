@@ -2,7 +2,7 @@
 // a time through a crystal, a nanofabricated grating or a millimetre slit pair and land on a screen
 // as single dots; the dots build up |ψ|². Fringes show only when λ/d is not tiny.
 import { fmt, fmtTick, niceTicks } from '../../core/format';
-import { CONST, slider, tnCmp } from '../../core/tex';
+import { CONST, readBack, slider, tnCmp } from '../../core/tex';
 import { t } from '../../core/i18n';
 import type { Rng } from '../../core/rng';
 import type { ParamSchema, Scene } from '../../core/types';
@@ -388,10 +388,40 @@ export function lenTex(L: number, sig = 3, exact = false): string {
  * slits mm. Readout and Σ print this string.
  */
 export function dyText(y: number, s: Structure, sig = 3): string {
-  return Number.isFinite(y) ? `${fmt(y / s.unit, sig, 0)} ${s.unitLabel}` : '–';
+  if (!Number.isFinite(y)) return '–';
+  const e = offAxis(y, s);
+  return e ? `${fmt(y / e[0], sig, 0)} ${e[1]}` : `${fmt(y / s.unit, sig, 0)} ${s.unitLabel}`;
+}
+/**
+ * A spacing of 1000 axis units or more lies far beyond the screen (no mark on the stage to match):
+ * it takes its own prefix, in steps of 10³ (18.2 mm rather than 18185 μm). Undefined otherwise.
+ */
+function offAxis(y: number, s: Structure): [number, string, string] | undefined {
+  if (Math.abs(readBack(fmt(y / s.unit, 3, 0))) < 1000) return undefined;
+  const a = Math.abs(y);
+  return LEN_UNITS.find(([f]) => f !== 1e-2 && a >= f * 0.9995 && a / f < 999.5) ?? LEN_UNITS[0];
 }
 const unitTex = (s: Structure) => (s.unitLabel === 'μm' ? '\\mu\\text{m}' : `\\text{${s.unitLabel}}`);
-const dyTex = (y: number, s: Structure, sig = 3): string => (Number.isFinite(y) ? `${texNum(y / s.unit, sig, 0)}\\ ${unitTex(s)}` : '\\text{–}');
+function dyTex(y: number, s: Structure, sig = 3): string {
+  if (!Number.isFinite(y)) return '\\text{–}';
+  const e = offAxis(y, s);
+  return e ? `${texNum(y / e[0], sig, 0)}\\ ${e[2]}` : `${texNum(y / s.unit, sig, 0)}\\ ${unitTex(s)}`;
+}
+
+/**
+ * Figures of λ (readout and Σ, R8): 3, or more near the first-order threshold λ = d, so that the
+ * printed λ lies on the same side of d as λ itself (R6): 0.2146 nm / 0.215 nm = 0.998, not
+ * 0.215 nm / 0.215 nm = 0.998.
+ */
+export function lamSig(lam: number, d: number): number {
+  const u = lenUnit(lam);
+  const f = u ? u[0] : 1;
+  for (let sig = 3; sig < 8; sig++) {
+    const shown = readBack(fmt(lam / f, sig, 0)) * f;
+    if (Math.sign(shown - d) === Math.sign(lam - d) && Math.abs(shown - d) > 1e-6 * d) return sig;
+  }
+  return 8;
+}
 
 // ------------------------------------------------------------------ params
 
@@ -718,28 +748,32 @@ export function formulaLines(p: PD): string[] {
   const s = STRUCTS[structIdOf(p)];
   const fr = fringe(s, lam);
   const K = kineticOf(m, v);
+  const lamTex = lenTex(lam, lamSig(lam, s.d));
   // Masses as constants (R1): the electron from CONST, the others to 3 figures; the ball's 0.145 kg exact.
   const mTex = id === 'ball' ? '0.145\\ \\text{kg}' : id === 'electron' ? `${CONST.me.tex}\\ \\text{kg}` : `${texNum(m, 3, 0)}\\ \\text{kg}`;
   const eV = K / EV;
+  // Three figures with a prefix (2.28 keV, not 2276 eV; 52.2 μeV for the slowest neutron).
   const Ktex =
     id === 'ball'
       ? `${texNum(K, 3)}\\ \\text{J}`
-      : eV >= 1e4
+      : eV >= 999.5
         ? `${texNum(eV / 1e3, 3)}\\ \\text{keV}`
-        : eV < 0.1
-          ? `${texNum(eV * 1e3, 3, 0)}\\ \\text{meV}`
-          : `${texNum(eV, 3)}\\ \\text{eV}`;
+        : eV < 9.995e-5
+          ? `${texNum(eV * 1e6, 3, 0)}\\ \\mu\\text{eV}`
+          : eV < 0.1
+            ? `${texNum(eV * 1e3, 3, 0)}\\ \\text{meV}`
+            : `${texNum(eV, 3)}\\ \\text{eV}`;
   const rel = g - 1 > 1e-3;
   const lines = [
     // γ only where it departs from 1, with the figures that show it does (R6: 1.002, not 1.00).
     `m = ${mTex},\\quad v = ${slider(params[SPEED_KEY[id]], v)}\\ \\text{m/s}${rel ? `,\\quad \\gamma = ${tnCmp(g, 1)}` : ''}`,
     `p = ${rel ? '\\gamma m v' : 'm v'} = ${texNum(pp, 3, 0)}\\ \\text{kg\\,m/s},\\quad K = ${rel ? '(\\gamma - 1)\\,mc^2' : '\\tfrac12 mv^2'} = ${Ktex}`,
-    `\\lambda = \\frac{h}{p} = \\frac{${CONST.h.tex}\\ \\text{J\\,s}}{${texNum(pp, 3, 0)}\\ \\text{kg\\,m/s}} = ${lenTex(lam)}`,
+    `\\lambda = \\frac{h}{p} = \\frac{${CONST.h.tex}\\ \\text{J\\,s}}{${texNum(pp, 3, 0)}\\ \\text{kg\\,m/s}} = ${lamTex}`,
   ];
   // Apparatus constants exact (0.215 nm, 1 mm, 1.25 m), not padded to three figures.
   const dTex = lenTex(s.d, 3, true);
-  const sinHead = `\\sin\\theta_1 = \\frac{\\lambda}{d} = \\frac{${lenTex(lam)}}{${dTex}}`;
-  const sinL = `${sinHead} = ${texNum(fr.ratio, 3, 0)}`;
+  const sinHead = `\\sin\\theta_1 = \\frac{\\lambda}{d} = \\frac{${lamTex}}{${dTex}}`;
+  const sinL = `${sinHead} = ${tnCmp(fr.ratio, 1)}`;
   if (fr.ratio >= 1) {
     lines.push(`${sinHead} = ${tnCmp(fr.ratio, 1)} > 1\\ \\ (\\text{${t('ch38.df.f.none')}})`);
     return lines;
@@ -750,7 +784,7 @@ export function formulaLines(p: PD): string[] {
   lines.push(small ? sinL : `${sinL},\\quad \\theta_1 = ${texNum(deg, 3)}^\\circ`);
   lines.push(
     small
-      ? `\\Delta y \\approx \\frac{\\lambda L}{d} = \\frac{(${lenTex(lam)})(${LTex})}{${dTex}} = ${dyTex(fr.dyApprox, s)}`
+      ? `\\Delta y \\approx \\frac{\\lambda L}{d} = \\frac{(${lamTex})(${LTex})}{${dTex}} = ${dyTex(fr.dyApprox, s)}`
       : `\\Delta y = L\\tan\\theta_1 = (${LTex})\\tan ${texNum(deg, 3)}^\\circ = ${dyTex(fr.y1, s)}`,
   );
   if (!fr.resolvable) {
@@ -790,7 +824,7 @@ export const diffractionScene: Scene<PD, S> = {
 
   readouts: [
     // With a prefix as in the Σ panel (λ) and in the unit of the screen axis (Δy), R8.
-    { label: '\\lambda', unit: '', value: (_s, p) => lambdaP(p), format: (v) => (Number.isFinite(v) ? lenText(v) : undefined) },
+    { label: '\\lambda', unit: '', value: (_s, p) => lambdaP(p), format: (v, _s, p) => (Number.isFinite(v) ? lenText(v, lamSig(v, STRUCTS[structIdOf(p)].d)) : undefined) },
     {
       label: '\\Delta y',
       unit: '',

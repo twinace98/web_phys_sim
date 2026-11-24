@@ -2,6 +2,7 @@
   "ch25.scene": "Parallel-plate capacitor",
   "ch25.p.diel": "Dielectric",
   "ch25.d.diel": "Material filling the gap and its dielectric constant $\\kappa$",
+  "ch25.diel.vacuum": "Vacuum (κ = 1)",
   "ch25.diel.air": "Air (κ = 1.00054)",
   "ch25.diel.paper": "Paper (κ = 3.5)",
   "ch25.diel.glass": "Glass (κ = 4.7)",
@@ -21,7 +22,8 @@
   "ch25.obs.gauss": "Induced charge on the dielectric faces cancels the fraction $1 - 1/\\kappa$ of the plate charge. Connected: the plate charge grows by the factor $\\kappa$, so $E$ between the plates and the number of field lines stay the same. Disconnected: the plate charge stays, so $E$ drops by the factor $\\kappa$ and fewer field lines cross the gap",
   "ch25.obs.geom": "Doubling $A$ doubles $C$; doubling $d$ halves $C$",
   "ch25.obs.pull": "Disconnected, a wider gap raises $V$ and $U$: the work done pulling the plates apart is stored",
-  "ch25.assume.ref": "Reference state $X_0$: area 100 cm², gap 1 mm, empty gap, $V_0$ = 12 V. Disconnected means charged in the reference state, then disconnected",
+  "ch25.assume.ref": "Reference state $X_0$: area 100 cm², gap 1 mm, vacuum gap, $V_0$ = 12 V. Disconnected means charged in the reference state, then disconnected",
   "ch25.assume.edge": "Edge effects neglected (uniform field between the plates); the dielectric fills the whole gap",
-  "ch25.assume.draw": "The drawn gap is exaggerated relative to the plate size. Field lines are linear in $E$ (5 across the reference plate at $E_0$); below one line a single shorter arrow, its length proportional to $E$. Free charge is linear in $\\sigma$ on the same scale; when the symbols would not fit, one symbol stands for several charges, shown by the key $\\oplus \\times n$ above the plate. Induced charge cancels the fraction $1 - 1/\\kappa$ of the free charge"
+  "ch25.assume.draw": "The drawn gap is exaggerated relative to the plate size. Field lines are linear in $E$ (5 across the reference plate at $E_0$); below one line a single shorter arrow, its length proportional to $E$. Free charge is linear in $\\sigma$ on the same scale; when the symbols would not fit, one symbol stands for several charges, shown by the key $\\oplus \\times n$ above the plate. Induced charge cancels the fraction $1 - 1/\\kappa$ of the free charge. When one symbol stands for several charges, the uncancelled charge (where the field lines start) shows as one free symbol without an induced partner even when it is less than one symbol (water, connected: 1.2 % of the free charge)",
+  "ch25.assume.sym": "$\\kappa$: dielectric constant, $\\varepsilon_0$ = 8.85×10⁻¹² C²/(N·m²): permittivity of free space, $A$: area of one plate, $d$: plate separation, $V_0$: battery voltage (12 V). $\\sigma = Q/A$: free charge per unit area of a plate. $X_0$: value in the reference state, $X/X_0$: the ratio. Air ($\\kappa$ = 1.00054) differs from vacuum by 0.05 %: disconnected, $V/V_0$ = 0.999"
 }

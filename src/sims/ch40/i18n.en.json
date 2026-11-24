@@ -15,6 +15,7 @@
   "ch40.s.obs.random": "Which way a single atom goes cannot be predicted; many atoms split half and half",
   "ch40.s.assume.atom": "Spin-½ atoms (like silver, one outer electron); spins leave the oven in random directions",
   "ch40.s.assume.view": "Schematic: deflection and beam width are not to scale. The + exit is drawn up and the − exit down whatever the device axis",
+  "ch40.s.assume.sym": "Symbols: $F_z$ = $z$ component of the force on the atom, $\\mu_z$ = $z$ component of the magnetic moment (in the classical prediction $\\mu$ is its magnitude), $\\partial B/\\partial z$ = gradient of the field along $z$, $g_s \\approx 2$ = spin $g$ factor of the electron, $e$ = elementary charge, $m$ = electron mass, $S_z$ = $z$ component of the spin, $\\hbar = h/2\\pi$",
   "ch40.q.p.pass": "Pass at x",
   "ch40.q.d.pass": "Exit of the second (x) device sent on to the next device; the other exit is blocked",
   "ch40.pass.up": "+x only",
@@ -33,6 +34,6 @@
   "ch40.a.obs.0": "$\\theta$ = 0°: always + (same axis)",
   "ch40.a.obs.90": "$\\theta$ = 90° (x axis): half and half",
   "ch40.a.obs.180": "$\\theta$ = 180°: always − (the +θ direction is −z)",
-  "ch40.a.obs.N": "Graph: the running fraction swings widely at first, then settles on the dashed prediction; the error bar shrinks as $1/\\sqrt{N}$",
+  "ch40.a.obs.N": "Graph: the running fraction swings widely at first, then settles on the dashed prediction. On the stage, the error bar of the $P_+$ curve plot is the measured fraction ± $\\sigma_P$ (the 1σ scatter from the prediction $P$, $\\sigma_P = \\sqrt{P(1-P)/N}$, $N$ = atoms counted so far); it shrinks as $1/\\sqrt{N}$",
   "ch40.a.assume.plane": "The measuring axis turns only within the zx plane"
 }

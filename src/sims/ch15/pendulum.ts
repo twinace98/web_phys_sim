@@ -20,6 +20,8 @@ const DEG = Math.PI / 180;
 const G = 9.8;
 const RATE = 1000;
 const MODEL = '#8c8c8c';
+/** Time window of the θ(t) graph [s]. */
+const PLOT_WINDOW = 8;
 
 /**
  * Error inset below the swing [L]: (T − T₀)/T₀ against θ₀ on a log scale, the current release
@@ -207,7 +209,7 @@ export const pendulum: Scene<P, S> = {
   title: 'ch15.n.scene',
   layout: 'side',
   params,
-  time: { h: 1 / RATE, recordEvery: 8, frameStep: 0.05, window: 8 },
+  time: { h: 1 / RATE, recordEvery: 8, frameStep: 0.05, window: PLOT_WINDOW },
   world: (p) => ({ x: [-1.2, 1.2], y: [ERR_BOTTOM, worldTop(p)], aspect: 'contain', padPx: 18 }),
 
   init: (p) => ({ t: 0, th: p.theta0 * DEG, w: 0 }),
@@ -281,23 +283,30 @@ export const pendulum: Scene<P, S> = {
     if (id !== 'th') return;
     const pts: [number, number][] = [];
     const t1 = ui.t;
-    const t0 = Math.max(0, t1 - 8);
+    const t0 = Math.max(0, t1 - PLOT_WINDOW);
     const n = 400;
     for (let i = 0; i <= n; i++) {
       const t = t0 + ((t1 - t0) * i) / n;
       pts.push([t, model(p, t) / DEG]);
     }
     pd.polyline(pts, { color: MODEL, width: 1.25, dash: [5, 4], alpha: 0.8 });
-    // Legend, one row at the top left: the real (blue, solid) and the model (grey, dashed) curve.
+    // Legend at the top left: the real (blue, solid) and the model (grey, dashed) curve, in one row
+    // where the plot is wide enough, else the model in a second row (narrow plot beside the Σ panel).
     const sc = theme.scale;
     const [x0, y0] = pd.toPx(t0 === 0 ? 0 : t0, p.theta0 * 1.6);
+    // Right edge of the plot: the time axis ends at the window or at the current time.
+    const xRight = pd.toPx(Math.max(PLOT_WINDOW, t1), 0)[0];
     const ctx = pd.ctx;
     let x = x0 + 10 * sc;
-    const y = y0 + 12 * sc;
+    let y = y0 + 12 * sc;
     for (const [key, col, dash, w] of [
       ['ch15.n.leg.real', color('position'), [] as number[], 2],
       ['ch15.n.leg.model', MODEL, [5, 4], 1.5],
     ] as const) {
+      if (x > x0 + 10 * sc && x + 28 * sc + measureRich(ctx, t(key), { size: 12 }) > xRight - 4 * sc) {
+        x = x0 + 10 * sc;
+        y += 17 * sc;
+      }
       ctx.save();
       ctx.strokeStyle = col;
       ctx.lineWidth = w * sc;

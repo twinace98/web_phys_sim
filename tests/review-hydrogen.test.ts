@@ -203,6 +203,13 @@ describe('hydrogen stage', () => {
     expect(f).toContain('= 656\\ \\text{nm}');
     expect(f).toContain('1.52\\times 10^{6}');
     expect(transitions.formula!(transitions.init(p, null as never), { ...p, nf: 3 }).join(' ')).toContain('\\Delta E = 0');
+    // R8 (QA 2026-11-24 "ΔE = 0.00 eV" vs Σ "0"): n_i = n_f reads 0 in the readout and in Σ alike.
+    for (const n of [1, 3, 6]) {
+      const q = { ...p, ni: n, nf: n };
+      const ro = transitions.readouts!.find((r) => r.label === '\\Delta E')!;
+      expect(readoutText(ro as never, ro.value(transitions.init(q, null as never), q), q)).toBe('0');
+      expect(transitions.formula!(transitions.init(q, null as never), q).at(-1)).toBe('n_i = n_f:\\ \\Delta E = 0');
+    }
     const fs = series.formula!({ t: 0, n: 0 }, defaults(series.params)).join(' ');
     expect(fs).toContain('\\lambda_\\infty = \\frac{2^2}{R_\\text{H}} = 365\\ \\text{nm}');
     expect(fs).toContain('(1.10\\times 10^{7}\\ \\text{m}^{-1})(0.139),\\quad \\lambda = 656\\ \\text{nm}');

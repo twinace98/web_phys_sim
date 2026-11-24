@@ -438,7 +438,7 @@ export const gravfield: Scene<P, S> = {
     observe: ['gravfield.obs.tray', 'gravfield.obs.drag', 'gravfield.obs.null', 'gravfield.obs.lines', 'gravfield.obs.eight', 'gravfield.obs.three', 'gravfield.obs.perp', 'gravfield.obs.single', 'gravfield.obs.analogy'],
     equations: [
       '\\vec g = \\frac{\\vec F}{m} = -\\sum_i \\frac{GM_i}{r_i^2}\\,\\hat r_i',
-      '\\Phi = -\\sum_i \\frac{GM_i}{r_i}, \\quad \\vec g = -\\nabla \\Phi',
+      '\\Phi = -\\sum_i \\frac{GM_i}{r_i}, \\quad g_s = -\\frac{\\partial\\Phi}{\\partial s}',
       'g = 0:\\ \\frac{r_1}{r_2} = \\sqrt{\\frac{M_1}{M_2}}',
     ],
     assumptions: ['gravfield.as.units', 'gravfield.as.point', 'gravfield.as.plane', 'gravfield.as.arrows', 'gravfield.as.eq', 'gravfield.as.null'],

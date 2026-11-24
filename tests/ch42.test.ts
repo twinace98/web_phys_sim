@@ -61,3 +61,26 @@ describe('ch42 radioactive decay', () => {
     expect(timeUnit(decayScene.time, { ...p, iso: 'i131' })).toBe('d');
   });
 });
+
+describe('ch42 activity readout (P3 leftover)', () => {
+  it('R = λN in decays per base unit (y⁻¹, d⁻¹ for ¹³¹I), the same number in the readout and Σ; tiny ²³⁸U rates keep their figures', async () => {
+    const { readoutText } = await import('../src/core/tex');
+    const ko = (await import('../src/sims/ch42/i18n.ko.json')).default as Record<string, string>;
+    const en = (await import('../src/sims/ch42/i18n.en.json')).default as Record<string, string>;
+    const spec = decayScene.readouts!.find((x) => x.label === 'R')!;
+    for (const [iso, want, unit] of [
+      ['c14', '0.121', 'y⁻¹'],
+      ['i131', '86.4', 'd⁻¹'],
+      ['u238', '1.55×10⁻⁷', 'y⁻¹'],
+    ] as const) {
+      const p = { ...defaults(decayScene.params), iso, N0: 1000 } as never;
+      const r = new Runner(decayScene, p, 1);
+      expect(readoutText(spec as never, spec.value(r.state, p), p, r.state)).toBe(`${want} ${unit}`);
+      const line = decayScene.formula!(r.state, p).at(-1)!;
+      expect(line.startsWith('R = \\lambda N = ')).toBe(true);
+      expect(line).toContain('(1000)');
+    }
+    expect(decayScene.info.assumptions).toContain('ch42.assume.sym');
+    for (const d of [ko, en]) expect(d['ch42.assume.sym']).toContain('R = \\lambda N');
+  });
+});

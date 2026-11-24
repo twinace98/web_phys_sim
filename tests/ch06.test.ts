@@ -384,19 +384,23 @@ describe('ch06 circular: speed slider', () => {
     return Array.from({ length: 11 }, (_, i) => lo + ((hi - lo) * i) / 10);
   };
 
-  it('one slider per situation on the main bar: default = the former fixed speed, so the default scene is unchanged', () => {
+  it('one slider per situation on the main bar: default = the former fixed speed on the slider grid (QA 2026-11-24: 8.4462 and 1.6820 were off it)', () => {
     for (const pr of PRS) {
       const spec = (circular.params as any)[KEY[pr]];
       expect(spec).toMatchObject({ kind: 'number', control: 'slider', group: 'main', unit: 'm/s', label: 'ch06.c.p.v', desc: 'ch06.c.d.v' });
-      expect(spec.default).toBe(SETUPS[pr].v);
+      // On the 0.01 m/s grid, within half a step of the former speed.
+      expect(Math.abs(spec.default * 100 - Math.round(spec.default * 100))).toBeLessThan(1e-9);
+      expect(Math.abs(spec.default - SETUPS[pr].v)).toBeLessThanOrEqual(0.005);
       expect(spec.min).toBeLessThan(spec.default);
       expect(spec.max).toBeGreaterThan(spec.default);
       for (const other of PRS) expect(spec.visibleIf({ preset: other }), `${pr} slider with ${other}`).toBe(other === pr);
       const s = setupOf({ ...(defaults(circular.params) as any), preset: pr });
-      expect(s.v).toBe(SETUPS[pr].v);
-      expect(s.r).toBeCloseTo(SETUPS[pr].r, 12);
-      expect(s.theta).toBeCloseTo(SETUPS[pr].theta, 12);
+      expect(s.v).toBe(spec.default);
+      expect(s.r).toBeCloseTo(SETUPS[pr].r, pr === 'cone' ? 2 : 12);
+      expect(s.theta).toBeCloseTo(SETUPS[pr].theta, pr === 'cone' ? 2 : 12);
     }
+    expect((circular.params as any).vBanked.default).toBe(8.45);
+    expect((circular.params as any).vCone.default).toBe(1.68);
   });
 
   it('over the range: real forces add to mv²/r inward and zero vertically', () => {
@@ -530,7 +534,7 @@ describe('ch06 circular: speed slider', () => {
 
   it('every new ⓘ / control key exists in ko and en; the rotating frame is called 비관성계', async () => {
     const { ko, en } = (await import('../src/sims/ch06')).default.i18n;
-    for (const k of ['ch06.c.p.v', 'ch06.c.d.v', 'ch06.c.p.rot', 'ch06.c.d.rot', 'ch06.c.obs.v', 'ch06.c.obs.bank', 'ch06.c.obs.cone', 'ch06.c.obs.fict', 'ch06.c.obs.car', 'ch06.c.obs.cor']) {
+    for (const k of ['ch06.c.p.v', 'ch06.c.d.v', 'ch06.c.p.rot', 'ch06.c.d.rot', 'ch06.c.obs.v', 'ch06.c.obs.bank', 'ch06.c.obs.cone', 'ch06.c.obs.cut', 'ch06.c.obs.rot']) {
       expect(ko[k], k).toBeTruthy();
       expect(en[k], k).toBeTruthy();
     }

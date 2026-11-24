@@ -244,8 +244,8 @@ const label = (n: number, text: string, narrow: boolean) => (narrow ? `${text} e
 
 /**
  * An energy difference: 3 figures, in meV below 0.1 eV (a tunnelling splitting of 0.3–10 meV).
- * The splitting converges far better than the levels (both partners shift alike on the grid:
- * 1.0797, 1.0800, 1.0802 meV at 1500, 3000, 6000 points for Ub = 4.5 eV, b = 0.5 nm), so 3 figures hold.
+ * The double-well levels are exact (physics.ts doubleWellStates), so the splitting holds every
+ * printed figure (0.322 meV at L = 1.5 nm, Ub = 4.5 eV, b = 0.5 nm; the grid gave 0.321).
  */
 export const eText = (dE: number): string => (Math.abs(dE) >= 0.1 ? `${fmt(dE, 3)} eV` : `${fmt(dE * 1000, 3)} meV`);
 const eTex = (dE: number): string => {
@@ -271,10 +271,12 @@ const U0Tex = (U0: number) => slider(SPEC.U0, U0);
 export function wellLines(p: Common): string[] {
   const m = model(p);
   const E = m.st.E;
-  const e1 = `\\frac{h^2}{8mL^2} = \\frac{${tn(H2_8M)}\\ \\mathrm{eV\\,nm^2}}{(${LTex(p.L)}\\ \\mathrm{nm})^2}`;
+  const frac = `\\frac{${tn(H2_8M)}\\ \\mathrm{eV\\,nm^2}}{(${LTex(p.L)}\\ \\mathrm{nm})^2}`;
+  const e1 = `\\frac{h^2}{8mL^2} = ${frac}`;
   if (p.pot === 'infinite') {
     const lines = [`E_1 = ${e1} = ${tn(E[0])}${u('eV')}`];
-    for (let n = 2; n <= Math.min(3, E.length); n++) lines.push(`E_${n} = ${n}^2 E_1 = ${n * n} \\times ${tn(E[0])} = ${tn(E[n - 1])}${u('eV')}`);
+    // n² times h²/8mL², not times the rounded E₁: 4 × 1.50 printed next to 6.02 read as an error (QA 2026-11-24).
+    for (let n = 2; n <= Math.min(3, E.length); n++) lines.push(`E_${n} = ${n}^2 E_1 = ${n * n} \\times ${frac} = ${tn(E[n - 1])}${u('eV')}`);
     return lines;
   }
   if (p.pot === 'finite') {
@@ -402,7 +404,7 @@ export const wells: Scene<PW, { t: number }> = {
       'E_n = \\left(n + \\tfrac{1}{2}\\right)\\hbar\\omega, \\quad n = 0, 1, 2, \\dots',
       '-\\frac{\\hbar^2}{2m}\\frac{d^2\\psi}{dx^2} + U(x)\\,\\psi = E\\,\\psi',
     ],
-    assumptions: ['ch39.assume.electron', 'ch39.assume.fd', 'ch39.assume.amp'],
+    assumptions: ['ch39.assume.electron', 'ch39.assume.fd', 'ch39.assume.amp', 'ch39.w.assume.sym'],
   },
 };
 
@@ -499,8 +501,15 @@ export const supGap = (p: PS): number => {
  */
 export const SUP_PERIODS = 3;
 export const SUP_WALL = 2;
-/** Runner step [fs] (TimeSpec.h). */
+/** Shortest time step [fs]. */
 const H_SUP = 0.005;
+/**
+ * Runner step (TimeSpec.h) in runner units, not fs: each runner step advances the state by supDt fs.
+ * The step button advances FRAME_STEP runner units = 20 steps = T/14 for every period; FRAME_STEP = 1
+ * leaves the clock decimals to the run length (3 figures of 3T: 35990 fs, not 35989.8; 4.12 fs).
+ */
+const RUN_H = 0.05;
+const FRAME_STEP = 1;
 /** Steps per period: the record density stays the same for every period. */
 const STEPS_PER_T = 280;
 const periodOr = (p: PS, fallback: number) => (Number.isFinite(supPeriod(p)) ? supPeriod(p) : fallback);
@@ -559,12 +568,12 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
   params: supParams,
   world: PX_WORLD,
   time: {
-    h: H_SUP,
+    h: RUN_H,
     recordEvery: 4,
-    frameStep: 0.1,
+    frameStep: FRAME_STEP,
     window: (p) => SUP_PERIODS * periodOr(p as PS, 40 / SUP_PERIODS),
     // Runner steps per wall second = scale/h; each step is supDt fs, so T/SUP_WALL fs per wall second.
-    scale: (p) => (periodOr(p as PS, 2 * SUP_WALL) / SUP_WALL) * (H_SUP / supDt(p as PS)),
+    scale: (p) => (periodOr(p as PS, 2 * SUP_WALL) / SUP_WALL) * (RUN_H / supDt(p as PS)),
     unit: 'fs',
   },
   init: () => ({ t: 0, n: 0 }),
@@ -583,7 +592,7 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
     const q = supStates(m, pairOf(p));
     // Analytic in t: drawn at the frame's own time, so |Ψ|² sloshes smoothly between steps. The
     // runner's lead over s.t counts in steps of h; one step here is supDt.
-    const tt = s.t + ((ui?.tFrame ?? s.t) - s.t) * (supDt(p) / H_SUP);
+    const tt = s.t + ((ui?.tFrame ?? s.t) - s.t) * (supDt(p) / RUN_H);
     const { st } = m;
     const narrow = g.vp.w < 640;
     const f = new Frame(g, diagramBox(g, true), m.xr, m.yr);
@@ -619,7 +628,10 @@ export const superposition: Scene<PS, { t: number; n: number }> = {
       const xm = q.xm + q.xc * c;
       g.circle(f.P(xm, Em), 6, { fill: 'position' });
     });
-    f.axes({ xLabel: '*x* (nm)', yLabel: '*E* (eV)' });
+    // x label under the tick numbers, as on the wells tab: inside the frame it sat on the ground
+    // pair's levels (double well, 390 px).
+    f.axes({ yLabel: '*E* (eV)' });
+    textPx(g, f.box.r, f.box.b + 30, '*x* (nm)', { size: 12, color: TICK, align: 'right' });
     const items = st.E.map((E, k) => ({ E, k })).filter(({ k }) => k === q.a || k === q.b);
     const texts = levelTexts(st.E, p.pot === 'finite' ? p.U0 : Infinity);
     levelLabels(

@@ -16,6 +16,8 @@ const N_REF = 5; // charges drawn per plate and field lines in the reference sta
 const SLAB = '#e9eef3';
 const WIRE = '#3a3a3a';
 
+/** A slab fills the gap (paper, glass, water): vacuum and air (κ − 1 = 5×10⁻⁴) draw an empty gap. */
+const slab = (p: P) => (KAPPA[p.dielectric] ?? 1) > 1.01;
 const plates = (p: P): Plates => ({ A: p.A * 1e-4, d: p.d * 1e-3, kappa: KAPPA[p.dielectric] ?? 1 });
 const REF: Plates = { A: A_REF * 1e-4, d: D_REF * 1e-3, kappa: 1 };
 
@@ -31,6 +33,7 @@ const params: ParamSchema<P> = {
     live: true,
     default: 'glass',
     options: [
+      { value: 'vacuum', label: 'ch25.diel.vacuum' },
       { value: 'air', label: 'ch25.diel.air' },
       { value: 'paper', label: 'ch25.diel.paper' },
       { value: 'glass', label: 'ch25.diel.glass' },
@@ -107,18 +110,19 @@ export function formulaLines(p: P): string[] {
   const on = p.source === 'on';
   const A = `${slider(params.A as NumberParam, p.A)}\\times 10^{-4}`;
   const d = `${slider(params.d as NumberParam, p.d)}\\times 10^{-3}`;
-  const lines = [`C = \\frac{\\kappa\\varepsilon_0 A}{d} = \\frac{(${kappaText(c.kappa)})(${CONST.eps0.tex})(${A})}{${d}}\\ \\mathrm{F} = ${siTex(s.C, 'F')}`];
+  // The symbolic form on its own row, the substituted numbers on the next ("= …"): no long line.
+  const lines = [`C = \\frac{\\kappa\\varepsilon_0 A}{d}`, `= \\frac{(${kappaText(c.kappa)})(${CONST.eps0.tex})(${A})}{${d}}\\ \\mathrm{F}`, `= ${siTex(s.C, 'F')}`];
   if (on) {
     lines.push(`Q = CV_0 = (${siTex(s.C, 'F')})(${V0}\\ \\mathrm{V}) = ${siTex(s.Q, 'C')}`);
     lines.push(`V = V_0 = ${siTex(s.V, 'V')}`);
   } else {
     const C0 = refState().C;
-    lines.push(`Q = Q_0 = C_0 V_0 = (${siTex(C0, 'F')})(${V0}\\ \\mathrm{V}) = ${siTex(s.Q, 'C')}`);
+    lines.push(`Q = Q_0 = C_0 V_0`, `= (${siTex(C0, 'F')})(${V0}\\ \\mathrm{V}) = ${siTex(s.Q, 'C')}`);
     lines.push(`V = \\frac{Q}{C} = \\frac{${siTex(s.Q, 'C')}}{${siTex(s.C, 'F')}} = ${siTex(s.V, 'V')}`);
   }
   const Vin = on ? `${V0}\\ \\mathrm{V}` : siTex(s.V, 'V');
   lines.push(`E = \\frac{V}{d} = \\frac{${Vin}}{${d}\\ \\mathrm{m}} = ${siTex(s.E, 'V/m')}`);
-  lines.push(`U = \\tfrac{1}{2} C V^2 = \\tfrac{1}{2}(${siTex(s.C, 'F')})(${Vin})^2 = ${siTex(s.U, 'J')}`);
+  lines.push(`U = \\tfrac{1}{2} C V^2`, `= \\tfrac{1}{2}(${siTex(s.C, 'F')})(${Vin})^2 = ${siTex(s.U, 'J')}`);
   return lines;
 }
 
@@ -172,9 +176,15 @@ export function capCounts(p: P, maxFree: number, maxLines: number): CapCounts {
   const unit = UNITS.find((u) => rawFree / u <= maxFree) ?? UNITS[UNITS.length - 1];
   const free = Math.max(1, Math.round(rawFree / unit));
   let bound = 0;
-  if (p.dielectric !== 'air') {
-    bound = unit === 1 ? Math.max(0, free - (rawLines >= 0.5 ? Math.round(rawLines) : 0)) : Math.round(free * (1 - 1 / kappa));
-    bound = Math.min(bound, free);
+  if (slab(p)) {
+    // The uncancelled charge (free − bound, the source of the field lines) is rawLines reference
+    // charges. With unit > 1 it can be a fraction of one symbol (water, connected: 5 of 402); it
+    // still shows as one free symbol without an induced partner while any field line is drawn
+    // (QA 2026-11-24: 20 against 20 with 5 field lines).
+    if (unit === 1) bound = free - (rawLines >= 0.5 ? Math.round(rawLines) : 0);
+    else if (rawLines >= 0.5) bound = free - Math.max(1, Math.round(rawLines / unit));
+    else bound = Math.round(free * (1 - 1 / kappa));
+    bound = Math.min(free, Math.max(0, bound));
   }
   return { rawLines, lines, rawFree, unit, free, bound };
 }
@@ -238,7 +248,7 @@ export const capacitor: Scene<P, { t: number }> = {
     battery(g, xb, -1.4, 1.4);
 
     // Dielectric slab fills the gap.
-    if (p.dielectric !== 'air') {
+    if (slab(p)) {
       g.polygon(
         [
           { x: x0, y: yb },
@@ -309,6 +319,6 @@ export const capacitor: Scene<P, { t: number }> = {
     goals: ['ch25.goal.C', 'ch25.goal.U'],
     observe: ['ch25.obs.on', 'ch25.obs.off', 'ch25.obs.gauss', 'ch25.obs.geom', 'ch25.obs.pull'],
     equations: ['C = \\frac{\\kappa \\varepsilon_0 A}{d}, \\quad Q = CV', 'E = \\frac{V}{d} = \\frac{Q}{\\kappa \\varepsilon_0 A}', 'U = \\frac{Q^2}{2C} = \\frac{1}{2} C V^2'],
-    assumptions: ['ch25.assume.ref', 'ch25.assume.edge', 'ch25.assume.draw'],
+    assumptions: ['ch25.assume.sym', 'ch25.assume.ref', 'ch25.assume.edge', 'ch25.assume.draw'],
   },
 };

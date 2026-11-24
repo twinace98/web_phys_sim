@@ -240,8 +240,95 @@ describe('ch39 ⓘ names the method each potential uses (review 2026-11-20)', ()
   });
 
   it('the strings say so in ko and en; no ch39 string describes the old 2.5 nm finite-difference box', () => {
-    expect(ko['ch39.assume.fd']).toContain('유한 우물은 정확한 해');
-    expect(en['ch39.assume.fd']).toContain('the finite well uses the exact solution');
+    expect(ko['ch39.assume.fd']).toContain('유한 우물·이중 우물은 정확한 해');
+    expect(en['ch39.assume.fd']).toContain('the finite and double wells use exact solutions');
     for (const dict of [ko, en] as Record<string, string>[]) for (const [k, v] of Object.entries(dict)) expect(v, k).not.toContain('2.5 nm');
+  });
+});
+
+describe('ch39 QA 2026-11-24 (P3)', () => {
+  it('double well: exact levels agree with a 16× finer grid (the 1500-point grid was 0.3 % off: ΔE 0.321 vs 0.3218 meV)', () => {
+    for (const [L, Ub, b] of [
+      [1.5, 4.5, 0.5],
+      [1, 2, 0.2],
+      [0.5, 0.5, 0.05],
+      [1.5, 0.5, 0.05],
+      [0.5, 4.5, 0.5],
+      [1.2, 1.7, 0.3],
+    ]) {
+      const m = wellModel({ kind: 'double', L, U0: 2, hw: 0.2, Ub, b });
+      const fine = solve(m.pot, 24000, 8, HB2M, 4.75).E;
+      expect(m.st.E.length, `${L} ${Ub} ${b}`).toBe(fine.length);
+      m.st.E.forEach((E, k) => expect(Math.abs(E - fine[k]), `${L} ${Ub} ${b} E${k + 1}`).toBeLessThan(4e-5));
+      // ψ orthonormal on the grid.
+      const dot = (p: Float64Array, q: Float64Array) => p.reduce((s, v, i) => s + v * q[i], 0) * m.st.dx;
+      m.st.psi.forEach((p, k) => {
+        expect(dot(p, p)).toBeCloseTo(1, 9);
+        for (let j = 0; j < k; j++) expect(Math.abs(dot(p, m.st.psi[j]))).toBeLessThan(1e-6);
+      });
+    }
+    const E = wellModel({ kind: 'double', L: 1.5, U0: 2, hw: 0.2, Ub: 4.5, b: 0.5 }).st.E;
+    expect(((E[1] - E[0]) * 1000).toFixed(4)).toBe('0.3218');
+  });
+
+  it('superposition clock: decimals from the run length (35990 fs, not 35989.8; 1.37 fs periods keep 2 decimals); the step button still moves T/14', async () => {
+    const { clockDecimals } = await import('../src/core/format');
+    const { timeWindow } = await import('../src/core/types');
+    const { superposition, supDt, supPeriod } = await import('../src/sims/ch39/scene');
+    const p0 = defaults(superposition.params) as never as Record<string, unknown>;
+    const tm = superposition.time!;
+    const dec = (over: Record<string, unknown>) => clockDecimals(tm.frameStep, timeWindow(tm, { ...p0, ...over } as never));
+    expect(dec({ pot: 'double', L: 1.5, Ub: 4.5, b: 0.5 })).toBe(0);
+    expect(dec({ pot: 'double' })).toBe(0);
+    expect(dec({ pair: '13' })).toBe(2);
+    for (const over of [{}, { pot: 'double', L: 1.5, Ub: 4.5, b: 0.5 }, { pair: '13' }]) {
+      const p = { ...p0, ...over } as never;
+      expect((Math.round(tm.frameStep / tm.h) * supDt(p)) / supPeriod(p)).toBeCloseTo(1 / 14, 2);
+    }
+  });
+
+  it('superposition: the x label sits under the tick numbers, outside the frame (it lay on the ground pair at 390 px)', async () => {
+    const { superposition } = await import('../src/sims/ch39/scene');
+    for (const [w, h] of [
+      [1280, 704],
+      [390, 680],
+    ]) {
+      const p = { ...defaults(superposition.params), pot: 'double', L: 1.5, Ub: 4.5, b: 0.5 } as never;
+      const g = new ProbeDraw(w, h);
+      g.vp.fit(superposition.world(p), w, h);
+      superposition.draw(g, { t: 0, n: 0 }, p, { t: 0, cursorT: 0, scrubbing: false, lecture: false });
+      const xl = g.marks.find((m) => m.kind === 'text' && /\(nm\)/.test(m.text ?? ''));
+      expect(xl, `${w}`).toBeDefined();
+      expect(xl!.y).toBeGreaterThan(h - 34 + 15);
+    }
+  });
+
+  it('ⓘ: nodes counted correctly per potential; symbols δ, z₀, x̄, A defined; no "E₁, E₂ look equal"', () => {
+    expect(ko['ch39.w.obs.nodes']).toContain('$n - 1$개 ($n = 1, 2, 3, \\dots$)');
+    expect(ko['ch39.w.obs.nodes']).toContain('조화 퍼텐셜은 $n$개');
+    expect(en['ch39.w.obs.nodes']).toContain('the oscillator\'s $E_n$ has $n$');
+    expect(wells.info.assumptions).toContain('ch39.w.assume.sym');
+    for (const d of [ko, en] as Record<string, string>[]) {
+      for (const s of ['\\delta', 'z_0']) expect(d['ch39.w.assume.sym']).toContain(s);
+      for (const s of ['\\bar x', '$A$']) expect(d['ch39.s.assume.mean']).toContain(s);
+    }
+    expect(ko['ch39.s.assume.time']).not.toContain('같게 보임');
+    expect(en['ch39.s.assume.time']).not.toContain('look equal');
+    // Interior nodes of ψ: E_n (n from 1) has n − 1, the oscillator's E_n has n.
+    const nodes = (psi: Float64Array) => {
+      let c = 0;
+      const peak = Math.max(...psi.map(Math.abs));
+      let last = 0;
+      for (const v of psi) {
+        if (Math.abs(v) < 1e-3 * peak) continue;
+        if (last && Math.sign(v) !== last) c++;
+        last = Math.sign(v);
+      }
+      return c;
+    };
+    for (const kind of ['infinite', 'finite', 'double', 'harmonic'] as const) {
+      const m = wellModel({ kind, L: 1, U0: 4, hw: 0.2, Ub: 2, b: 0.2 });
+      m.st.psi.forEach((p, k) => expect(nodes(p), `${kind} E${k + m.n0}`).toBe(k));
+    }
   });
 });

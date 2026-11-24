@@ -109,13 +109,17 @@ describe('photoelectric physics', () => {
     expect(collectedFraction(0.3, 0)).toBe(1);
   });
 
-  it('classical expectation: no threshold, cutoff ∝ power, delay of tens of minutes', () => {
+  it('classical expectation: no threshold, cutoff ∝ power, delay of minutes to hours', () => {
     expect(currentClassical(0, 1, 4.3)).toBeGreaterThan(0);
     expect(vStopClassical(2)).toBe(2 * vStopClassical(1));
     expect(currentClassical(-vStopClassical(1), 1, 7.5)).toBe(0);
     // Na, 1 µW on 1 cm², π(0.1 nm)²: 2.28 eV / (10⁻² W/m² · 3.14×10⁻²⁰ m²) = 1.16×10³ s.
     expect(classicalDelay(1, 2.28)).toBeCloseTo((2.28 * QE) / (1e-2 * Math.PI * 1e-20), 6);
     expect(classicalDelay(1, 2.28)).toBeCloseTo(1163, 0);
+    // The ⓘ range "about 9 min to 8 h" (QA 2026-11-24, was "tens of minutes"): Cs at 2 µW to Pt at 0.1 µW.
+    const phis = METALS.map((m) => m.phi);
+    expect(classicalDelay(2, Math.min(...phis)) / 60).toBeCloseTo(9.1, 1);
+    expect(classicalDelay(0.1, Math.max(...phis)) / 3600).toBeCloseTo(8.0, 1);
   });
 });
 

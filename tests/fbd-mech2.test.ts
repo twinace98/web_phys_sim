@@ -118,7 +118,9 @@ function stageIssues(scene: Scene<any, any>, s: any, p: Params, labels: string[]
 describe('Ch 11 roll: free-body diagram of the chosen body', () => {
   const base = { ...(defaults(rollScene.params) as any), fbd: true };
 
-  it('has the shared toggle', () => expectToggle(rollScene as Scene));
+  // In the drawer: θ and the body are the 2 main controls (design.md §4.1, QA 2026-11-24).
+  it('has the shared toggle', () =>
+    expect(rollScene.params.fbd).toMatchObject({ kind: 'toggle', label: 'fbd.p', desc: 'fbd.d', group: 'advanced', default: false }));
 
   it('Mg, N and f_s (none for the frictionless block); ΣF = M a down the incline at every angle', () => {
     for (const theta of [5, 17, 30, 40])

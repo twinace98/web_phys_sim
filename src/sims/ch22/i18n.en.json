@@ -22,6 +22,7 @@
   "ch22.as.units": "Charges in nC, lengths in m",
   "ch22.as.test": "Test charge $q_0 = +1$ nC. Source charges are held fixed (the force of the test charge on them is ignored)",
   "ch22.as.log": "Grid arrow length is a log scale of the field strength (over three decades); the direction is exact",
-  "ch22.as.force": "Force arrows share a linear scale set by the largest force. With 7 or more charges only the net force is drawn",
-  "ch22.as.plates": "Each plate is a row of 8 point charges. A row of point charges acts like a charged rod, not a sheet: a uniform field needs plates much wider than their gap with the charge spread evenly over the surface. The number of field lines is proportional to the charge (10 per nC)"
+  "ch22.as.force": "Force arrows share a linear scale set by the largest force (all shortened by the same factor where one would cover a charge). With 7 or more charges only the net force is drawn",
+  "ch22.as.plates": "Each plate is a row of 8 point charges. A row of point charges acts like a charged rod, not a sheet: a uniform field needs plates much wider than their gap with the charge spread evenly over the surface. The number of field lines is proportional to the charge (10 per nC)",
+  "ch22.as.sym": "$k = 1/(4\\pi\\varepsilon_0)$ = 8.99×10⁹ N·m²/C²: Coulomb constant, $\\varepsilon_0$ = 8.85×10⁻¹² C²/(N·m²): permittivity of free space. $\\hat r_i$: unit vector (length 1, direction only) from the $i$-th charge $q_i$ toward the test charge, $r_i$: the distance between them. $q_1$: the charge nearest to the test charge (labelled on the stage), $F_1$: the size of its force on the test charge"
 }

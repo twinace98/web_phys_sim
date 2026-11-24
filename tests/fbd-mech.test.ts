@@ -333,14 +333,14 @@ describe('Ch 7 work-energy', () => {
   const base = { ...(defaults(workEnergy.params) as any), fbd: true };
   const cases: any[] = [
     ...['const', 'spring', 'pw'].map((preset) => ({ ...base, preset })),
-    { ...base, preset: 'custom', custom: [2, -2, 2, -2] },
-    { ...base, preset: 'custom', custom: [-2, 0, 0, 0] },
+    { ...base, preset: 'custom', F1: 2, F2: -2, F3: 2, F4: -2 },
+    { ...base, preset: 'custom', F1: -2, F2: 0, F3: 0, F4: 0 },
     { ...base, preset: 'pw', bars: false },
   ];
 
   it('ΣF = m a: F(x) horizontally (a from the exact motion), N − mg = 0', () => {
     for (const p of cases) {
-      const su = makeSetup(p.preset, p.custom);
+      const su = makeSetup(p.preset, [p.F1, p.F2, p.F3, p.F4]);
       for (const s of statesAt(workEnergy, p)) {
         const fs = workFbd(s, p);
         const F = sum(fs);

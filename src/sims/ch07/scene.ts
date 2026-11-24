@@ -2,9 +2,9 @@
 // graph share one x axis. The signed area under F(x) from the start to the block (the work, as in
 // the Ch 2 area overlay) always equals the change ΔK on the K(x) graph and in the bars.
 import { fmtTick, niceTicks } from '../../core/format';
-import { ZERO, fmtScale, num, sigCancel, tn, tnCancel, tnScale, u } from '../../core/tex';
+import { ZERO, fmtScale, num, sigCancel, slider, tn, tnCancel, tnScale, u } from '../../core/tex';
 import { t as tr } from '../../core/i18n';
-import type { ParamSchema, Scene, Vec2 } from '../../core/types';
+import type { NumberParam, ParamSchema, Params, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { FBD_MIN_PX, drawFbd, fbdParam, type FbdForce } from '../../draw/fbd';
 import { measureRich } from '../../draw/text';
@@ -12,7 +12,11 @@ import { color, theme, withAlpha } from '../../draw/theme';
 import { LabelLayout } from '../ch03/labels';
 import { F_MAX, SEG, TRACK, force, kinetic, makeSetup, trajectory, work, type Preset, type Setup, type Trajectory } from './physics';
 
-type P = { preset: string; bars: boolean; fbd: boolean; custom: number[] };
+type P = { preset: string; bars: boolean; fbd: boolean; F1: number; F2: number; F3: number; F4: number };
+
+/** The custom force on each segment: four sliders, also set by dragging the handles on F(x). */
+const SEG_KEYS = ['F1', 'F2', 'F3', 'F4'] as const;
+const customOf = (p: P): number[] => SEG_KEYS.map((k) => p[k]);
 
 interface S {
   t: number;
@@ -54,10 +58,10 @@ let memoKey = '';
 type Scales = { x: number; v: number; K: number; W: number; F: number };
 let memo: { su: Setup; tj: Trajectory; F: [number, number]; K: number; B: number; Fmax: number; sc: Scales } | null = null;
 function model(p: P) {
-  const key = `${p.preset}|${p.custom.join(',')}`;
+  const key = `${p.preset}|${customOf(p).join(',')}`;
   if (key !== memoKey || !memo) {
     const pr = (['const', 'spring', 'pw', 'custom'].includes(p.preset) ? p.preset : 'const') as Preset;
-    const su = makeSetup(pr, p.custom);
+    const su = makeSetup(pr, customOf(p));
     const tMax = su.prof.kind === 'spring' ? 2 * Math.PI * Math.sqrt(su.m / su.prof.k) : T_MAX;
     const tj = trajectory(su, RATE, tMax);
     // Graph ranges: F over the track, K and |W| over the run.
@@ -102,6 +106,22 @@ const yB = (m: ReturnType<typeof model>, E: number) => {
   return b.mid + (E / m.B) * b.half * 0.92;
 };
 
+/** Slider of the custom force on segment i: 0.5 N steps, as the handles on the F(x) graph snap. */
+const segParam = (i: number): NumberParam => ({
+  kind: 'number',
+  label: `ch07.p.${SEG_KEYS[i]}`,
+  desc: 'ch07.d.F',
+  group: 'advanced',
+  live: false,
+  control: 'slider',
+  min: -F_MAX,
+  max: F_MAX,
+  step: 0.5,
+  default: [1, 0.5, -1, -0.5][i],
+  unit: 'N',
+  visibleIf: (p: Params) => p.preset === 'custom',
+});
+
 const params: ParamSchema<P> = {
   preset: {
     kind: 'select',
@@ -119,7 +139,11 @@ const params: ParamSchema<P> = {
   },
   fbd: fbdParam(),
   bars: { kind: 'toggle', label: 'ch07.p.bars', desc: 'ch07.d.bars', group: 'advanced', live: true, default: true },
-  custom: { kind: 'array', label: 'ch07.p.custom', group: 'hidden', live: false, default: [1, 0.5, -1, -0.5], min: -F_MAX, max: F_MAX },
+  // The custom force on each segment (QA 2026-11-24: drag-only before): a slider each.
+  F1: segParam(0),
+  F2: segParam(1),
+  F3: segParam(2),
+  F4: segParam(3),
 };
 
 /**
@@ -251,8 +275,10 @@ export function formulaLines(s: S, p: P): string[] {
   const W = work(su.prof, su.x0, s.x);
   const F = force(su.prof, s.x);
   let x = tnScale(s.x, sc.x);
-  const v = tnScale(s.v, sc.v);
-  const Ft = su.prof.kind === 'spring' ? tnScale(F, sc.F) : num(F);
+  let v = tnScale(s.v, sc.v);
+  // A custom segment force is a slider value: printed as its label (1.0, R1); preset forces as set.
+  const fTex = (f: number) => (p.preset === 'custom' ? slider(params.F1 as NumberParam, f) : num(f));
+  const Ft = su.prof.kind === 'spring' ? tnScale(F, sc.F) : fTex(F);
   const lines: string[] = [];
   if (su.prof.kind === 'spring') {
     const k = su.prof.k;
@@ -280,8 +306,12 @@ export function formulaLines(s: S, p: P): string[] {
     }
     if (!terms.length) lines.push(`W = \\int_{x_0}^{x} F\\,dx = ${tnScale(0, sc.W)}${u('J')}`);
     else {
-      const sum = terms.map((q) => `(${num(q.F)})(${Number.isInteger(q.dx) ? num(q.dx) : tn(q.dx)})`).join(' + ');
-      lines.push(`W = \\int_{x_0}^{x} F\\,dx = \\sum_i F_i\\,\\Delta x_i`, `= ${sum} = ${tnScale(W, sc.W)}${u('J')}`);
+      // R5b: where the segment works nearly cancel ((1.0)(2) + … + (−0.5)(1.67) = 0.163 against 0.165)
+      // the segment lengths keep the figures that reproduce the printed W.
+      const Wt = tnScale(W, sc.W);
+      const kd = sigCancel((r) => terms.reduce((a, q) => a + q.F * (Number.isInteger(q.dx) ? q.dx : r(q.dx)), 0), Wt, ZERO * sc.W);
+      const sum = terms.map((q) => `(${fTex(q.F)})(${Number.isInteger(q.dx) ? num(q.dx) : tnCancel(q.dx, kd)})`).join(' + ');
+      lines.push(`W = \\int_{x_0}^{x} F\\,dx = \\sum_i F_i\\,\\Delta x_i`, `= ${sum} = ${Wt}${u('J')}`);
     }
   }
   if (p.fbd) {
@@ -289,8 +319,20 @@ export function formulaLines(s: S, p: P): string[] {
     const Wt = m * G7;
     lines.push(`\\Sigma F_x = F = ${Ft}${u('N')} = ma,\\quad \\Sigma F_y = N - mg = ${tn(Wt)} - ${tn(Wt)} = 0`);
   }
-  lines.push(`K = \\tfrac12 mv^2 = \\tfrac12(${num(m)})(${v})^2 = ${tnScale(K, sc.K)}${u('J')}`);
-  lines.push(`\\Delta K = \\tfrac12 m(v^2 - v_0^2)`, `= \\tfrac12(${num(m)})[(${v})^2 - ${num(su.v0)}^2] = ${tnScale(dK, sc.W)}${u('J')}`);
+  // R5b: just after the start v ≈ v₀ and ΔK = ½m(v² − v₀²) cancels (½(2)[(1.00)² − 1²] = 0.00835);
+  // through v² a 3-figure v can also miss K by more than 1 % (½(2)(1.02)² = 1.04 against 1.03). v then
+  // keeps the figures that reproduce both results, one string on both lines (R8).
+  const Kt = tnScale(K, sc.K);
+  const dKt = tnScale(dK, sc.W);
+  if (v !== '0') {
+    const sv = Math.max(
+      sigCancel((r) => 0.5 * m * r(s.v) ** 2, Kt, ZERO * sc.K),
+      sigCancel((r) => 0.5 * m * (r(s.v) ** 2 - su.v0 ** 2), dKt, ZERO * sc.W),
+    );
+    if (sv > 3) v = tnCancel(s.v, sv);
+  }
+  lines.push(`K = \\tfrac12 mv^2 = \\tfrac12(${num(m)})(${v})^2 = ${Kt}${u('J')}`);
+  lines.push(`\\Delta K = \\tfrac12 m(v^2 - v_0^2)`, `= \\tfrac12(${num(m)})[(${v})^2 - ${num(su.v0)}^2] = ${dKt}${u('J')}`);
   return lines;
 }
 
@@ -404,7 +446,7 @@ export const workEnergy: Scene<P, S> = {
     if (p.preset === 'custom') {
       // Drag pills at the middle of each segment (as in Ch 2).
       for (let i = 0; i < SEG; i++) {
-        const [hx, hy] = g.vp.toPx(U(su, ((i + 0.5) * TRACK) / SEG), yF(m, p.custom[i]));
+        const [hx, hy] = g.vp.toPx(U(su, ((i + 0.5) * TRACK) / SEG), yF(m, customOf(p)[i]));
         g.ctx.save();
         g.ctx.beginPath();
         g.ctx.roundRect(hx - 13, hy - 4.5, 26, 9, 4.5);
@@ -423,7 +465,7 @@ export const workEnergy: Scene<P, S> = {
     lay.polyline(fPts);
     if (p.preset === 'custom') {
       for (let i = 0; i < SEG; i++) {
-        const [hx, hy] = g.vp.toPx(U(su, ((i + 0.5) * TRACK) / SEG), yF(m, p.custom[i]));
+        const [hx, hy] = g.vp.toPx(U(su, ((i + 0.5) * TRACK) / SEG), yF(m, customOf(p)[i]));
         lay.boxes.push({ x0: hx - 15, y0: hy - 6, x1: hx + 15, y1: hy + 6 });
       }
     }
@@ -472,6 +514,13 @@ export const workEnergy: Scene<P, S> = {
       const BAR_X = bb.x;
       const y0 = yB(m, 0);
       g.line({ x: BAR_X - 0.35, y: y0 }, { x: BAR_X + 2 * BAR_W + 0.65, y: y0 }, { role: 'axis', width: 1 });
+      // Value labels: centred over their bars, unless two long values (0.00558) on the same side
+      // would run into each other on a narrow stage: then they part at the middle of the gap.
+      const BAR2 = BAR_X + BAR_W + 0.3;
+      const vals = [W, K - K0].map((v) => fmtScale(v, m.sc.W));
+      const ws = vals.map((t) => measureRich(g.ctx, t, { size: 11 }) / theme.scale);
+      const gapPx = (BAR2 - BAR_X) / g.px(1);
+      const part = Math.sign(W) === Math.sign(K - K0) && (ws[0] + ws[1]) / 2 + 4 > gapPx;
       const bar = (x: number, v: number, fill: 'force' | 'energyK', name: string) => {
         g.polygon(
           [
@@ -483,11 +532,14 @@ export const workEnergy: Scene<P, S> = {
           { fill, fillAlpha: 0.85 },
         );
         const up = v >= 0;
-        g.text({ x: x + BAR_W / 2, y: yB(m, v) }, fmtScale(v, m.sc.W), { size: 11, color: TICK, align: 'center', dy: up ? -6 : 14 });
+        const first = x === BAR_X;
+        const mid = (BAR_X + BAR_W + BAR2) / 2;
+        const at = part ? { x: mid, y: yB(m, v) } : { x: x + BAR_W / 2, y: yB(m, v) };
+        g.text(at, fmtScale(v, m.sc.W), { size: 11, color: TICK, align: part ? (first ? 'right' : 'left') : 'center', dx: part ? (first ? -2 : 2) : 0, dy: up ? -6 : 14 });
         g.text({ x: x + BAR_W / 2, y: y0 }, name, { size: 13, color: '#1a1a1a', align: 'center', dy: up ? 18 : -8 });
       };
       bar(BAR_X, W, 'force', '*W*_{net}');
-      bar(BAR_X + BAR_W + 0.3, K - K0, 'energyK', 'Δ*K*');
+      bar(BAR2, K - K0, 'energyK', 'Δ*K*');
       g.text({ x: BAR_X - 0.35, y: y0 }, '(J)', { size: 12, color: TICK, align: 'right', baseline: 'middle', dx: -6 });
     }
   },
@@ -497,7 +549,7 @@ export const workEnergy: Scene<P, S> = {
     pos: (_s: S, p: P) => {
       const m = model(p);
       const xm = ((i + 0.5) * TRACK) / SEG;
-      return { x: U(m.su, xm), y: yF(m, p.custom[i]) };
+      return { x: U(m.su, xm), y: yF(m, customOf(p)[i]) };
     },
     radiusPx: 16,
     onDrag: (ctx, _s, w) => {
@@ -505,10 +557,8 @@ export const workEnergy: Scene<P, S> = {
       const span = F_BAND[1] - F_BAND[0];
       const F = m.F[0] + ((w.y - F_BAND[0]) / span) * (m.F[1] - m.F[0]);
       const v = Math.min(F_MAX, Math.max(-F_MAX, Math.round(F * 2) / 2));
-      if (v === ctx.params.custom[i]) return;
-      const next = [...ctx.params.custom];
-      next[i] = v;
-      ctx.set('custom', next);
+      if (v === ctx.params[SEG_KEYS[i]]) return;
+      ctx.set(SEG_KEYS[i], v);
     },
   })),
 

@@ -75,12 +75,16 @@ export class SimView {
   private formulaW = 0;
   /** Row breaks of the Σ lines, kept while a line keeps its shape (formulafit.ts). */
   private formulaMemo: FormulaMemo = new Map();
+  /** The Σ lines last drawn, to fit again when fonts arrive. */
+  private formulaLines: string[] = [];
   private mainEl: HTMLElement | null = null;
   private dockRo?: ResizeObserver;
   private playBtn: HTMLButtonElement | null = null;
   private shownPlaying: boolean | null = null;
   private timeVal: HTMLElement | null = null;
   private readoutVals: HTMLElement[] = [];
+  /** The " = " after each readout label: a bound ("< 1", "> −10⁻¹⁴") reads "n < 1", not "n = < 1". */
+  private readoutEqs: HTMLElement[] = [];
   private readoutUnits: HTMLElement[] = [];
   private stagePanel: StagePanel | null = null;
 
@@ -125,7 +129,17 @@ export class SimView {
     window.addEventListener('focusin', onFocus, true);
     document.addEventListener('visibilitychange', onVis);
     phone.addEventListener('change', onPhone);
+    // KaTeX fonts that finish loading after a fit change every width: fit the Σ lines and the ⓘ
+    // equations again (a cold load under load once left a Σ line 12 px too wide).
+    const onFonts = () => {
+      this.formulaMemo.clear();
+      if (this.formulaBox && this.formulaLines.length) fitFormula(this.formulaBox, this.formulaLines, this.formulaMemo);
+      this.formulaW = this.formulaBox?.clientWidth ?? 0;
+      if (this.eqBox) fitEquations(this.eqBox);
+    };
+    document.fonts?.addEventListener('loadingdone', onFonts);
     this.off.push(
+      () => document.fonts?.removeEventListener('loadingdone', onFonts),
       () => window.removeEventListener('keydown', onKey),
       () => phone.removeEventListener('change', onPhone),
       () => window.removeEventListener('resize', onResize),
@@ -300,14 +314,17 @@ export class SimView {
 
     const ros = h('div', { class: 'readouts' });
     this.readoutVals = [];
+    this.readoutEqs = [];
     this.readoutUnits = [];
     for (const spec of this.scene.readouts ?? []) {
       const val = h('span', { class: 'val' });
       const el = h('span', { class: 'ro' });
-      el.innerHTML = `${tex(spec.label)} = `;
+      el.innerHTML = tex(spec.label);
+      const eq = h('span', null, ' = ');
       const unit = h('span', null, unitAfter(spec.unit));
-      el.append(val, unit);
+      el.append(eq, val, unit);
       ros.append(el);
+      this.readoutEqs.push(eq);
       this.readoutVals.push(val);
       this.readoutUnits.push(unit);
     }
@@ -550,8 +567,10 @@ export class SimView {
     if (key === this.formulaTex && w === this.formulaW) return;
     this.formulaW = w;
     this.formulaTex = key;
+    this.formulaLines = lines;
     // One font size for every line; a long line breaks after "=" into rows (formulafit.ts).
     fitFormula(this.formulaBox, lines, this.formulaMemo);
+    this.formulaW = this.formulaBox.clientWidth;
     // On a cold load KaTeX's fonts may still be arriving: measure again once they are in.
     const box = this.formulaBox;
     void document.fonts?.ready.then(() => {
@@ -884,7 +903,9 @@ export class SimView {
     (scene.readouts ?? []).forEach((spec, i) => {
       // An undefined value reads "–" alone: no unit after it.
       const v = spec.value(s, p);
-      this.readoutVals[i].textContent = readoutText(spec, v, p, s);
+      const text = readoutText(spec, v, p, s);
+      this.readoutVals[i].textContent = text;
+      this.readoutEqs[i].textContent = /^[<>≤≥]/.test(text) ? ' ' : ' = ';
       this.readoutUnits[i].hidden = !Number.isFinite(v);
     });
     if (this.playBtn && this.shownPlaying !== r.playing) {

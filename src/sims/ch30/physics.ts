@@ -42,14 +42,19 @@ export interface FaradayState {
   dphi: number;
 }
 
+/**
+ * Loop centre or magnet centre from −TRAVEL to +TRAVEL. The magnet used to start 0.2 m further
+ * out (±1.2 m), half of it off the ±1.2 m stage at the start and the end (QA 2026-11-24); its
+ * ends now reach ±1.15 m.
+ */
 export function faradayAt(scenario: 'region' | 'magnet', t: number, v: number, B: number): FaradayState {
-  const x = -TRAVEL - (scenario === 'magnet' ? 0.2 : 0) + v * t;
+  const x = -TRAVEL + v * t;
   if (scenario === 'magnet') return { x, phi: dipoleFlux(x), dphi: dipoleFluxRate(x) * v };
   return { x, phi: B * A_LOOP * overlap(x), dphi: B * A_LOOP * overlapRate(x) * v };
 }
 
 /** Travel time of the scenario at speed v. */
-export const faradayEnd = (scenario: 'region' | 'magnet', v: number) => (2 * TRAVEL + (scenario === 'magnet' ? 0.4 : 0)) / v;
+export const faradayEnd = (_scenario: 'region' | 'magnet', v: number) => (2 * TRAVEL) / v;
 
 // ------------------------------------------------------------------ Maxwell tab: Faraday
 

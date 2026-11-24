@@ -170,8 +170,10 @@ function drawMoments(g: Draw, s: S, p: P): void {
 /**
  * Σ panel: the field B/B_max, the live M/M_s from the moment count (or −χB/B_max for the
  * diamagnet), and the equilibrium reference: tanh(μB/k_BT) for the paramagnet, the spontaneous
- * |M| at B = 0 below T_C (0 at or above it) for the ferromagnet. Energies in units of the
- * neighbour coupling J, as in the model.
+ * |M| at B = 0 below T_C (0 at or above it) for the ferromagnet. Energies relative to k_BT_C and
+ * temperatures as T/T_C, as on the slider: the model's neighbour coupling J and Onsager's formula
+ * are beyond first year and stay out of the panel (curriculum: no Ising formalism on screen,
+ * QA 2026-11-24).
  */
 export function formulaMagnet(s: S, p: P): string[] {
   const b = s.B / B0;
@@ -190,20 +192,15 @@ export function formulaMagnet(s: S, p: P): string[] {
   const kT = p.T * TC;
   const T = slider(params.T as NumberParam, p.T);
   if (p.mat === 'para') {
-    lines.push(`\\frac{M}{M_\\text{s}} \\approx \\tanh\\frac{\\mu B}{k_BT} = \\tanh\\frac{${tn(s.B)}\\,J}{${tn(kT)}\\,J} = ${tn(paraM(s.B, kT), 2)}`);
+    // μB/k_BT = (μB/k_BT_C)/(T/T_C): the field energy against the thermal energy at T_C.
+    lines.push(`\\frac{M}{M_\\text{s}} \\approx \\tanh\\frac{\\mu B}{k_BT} = \\tanh\\frac{\\mu B/k_BT_C}{T/T_C} = \\tanh\\frac{${tn(s.B / TC)}}{${T}} = ${tn(paraM(s.B, kT), 2)}`);
     return lines;
   }
-  lines.push(`k_BT_C = \\frac{2J}{\\ln(1 + \\sqrt2)} = ${tn(TC)}\\,J`);
   // Zero only for an infinite lattice: the 36 × 24 lattice keeps |M|/M_s ≈ 0.64 at T_C and 0.21 at
   // 1.1 T_C from fluctuations (QA 2026-11-24), so the line states the limit (ⓘ gives the numbers).
   if (p.T >= 1) lines.push(`T = ${T}\\,T_C \\ge T_C:\\ \\lvert M\\rvert_{B=0} \\to 0\\ (N \\to \\infty)`);
-  else {
-    const y = 2 / kT;
-    lines.push(
-      `\\frac{2J}{k_BT} = \\frac{2}{${T} \\times ${tn(TC)}} = ${tn(y)}`,
-      `\\frac{\\lvert M\\rvert_{B=0}}{M_\\text{s}} = \\left[1 - \\sinh^{-4}\\frac{2J}{k_BT}\\right]^{1/8} = ${tn(onsagerM(kT))}`,
-    );
-  }
+  // Below T_C the equilibrium value of the infinite lattice (onsagerM), without its formula.
+  else lines.push(`T = ${T}\\,T_C < T_C:\\ \\frac{\\lvert M\\rvert_{B=0}}{M_\\text{s}} = ${tn(onsagerM(kT))}`);
   return lines;
 }
 

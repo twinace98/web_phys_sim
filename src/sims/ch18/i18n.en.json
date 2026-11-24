@@ -27,7 +27,7 @@
   "ch18.obs.isothermal": "Isothermal: constant temperature, so $\\Delta E_\\text{int} = 0$ and all the heat becomes work; $Q = W$",
   "ch18.obs.adiabatic": "Adiabatic: $Q = 0$, so the work done in expanding comes out of the internal energy and the gas cools. The curve is steeper than an isotherm",
   "ch18.obs.gas": "Diatomic gas: larger $\\Delta E_\\text{int}$ for the same temperature change, less steep adiabat ($\\gamma = 7/5$)",
-  "ch18.assume.ideal": "Ideal gas, about 0.401 mol (300 K at 10 L and 100 kPa)",
+  "ch18.assume.ideal": "Ideal gas, $nR = pV/T = (100\\ \\text{kPa})(10\\ \\text{L})/(300\\ \\text{K}) = 3.33\\ \\text{J/K}$ (about 0.401 mol; 1 kPa·L = 1 J). $\\gamma = (f + 2)/f$: ratio of heat capacities $C_p/C_V$, 5/3 monatomic, 7/5 diatomic",
   "ch18.assume.quasi": "Quasi-static processes: equilibrium at every instant. Frictionless piston. Dots in the cylinder sketch molecular motion (fewer and slower than real)",
   "ch18.p.hl": "Shaded path",
   "ch18.d.hl": "Path whose area under the curve (work done by the gas) is shaded",

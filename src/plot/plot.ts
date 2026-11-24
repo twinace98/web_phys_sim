@@ -470,7 +470,7 @@ export class PlotGroup<P extends Params> {
     ctx.stroke();
     ctx.restore();
     v.dot(tc, yc, { role: ov.role, r: 3.5 });
-    const txt = `${tr('plot.slope')} = ${fmt(k)} ${ov.unit}`;
+    const txt = `${tr('plot.slope')} = ${ov.format?.(k) ?? fmt(k)} ${ov.unit}`;
     const s = theme.scale;
     // Beside either end of the tangent, above or below: the first spot clear of curves and labels.
     const xr = Math.min(bx, v.R) + 6;

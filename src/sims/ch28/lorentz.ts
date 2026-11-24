@@ -12,6 +12,8 @@ interface S {
   n: number;
   ps: Kin[];
   trails: number[][];
+  /** Field [T] the particles moved in at the last step (a live change of B is detected against it). */
+  B: number;
 }
 
 const RATE = 120;
@@ -84,6 +86,35 @@ const params: ParamSchema<P> = {
 
 const cm = (k: Kin): Vec2 => ({ x: k.x * 100, y: k.y * 100 });
 
+/** Particles at the launch point, heading along +x. */
+const launch = (p: P): Kin[] => speeds(p).map((v) => ({ x: 0, y: 0, vx: v, vy: 0 }));
+
+/** Centre of the circle a particle is on [m] in the field B [T] (into the page). */
+export function orbitCentre(k: Kin, pt: Particle, B: number): Vec2 {
+  // Angular velocity about +z (counter-clockwise for q > 0); the centre lies to the left of v.
+  const W = (pt.q * B) / pt.m;
+  return { x: k.x - k.vy / W, y: k.y + k.vx / W };
+}
+
+/**
+ * Whether every particle's circle in the field B lies inside the stage's world box (the box of
+ * `world`, before the aspect padding). Lowering B mid-run turns each particle onto a larger
+ * circle tangent to its path: from the top of a small circle that circle reaches far below the
+ * launch point, off the stage (QA 2026-11-24).
+ */
+export function orbitsFit(ps: Kin[], p: P, B: number): boolean {
+  const pt = ptOf(p);
+  const R = viewR(p) / 100;
+  const pos = pt.q > 0;
+  const [y0, y1] = pos ? [-0.3 * R, 2.12 * R] : [-2.12 * R, 0.3 * R];
+  const tol = 1e-9 * R;
+  return ps.every((k) => {
+    const c = orbitCentre(k, pt, B);
+    const r = radius(pt, Math.hypot(k.vx, k.vy), B);
+    return c.x - r >= -1.15 * R - tol && c.x + r <= 1.15 * R + tol && c.y - r >= y0 - tol && c.y + r <= y1 + tol;
+  });
+}
+
 /** Readouts: r [cm] of the fastest particle, T [ns]. */
 export const readR = (s: S, p: P) => {
   const k = s.ps[s.ps.length - 1];
@@ -137,14 +168,24 @@ export const lorentzScene: Scene<P, S> = {
   init: (p) => ({
     t: 0,
     n: 0,
-    ps: speeds(p).map((v) => ({ x: 0, y: 0, vx: v, vy: 0 })),
+    ps: launch(p),
     trails: speeds(p).map(() => [0, 0]),
+    B: Bof(p),
   }),
 
   step: (s, h, p) => {
     const dtNs = h * nsPerSec(p);
     const pt = ptOf(p);
     const Bz = -Bof(p);
+    // B changed mid-run: the particles carry on along circles of the new radius, unless one of
+    // those circles would leave the stage; then they start again from the launch point.
+    if (Bof(p) !== s.B) {
+      if (!orbitsFit(s.ps, p, Bof(p))) {
+        s.ps = launch(p);
+        s.trails = s.ps.map(() => [0, 0]);
+      }
+      s.B = Bof(p);
+    }
     s.n += 1;
     s.t += dtNs;
     s.ps.forEach((k, i) => {
@@ -178,6 +219,17 @@ export const lorentzScene: Scene<P, S> = {
       ],
       { fill: '#8a8a8a' },
     );
+
+    // The radius the r readout gives: the fastest particle's circle, from its centre straight
+    // toward the launch side (QA 2026-11-24: which particle r belongs to was not shown).
+    const kr = s.ps[s.ps.length - 1];
+    const cr = orbitCentre(kr, pt, Bof(p));
+    const rr = radius(pt, Math.hypot(kr.vx, kr.vy), Bof(p));
+    const foot = { x: cr.x * 100, y: (cr.y + (pos ? -rr : rr)) * 100 };
+    g.line({ x: cr.x * 100, y: cr.y * 100 }, foot, { color: '#9a9a9a', width: 1.25, dash: [4, 4] });
+    // Label just short of the centre: the slower particles' circles cross this line only at the
+    // launch point and at their tops (2/3 and 4/3 of the way up).
+    g.text({ x: foot.x, y: cr.y * 100 + 0.15 * (foot.y - cr.y * 100) }, '*r*', { size: 13, color: '#8a8a8a', align: 'left', baseline: 'middle', dx: 6 });
 
     s.trails.forEach((tr) => {
       const pts: Vec2[] = [];

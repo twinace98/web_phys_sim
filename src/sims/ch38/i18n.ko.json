@@ -20,5 +20,5 @@
   "ch38.k.obs.spread": "좁은 파속일수록 이동하며 빨리 퍼짐 (자유 입자의 분산)",
   "ch38.k.assume.electron": "입자: 자유 전자, 1차원. $k_0$ = 10 nm⁻¹ → 운동에너지 3.8 eV, 속력 1.16 nm/fs",
   "ch38.k.assume.define": "$\\Delta x$, $\\Delta k$: 표준편차 ($|\\psi|^2$, $a_j^2$ 가중). 운동량 $p = \\hbar k$ → $\\Delta p = \\hbar\\,\\Delta k$, $\\Delta x\\,\\Delta p \\ge \\hbar/2$ (가우스 파속에서 등호). 교과서의 $\\Delta x\\,\\Delta p \\ge \\hbar$는 크기 정도를 나타내는 표현",
-  "ch38.k.assume.period": "성분 간격이 일정해 파속이 42 nm마다 반복됨 (성분 수가 유한하기 때문), $\\Delta x$는 한 주기 안에서 계산. $\\Delta x$ > 7 nm (주기의 1/6, 평면파 1–3개)이면 $|\\psi|^2$이 주기 전체에 퍼져 파속이 아님 → $\\Delta x$, $\\Delta x\\,\\Delta k$ 표시 –"
+  "ch38.k.assume.period": "성분 간격이 일정해 파속이 42 nm마다 반복됨 (성분 수가 유한하기 때문), $\\Delta x$는 한 주기 안에서 계산. 무대는 파속 중심에서 반 주기 (±21 nm) 안만 그림 (끝 3 nm에서 서서히 0으로), 이웃 주기의 복제 파속은 생략. $\\Delta x$ > 7 nm (주기의 1/6, 평면파 1–3개)이면 $|\\psi|^2$이 주기 전체에 퍼져 파속이 아님 → 전체를 그림, $\\Delta x$, $\\Delta x\\,\\Delta k$ 표시 –. 좁은 화면의 $x$ 범위는 −4 ~ 24 nm (넓은 화면 −5 ~ 35 nm)"
 }

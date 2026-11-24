@@ -72,6 +72,16 @@ function measure(d: HTMLElement): { k: HTMLElement; need: number; base: number }
  * as few rows as fit; a part wider than the panel on its own row shrinks alone, to FORMULA_FLOOR.
  */
 export function fitFormula(box: HTMLElement, lines: string[], memo: FormulaMemo): void {
+  // The fit can change the panel's height and so its scrollbar and width: fit again at the new width.
+  for (let k = 0; k < 3; k++) {
+    const before = box.clientWidth;
+    fitOnce(box, lines, memo);
+    if (box.clientWidth === before) return;
+    memo.clear();
+  }
+}
+
+function fitOnce(box: HTMLElement, lines: string[], memo: FormulaMemo): void {
   box.innerHTML = lines.map((l) => tex(l, true)).join('');
   const avail = box.clientWidth;
   if (!(avail > 0)) return;

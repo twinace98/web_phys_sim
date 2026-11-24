@@ -133,14 +133,18 @@ describe('Σ group F: Ch 38 wave packet', () => {
 
 describe('Σ group F: Ch 39', () => {
   it('wells: the printed levels are the solver levels on the diagram', () => {
-    for (const L of [0.5, 1, 1.5]) {
+    for (const L of Array.from({ length: 21 }, (_, i) => Number((0.5 + 0.05 * i).toFixed(2)))) {
       const { lines, p } = run(wells as Scene, { pot: 'infinite', L });
       const E = model(p as never).st.E;
       lines.forEach((l, k) => expect(result(l)).toBe(tn(E[k])));
-      // E_n = n² E₁: the shown product agrees with the level (policy D, R3: within 1 %).
+      // E_n = n² h²/8mL²: the shown product is the printed level to its last digit (QA 2026-11-24:
+      // 4 × 1.50 next to 6.02 at L = 0.50 nm).
       for (const l of lines.slice(1)) {
-        const [n2, e1] = l.split(' = ')[2].split(' \\times ');
-        expect(agrees(Number(n2) * Number(e1), result(l)), l).toBe(true);
+        const m = /= (\d+) \\times \\frac\{([\d.]+)\\ \\mathrm\{eV\\,nm\^2\}\}\{\(([\d.]+)\\ \\mathrm\{nm\}\)\^2\} = /.exec(l);
+        expect(m, l).not.toBeNull();
+        const v = (Number(m![1]) * Number(m![2])) / Number(m![3]) ** 2;
+        expect(v.toFixed(result(l).split('.')[1]?.length ?? 0), l).toBe(result(l));
+        expect(agrees(v, result(l)), l).toBe(true);
       }
     }
     const h = run(wells as Scene, { pot: 'harmonic', hw: 0.37 });

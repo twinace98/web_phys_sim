@@ -212,7 +212,7 @@ describe('Ch 41 metal: ko matches en (E_F inside a partly filled band)', () => {
   });
 });
 
-describe('106 gravity field: Φ and ∇ are defined in ⓘ', () => {
+describe('106 gravity field: Φ is defined in ⓘ, no ∇ (beyond first year)', () => {
   it('Φ = U/m in J/kg, and g = −∇Φ points downhill, perpendicular to the equipotentials', () => {
     hasKeys(gravfield as Scene, gfko, gfen, ['gravfield.goal.phi', 'gravfield.goal.grad']);
     expect(gfko['gravfield.goal.phi']).toContain('$U/m$');
@@ -223,9 +223,12 @@ describe('106 gravity field: Φ and ∇ are defined in ⓘ', () => {
     expect(gfen['gravfield.goal.grad']).toMatch(/downhill.*perpendicular/);
     for (const d of [gfko, gfen] as Dict[])
       for (const k of ['gravfield.goal.phi', 'gravfield.goal.grad']) {
-        if (k === 'gravfield.goal.grad') expect(d[k]).toContain('\\vec g = -\\nabla\\Phi');
+        // ∇Φ was trimmed as beyond first year (QA P3 2026-11-24): the component form stays.
+        if (k === 'gravfield.goal.grad') expect(d[k]).toContain('g_s = -\\partial\\Phi/\\partial s');
+        expect(d[k]).not.toContain('\\nabla');
         expect(tightDollar(d[k])).toBe(false);
       }
+    expect((gravfield as Scene).info.equations!.join(' ')).not.toContain('\\nabla');
   });
 });
 

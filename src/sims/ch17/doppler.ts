@@ -1,6 +1,7 @@
 // Ch 17 scene: Doppler effect. A point source emits a circular wavefront once per period.
 // Moving source: fronts crowd ahead and spread behind; at v_s > v they form the Mach cone.
 // Moving observers: the fronts stay concentric, but A meets them more often than B.
+import { fmt } from '../../core/format';
 import { tn, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { color } from '../../draw/theme';
@@ -28,6 +29,9 @@ const SCALE = 0.025;
 const F_SLOW = 600;
 /** Longest run on screen at 1× [wall s]: a slowed run is shortened to this. */
 const WALL_MAX = 12;
+/** At or above the speed of sound: source and B at t = 0 [m], the source 12 m left of B. */
+const SONIC_XS0 = -0.9 * W;
+const SONIC_XB0 = -0.6 * W;
 /** Emission starts at least this long before t = 0, so the pattern fills the view [s]… */
 const TPRE_MIN = (2.2 * W) / V;
 /** …and at most this long (about 600 fronts). */
@@ -37,11 +41,20 @@ function build(p: P, run: number): Doppler {
   const src = p.who === 'source';
   const vs = src ? p.vs : 0;
   const vo = src ? 0 : p.vo;
-  const xs0 = src ? -(vs * run) / 2 : 0;
+  const sonic = src && vs >= V;
+  // At or above the speed of sound the source starts left of B and passes it during the run, so the
+  // cone sweeps over B on screen; below it, the run is centred on the view.
+  const xs0 = sonic ? SONIC_XS0 : src ? -(vs * run) / 2 : 0;
   const xA0 = 0.85 * W;
+  const xB0 = sonic ? SONIC_XB0 : src ? -0.85 * W : -0.25 * W;
   // Below the speed of sound the source has been emitting long enough for its oldest front to
   // reach A two periods before t = 0: A hears the sound from the start of the run.
   const reachA = vs > 0 && vs < V ? (xA0 - xs0) / (V - vs) + 2 / F : 0;
+  // Above it, long enough that B still hears f'_B2 (the fronts sent towards B before the source
+  // passed, arriving in reverse order) at the end of the run, two periods to spare. The source
+  // passes B at tp; the front emitted at −tPre arrives at tp + (tp + tPre)(v_S − v)/v.
+  const tp = sonic ? (xB0 - xs0) / vs : 0;
+  const keepB2 = src && vs > V ? ((run - tp) * V) / (vs - V) - tp + 2 / F : 0;
   return {
     v: V,
     f: F,
@@ -49,8 +62,8 @@ function build(p: P, run: number): Doppler {
     xs0,
     vo,
     xA0,
-    xB0: src ? -0.85 * W : -0.25 * W,
-    tPre: Math.min(Math.max(TPRE_MIN, reachA), TPRE_MAX),
+    xB0,
+    tPre: Math.min(Math.max(TPRE_MIN, reachA, keepB2), TPRE_MAX),
   };
 }
 
@@ -196,10 +209,11 @@ export const doppler: Scene<P, { t: number }> = {
 
   // A branch reads "–" while none of its fronts is arriving. Above the speed of sound B hears two
   // sounds at once: f'_B (sent back after the source passed) and f'_B2 (sent towards B before).
+  // Both go in B's readout, "40.0 Hz, 200 Hz" (f'_B, f'_B2), so no readout sits empty for a run
+  // that has no second sound.
   readouts: [
     { label: "f'_A", unit: 'Hz', value: (s, p) => heardAt(cfg(p), s.t).A },
-    { label: "f'_B", unit: 'Hz', value: (s, p) => heardAt(cfg(p), s.t).B },
-    { label: "f'_{B2}", unit: 'Hz', value: (s, p) => heardAt(cfg(p), s.t).B2 },
+    { label: "f'_B", unit: 'Hz', value: (s, p) => heardB(p, s.t).value, format: (_v, s, p) => heardB(p, s.t).text },
   ],
 
   formula: (s, p) => formulaLines(p, s.t),
@@ -211,6 +225,16 @@ export const doppler: Scene<P, { t: number }> = {
     assumptions: ['ch17.d.assume.medium', 'ch17.d.assume.start', 'ch17.d.assume.slow'],
   },
 };
+
+/**
+ * What B's readout shows at time t: f'_B, and while B also hears the second sound, ", f'_B2" after
+ * it ("–" for a branch that is silent). `value` is finite when B hears anything (the unit shows).
+ */
+export function heardB(p: P, t: number): { value: number; text: string | undefined } {
+  const h = heardAt(cfg(p), t);
+  if (!Number.isFinite(h.B2)) return { value: h.B, text: undefined };
+  return { value: h.B2, text: `${fmt(h.B, 3)}${Number.isFinite(h.B) ? ' Hz' : ''}, ${fmt(h.B2, 3)}` };
+}
 
 /**
  * Σ panel: the frequencies A and B are hearing at time t (a line only while its readout shows a

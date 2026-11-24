@@ -1,10 +1,10 @@
 // Ch 9 scene: two pucks collide on a frictionless table. The momentum vectors added tail to
 // head always close on the same total, before and after the collision.
 import { t as tr } from '../../core/i18n';
-import { num, slider, tn, tnScale, u } from '../../core/tex';
+import { ZERO, num, slider, tnScale, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
-import { C1, C2, cmMark, halo, padded, trioLabel } from './common';
+import { C1, C2, cmMark, fitInputs, halo, padded, trioLabel } from './common';
 import { kinetic2, motion2D, state2D, type Kind2D, type Motion2D, type Puck } from './physics';
 
 type P = { kind: string; b: number; m2: number; v1: number; e: number };
@@ -224,17 +224,22 @@ export function formulaLines(s: S, p: P): string[] {
   const [a, b] = [k.a, k.b];
   const m1 = `(${num(a.m)})`;
   const m2 = `(${slider(params.m2, b.m)})`;
-  const comp = (i: 0 | 1, c: string) => [
-    `p_{\\mathrm{tot},${c}} = m_1 v_{1${c}} + m_2 v_{2${c}}`,
-    `= ${m1}(${tn(a.v[i])}) + ${m2}(${tn(b.v[i])}) = ${tnScale(k.p1[i] + k.p2[i], sc.p)}${u('kg\\,m/s')}`,
-  ];
+  // R5b: a component sum that nearly cancels (p_tot,y), or K through the squares, keeps the figures
+  // that reproduce its printed result.
+  const comp = (i: 0 | 1, c: string) => {
+    const P = tnScale(k.p1[i] + k.p2[i], sc.p);
+    const [v1, v2] = fitInputs([a.v[i], b.v[i]], ([x, y]) => a.m * x + b.m * y, P, ZERO * sc.p);
+    return [`p_{\\mathrm{tot},${c}} = m_1 v_{1${c}} + m_2 v_{2${c}}`, `= ${m1}(${v1}) + ${m2}(${v2}) = ${P}${u('kg\\,m/s')}`];
+  };
   const s1 = Math.hypot(a.v[0], a.v[1]);
   const s2 = Math.hypot(b.v[0], b.v[1]);
+  const Kt = tnScale(k.Kt, sc.K);
+  const [t1, t2] = fitInputs([s1, s2], ([x, y]) => 0.5 * a.m * x ** 2 + 0.5 * b.m * y ** 2, Kt, ZERO * sc.K);
   return [
     ...comp(0, 'x'),
     ...comp(1, 'y'),
     `K_\\mathrm{tot} = \\tfrac12 m_1 v_1^2 + \\tfrac12 m_2 v_2^2`,
-    `= \\tfrac12${m1}(${tn(s1)})^2 + \\tfrac12${m2}(${tn(s2)})^2 = ${tnScale(k.Kt, sc.K)}${u('J')}`,
+    `= \\tfrac12${m1}(${t1})^2 + \\tfrac12${m2}(${t2})^2 = ${Kt}${u('J')}`,
   ];
 }
 

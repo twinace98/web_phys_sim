@@ -120,7 +120,7 @@ export const cycleScene: Scene<P, S> = {
   },
 
   readouts: [
-    // Energies in whole joules, as in the Σ panel and on the bars (policy D, R7a, R8).
+    // Energies to 3 figures on the run scale E_SCALE, as in the Σ panel and on the bars (policy D, R7a, R8).
     { label: 'W', unit: 'J', value: (s, p) => point(s, p).W, scale: E_SCALE },
     { label: 'Q', unit: 'J', value: (s, p) => point(s, p).Q, scale: E_SCALE },
     { label: '\\Delta E_\\text{int}', unit: 'J', value: (s, p) => point(s, p).dE, scale: E_SCALE },

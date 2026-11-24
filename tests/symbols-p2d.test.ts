@@ -62,23 +62,26 @@ function inBoth(key: string, ko: Msgs, en: Msgs): void {
   expect(en[key], `en ${key}`).toBeTruthy();
 }
 
-describe('Ch 5 inertial frames: primed symbols', () => {
-  it('ⓘ defines primes (train frame) vs unprimed (ground) with the transformation, in ko and en', () => {
+describe('Ch 5 inertial frames: one symbol per quantity (QA 2026-11-24: readout a against Σ a\')', () => {
+  it('ⓘ defines x, v, a in the chosen frame and a = a_G − a_0, in ko and en', () => {
     inBoth('ch05.f.assume.sym', ko05, en05);
     expect(frames.info.assumptions).toContain('ch05.f.assume.sym');
     for (const m of [ko05, en05] as Msgs[]) {
       const s = m['ch05.f.assume.sym'];
-      for (const t of ["$x'$", "$v'$", "$a'$", "x' = x - x_\\text{train}", "v' = v - v_\\text{train}", "a' = a - a_0"]) expect(s).toContain(t);
+      for (const t of ['$x$', '$v$', '$a$', '$a_\\text{G}$', 'a = a_\\text{G} - a_0']) expect(s).toContain(t);
+      expect(s).not.toMatch(/[xva]'/);
     }
   });
 
-  it('train-frame observations use a′, as the Σ panel does', () => {
+  it('train-frame observations and the Σ panel use a, as the readouts and the stage do', () => {
     for (const m of [ko05, en05] as Msgs[]) {
-      expect(m['ch05.f.obs.uniform']).toContain("$a' = 0$");
-      expect(m['ch05.f.obs.accel']).toContain("$a' = -a_0$");
+      expect(m['ch05.f.obs.uniform']).toContain('$a = 0$');
+      expect(m['ch05.f.obs.accel']).toContain('$a = -a_0$');
     }
     const lines = frames.formula!(new Runner(frames, defaults(frames.params) as never, 1).state as never, defaults(frames.params) as never);
-    expect(lines.some((l) => l.startsWith("a' = a - a_0"))).toBe(true);
+    expect(lines.some((l) => l.startsWith('a = a_\\text{G} - a_0'))).toBe(true);
+    expect(lines.join(' ')).not.toMatch(/[av]'/);
+    expect(frames.readouts!.map((r) => r.label)).toContain('a');
   });
 });
 

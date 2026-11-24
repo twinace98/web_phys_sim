@@ -99,3 +99,64 @@ describe('ch40 scenes', () => {
     expect(fr[fr.length - 1]).toBe(1);
   });
 });
+
+describe('ch40 QA 2026-11-24 (P3)', () => {
+  it('cos²(θ/2) is a prediction with 3 figures: 0.998 at 5° (was "1.0"), the same string in the readout and Σ', async () => {
+    const { readoutText } = await import('../src/core/tex');
+    for (const [theta, want] of [
+      [5, '0.998'],
+      [60, '0.750'],
+      [0, '1.00'],
+      [175, '0.00190'],
+    ] as const) {
+      const p = { ...defaults(angle.params), theta };
+      const r = new Runner(angle, p, 1);
+      const spec = angle.readouts!.find((x) => x.label === '\\cos^2(\\theta/2)')!;
+      expect(readoutText(spec as never, spec.value(r.state, p), p)).toBe(want);
+      expect(angle.formula!(r.state, p)[0]).toMatch(new RegExp(`= ${want.replace('.', '\\.')}$`));
+    }
+  });
+
+  it('error bar: ±σ_P from the prediction (the Σ panel σ_P), drawn about the measured fraction', async () => {
+    const { ProbeDraw } = await import('./stage-probe');
+    const { UP_COLOR } = await import('../src/sims/ch40/chain');
+    type Pt = { x: number; y: number };
+    class LineProbe extends ProbeDraw {
+      readonly bars: number[] = [];
+      curve: Pt[] = [];
+      line(...a: unknown[]): void {
+        const [p, q, st] = a as [Pt, Pt, { color?: string }];
+        if (st?.color === UP_COLOR && p.x === q.x) this.bars.push(Math.abs(q.y - p.y));
+      }
+      polyline(...a: unknown[]): void {
+        const [pts, st] = a as [Pt[], { color?: string; width?: number }];
+        if (st?.color === '#1a1a1a' && st.width === 1.5 && pts.length > 50) this.curve = pts;
+      }
+    }
+    for (const seed of [3, 4]) {
+      const p = { ...defaults(angle.params), theta: 60, N: 100 };
+      const r = new Runner(angle, p, seed);
+      r.play();
+      for (let i = 0; i < 4000 && r.playing; i++) r.advance(0.05);
+      const g = new LineProbe(1280, 704);
+      g.vp.fit(angle.world(p), 1280, 704);
+      angle.draw(g, r.state, p, { t: r.state.t, cursorT: r.state.t, scrubbing: false, lecture: false });
+      // The prediction curve runs from P = 1 (θ = 0) to P = 0 (θ = 180°): world units per unit of P.
+      const scale = g.curve[0].y - g.curve[g.curve.length - 1].y;
+      const sig = angle.formula!(r.state, p).find((l) => l.startsWith('\\sigma_P'))!;
+      const N = Number(/\{(\d+)\}\} = /.exec(sig)![1]);
+      // The bar is the last vertical line in the + colour (the apparatus draws a few before it).
+      expect(g.bars.at(-1)! / scale).toBeCloseTo(2 * Math.sqrt((0.75 * 0.25) / N), 9);
+    }
+  });
+
+  it('ⓘ defines F_z, μ_z, g_s, e, m, S_z and says what the error bar is', async () => {
+    const ko = (await import('../src/sims/ch40/i18n.ko.json')).default as Record<string, string>;
+    const en = (await import('../src/sims/ch40/i18n.en.json')).default as Record<string, string>;
+    expect(single.info.assumptions).toContain('ch40.s.assume.sym');
+    for (const d of [ko, en]) {
+      for (const s of ['F_z', '\\mu_z', 'g_s', '$e$', '$m$', 'S_z']) expect(d['ch40.s.assume.sym']).toContain(s);
+      expect(d['ch40.a.obs.N']).toContain('\\sigma_P');
+    }
+  });
+});

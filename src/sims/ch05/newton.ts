@@ -1,6 +1,6 @@
 // Ch 5 scene: second law. A puck on a frictionless surface is pushed from rest by a constant
 // force: a = F/m, so v grows linearly with slope F/m.
-import { slider, sliderText, tn, u } from '../../core/tex';
+import { sigCancel, slider, sliderText, tn, tnCancel, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
 import { G5, drawPuckFbd, drawTrack, padded, weightPair } from './common';
@@ -168,16 +168,25 @@ export const newton: Scene<P, S> = {
   // Σ panel: a = F_net/m, then v and x of uniform acceleration from rest at the current t. F and m
   // as their slider labels, a and t with 3 figures (policy D, R1/R3).
   formula: (s, p) => {
-    const a = tn(s.a);
-    const T = tn(s.t);
+    const V = tn(s.v);
+    const X = tn(s.x);
+    // R5b: a and t rounded to 3 figures can miss v = at and, through t², x = ½at² by more than 1 %
+    // (½ × 1.33 × 1.02² = 0.692 against 0.700); then both keep the figures that reproduce the two
+    // results, one string for both lines (R8).
+    const k = Math.max(
+      sigCancel((r) => r(s.a) * r(s.t), V),
+      sigCancel((r) => 0.5 * r(s.a) * r(s.t) ** 2, X),
+    );
+    const a = tnCancel(s.a, k);
+    const T = tnCancel(s.t, k);
     const F = slider(params.F, p.F);
     const W = p.m * G5;
     return [
       // Free-body diagram: N and mg cancel, the push is the net force.
       ...(p.fbd ? [`\\Sigma F_x = F = ${F}${u('N')},\\quad \\Sigma F_y = N - mg = ${tn(W)} - ${tn(W)} = 0`] : []),
       `a = \\frac{F_\\text{net}}{m} = \\frac{${F}}{${slider(params.m, p.m)}} = ${tn(s.a)}${u('m/s^2')}`,
-      `v = at = ${a} \\times ${T} = ${tn(s.v)}${u('m/s')}`,
-      `x = \\tfrac{1}{2}at^2 = \\tfrac{1}{2} \\times ${a} \\times ${T}^2 = ${tn(s.x)}${u('m')}`,
+      `v = at = ${a} \\times ${T} = ${V}${u('m/s')}`,
+      `x = \\tfrac{1}{2}at^2 = \\tfrac{1}{2} \\times ${a} \\times ${T}^2 = ${X}${u('m')}`,
     ];
   },
 

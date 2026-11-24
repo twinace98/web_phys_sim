@@ -71,11 +71,13 @@ function dIssues(lines: string[], labels: string[] = []): string[] {
 describe('policy D, Ch 22-24', () => {
   it('Ch 22: k is the CONST string', () => {
     const lines = run(field).lines();
-    expect(lines[0]).toContain(`\\frac{(${CONST.k.tex})(1)(1)\\times 10^{-18}}`);
+    // F₁: symbolic form, then the numbers on their own row.
+    expect(lines[0]).toBe('F_1 = k\\,\\frac{\\lvert q_1\\rvert q_0}{r_1^2}');
+    expect(lines[1]).toContain(`= \\frac{(${CONST.k.tex})(1)(1)\\times 10^{-18}}`);
     // Parallel plates, test charge on the axis: E_x vanishes by symmetry and prints an exact 0 (R7a).
     const plates = run(field, { preset: 'plates' }).lines();
-    expect(plates[1]).toMatch(/= \(0,\\ \d+\)\\ \\mathrm\{N\/C\}$/);
-    expect(plates[2]).toContain('\\sqrt{0^2 + ');
+    expect(plates[2]).toMatch(/= \(0,\\ \d+\)\\ \\mathrm\{N\/C\}$/);
+    expect(plates[4]).toContain('\\sqrt{0^2 + ');
     expect(run(field, { test: false }).lines()[0]).toBe(`k = \\frac{1}{4\\pi\\varepsilon_0} = ${CONST.k.tex}\\ \\mathrm{N\\,m^2/C^2}`);
   });
 
@@ -123,7 +125,12 @@ describe('policy D, Ch 22-24', () => {
         s.path.push(0.1, 0.45, ...end);
         const lines = c.lines();
         const dV = texOf(c.ro('\\Delta V'));
-        expect(lines[1].endsWith(`= ${dV}\\ \\mathrm{V}`), lines[1]).toBe(true);
+        // Within 10⁻³ of the run scale (the largest |V − V_A| on the path) of A's potential, ΔV and
+        // W are exact zeros (R7a).
+        if (dV === '0') {
+          expect(lines[1]).toBe('\\Delta V = V - V_A = 0');
+          expect(c.ro('W')).toBe('0');
+        } else expect(lines[1].endsWith(`= ${dV}\\ \\mathrm{V}`), lines[1]).toBe(true);
         expect(lines[3]).toContain(`(${dV}\\ \\mathrm{V})`);
         expect(dIssues(lines), lines.join('\n')).toEqual([]);
       }
@@ -136,13 +143,22 @@ describe('policy D, Ch 25-27', () => {
     expect(en25['ch25.diel.air']).toBe('Air (κ = 1.00054)');
     expect(ko25['ch25.diel.air']).toBe('공기 (κ = 1.00054)');
     const air = run(capacitor, { dielectric: 'air' }).lines();
-    expect(air[0]).toBe('C = \\frac{\\kappa\\varepsilon_0 A}{d} = \\frac{(1.00054)(8.85\\times 10^{-12})(100\\times 10^{-4})}{1.0\\times 10^{-3}}\\ \\mathrm{F} = 88.6\\,\\mathrm{pF}');
+    // Symbolic form, the numbers, and the result on rows of their own (QA 2026-11-24: no line shrunk
+    // to 60 %); the arithmetic of the number row reproduces the result row.
+    expect(air.slice(0, 3)).toEqual([
+      'C = \\frac{\\kappa\\varepsilon_0 A}{d}',
+      '= \\frac{(1.00054)(8.85\\times 10^{-12})(100\\times 10^{-4})}{1.0\\times 10^{-3}}\\ \\mathrm{F}',
+      '= 88.6\\,\\mathrm{pF}',
+    ]);
     const d = run(capacitor).lines();
-    expect(d[0]).toBe('C = \\frac{\\kappa\\varepsilon_0 A}{d} = \\frac{(4.7)(8.85\\times 10^{-12})(100\\times 10^{-4})}{1.0\\times 10^{-3}}\\ \\mathrm{F} = 416\\,\\mathrm{pF}');
-    expect(d[1]).toBe('Q = CV_0 = (416\\,\\mathrm{pF})(12\\ \\mathrm{V}) = 4.99\\,\\mathrm{nC}');
-    expect(d[4]).toBe('U = \\tfrac{1}{2} C V^2 = \\tfrac{1}{2}(416\\,\\mathrm{pF})(12\\ \\mathrm{V})^2 = 30.0\\,\\mathrm{nJ}');
+    expect(d[1]).toBe('= \\frac{(4.7)(8.85\\times 10^{-12})(100\\times 10^{-4})}{1.0\\times 10^{-3}}\\ \\mathrm{F}');
+    expect(d[2]).toBe('= 416\\,\\mathrm{pF}');
+    expect(d[3]).toBe('Q = CV_0 = (416\\,\\mathrm{pF})(12\\ \\mathrm{V}) = 4.99\\,\\mathrm{nC}');
+    expect(d.slice(6)).toEqual(['U = \\tfrac{1}{2} C V^2', '= \\tfrac{1}{2}(416\\,\\mathrm{pF})(12\\ \\mathrm{V})^2 = 30.0\\,\\mathrm{nJ}']);
     // Every option and slider end: no 4-figure input except κ of air, arithmetic within 1 %.
-    for (const dielectric of ['air', 'paper', 'glass', 'water'])
+    // Vacuum is κ = 1 exactly (QA 2026-11-24): X/X0 = 1 against the reference state.
+    expect(run(capacitor, { dielectric: 'vacuum' }).lines()[1]).toContain('= \\frac{(1)(8.85');
+    for (const dielectric of ['vacuum', 'air', 'paper', 'glass', 'water'])
       for (const source of ['on', 'off'])
         for (const [A, dd] of [
           [50, 0.5],
@@ -151,6 +167,10 @@ describe('policy D, Ch 25-27', () => {
         ]) {
           const lines = run(capacitor, { dielectric, source, A, d: dd }).lines();
           expect(dIssues(lines, ['1.00054']), lines.join('\n')).toEqual([]);
+          // C on three rows: the number row recomputes the result row (pF/nF read back in F).
+          const c = evalTex(lines[1].slice(2).replace('\\ \\mathrm{F}', ''))!;
+          const pre = { p: 1e-12, n: 1e-9 }[/\\mathrm\{(.)F\}/.exec(lines[2])![1] as 'p' | 'n'];
+          expect(Math.abs(c / (Number(lines[2].replace(/^= ([\d.]+).*$/, '$1')) * pre) - 1), lines.slice(0, 3).join('\n')).toBeLessThan(0.01);
         }
   });
 
@@ -160,7 +180,10 @@ describe('policy D, Ch 25-27', () => {
     expect(c.ro('V/\\bar I')).toBe('10.6');
     expect(c.ro('\\rho L/A')).toBe('10.0');
     const lines = c.lines();
-    expect(lines).toContain('R = \\rho\\,\\frac{L}{A} = (10\\ \\Omega)\\,\\frac{4.0}{4}\\cdot\\frac{2}{2.0}\\cdot\\frac{300}{300} = 10.0\\ \\mathrm{\\Omega}');
+    // ρ has a value (QA 2026-11-24): 5.00×10⁻⁴ Ω m at 300 K, about 3×10⁴ times copper's (ⓘ).
+    expect(lines).toContain('\\rho = \\rho_{300}\\,\\frac{T}{300\\ \\mathrm{K}} = (5.00\\times 10^{-4}\\ \\mathrm{\\Omega\\,m})\\,\\frac{300}{300} = 5.00\\times 10^{-4}\\ \\mathrm{\\Omega\\,m}');
+    expect(lines).toContain('R = \\rho\\,\\frac{L}{A}');
+    expect(lines).toContain('= \\frac{(5.00\\times 10^{-4})(4.0\\times 10^{-2})}{2.0\\times 10^{-6}}\\ \\mathrm{\\Omega} = 10.0\\ \\mathrm{\\Omega}');
     expect(lines).toContain('\\frac{V}{R} = \\frac{1.0\\ \\mathrm{V}}{10.0\\ \\Omega} = 100\\ \\mathrm{mA}');
     expect(lines).toContain('\\bar I = \\frac{\\Delta Q}{\\Delta t} = \\frac{0.188\\ \\mathrm{C}}{2.00\\ \\mathrm{s}} = 94\\ \\mathrm{mA}');
     expect(lines).toContain('V/\\bar I = \\frac{1.0\\ \\mathrm{V}}{94\\ \\mathrm{mA}} = 10.6\\ \\mathrm{\\Omega}');
@@ -203,8 +226,11 @@ describe('policy D, Ch 25-27', () => {
   it('Ch 27: i = (ℰ/R) e^{-t/τ} written directly (R5), not (12 - 11.9994552)/0.5 kΩ', () => {
     const c = run(rcCircuit, { R: 0.5 }, 5);
     const lines = c.lines();
-    expect(lines).toContain('i = \\frac{\\mathcal{E}}{R}\\,e^{-t/\\tau} = \\frac{12\\ \\mathrm{V}}{0.5\\ \\mathrm{k\\Omega}}\\,e^{-5.00/0.500} = 0.00109\\ \\mathrm{mA}');
-    expect(lines).toContain('V_C = \\frac{q}{C} = \\frac{12.0\\times 10^{-3}}{1000\\times 10^{-6}}\\ \\mathrm{V} = 12.0\\ \\mathrm{V}');
+    // Symbolic form, then the substituted numbers on their own row (no shrinking of a long line).
+    expect(lines).toContain('i = \\frac{\\mathcal{E}}{R}\\,e^{-t/\\tau}');
+    expect(lines).toContain('= \\frac{12\\ \\mathrm{V}}{0.5\\ \\mathrm{k\\Omega}}\\,e^{-5.00/0.500} = 0.00109\\ \\mathrm{mA}');
+    expect(lines).toContain('V_C = \\frac{q}{C}');
+    expect(lines).toContain('= \\frac{12.0\\times 10^{-3}}{1000\\times 10^{-6}}\\ \\mathrm{V} = 12.0\\ \\mathrm{V}');
     expect(lines[0]).toBe('\\tau = RC = (0.5\\ \\mathrm{k\\Omega})(1000\\ \\mathrm{\\mu F}) = 0.500\\ \\mathrm{s}');
     expect(c.ro('i')).toBe('0.00109');
     expect(lines.join(' ')).not.toContain('11.99');
@@ -213,20 +239,29 @@ describe('policy D, Ch 25-27', () => {
   });
 
   it('Ch 27: a settled current is a small physical value, never 0.00 (R7b); switches and R, C changes mid-run pass the D checks', () => {
-    // τ = 0.05 s: 10 s is 200 τ (i ≈ 10⁻⁸⁶ mA), where the old loop rule printed 0.00.
-    const long = run(rcCircuit, { R: 0.5, C: 100 }, 10);
+    // τ = 0.05 s: 1 s is 20 τ (i ≈ 5×10⁻⁸ mA), where the old loop rule printed 0.00.
+    const long = run(rcCircuit, { R: 0.5, C: 100 }, 1);
     expect(long.ro('i')).toMatch(/^\d\.\d\d×10⁻[⁰¹²³⁴⁵⁶⁷⁸⁹]+$/);
     expect(long.lines().at(-1)).toMatch(/= \d\.\d\d\\times 10\^\{-\d+\}\\ \\mathrm\{mA\}$/);
-    const dis = run(rcCircuit, { sw: 'discharge', R: 0.5, C: 100 }, 10);
+    const dis = run(rcCircuit, { sw: 'discharge', R: 0.5, C: 100 }, 1);
     expect(dis.ro('V_C')).toMatch(/^\d\.\d\d×10⁻[⁰¹²³⁴⁵⁶⁷⁸⁹]+$/);
     expect(dis.ro('i')).toMatch(/^−\d\.\d\d×10⁻[⁰¹²³⁴⁵⁶⁷⁸⁹]+$/);
-    // Below the smallest double (e^{-1200}) the value is an exact 0 and prints as 0, never 0.00.
-    const under = run(rcCircuit, { R: 0.5, C: 100 }, 60);
-    expect(under.ro('i')).toBe('0');
-    expect(under.lines().at(-1)).toMatch(/= 0\\ \\mathrm\{mA\}$/);
+    // QA 2026-11-24 (i = −1.18×10⁻²⁶⁷ mA, V_C = 3.21×10⁻³² V): once less than one elementary
+    // charge is left to flow, q and V_C are an exact 0 and i is the bound e/τ < 10⁻¹⁴ mA (R7b,
+    // never 0), at 200 τ and below the smallest double alike.
+    for (const t of [10, 60]) {
+      const ch = run(rcCircuit, { R: 0.5, C: 100 }, t);
+      expect(ch.ro('i')).toBe('< 10⁻¹⁴');
+      expect(ch.lines().at(-1)).toMatch(/ < 10\^\{-14\}\\ \\mathrm\{mA\}$/);
+      const d = run(rcCircuit, { sw: 'discharge', R: 0.5, C: 100 }, t);
+      expect(d.ro('V_C')).toBe('0');
+      expect(d.ro('i')).toBe('> −10⁻¹⁴');
+      expect(d.lines().at(-1)).toMatch(/ > -10\^\{-14\}\\ \\mathrm\{mA\}$/);
+      expect(d.lines().join(' ')).not.toMatch(/10\^\{-(\d{3}|[3-9]\d)\}/);
+    }
     // At the start of charging: V_C is an exact 0 in the readout and Σ.
     expect(run(rcCircuit).ro('V_C')).toBe('0');
-    expect(run(rcCircuit).lines()[2]).toBe('V_C = \\frac{q}{C} = \\frac{0}{1000\\times 10^{-6}}\\ \\mathrm{V} = 0\\ \\mathrm{V}');
+    expect(run(rcCircuit).lines().slice(3, 5)).toEqual(['V_C = \\frac{q}{C}', '= \\frac{0}{1000\\times 10^{-6}}\\ \\mathrm{V} = 0\\ \\mathrm{V}']);
     // Switch to discharge, then back to charge mid-run; an R change mid-run; a switch while paused.
     const c = run(rcCircuit, {}, 1.5);
     const h = rcCircuit.time!.h;
@@ -241,7 +276,7 @@ describe('policy D, Ch 25-27', () => {
     c.r.params.sw = 'charge';
     for (let i = 0; i < 90; i++) c.r.advance(h);
     check();
-    expect(c.lines().at(-1)).toContain('\\frac{C\\mathcal{E} - q_0}{\\tau}');
+    expect(c.lines().at(-2)).toContain('\\frac{C\\mathcal{E} - q_0}{\\tau}');
     c.r.params.R = 1.5;
     for (let i = 0; i < 30; i++) c.r.advance(h);
     check();
@@ -284,11 +319,11 @@ describe('policy D, Ch 28-32', () => {
 
   it('Ch 29 ampere: integers as integers and exact zeros, one string in the stage panel and Σ', () => {
     const d = run(ampere);
-    expect(d.lines()[1]).toBe(`\\mu_0 I_\\text{enc} = (${CONST.mu0.tex})(1)\\ \\mathrm{T\\,m} = 1.26\\ \\mu\\mathrm{T\\,m}`);
-    expect(d.ov()).toContain('I_\\text{enc} &=& 1\\ \\mathrm{A}');
+    expect(d.lines()[1]).toBe(`\\mu_0 i_\\text{enc} = (${CONST.mu0.tex})(1)\\ \\mathrm{T\\,m} = 1.26\\ \\mu\\mathrm{T\\,m}`);
+    expect(d.ov()).toContain('i_\\text{enc} &=& 1\\ \\mathrm{A}');
     const sol = run(ampere, { preset: 'solenoid' });
-    expect(sol.ov()).toContain('I_\\text{enc} &=& 4\\ \\mathrm{A}');
-    expect(sol.lines()[0]).toBe('I_\\text{enc} = 4\\ \\mathrm{A}');
+    expect(sol.ov()).toContain('i_\\text{enc} &=& 4\\ \\mathrm{A}');
+    expect(sol.lines()[0]).toBe('i_\\text{enc} = 4\\ \\mathrm{A}');
   });
 
   it('Ch 30 faraday: B and v as their sliders (0.50), x with 3 figures, an exact 0 for a loop outside or wholly inside', () => {
@@ -305,7 +340,8 @@ describe('policy D, Ch 28-32', () => {
     const entering = run(faraday, {}, 1);
     expect(entering.lines()[0]).toBe('\\Phi_B = B\\,a\\,x = (0.50)(0.4)(0.200)\\ \\mathrm{Wb} = 40.0\\ \\mathrm{mWb}');
     expect(entering.lines()[1]).toBe('\\mathcal{E} = -\\frac{d\\Phi_B}{dt} = -Ba\\,\\frac{dx}{dt} = -(0.50)(0.4)(0.50)\\ \\mathrm{V} = -100\\ \\mathrm{mV}');
-    const m = run(faraday, { scenario: 'magnet' }, 2.5).lines();
+    // t = 2.1 s: magnet at x = −1 + 0.5 × 2.1 = 0.05 m (it starts at −1 m since QA 2026-11-24).
+    const m = run(faraday, { scenario: 'magnet' }, 2.1).lines();
     expect(m[1]).toBe(`\\Phi_B = \\frac{(${CONST.mu0.tex})(100)(0.2)^2}{2[(0.2)^2 + 0.0500^2]^{3/2}}\\ \\mathrm{Wb} = 0.287\\ \\mathrm{mWb}`);
     expect(m[2]).toBe('\\mathcal{E} = -\\frac{d\\Phi_B}{dx}\\,v = -(-0.00101\\ \\mathrm{Wb/m})(0.50\\ \\mathrm{m/s}) = 0.506\\ \\mathrm{mV}');
   });
@@ -356,10 +392,14 @@ describe('policy D, Ch 28-32', () => {
       }
   });
 
-  it('Ch 32 materials: k_B T_C = 2.27 J (3 figures), T as its slider (0.50)', () => {
+  it('Ch 32 materials: no Ising coupling J or Onsager formula (QA 2026-11-24), T as its slider (0.50)', () => {
     const lines = run(magnet).lines();
-    expect(lines).toContain('k_BT_C = \\frac{2J}{\\ln(1 + \\sqrt2)} = 2.27\\,J');
-    expect(lines).toContain('\\frac{2J}{k_BT} = \\frac{2}{0.50 \\times 2.27} = 1.76');
+    expect(lines.join(' ')).not.toMatch(/J\b|\\sinh/);
+    expect(lines).toContain('T = 0.50\\,T_C < T_C:\\ \\frac{\\lvert M\\rvert_{B=0}}{M_\\text{s}} = 0.998');
+    const para = run(magnet, { mat: 'para', T: 1.5 }, 80).lines();
+    expect(para.join(' ')).not.toMatch(/J\b/);
+    expect(para.at(-1)).toMatch(/^\\frac\{M\}\{M_\\text\{s\}\} \\approx \\tanh\\frac\{\\mu B\}\{k_BT\} = \\tanh\\frac\{\\mu B\/k_BT_C\}\{T\/T_C\} = \\tanh\\frac\{-?[\d.]+\}\{1\.50\} = /);
+    expect(dIssues(para), para.join('\n')).toEqual([]);
     expect(run(magnet, { T: 2 }).lines()).toContain('T = 2.00\\,T_C \\ge T_C:\\ \\lvert M\\rvert_{B=0} \\to 0\\ (N \\to \\infty)');
   });
 

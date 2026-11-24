@@ -5,7 +5,7 @@
 // or, with the free-body diagram, the forces on it: Mg, N and the static friction f_s up the incline.
 // Each lane is tagged with its body's β and a; numbered badges mark the arrivals at the finish.
 import { t as tr } from '../../core/i18n';
-import { CONST, num, slider, tn, u } from '../../core/tex';
+import { CANCEL_SIG, CONST, INPUT_SIG, num, readBack, slider, tn, tnCancel, u, ulpText } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw, PlotDraw } from '../../draw/draw';
 import { FBD_MIN_PX, drawFbd, fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
@@ -80,7 +80,8 @@ const params: ParamSchema<P> = {
     default: 'disk',
     options: BODIES.map((b) => ({ value: b, label: `ch11.r.body.${b}` })),
   },
-  fbd: fbdParam(),
+  // design.md §4.1: at most 2 main controls (θ and the body); the diagram goes to the drawer.
+  fbd: fbdParam(false, 'advanced'),
 };
 
 /**
@@ -449,7 +450,12 @@ export function formulaLines(s: S, p: P): string[] {
   }
   lines.push(`v_\\mathrm{cm} = \\sqrt{2as} = \\sqrt{2(${tn(k.a)})(${tn(k.s)})} = ${tn(k.v)}${u('m/s')}`);
   if (b !== 'block') {
-    lines.push(`\\omega = \\frac{v_\\mathrm{cm}}{R} = \\frac{${tn(k.v)}}{${num(R)}} = ${tn(k.w)}${u('rad/s')}`);
+    // Dividing by R = 0.12 m spreads v's rounding over the 3 figures of ω (1.18/0.12 = 9.83 against
+    // 9.79): v keeps the figures (up to CANCEL_SIG) that give ω to its last digit (R5b).
+    const W = tn(k.w);
+    let kv = INPUT_SIG;
+    while (kv < CANCEL_SIG && Math.abs(readBack(fmt(k.v, kv, 0)) / R - readBack(W)) > ulpText(W) * (1 + 1e-9)) kv++;
+    lines.push(`\\omega = \\frac{v_\\mathrm{cm}}{R} = \\frac{${tnCancel(k.v, kv)}}{${num(R)}} = ${W}${u('rad/s')}`);
     lines.push(`\\frac{K_\\mathrm{rot}}{K_\\mathrm{trans}} = \\frac{I_\\mathrm{cm}}{MR^2} = \\beta = ${be} = ${tn(kRatio(s, p))}`);
   }
   return lines;

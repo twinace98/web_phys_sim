@@ -83,9 +83,32 @@ describe('ch29 Ampère circulation', () => {
       expect(s).toContain('13.3 μT');
       expect(s).toContain('15.7 μT');
       expect(s).toContain('84 %');
-      expect(s).toMatch(/4배|4 times/);
+      expect(s).toMatch(/비 4|ratio 4/);
+      // QA 2026-11-24: n defined (wires per metre), and the 84 % named as the 2D section's value.
+      expect(s).toContain('12.5 /m');
+      expect(s).toContain('97 %');
     }
     expect(ko['ch29.a.obs.solenoid']).not.toContain('거의 균일하고 강함');
+  });
+
+  it('QA 2026-11-24: every first path (circle and square) keeps the wires the stated 3.5 cm away', async () => {
+    const { AMPERE_G0 } = await import('../src/sims/ch29/ampere');
+    const { surfacePoly, CLEAR } = await import('../src/sims/field/surface');
+    const { distToPoly } = await import('../src/sims/field/physics');
+    expect(CLEAR).toBe(0.035);
+    for (const [preset, G] of Object.entries(AMPERE_G0))
+      for (const shape of ['circle', 'square']) {
+        const poly = surfacePoly(shape, G, []);
+        const near = Math.min(...WIRE_PRESETS[preset].map((w) => distToPoly(poly, w[1], w[2])));
+        expect(near, `${preset} ${shape}`).toBeGreaterThanOrEqual(CLEAR - 1e-3);
+      }
+    // The solenoid path still encloses the four middle wires of the top row (4 A).
+    const poly = circlePoly(AMPERE_G0.solenoid[0], AMPERE_G0.solenoid[1], AMPERE_G0.solenoid[2], 160);
+    expect(enclosed(WIRE_POOL.sources(WIRE_POOL.fromPreset(WIRE_PRESETS.solenoid)), poly)).toBeCloseTo(4, 9);
+    for (const s of [ko['ch29.a.as.num'], en['ch29.a.as.num'], ko['ch29.a.goal.law'], en['ch29.a.obs.pair']]) {
+      expect(s).not.toContain('d\\vec l');
+      expect(s).not.toContain('I_\\text{enc}');
+    }
   });
 });
 
@@ -161,5 +184,73 @@ describe('ch29 Biot-Savart reference line and convergence (QA E7)', () => {
     expect(Math.max(...range(48).map(Math.abs))).toBeLessThan(0.5);
     expect(ko['ch29.b.obs.n']).toMatch(/\+360/);
     expect(en['ch29.b.obs.n']).toMatch(/0\.5 %/);
+  });
+
+  it('QA 2026-11-24: below the wire the Σ reference and the dashed line label print the same −6.67', async () => {
+    const { formulaLines } = await import('../src/sims/ch29/biot');
+    const p = { ...defaults(biot.params), Ps: [0.15, -0.3] };
+    const r = ref(p);
+    expect(r.y).toBeCloseTo(-infiniteWire(0.3), 9);
+    expect(r.label).toContain('−6.67');
+    const last = formulaLines({ t: 4 }, p as never).at(-1)!;
+    expect(last).toMatch(/^-\\frac\{\\mu_0 I\}\{2\\pi d\} = -\\frac/);
+    expect(last).toMatch(/= -6\.67\\ \\mathrm\{\\mu T\}$/);
+    // Above the wire both are positive.
+    expect(ref(defaults(biot.params)).label).not.toContain('−');
+    expect(formulaLines({ t: 4 }, defaults(biot.params) as never).at(-1)).toMatch(/^\\frac/);
+  });
+
+  it('QA 2026-11-24: P stays over the middle of the straight wire, within 12 % of μ0 I/2πd (n → ∞)', async () => {
+    const { readB, readD } = await import('../src/sims/ch29/biot');
+    const h = biot.handles![0];
+    let set: number[] = [];
+    const ctx = (p: Record<string, unknown>) => ({ params: p, set: (_k: string, v: number[]) => (set = v) }) as never;
+    // Dragged into the box corner: held at |x| = 0.5, d = 0.45.
+    for (const [wx, wy] of [
+      [1.2, 0.7],
+      [-1.2, -0.7],
+      [0.77, 0.31],
+      [-0.03, -0.58],
+    ]) {
+      h.onDrag(ctx(defaults(biot.params)), { t: 0 } as never, { x: wx, y: wy });
+      expect(Math.abs(set[0])).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(set[1])).toBeLessThanOrEqual(0.45);
+    }
+    // An old link with P in the corner reads as the nearest allowed point.
+    const old = { ...defaults(biot.params), Ps: [1.15, 0.62], n: 48 } as never;
+    expect(readD(old)).toBeCloseTo(0.45, 9);
+    expect(h.pos({ t: 0 } as never, old)).toEqual({ x: 0.5, y: 0.45 });
+    // Over the whole range the finite wire is within 12 % of the infinite-wire reference.
+    let worst = 0;
+    for (let x = 0; x <= 0.5001; x += 0.025) for (let y = 0.06; y <= 0.4501; y += 0.015) worst = Math.min(worst, straightExact(x, y) / infiniteWire(y) - 1);
+    expect(worst).toBeGreaterThan(-0.12);
+    expect(worst).toBeLessThan(-0.11);
+    expect(readB({ t: 1e9 } as never, old) / infiniteWire(0.45)).toBeGreaterThan(0.87);
+    for (const s of [ko['ch29.b.as.ref'], en['ch29.b.as.ref']]) expect(s).toContain('12 %');
+    // The loop keeps the full box.
+    h.onDrag(ctx({ ...defaults(biot.params), wire: 'loop' }), { t: 0 } as never, { x: 1.2, y: 0.7 });
+    expect(set).toEqual([1.15, 0.62]);
+  });
+
+  it('QA 2026-11-24: the element count is a stepper (policy: counts), default and old values on its grid', async () => {
+    const { snapNumber } = await import('../src/core/params');
+    const n = biot.params.n as Extract<(typeof biot.params)['n'], { kind: 'number' }>;
+    expect(n.control).toBe('stepper');
+    const step = n.step!;
+    expect((n.default - n.min!) % step).toBe(0);
+    expect((n.max! - n.min!) % step).toBe(0);
+    // The ⓘ quotes n = 4, 24, 48: all reachable.
+    for (const v of [4, 24, 48]) expect(snapNumber(n as never, v)).toBe(v);
+    // An old link (any 4–48) snaps into range.
+    for (const v of [5, 6, 23, 46, 47]) {
+      const s = snapNumber(n as never, v);
+      expect(s).toBeGreaterThanOrEqual(4);
+      expect(s).toBeLessThanOrEqual(48);
+    }
+    // sin φ in the ⓘ, as in the Σ panel (was sin θ).
+    for (const s of [ko['ch29.b.obs.far'], en['ch29.b.obs.far']]) {
+      expect(s).toContain('\\sin\\phi');
+      expect(s).not.toContain('\\theta');
+    }
   });
 });

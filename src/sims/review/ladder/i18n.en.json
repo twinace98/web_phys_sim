@@ -19,11 +19,10 @@
   "ladder.goal.cond": "Two conditions for static equilibrium: net force $\\sum\\vec F = 0$ and net torque $\\sum\\vec\\tau = 0$",
   "ladder.goal.pivot": "With the pivot at the foot, $N$ and $f$ exert no torque → the torque equation has a single unknown, $F_w$",
   "ladder.goal.limit": "Equilibrium holds only while the friction it needs, $f = F_w$, does not exceed the maximum static friction $\\mu_s N$",
-  "ladder.goal.slip": "Past the limit the ladder slips: Newton's second law for the ladder plus person, with kinetic friction $\\mu_k N$ at the foot",
   "ladder.obs.drag": "Drag $M$ along the ladder; drag the top along the wall to change the angle",
   "ladder.obs.climb": "Play: $M$ climbs at speed $v$ → the lever arm $d\\cos\\theta$ of $Mg$ grows → $F_w$ and the needed friction grow; $N$ stays the same",
   "ladder.obs.onset": "At $d = d_c$ (time $t_s$) the gauge reaches 100 %: static friction is used up and the ladder starts to slip; the ▾ mark at 100 % stays",
-  "ladder.obs.slip": "While slipping: $f = \\mu_k N$ (gauge at $\\mu_k/\\mu_s$), $N$ below $(m+M)g$, $F_w$ falls to 0; tick on the floor = where the foot stood",
+  "ladder.obs.slip": "While slipping: kinetic friction $f = \\mu_k N$ at the foot (gauge at $\\mu_k/\\mu_s$); tick on the floor = where the foot stood",
   "ladder.obs.angle": "A smaller angle lengthens the weights' lever arms and shortens that of $F_w$, $L\\sin\\theta$ → more friction needed",
   "ladder.obs.crit": "Dashed ladder = critical angle $\\theta_c$ for the current $d$; bar across the ladder = critical position $d_c$",
   "ladder.obs.over": "Start position above $d_c$: the gauge passes 100 %, the friction arrow stops at $\\mu_s N$ and the missing part is dashed; play → slips at once",
@@ -31,7 +30,7 @@
   "ladder.asm.wall": "Frictionless wall → its force $F_w$ is horizontal. The floor exerts a normal force $N$ and friction $f$",
   "ladder.asm.body": "Uniform ladder (length $L$ = 5 m, centre of mass at the middle); the person is a point mass $M$ on the ladder at $d$; $g$ = 9.8 m/s²",
   "ladder.asm.climb": "$M$ climbs slowly at a steady speed (static analysis at every instant) and stops climbing when the slip starts: during the slip it stays at $d_c$, fixed to the ladder",
-  "ladder.asm.kinetic": "During the slip the foot stays on the floor and slides away from the wall; kinetic friction $\\mu_k N$ points toward the wall. Motion from Newton's laws (one variable $\\theta$), RK4 step 1 ms",
+  "ladder.asm.kinetic": "During the slip the foot stays on the floor and slides away from the wall; kinetic friction $\\mu_k N$ points toward the wall. This motion (turning and sliding together) is computed numerically and only shown, not derived",
   "ladder.asm.wallleave": "When $F_w$ reaches 0 the top leaves the wall (marker $F_w = 0$) and the ladder falls freely: that motion is not computed, the run stops there",
   "ladder.asm.scale": "Arrow length ∝ force (400 N = 1 m; all arrows shrink when the longest would exceed 2.2 m); playback speed 0.25× shows the slip slowly"
 }

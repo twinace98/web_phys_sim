@@ -7,7 +7,7 @@
   "ch03.c.goal.proj": "Components are projections onto the axes: $A_x = A\\cos\\theta$, $A_y = A\\sin\\theta$",
   "ch03.c.goal.axes": "Rotating the axes changes the components; the vector and its magnitude $A$ stay the same",
   "ch03.c.obs.drag": "Drag the tip of $\\vec A$ to change the vector",
-  "ch03.c.obs.neg": "$\\theta > 90^\\circ$ gives $A_x < 0$: a component's sign refers to the axis direction",
+  "ch03.c.obs.neg": "$\\lvert\\theta\\rvert > 90^\\circ$ gives $A_x < 0$: a component's sign refers to the axis direction",
   "ch03.c.obs.rot": "Rotate the axes: $A_x$ and $A_y$ change, $A$ does not",
   "ch03.c.obs.incline": "Axes at 30°: the coordinate choice for incline problems (Ch 5, 6)",
   "ch03.s.obs.drag": "Drag the tip of $\\vec A$ or of $\\vec B$",
@@ -19,7 +19,7 @@
   "ch03.c.obs.comp": "Drag the tip of $A_x$ or $A_y$ to change that component alone; $\\vec A$, $A$ and $\\theta$ follow",
   "ch03.s.goal.comp": "The components of the sum are the sums of the components: $C_x = A_x + B_x$, $C_y = A_y + B_y$",
   "ch03.s.obs.panel": "Top-left panel: $A_x + B_x = C_x$ and $A_y + B_y = C_y$ update as you drag",
-  "ch03.s.obs.cancel": "When $\\vec A$ and $\\vec B$ point in opposite directions their components cancel, so $C < A + B$",
+  "ch03.s.obs.cancel": "Unless $\\vec A$ and $\\vec B$ point the same way, $C < A + B$ ($C = A + B$ only for the same direction). In opposite directions their components cancel and $C$ is smallest, $C = \\lvert A - B\\rvert$",
   "ch03.d.phi": "Angle of the axes; the vector stays put and its components change",
   "ch03.d.drag": "Move freely while dragging, or snap to 0.5 steps"
 }

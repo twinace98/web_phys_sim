@@ -1,15 +1,16 @@
 // Σ panel lines shared by the Ch 18 scenes: first law with the current values substituted.
 // Energies in J (1 kPa·L = 1 J), from the same pathAt / legWork the bars and readouts use.
 // Policy D (docs/design.md §3.3): p, V, T and nR to 3 figures (R3); energies change during a run of
-// a few kJ, so they print in whole joules everywhere (R7a, R8): Σ inputs and results, readouts, bars.
+// a few kJ, so they print with 3 figures and the run scale E_SCALE everywhere (R7a, R8): Σ inputs and
+// results, readouts, bars. Only a residue below 1 J prints as an exact 0.
 import { fmtScale, num, paren, tn, tnScale, u } from '../../core/tex';
 import { A0, NR, type St } from './physics';
 
 const J = u('J');
 
-/** Run scale of the Ch 18 and Ch 20 energies [J]: whole joules, residues below 10⁻³ J print 0. */
+/** Run scale of the Ch 18 and Ch 20 energies [J]: residues below 10⁻³ of it (1 J) print as an exact 0 (R7a). */
 export const E_SCALE = 1000;
-/** An energy as the readouts and bars print it: whole joules ("1563", "0", "−666"). */
+/** An energy as the readouts and bars print it: 3 figures, residues 0 ("1563", "667", "0", "−666", "6.25"). */
 export const fmtJ = (v: number) => fmtScale(v, E_SCALE);
 /** The same energy in TeX. */
 export const tJ = (v: number) => tnScale(v, E_SCALE);

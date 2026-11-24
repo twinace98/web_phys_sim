@@ -7,7 +7,7 @@
   "ch03.c.goal.proj": "성분 = 좌표축 위로의 투영: $A_x = A\\cos\\theta$, $A_y = A\\sin\\theta$",
   "ch03.c.goal.axes": "좌표축을 돌리면 성분은 바뀌고, 벡터와 크기 $A$는 그대로",
   "ch03.c.obs.drag": "$\\vec A$ 끝을 끌어 벡터 변경",
-  "ch03.c.obs.neg": "$\\theta > 90^\\circ$ → $A_x < 0$, 성분의 부호 = 축 방향 기준",
+  "ch03.c.obs.neg": "$\\lvert\\theta\\rvert > 90^\\circ$ → $A_x < 0$, 성분의 부호 = 축 방향 기준",
   "ch03.c.obs.rot": "좌표축 회전: $A_x$, $A_y$ 변화, $A$ 불변",
   "ch03.c.obs.incline": "좌표축 30°: 경사면 문제의 좌표 선택 (Ch 5, 6)",
   "ch03.s.obs.drag": "$\\vec A$, $\\vec B$의 끝을 각각 끌어 변경",
@@ -19,7 +19,7 @@
   "ch03.c.obs.comp": "$A_x$, $A_y$ 끝을 끌면 그 성분만 변화 → $\\vec A$, $A$, $\\theta$ 재구성",
   "ch03.s.goal.comp": "벡터 합의 성분 = 각 성분의 합: $C_x = A_x + B_x$, $C_y = A_y + B_y$",
   "ch03.s.obs.panel": "좌상단 패널: 끌 때마다 $A_x + B_x = C_x$, $A_y + B_y = C_y$ 값 갱신",
-  "ch03.s.obs.cancel": "$\\vec A$, $\\vec B$가 반대 방향이면 성분 상쇄 → $C < A + B$",
+  "ch03.s.obs.cancel": "$\\vec A$, $\\vec B$의 방향이 다르면 $C < A + B$ (같은 방향일 때만 $C = A + B$). 반대 방향이면 성분 상쇄 → 최소 $C = \\lvert A - B\\rvert$",
   "ch03.d.phi": "좌표축을 돌리는 각도, 벡터는 그대로 두고 성분만 변화",
   "ch03.d.drag": "끌 때 자유롭게 이동 또는 0.5 간격 격자점에 맞춤"
 }

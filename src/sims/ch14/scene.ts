@@ -83,12 +83,6 @@ const params: ParamSchema<P> = {
   },
 };
 
-/** Fixed two decimals with a true minus sign. */
-const f2 = (x: number) => {
-  const s = (Math.abs(x) < 0.005 ? 0 : x).toFixed(2);
-  return s.startsWith('-') ? `−${s.slice(1)}` : s;
-};
-
 function wall(v: Venturi, side: 1 | -1, n = 160): Vec2[] {
   const pts: Vec2[] = [];
   for (let i = 0; i <= n; i++) {
@@ -154,13 +148,20 @@ function drawTable(g: Draw, tp: Tap[], yTop: number): void {
   }
 }
 
+/**
+ * The two terms above each standpipe [kPa], 3 figures like the readouts and the Σ panel (policy D,
+ * R3, R8): ½ρv² and ρgh = p + ρgy.
+ */
+export const termTexts = (q: Tap) => ({ dyn: fmt(q.dyn / 1000, 3), stat: fmt((q.p + q.grav) / 1000, 3) });
+
 /** Above each standpipe: ½ρv² (orange) over ρgh (blue), in kPa. */
 function drawTerms(g: Draw, tp: Tap[], yTop: number): void {
   TAPS.forEach((x, i) => {
-    const q = tp[i];
+    const q = termTexts(tp[i]);
     const st = { size: 13, align: 'center' as const, baseline: 'middle' as const };
-    g.text({ x, y: yTop }, `½*ρv*^{2} = ${f2(q.dyn / 1000)} kPa`, { ...st, color: DYN, dy: -32 });
-    g.text({ x, y: yTop }, `*ρgh* = ${f2((q.p + q.grav) / 1000)} kPa`, { ...st, color: STAT, dy: -14 });
+    // ² as a glyph (as cm² in the table): a compact label, so 3-figure values fit side by side at 390 px.
+    g.text({ x, y: yTop }, `½*ρv*² = ${q.dyn} kPa`, { ...st, color: DYN, dy: -32 });
+    g.text({ x, y: yTop }, `*ρgh* = ${q.stat} kPa`, { ...st, color: STAT, dy: -14 });
   });
 }
 

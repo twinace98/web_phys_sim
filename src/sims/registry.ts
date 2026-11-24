@@ -88,7 +88,7 @@ export const REVIEW: ChapterMeta[] = [
   r(103, 39, '퍼텐셜 우물: 전이', 'Potential Well: Transitions', '두 준위를 골라 광자 파장', 'Pick two levels for the photon wavelength', () => import('./review/welljump').then((m) => m.default)),
   r(104, 3, '내적과 외적', 'Dot and Cross Products', '정사영, 평행사변형 넓이', 'Projection, parallelogram area', () => import('./review/products').then((m) => m.default)),
   r(105, 12, '평형과 탄성', 'Equilibrium and Elasticity', '사다리의 평형과 미끄러짐', 'The ladder: equilibrium and slipping', () => import('./review/ladder').then((m) => m.default)),
-  r(106, 13, '중력장과 등퍼텐셜선', 'Gravitational Field and Equipotentials', '두 질량의 장, g = 0 지점', 'Field of two masses, the point where g = 0', () => import('./review/gravfield').then((m) => m.default)),
+  r(106, 13, '중력장과 등퍼텐셜선', 'Gravitational Field and Equipotentials', '점질량의 장, 등퍼텐셜선, g = 0 지점', 'Field of point masses, equipotentials, where g = 0', () => import('./review/gravfield').then((m) => m.default)),
   r(107, 14, '부력', 'Buoyancy', '아르키메데스 원리, 잠긴 비율', "Archimedes' principle, submerged fraction", () => import('./review/buoyancy').then((m) => m.default)),
   r(108, 15, '감쇠 진동', 'Damped Oscillations', '부족·임계·과감쇠, 포락선', 'Under-, critically and overdamped; envelope', () => import('./review/damped').then((m) => m.default)),
   r(109, 17, '관 속 음파 정상파', 'Standing Sound Waves in Pipes', '열린 관·닫힌 관, 변위와 압력', 'Open and closed pipes, displacement and pressure', () => import('./review/pipes').then((m) => m.default)),

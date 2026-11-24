@@ -1,6 +1,6 @@
-// Ch 41: bands from N wells (finite-difference solver + Kronig-Penney limit), Fermi-Dirac
+// Ch 41: bands from N wells (exact levels by node counting + Kronig-Penney limit), Fermi-Dirac
 // filling, conduction in E(k), and doped silicon. DOM-free.
-import { HB2M, solve, wellChain } from '../modern/eigen';
+import { HB2M } from '../modern/eigen';
 
 /** Boltzmann constant [eV/K]. */
 export const KB = 8.617333262e-5;
@@ -13,10 +13,72 @@ export const U0 = 5;
 /** Barrier kept outside the end wells [nm]. */
 const MARGIN = 1;
 
-/** Levels of N identical wells separated by barriers of width b (bound states only). */
+/**
+ * Number of levels below E of N wells (width A, depth U0) separated by barriers of width b, between
+ * hard walls MARGIN outside the end wells: the zeros in (x0, x1] of the exact solution that starts
+ * at the left wall with ψ = 0 (Sturm oscillation theorem). In a well ψ = R sin(kx + φ), whose zeros
+ * follow from the phase; in a barrier ψ = a cosh κx + b sinh κx has at most one zero, where ψ
+ * changes sign.
+ */
+export function chainCount(N: number, b: number, E: number, C = HB2M): number {
+  const k = Math.sqrt(E / C);
+  const kap = Math.sqrt((U0 - E) / C);
+  let psi = 0;
+  let dpsi = 1;
+  let zeros = 0;
+  const barrier = (w: number) => {
+    const ch = Math.cosh(kap * w);
+    const sh = Math.sinh(kap * w);
+    const p1 = psi * ch + (dpsi / kap) * sh;
+    const d1 = psi * kap * sh + dpsi * ch;
+    if (psi !== 0 && (p1 === 0 || Math.sign(p1) !== Math.sign(psi))) zeros++;
+    psi = p1;
+    dpsi = d1;
+  };
+  const well = (w: number) => {
+    const phi = Math.atan2(psi, dpsi / k);
+    zeros += Math.floor((k * w + phi) / Math.PI) - Math.floor(phi / Math.PI);
+    const c = Math.cos(k * w);
+    const sn = Math.sin(k * w);
+    const p1 = psi * c + (dpsi / k) * sn;
+    dpsi = -psi * k * sn + dpsi * c;
+    psi = p1;
+  };
+  const rescale = () => {
+    const m = Math.max(Math.abs(psi), Math.abs(dpsi));
+    psi /= m;
+    dpsi /= m;
+  };
+  barrier(MARGIN);
+  for (let i = 0; i < N; i++) {
+    rescale();
+    well(A);
+    rescale();
+    barrier(i < N - 1 ? b : MARGIN);
+  }
+  return zeros;
+}
+
+/**
+ * Levels of N identical wells separated by barriers of width b (bound states only), exact: bisection
+ * on chainCount. The finite-difference grid put them 5×10⁻⁴ eV low with a spread that depended on
+ * the grid, so one well printed 0.813 or 0.814 eV as b moved its grid (QA 2026-11-24); now 0.814.
+ */
 export function chainLevels(N: number, b: number): number[] {
-  const n = Math.round((N * (A + b) + 2 * MARGIN) / 0.004);
-  return solve(wellChain(N, A, b, U0, MARGIN), n, 4 * N, HB2M, U0).E;
+  const top = U0 * (1 - 1e-12);
+  const m = Math.min(4 * N, chainCount(N, b, top));
+  const out: number[] = [];
+  for (let j = 0; j < m; j++) {
+    let lo = j ? out[j - 1] : 0;
+    let hi = top;
+    for (let it = 0; it < 200 && hi - lo > 1e-14; it++) {
+      const mid = 0.5 * (lo + hi);
+      if (chainCount(N, b, mid) > j) hi = mid;
+      else lo = mid;
+    }
+    out.push(0.5 * (lo + hi));
+  }
+  return out;
 }
 
 /** Kronig-Penney: cos(q(a+b)) = D(E). Allowed energies have |D| ≤ 1 (0 < E < U0). */
@@ -92,6 +154,9 @@ export function ni(m: Semi, T: number): number {
   if (T <= 0) return 0;
   return Math.sqrt(Nc(m, T) * Nv(m, T)) * Math.exp(-m.Eg / (2 * KB * T));
 }
+
+/** ln n_i: finite where n_i itself underflows (diamond below about 40 K). */
+export const lnNi = (m: Semi, T: number): number => 0.5 * Math.log(Nc(m, T) * Nv(m, T)) - m.Eg / (2 * KB * T);
 
 /** Intrinsic Fermi level measured from mid-gap [eV]. */
 export const intrinsicMu = (m: Semi, T: number) => (T <= 0 ? 0 : 0.5 * KB * T * Math.log(m.Nv / m.Nc));

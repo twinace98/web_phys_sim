@@ -508,8 +508,10 @@ export const ladderScene: Scene<P, S> = {
     return [
       // μk = 0 (μs = 0 or μk/μs = 0) is an exact 0, not "0.00" (R7a).
       p.kr * p.mu === 0 ? `f = \\mu_k N = 0` : `f = \\mu_k N = (${tn(p.kr * p.mu)})(${tn(F.N)}\\ \\text{N}) = ${nf(F.f)}\\ \\text{N}`,
-      `F_w = ${nf(F.Fw)}\\ \\text{N},\\ \\ddot\\theta = ${nf(F.alpha)}\\ \\text{rad/s}^2`,
-      `\\theta = ${nf(s.th / DEG)}^\\circ,\\ \\dot\\theta = ${nf(s.om)}\\ \\text{rad/s},\\ t - t_s = ${nf((s.tStop ?? s.t) - s.tSlip, 3)}\\ \\text{s}`,
+      // The slip itself (θ̈, θ̇ of a ladder turning while it slides) is beyond first year: the
+      // panel keeps the forces, the angle and the energy balance.
+      `F_w = ${nf(F.Fw)}\\ \\text{N}`,
+      `\\theta = ${nf(s.th / DEG)}^\\circ,\\ t - t_s = ${nf((s.tStop ?? s.t) - s.tSlip, 3)}\\ \\text{s}`,
       dES === '0' && WS === '0'
         ? `E_0 - E = 0 = W_f`
         : `E_0 - E = ${sc(s.E0)} - ${paren(sc(E))} = ${sc(s.E0 - E)}\\ \\text{J} = W_f = ${sc(s.W)}\\ \\text{J}`,
@@ -517,15 +519,13 @@ export const ladderScene: Scene<P, S> = {
   },
 
   info: {
-    goals: ['ladder.goal.cond', 'ladder.goal.pivot', 'ladder.goal.limit', 'ladder.goal.slip'],
+    goals: ['ladder.goal.cond', 'ladder.goal.pivot', 'ladder.goal.limit'],
     observe: ['ladder.obs.drag', 'ladder.obs.climb', 'ladder.obs.onset', 'ladder.obs.slip', 'ladder.obs.angle', 'ladder.obs.crit', 'ladder.obs.over', 'ladder.obs.arms'],
     equations: [
       '\\textstyle\\sum F_x = f - F_w = 0, \\quad \\sum F_y = N - (m+M)g = 0',
       '\\textstyle\\sum\\tau_\\text{foot} = F_w L\\sin\\theta - mg\\,\\tfrac{L}{2}\\cos\\theta - Mg\\,d\\cos\\theta = 0',
       'f \\le \\mu_s N \\iff \\tan\\theta \\ge \\frac{m/2 + Md/L}{\\mu_s(m+M)} = \\tan\\theta_c',
       'f \\le \\mu_s N \\iff d \\le d_c = \\frac{L}{M}\\left[\\mu_s(m+M)\\tan\\theta - \\frac{m}{2}\\right]',
-      '(m+M)\\ddot x_\\text{cm} = f - F_w,\\quad (m+M)\\ddot y_\\text{cm} = N - (m+M)g',
-      'I_\\text{cm}\\ddot\\theta = \\textstyle\\sum\\tau_\\text{cm},\\quad f = \\mu_k N',
     ],
     assumptions: ['ladder.asm.wall', 'ladder.asm.body', 'ladder.asm.climb', 'ladder.asm.kinetic', 'ladder.asm.wallleave', 'ladder.asm.scale'],
   },

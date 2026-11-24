@@ -234,8 +234,8 @@ export const carnotScene: Scene<P, { t: number }> = {
 export function formulaLines(time: number, p: P): string[] {
   const m = model(p);
   const [A, B, C, D] = m.c.corners;
-  // Policy D: nR and the volumes to 3 figures (R3), T_C as its slider label (R1), energies in whole
-  // joules as on the bars (R7a, R8; ch18/formula.ts).
+  // Policy D: nR and the volumes to 3 figures (R3), T_C as its slider label (R1), energies to 3
+  // figures on the run scale as on the bars (R7a, R8; ch18/formula.ts).
   const nR = tn(NR);
   const tc = slider(params.tc, p.tc);
   const qh = tJ(m.qin);

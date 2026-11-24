@@ -12,8 +12,8 @@ export interface Plates {
   kappa: number;
 }
 
-/** Dielectric constants (HRW Table 25-1). */
-export const KAPPA: Record<string, number> = { air: 1.00054, paper: 3.5, glass: 4.7, water: 80.4 };
+/** Dielectric constants (HRW Table 25-1); vacuum is κ = 1 exactly. */
+export const KAPPA: Record<string, number> = { vacuum: 1, air: 1.00054, paper: 3.5, glass: 4.7, water: 80.4 };
 
 export const capacitance = (c: Plates) => (c.kappa * EPS0 * c.A) / c.d;
 

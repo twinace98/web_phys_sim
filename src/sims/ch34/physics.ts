@@ -2,11 +2,13 @@
 // Sign convention (Halliday): p > 0 object distance; i > 0 real image, i < 0 virtual image;
 // f > 0 converging lens / concave mirror, f < 0 diverging lens / convex mirror; f = ∞ plane mirror.
 
-/** Image distance from 1/p + 1/i = 1/f (Infinity when p = f). */
+/**
+ * Image distance from 1/p + 1/i = 1/f (Infinity when p = f), as i = pf/(p − f): one rounding, so a
+ * value the Σ panel's arithmetic gives exactly (9 × 5 / 4 = 11.25) is exact here too.
+ */
 export function imageDistance(p: number, f: number): number {
   if (!Number.isFinite(f)) return -p;
-  const inv = 1 / f - 1 / p;
-  return Math.abs(inv) < 1e-12 ? Infinity : 1 / inv;
+  return Math.abs(p - f) < 1e-9 ? Infinity : (p * f) / (p - f);
 }
 
 /** Lateral magnification m = −i/p. */

@@ -49,6 +49,15 @@ function model(p: P): { pr: Profile; rg: Ranges } {
   return memo;
 }
 
+/** a in the Σ panel: −g as the constant table prints it (the model's g is the table value 9.8). */
+const aTex = (a: number) => (a === -CONST.g.value ? `-${CONST.g.tex}` : tn(a));
+
+/**
+ * Strobe interval [s]: 0.1 s, or 0.2 s on a small stage (a phone), where 0.1 s images near the top
+ * of a drop pile up into one column: the first gap ½ g Δt² drawn at least 0.8 px.
+ */
+const strobeDt = (pxPerM: number) => (0.5 * G_EARTH * STROBE_DT ** 2 * pxPerM >= 0.8 ? STROBE_DT : 2 * STROBE_DT);
+
 /** Height of the top of the view: the highest point reached. */
 const top = (p: P) => Math.max(model(p).rg.x[1], 1);
 /** Largest speed of the run: the scale of v (R7a), so the top of a throw reads an exact 0. */
@@ -146,9 +155,12 @@ export const freefall: Scene<P, S> = {
     g.line({ x: rx, y: pr.x0 }, { x: g.px(-14), y: pr.x0 }, { color: '#c4c4c4', width: 1, dash: [3, 4] });
 
     if (p.strobe) {
-      for (let k = 0; k * STROBE_DT <= s.t + 1e-9; k++) {
-        const q = stateAt(pr, k * STROBE_DT);
-        g.circle({ x: 0, y: q.x }, 4, { fill: '#ffffff', role: 'position', width: 1.25 });
+      const dt = strobeDt(1 / g.px(1));
+      // Smaller marks on a small stage, so neighbouring images stay apart.
+      const rMark = dt > STROBE_DT ? 3 : 4;
+      for (let k = 0; k * dt <= s.t + 1e-9; k++) {
+        const q = stateAt(pr, k * dt);
+        g.circle({ x: 0, y: q.x }, rMark, { fill: '#ffffff', role: 'position', width: 1.25 });
         g.line({ x: rx, y: q.x }, { x: rx + g.px(6), y: q.x }, { role: 'position', width: 1.25 });
       }
     }
@@ -173,7 +185,8 @@ export const freefall: Scene<P, S> = {
     // 3 figures; the highest point sets the run scale, so the landing reads an exact 0 (policy D, R7a).
     { label: 'y', unit: 'm', value: (s) => s.y, scale: top },
     { label: 'v', unit: 'm/s', value: (s) => s.v, scale: vTop },
-    { label: 'a', unit: 'm/s²', value: (s) => s.a },
+    // −g prints as the constant table has it (−9.8, not −9.80), as in the Σ panel (R1, R8).
+    { label: 'a', unit: 'm/s²', value: (s) => s.a, format: (v) => (v === -CONST.g.value ? `\u2212${CONST.g.tex}` : undefined) },
   ],
 
   // Constant acceleration −g: v and y at the current t, t with 3 figures (policy D, R3). y prints
@@ -194,7 +207,8 @@ export const freefall: Scene<P, S> = {
     return [
       // Free-body diagram: mg is the only force, so ΣF = ma gives a = −g for any mass.
       ...(p.fbd ? [`\\Sigma F_y = -mg = ma \\;\\Rightarrow\\; a = -g`] : []),
-      `a = -g = ${tn(s.a)}${u('m/s^2')}`,
+      // a = −g is the constant itself: the string of the constant table (R1, R8), as its readout.
+      `a = -g = ${aTex(s.a)}${u('m/s^2')}`,
       `v = v_0 - gt = ${v0} - ${CONST.g.tex} \\times ${T} = ${V}${u('m/s')}`,
       `y = h + v_0 t - \\tfrac{1}{2} g t^2`,
       `= ${slider(params.h, pr.x0)} + ${paren(v0)} \\times ${T} - ${num(half)} \\times ${T}^2 = ${Y}${u('m')}`,

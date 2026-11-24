@@ -1,7 +1,7 @@
 // Ch 9 scene: two carts collide on a frictionless track. Momentum is conserved in every
 // collision; kinetic energy only in the elastic one. The explosion adds energy.
 import { fmtTick, niceTicks } from '../../core/format';
-import { slider, tn, tnInt, tnScale, u } from '../../core/tex';
+import { ZERO, sigCancel, slider, tnCancel, tnInt, tnScale, u } from '../../core/tex';
 import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import type { Draw } from '../../draw/draw';
 import { C1, C2, TICK, cmMark, halo, padded, trioLabel } from './common';
@@ -204,7 +204,6 @@ function pArrow(g: Draw, from: Vec2, len: number, color: string, label: string, 
 }
 
 /** A substituted velocity: always in parentheses, as it multiplies a mass. */
-const pv = (v: number) => `(${tn(v)})`;
 
 /**
  * Run scales of the totals: the largest single momentum (a sum has the decimals of its largest
@@ -231,11 +230,20 @@ export function formulaLines(s: S, p: P): string[] {
   const m1 = `(${slider(params.m1, tr.m1)})`;
   const m2 = `(${slider(params.m2, tr.m2)})`;
   const pt = tnScale(k.pt, sc.p);
+  const Kt = tnScale(k.Kt, sc.K);
+  // R5b: after the collision m₁v₁ + m₂v₂ can nearly cancel ((0.5)(−1.68) + (2.7)(0.325) = 0.0375
+  // against 0.0400); v₁ and v₂ then keep the figures that reproduce p_tot (and K_tot), one string on
+  // every line (R8). An exact 0 (explosion from rest) needs the sum within 1 % of the run scale.
+  const sv = Math.max(
+    sigCancel((r) => tr.m1 * r(k.v1) + tr.m2 * r(k.v2), pt, ZERO * sc.p),
+    sigCancel((r) => 0.5 * tr.m1 * r(k.v1) ** 2 + 0.5 * tr.m2 * r(k.v2) ** 2, Kt, ZERO * sc.K),
+  );
+  const pv = (v: number) => `(${tnCancel(v, sv)})`;
   const lines = [
     `p_\\mathrm{tot} = m_1 v_1 + m_2 v_2`,
     `= ${m1}${pv(k.v1)} + ${m2}${pv(k.v2)} = ${pt}${u('kg\\,m/s')}`,
     `K_\\mathrm{tot} = \\tfrac12 m_1 v_1^2 + \\tfrac12 m_2 v_2^2`,
-    `= \\tfrac12${m1}${pv(k.v1)}^2 + \\tfrac12${m2}${pv(k.v2)}^2 = ${tnScale(k.Kt, sc.K)}${u('J')}`,
+    `= \\tfrac12${m1}${pv(k.v1)}^2 + \\tfrac12${m2}${pv(k.v2)}^2 = ${Kt}${u('J')}`,
     // M = m₁ + m₂ is exact at the sliders' resolution.
     `v_\\mathrm{cm} = \\frac{p_\\mathrm{tot}}{m_1 + m_2} = \\frac{${pt}}{${slider(params.m1, tr.m1 + tr.m2)}} = ${tnScale(k.pt / (tr.m1 + tr.m2), sc.v)}${u('m/s')}`,
   ];

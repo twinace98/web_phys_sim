@@ -120,6 +120,10 @@ export function surfaceHandles<P extends SurfaceParams, S extends { t: number }>
   const [bx0, by0, bx1, by1] = b.box;
   const clampX = (x: number) => Math.min(bx1, Math.max(bx0, x));
   const clampY = (y: number) => Math.min(by1, Math.max(by0, y));
+  // A circle or square stays inside the box whole, rim knob included (QA 2026-11-24: the Ch 23
+  // surface and the Ch 29 Ampère loop reached SIZE_MAX = 1.1 m on a ±0.75 m stage).
+  const inside = (lo: number, hi: number, half: number, v: number) => (hi - lo <= 2 * half ? (lo + hi) / 2 : Math.min(hi - half, Math.max(lo + half, v)));
+  const room = (cx: number, cy: number) => Math.min(cx - bx0, bx1 - cx, cy - by0, by1 - cy);
   const getG = (p: P) => (b.G ? b.G(p) : p.G);
   const ok = (p: P, shape: string, G: number[], F: number[]) => {
     const poly = surfacePoly(shape, G, F);
@@ -146,7 +150,11 @@ export function surfaceHandles<P extends SurfaceParams, S extends { t: number }>
       radiusPx: 14,
       when: (p) => on(p, ['circle', 'square', 'free']),
       pos: (_s, p) => ({ x: getG(p)[0], y: getG(p)[1] }),
-      onDrag: (ctx, _s, w) => tryG(ctx, [clampX(w.x), clampY(w.y), getG(ctx.params)[2]]),
+      onDrag: (ctx, _s, w) => {
+        const size = getG(ctx.params)[2];
+        if (ctx.params.shape === 'free') tryG(ctx, [clampX(w.x), clampY(w.y), size]);
+        else tryG(ctx, [inside(bx0, bx1, size, w.x), inside(by0, by1, size, w.y), size]);
+      },
     },
     {
       // Rim: size from the distance to the centre.
@@ -156,7 +164,7 @@ export function surfaceHandles<P extends SurfaceParams, S extends { t: number }>
       onDrag: (ctx, _s, w) => {
         const [cx, cy] = getG(ctx.params);
         const size = ctx.params.shape === 'square' ? Math.max(Math.abs(w.x - cx), Math.abs(w.y - cy)) : Math.hypot(w.x - cx, w.y - cy);
-        tryG(ctx, [cx, cy, Math.min(SIZE_MAX, Math.max(SIZE_MIN, size))]);
+        tryG(ctx, [cx, cy, Math.max(SIZE_MIN, Math.min(SIZE_MAX, room(cx, cy), size))]);
       },
     },
   ];

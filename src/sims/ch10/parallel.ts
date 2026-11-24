@@ -36,7 +36,8 @@ const params: ParamSchema<P> = {
       { value: 'rod', label: 'ch10.shape.rod' },
     ],
   },
-  d: { kind: 'number', label: 'ch10.p.d', desc: 'ch10.d.d', group: 'hidden', live: true, control: 'slider', min: -R, max: R, default: 0.3 },
+  // A slider as well as the draggable axis (QA 2026-11-24: drag-only before), 0.01 m as the drag snaps.
+  d: { kind: 'number', label: 'ch10.p.d', desc: 'ch10.d.d', group: 'main', live: true, control: 'slider', min: -R, max: R, step: 0.01, default: 0.3, unit: 'm' },
 };
 
 const gx = (d: number) => GX + Math.abs(d) * SX;

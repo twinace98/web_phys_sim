@@ -60,14 +60,22 @@ function layout(p: P): Layout {
   return p.n === 3 ? { xs: [5.5, 10.9, 16.3], axes: [0, th, 90 * DEG], dial: 1 } : { xs: [6.4, 14], axes: [0, th], dial: 1 };
 }
 
+/**
+ * An intensity ratio rid of floating-point noise before it is rounded for print: cos²30° sin²30°
+ * and cos²60° sin²60° are both 3/16 = 0.1875 but came out 0.18749… and 0.18750…, printed 0.187
+ * and 0.188 (QA 2026-11-24, R8). 12 figures keep every value that is not exact; a residue below
+ * 10⁻¹² (cos² 90°) is an exact 0.
+ */
+export const exactRatio = (v: number): number => (Math.abs(v) < 1e-12 ? 0 : Number(v.toPrecision(12)));
+
 /** Intensities on each beam segment (source first), relative to I0. */
 export function segments(p: P): number[] {
-  return [1, ...polarizerChain(1, layout(p).axes)];
+  return [1, ...polarizerChain(1, layout(p).axes).map(exactRatio)];
 }
 
 /** Transmitted fraction after the first polarizer as a function of the dial angle. */
 export function afterFirst(n: number, th: number): number {
-  return n === 3 ? Math.cos(th) ** 2 * Math.cos(90 * DEG - th) ** 2 : Math.cos(th) ** 2;
+  return exactRatio(n === 3 ? Math.cos(th) ** 2 * Math.cos(90 * DEG - th) ** 2 : Math.cos(th) ** 2);
 }
 
 const dir = (a: number): Vec2 => ({ x: Math.sin(a), y: Math.cos(a) });
@@ -95,13 +103,21 @@ function polarizer(g: Draw, x: number, a: number, label: string, knob: boolean):
   g.text({ x, y: BY - R }, label, { size: 14, align: 'center', dy: 20 });
 }
 
+/**
+ * Radius of the end-on E indicator [world]: RE, but at least 17 px on a narrow stage (about 11 px
+ * at 390 px wide, QA 2026-11-24), and at most 80 % of the half-gap it sits in, so the ring
+ * stays clear of the source, polarizers and detector beside it (three polarizers: 1.3 to a rim).
+ */
+export const eRadius = (g: Draw, halfGap: number) => Math.min(0.8 * halfGap, Math.max(RE, g.px(17)));
+
 /** End-on view of the E oscillation: one double arrow, or a star for unpolarized light. */
-function eView(g: Draw, x: number, I: number, a: number | null): void {
+function eView(g: Draw, x: number, I: number, a: number | null, halfGap: number): void {
   const c = { x, y: BY };
+  const re = eRadius(g, halfGap);
   const ring: Vec2[] = [];
-  for (let k = 0; k <= 40; k++) ring.push({ x: x + RE * Math.cos((k / 40) * 2 * Math.PI), y: BY + RE * Math.sin((k / 40) * 2 * Math.PI) });
+  for (let k = 0; k <= 40; k++) ring.push({ x: x + re * Math.cos((k / 40) * 2 * Math.PI), y: BY + re * Math.sin((k / 40) * 2 * Math.PI) });
   g.polygon(ring, { fill: '#ffffff', color: '#9a9a9a', width: 1, dash: [2, 3] });
-  const L = 0.78 * RE * Math.sqrt(I);
+  const L = 0.78 * re * Math.sqrt(I);
   const both = (b: number) => {
     const d = dir(b);
     if (L < g.px(3)) return;
@@ -111,7 +127,7 @@ function eView(g: Draw, x: number, I: number, a: number | null): void {
   if (a === null) for (const b of [0, 45, 90, 135]) both(b * DEG);
   else both(a);
   const txt = I > 0.9999 ? '*I*_{0}' : `${fmt(I, 3)} *I*_{0}`;
-  g.text({ x, y: BY - RE }, txt, { size: 13, align: 'center', dy: 18 });
+  g.text({ x, y: BY - re }, txt, { size: 13, align: 'center', dy: 18 });
 }
 
 /** Σ panel: I₁ = I₀/2, Malus's law through the turned polarizer (and the third), I/I₀ at the detector. */
@@ -180,7 +196,12 @@ export const polar: Scene<P, { t: number }> = {
 
     // E indicators in the middle of each gap, then the polarizers on top of the beam.
     for (let k = 0; k < stops.length - 1; k++) {
-      eView(g, (stops[k] + stops[k + 1]) / 2, I[k], k === 0 ? null : L.axes[k - 1]);
+      // Free space between the rims on either side (source disc 16 px, polarizer R, detector face).
+      const rimL = k === 0 ? g.px(16) : R;
+      const rimR = k === stops.length - 2 ? 0 : R;
+      const mid = (stops[k] + stops[k + 1]) / 2;
+      const halfGap = Math.min(mid - stops[k] - rimL, stops[k + 1] - rimR - mid);
+      eView(g, mid, I[k], k === 0 ? null : L.axes[k - 1], halfGap);
     }
     L.xs.forEach((x, k) => polarizer(g, x, L.axes[k], `*P*_{${k + 1}}`, k === L.dial));
     // Dial angle between the first axis (vertical) and the turned one.

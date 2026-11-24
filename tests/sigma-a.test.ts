@@ -175,8 +175,8 @@ describe('Σ panel agrees with the simulation, Ch 2–6', () => {
     for (const over of [{}, { mode: 'release', fbd: true, mA: 0.5, k: 150 }, { mB: 4.3, v0: 0.5, fbd: true }]) check(t, over, [0, 160, 190, 301, 700], tx, 4);
     const fr = scene(ch05, 'frames');
     const rx: Expect[] = [
-      [/^a' = /, 'a'],
-      [/^v' = /, 'v'],
+      [/^a = a_\\text\{G\} - a_0 = /, 'a'],
+      [/^v = at = /, 'v'],
       [/\\Rightarrow\\; a = /, 'a'],
       [/^v = v_0/, 'v'],
     ];

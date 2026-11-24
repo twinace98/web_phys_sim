@@ -1,5 +1,10 @@
 // Shared by the Ch 2 scenes: position–velocity–acceleration plots linked by slope and area.
+import { fmt } from '../../core/format';
+import { CONST } from '../../core/tex';
 import type { Params, PlotSpec } from '../../core/types';
+
+/** Slope of v(t) as the a readout prints it: free fall's −g as the constant "−9.8" (R1, R8). */
+const aText = (k: number) => (k === -CONST.g.value ? `\u2212${CONST.g.tex}` : fmt(k));
 import { areaUnderA, areaUnderV, type Profile, type Ranges } from './physics';
 
 /** Range including zero, at least minSpan wide, with a margin. */
@@ -43,7 +48,7 @@ export function kinematicPlots<P extends Params & { mode: string }>(
       yRange: (p) => padded(model(p).rg.v, 1),
       overlays: (p) =>
         p.mode === 'slope'
-          ? [{ kind: 'tangent', channel: 'v', slopeChannel: 'a', role: 'acceleration', unit: 'm/s²', target: { plot: 'a', channel: 'a' } }]
+          ? [{ kind: 'tangent', channel: 'v', slopeChannel: 'a', role: 'acceleration', unit: 'm/s²', target: { plot: 'a', channel: 'a' }, format: aText }]
           : [
               {
                 kind: 'area',

@@ -649,9 +649,13 @@ kbd {
   }
   .hdr h1 {
     font-size: 0.95em;
-    flex: 1;
-    /* Two lines rather than "Ch 15 · Oscilla…" (QA 2026-11-24). */
+    /* Its own full-width row under the buttons, up to two lines, rather than 100 px beside them
+       ("Ch 15 · Oscilla…", QA 2026-11-24). */
+    order: 5;
+    flex: 1 1 100%;
+    margin: 0 2px 2px;
     white-space: normal;
+    word-break: keep-all;
     line-height: 1.2;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -659,6 +663,9 @@ kbd {
   }
   .hdr .spacer {
     display: none;
+  }
+  .hdr .seg {
+    margin-left: auto;
   }
   .tabs {
     order: 10;

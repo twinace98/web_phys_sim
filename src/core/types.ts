@@ -162,6 +162,8 @@ export interface TangentOverlay {
   unit: string;
   /** Plot/channel whose value equals the slope (gets a marker). */
   target?: { plot: string; channel: string };
+  /** Text of the slope (default 3 figures): the readout's string for the same quantity (R8). */
+  format?: (k: number) => string;
 }
 
 export interface AreaOverlay {

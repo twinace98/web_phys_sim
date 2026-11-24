@@ -122,8 +122,16 @@ function params(el: Element): ParamSchema<P> {
 
 /** Significant figures of i and m, shared by the panel and the readouts so both print the same digits. */
 const SIG = 3;
+/**
+ * i and m are ratios of slider values (p in half centimetres, f in whole ones). When the exact ratio
+ * is a tie at the third figure (9 × 5 / 4 = 11.25, 11 × 29 / 40 = 7.975), the Σ arithmetic rounds it
+ * half up (11.3, 7.98) while its binary neighbour may sit just below (11.249999…). A relative nudge
+ * of 10⁻¹² toward larger magnitude, far below any gap between such ratios (denominators under 200),
+ * prints the digits of the exact ratio. Readouts, panel and Σ all print through it.
+ */
+export const tie = (v: number) => v * (1 + 1e-12);
 /** TeX number: the readout formatting (true minus → ASCII for TeX). */
-const tex = (v: number) => fmt(v, SIG).replace('−', '-');
+const tex = (v: number) => fmt(tie(v), SIG).replace('−', '-');
 /** The p and f controls (the same for lens and mirror), for their label strings (R1). */
 const SPEC = params('lens');
 const pTex = (v: number) => slider(SPEC.p, v);
@@ -166,9 +174,9 @@ export function formulaLines(el: Element, p: P): string[] {
       lines.push(`p = f:\\ ${inv} = 0`);
       return lines;
     }
-    lines.push(inv, `i = \\frac{pf}{p - f} = \\frac{(${pp})(${ff})}{${pp} - ${paren(ff)}} = ${tn(i, SIG)}${u('cm')}`);
+    lines.push(inv, `i = \\frac{pf}{p - f} = \\frac{(${pp})(${ff})}{${pp} - ${paren(ff)}} = ${tn(tie(i), SIG)}${u('cm')}`);
   }
-  lines.push(`m = -\\frac{i}{p} = -\\frac{${tp(i, SIG)}}{${pp}} = ${tn(m, SIG)}`);
+  lines.push(`m = -\\frac{i}{p} = -\\frac{${tp(tie(i), SIG)}}{${pp}} = ${tn(tie(m), SIG)}`);
   return lines;
 }
 
@@ -453,6 +461,48 @@ function drawImage(g: Draw, el: Element, p: P, i: number, G: Geo, obs: Obstacles
   const at = placeLabel(g, base, tip, w, obs);
   const [wx, wy] = g.vp.toWorld(at.x, at.y);
   boxText(g, { x: wx, y: wy }, label, { size: 13, color: IMG, align: at.align });
+  const l = at.align === 'right' ? at.x - w : at.align === 'center' ? at.x - w / 2 : at.x;
+  obs.box(l - 4, at.y - 11 * sc, l + w + 4, at.y + 11 * sc, 3);
+}
+
+/** Axis ticks every 10 cm (under the rays): the stage is drawn to one fixed horizontal scale. */
+function axisTicks(g: Draw, G: Geo): void {
+  const vis = visible(g, G, 0);
+  const h = g.px(3);
+  for (let x = Math.ceil(vis.x0 / 10) * 10; x <= vis.x1; x += 10) if (x !== 0) g.line({ x, y: -h }, { x, y: h }, { color: AXIS, width: 1 });
+}
+
+/**
+ * 10 cm scale bar (horizontal: heights are stretched on narrow stages), in the free corner of the
+ * stage that the rays, the image and its label cover least: lower left, lower right or upper right.
+ */
+export function scaleBar(g: Draw, obs: Obstacles): void {
+  const sc = theme.scale;
+  const [ox] = g.vp.toPx(0, 0);
+  const len = g.vp.toPx(10, 0)[0] - ox;
+  const m = 14 * sc;
+  const spots: [number, number][] = [
+    [m, g.vp.h - m],
+    [g.vp.w - m - len, g.vp.h - m],
+    [g.vp.w - m - len, m + 22 * sc],
+  ];
+  let best = spots[0];
+  let bestCost = Infinity;
+  for (const [x, y] of spots) {
+    const c = obs.cost(x - 6 * sc, y - 22 * sc, x + len + 6 * sc, y + 5 * sc);
+    if (c < bestCost - 1e-9) {
+      best = [x, y];
+      bestCost = c;
+    }
+  }
+  const [x0, y] = best;
+  const [wx0, wy] = g.vp.toWorld(x0, y);
+  const a = { x: wx0, y: wy };
+  const b = { x: wx0 + 10, y: wy };
+  const t = g.px(4);
+  g.line(a, b, { color: TICK, width: 1.5 });
+  for (const q of [a, b]) g.line({ x: q.x, y: q.y - t }, { x: q.x, y: q.y + t }, { color: TICK, width: 1.5 });
+  g.text({ x: wx0 + 5, y: wy }, '10 cm', { size: 12, color: TICK, align: 'center', baseline: 'bottom', dy: -5 });
 }
 
 function makeScene(el: Element): Scene<P, { t: number }> {
@@ -472,6 +522,7 @@ function makeScene(el: Element): Scene<P, { t: number }> {
       const vis = visible(g, G, 0);
       g.line({ x: vis.x0, y: 0 }, { x: vis.x1, y: 0 }, { color: AXIS, width: 1 });
       obs.seg({ x: vis.x0, y: 0 }, { x: vis.x1, y: 0 }, 0.3);
+      axisTicks(g, G);
       drawElement(g, el, p, G, obs);
       focalMarks(g, el, p, G, false, obs);
       drawRays(g, el, p, i, G, obs);
@@ -479,6 +530,7 @@ function makeScene(el: Element): Scene<P, { t: number }> {
       upright(g, D(G, -p.p, 0), G.k * p.h, OBJ, false);
       obs.seg(D(G, -p.p, 0), D(G, -p.p, p.h), 3);
       if (Number.isFinite(i)) drawImage(g, el, p, i, G, obs);
+      scaleBar(g, obs);
     },
 
     handles: [
@@ -498,8 +550,8 @@ function makeScene(el: Element): Scene<P, { t: number }> {
     formula: (_s, p) => formulaLines(el, p),
 
     readouts: [
-      { label: 'i', unit: 'cm', value: (_s, p) => imageDistance(p.p, fOf(p)), sig: SIG },
-      { label: 'm', unit: '', value: (_s, p) => magnification(p.p, imageDistance(p.p, fOf(p))), sig: SIG },
+      { label: 'i', unit: 'cm', value: (_s, p) => tie(imageDistance(p.p, fOf(p))), sig: SIG },
+      { label: 'm', unit: '', value: (_s, p) => tie(magnification(p.p, imageDistance(p.p, fOf(p)))), sig: SIG },
     ],
 
     info:

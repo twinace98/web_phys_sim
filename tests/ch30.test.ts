@@ -148,3 +148,24 @@ describe('ch30 Faraday panel: both sides on the same circle (QA 2026-11-24)', ()
       }
   });
 });
+
+describe('ch30 Faraday: the magnet stays on the stage (QA 2026-11-24)', () => {
+  it('magnet ends within the ±1.2 m world over the whole run, any speed; flux symmetric about the coil', async () => {
+    const { faraday } = await import('../src/sims/ch30/faraday');
+    const w = faraday.world(defaults(faraday.params));
+    const MAG_HALF = 0.15;
+    for (const v of [0.2, 0.35, 0.5, 0.85, 1]) {
+      const T = faradayEnd('magnet', v);
+      for (let k = 0; k <= 40; k++) {
+        const x = faradayAt('magnet', (k / 40) * T, v, 0.5).x;
+        expect(x - MAG_HALF).toBeGreaterThanOrEqual(w.x[0] - 1e-9);
+        expect(x + MAG_HALF).toBeLessThanOrEqual(w.x[1] + 1e-9);
+      }
+      expect(faradayAt('magnet', 0, v, 0.5).x).toBeCloseTo(-1, 12);
+      expect(faradayAt('magnet', T, v, 0.5).x).toBeCloseTo(1, 12);
+      // Far from the coil at both ends: under 1 % of the peak flux, the same on both sides.
+      expect(faradayAt('magnet', 0, v, 0.5).phi / dipoleFlux(0)).toBeLessThan(0.01);
+      expect(faradayAt('magnet', T, v, 0.5).phi).toBeCloseTo(faradayAt('magnet', 0, v, 0.5).phi, 15);
+    }
+  });
+});

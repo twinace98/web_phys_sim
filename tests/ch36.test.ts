@@ -248,8 +248,28 @@ describe('ch36 single slit 6 μm: the ⓘ wording matches the drawn screen (revi
 
   it('the wording no longer claims a band as wide as the slit, in ko and en', () => {
     expect(ko['ch36.s.obs.wide']).not.toContain('슬릿 폭 정도의 밝은 띠');
-    expect(ko['ch36.s.obs.wide']).toContain('±1–2 μm');
     expect(en['ch36.s.obs.wide']).not.toContain('a bright band about as wide as the slit');
-    expect(en['ch36.s.obs.wide']).toContain('±1–2 μm');
+  });
+
+  // QA 2026-11-24: "±1–2 μm" read as one central band, but at λ = 400 nm, D = 15 μm the centre is
+  // a dip (0.47 of the maximum) between two peaks. The text now gives the band at the defaults and
+  // names that case.
+  const centreRatio = (a: number, lambda: number, D: number) => {
+    const I = fieldFor(lambda, [{ yc: 0, w: a }], D).screenSteady();
+    let max = 0;
+    for (const v of I) max = Math.max(max, v);
+    return I[(SCREEN_N - 1) / 2] / max;
+  };
+
+  it('defaults: one central band ±1.0 μm; λ = 400 nm, D = 15 μm: centre 0.47 of the maximum, as the text says', () => {
+    expect(centreRatio(6, 500, 25)).toBeCloseTo(1, 6);
+    expect(centreRatio(6, 400, 15)).toBeCloseTo(0.47, 2);
+    for (const m of [ko, en]) {
+      expect(m['ch36.s.obs.wide']).toContain('±1.0 μm');
+      expect(m['ch36.s.obs.wide']).toContain('0.47');
+      expect(m['ch36.s.obs.wide']).toContain('500 nm');
+      expect(m['ch36.s.obs.wide']).toContain('0.083');
+    }
+    expect(0.5 / 6).toBeCloseTo(0.083, 3);
   });
 });

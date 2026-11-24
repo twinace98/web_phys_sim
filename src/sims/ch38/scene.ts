@@ -18,8 +18,16 @@ import {
 } from './physics';
 
 const WAVE = ROLE_COLOR.position;
-const X_RANGE: [number, number] = [-5, 35];
-const X_END = 33;
+const narrow = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+/**
+ * Visible x range [nm] and the classical position where the run ends: 40 nm on wide stages; 28 nm
+ * on narrow ones, so Re ψ at k₀ = 15 nm⁻¹ keeps about 5 px per wavelength there (3.5 px over 40 nm,
+ * QA 2026-11-20).
+ */
+export const xRangeOf = (isNarrow: boolean): [number, number] => (isNarrow ? [-4, 24] : [-5, 35]);
+export const xEndOf = (isNarrow: boolean) => (isNarrow ? 22 : 33);
+/** Repeat length of the component sum [nm]: |ψ|² at x and x + 2π/δk are the same. */
+export const REPEAT = (2 * Math.PI) / DK;
 
 // ------------------------------------------------------------------ wave packet
 
@@ -68,14 +76,36 @@ const packetParams: ParamSchema<PP> = {
 
 let pkKey = '';
 let pkMemo: Packet = packet(1, 10);
+let pkLocal = false;
 function pkOf(p: PP): Packet {
   const key = `${p.M}|${p.k0}`;
   if (key !== pkKey) {
     pkMemo = packet(p.M, p.k0);
+    pkLocal = Number.isFinite(packetWidth(pkMemo, 0, 0, 600));
     pkKey = key;
   }
   return pkMemo;
 }
+
+/** Width of the taper at each end of the drawn repeat [nm]. */
+const TAPER = 3;
+
+/**
+ * Weight of ψ on the stage at x: 1 everywhere for a sum that is no packet (M ≤ 3, |ψ|² fills the
+ * repeat); for a packet 1 within half a repeat of its centre xc, falling smoothly (cos², over the
+ * last 3 nm) to 0 at ±21 nm. The sum repeats every 42 nm, so the copy one repeat behind would
+ * otherwise enter at the left edge by the end of the run (a third of the peak at M = 9, QA
+ * 2026-11-24) and the copy ahead at the right edge at the start. The taper hides the cut between them.
+ */
+export function drawWeight(p: PP, x: number, xc: number): number {
+  pkOf(p);
+  return pkLocal ? taper(x - xc) : 1;
+}
+const taper = (u: number) => {
+  const d = Math.abs(u) - (REPEAT / 2 - TAPER);
+  return d <= 0 ? 1 : d >= TAPER ? 0 : Math.cos((Math.PI / 2) * (d / TAPER)) ** 2;
+};
+const localised = (p: PP) => (pkOf(p), pkLocal);
 
 const H_PK = 0.02; // fs
 
@@ -109,7 +139,7 @@ export const wavePacket: Scene<PP, { t: number; n: number }> = {
   title: 'ch38.k.scene',
   params: packetParams,
   world: PX_WORLD,
-  time: { h: H_PK, recordEvery: 5, frameStep: 0.5, scale: 4, unit: 'fs', tEnd: (p) => X_END / vGroup((p as PP).k0) },
+  time: { h: H_PK, recordEvery: 5, frameStep: 0.5, scale: 4, unit: 'fs', tEnd: (p) => xEndOf(narrow()) / vGroup((p as PP).k0) },
   init: () => ({ t: 0, n: 0 }),
   step: (s) => {
     s.n += 1;
@@ -123,20 +153,27 @@ export const wavePacket: Scene<PP, { t: number; n: number }> = {
     const tt = ui?.tFrame ?? s.t;
     const o = canvasBox(g);
     const H = o.b - o.t;
-    const wave = new Frame(g, { l: o.l + 40, t: o.t + 24, r: o.r - 20, b: o.t + 0.58 * H }, X_RANGE, [-1.15, 1.15]);
+    const xr = xRangeOf(narrow());
+    const wave = new Frame(g, { l: o.l + 40, t: o.t + 24, r: o.r - 20, b: o.t + 0.58 * H }, xr, [-1.15, 1.15]);
     const amp = pk.a.reduce((a, b) => a + b, 0);
-    const n = Math.min(900, Math.round(wave.box.r - wave.box.l));
+    // One sample per device pixel: Re ψ at k₀ = 15 nm⁻¹ has a few CSS px per wavelength on a phone.
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    const n = Math.min(1800, Math.round((wave.box.r - wave.box.l) * dpr));
+    const xc = vGroup(p.k0) * tt;
+    const whole = !localised(p);
     const re: [number, number][] = [];
     const pr: [number, number][] = [];
     for (let i = 0; i <= n; i++) {
-      const x = X_RANGE[0] + ((X_RANGE[1] - X_RANGE[0]) * i) / n;
-      const [a, b] = psi(pk, x, tt);
-      re.push([x, a / amp]);
-      pr.push([x, (a * a + b * b) / (amp * amp)]);
+      const x = xr[0] + ((xr[1] - xr[0]) * i) / n;
+      // drawWeight without its memo lookup per sample.
+      const w = whole ? 1 : taper(x - xc);
+      const [a, b] = w > 0 ? psi(pk, x, tt) : [0, 0];
+      re.push([x, (w * a) / amp]);
+      pr.push([x, (w * w * (a * a + b * b)) / (amp * amp)]);
     }
-    wave.line(X_RANGE[0], 0, X_RANGE[1], 0, { color: '#c4c4c4', width: 1 });
+    wave.line(xr[0], 0, xr[1], 0, { color: '#c4c4c4', width: 1 });
     if (p.show !== 're') {
-      wave.polygon([[X_RANGE[0], 0], ...pr, [X_RANGE[1], 0]], { fill: WAVE, fillAlpha: 0.2 });
+      wave.polygon([[xr[0], 0], ...pr, [xr[1], 0]], { fill: WAVE, fillAlpha: 0.2 });
       wave.polyline(pr, { color: WAVE, width: 2 });
     }
     if (p.show !== 'prob') wave.polyline(re, { color: WAVE, width: 1.25, alpha: p.show === 'both' ? 0.55 : 1 });
@@ -145,12 +182,11 @@ export const wavePacket: Scene<PP, { t: number; n: number }> = {
 
     // Classical particle with the group velocity, on its own track.
     const yT = wave.box.b + 0.09 * H;
-    const xc = vGroup(p.k0) * tt;
     linePx(g, wave.box.l, yT, wave.box.r, yT, { color: '#c4c4c4', width: 1 });
     g.circle(W(g, wave.X(xc), yT), 7, { fill: 'position' });
     textPx(g, wave.box.l + 4, yT - 12, t('ch38.k.particle'), { size: 12, color: TICK });
     // x axis under the track.
-    const xa = new Frame(g, { ...wave.box, t: yT + 22, b: yT + 22 }, X_RANGE, [0, 1]);
+    const xa = new Frame(g, { ...wave.box, t: yT + 22, b: yT + 22 }, xr, [0, 1]);
     xa.axes({ xLabel: '*x* (nm)', yTicks: false });
 
     // Amplitudes of the plane-wave components.

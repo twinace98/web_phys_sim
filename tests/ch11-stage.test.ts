@@ -130,8 +130,8 @@ const H = spinScene.time!.h;
 const isArea = (s: string) => s.endsWith(' m²');
 
 describe('Ch 11 spin: swept areas written on the stage', () => {
-  it('the toggle is on the main bar and on by default', () => {
-    expect(spinScene.params.areas).toMatchObject({ kind: 'toggle', group: 'main', default: true });
+  it('the toggle is in the drawer (at most 2 main controls, design.md §4.1) and on by default', () => {
+    expect(spinScene.params.areas).toMatchObject({ kind: 'toggle', group: 'advanced', default: true });
   });
 
   it('every sector polygon has area L Δt / 2m to 0.05 % (modes, r_in, ω, m, whole run)', () => {

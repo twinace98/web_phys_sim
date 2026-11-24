@@ -115,8 +115,8 @@ describe('Ch 5 (audit §5: 1.3333 × 0.41667, m = 2.000; first law 1.77 against 
     expect(t.lines).toContain('N_A = m_A g = 3.0 \\times 9.8 = 29.4\\ \\mathrm{N}');
     expect(t.lines[0]).toBe('F_{BA} = k\\,c = 50 \\times 0 = 0\\ \\mathrm{N}');
     const f = at(await scene(5, 'frames'), { A: 2 }, 0);
-    expect(f.lines).toContain("a' = a - a_0 = 0 - 2.0 = -2.00\\ \\mathrm{m/s^2}");
-    expect(at(await scene(5, 'frames'), { motion: 'uniform' }, 0).lines).toContain("a' = a - a_0 = 0 - 0 = 0\\ \\mathrm{m/s^2}");
+    expect(f.lines).toContain('a = a_\\text{G} - a_0 = 0 - 2.0 = -2.00\\ \\mathrm{m/s^2}');
+    expect(at(await scene(5, 'frames'), { motion: 'uniform' }, 0).lines).toContain('a = a_\\text{G} - a_0 = 0 - 0 = 0\\ \\mathrm{m/s^2}');
   });
 });
 

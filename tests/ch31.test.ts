@@ -198,3 +198,30 @@ describe('ch31 driven RLC', () => {
     expect(Number.isFinite(T.value(s0, { ...base, R: 63 }))).toBe(true);
   });
 });
+
+describe('ch31 free oscillation ⓘ (QA 2026-11-24)', () => {
+  const T = freeScene.readouts!.find((r) => r.label === "T'")!;
+  const s0 = { t: 0 } as never;
+  const at = (R: number) => fmt(T.value(s0, { ...defaults(freeScene.params), R } as never), 3);
+
+  it("T' of the quoted cases: 1.99 ms at 0 and 5 Ω (0.3 % apart), 2.09 ms at 20 Ω, and the text says so", () => {
+    expect(at(0)).toBe('1.99');
+    expect(at(5)).toBe('1.99');
+    expect(at(20)).toBe('2.09');
+    const p0 = T.value(s0, { ...defaults(freeScene.params), R: 0 } as never);
+    const p5 = T.value(s0, { ...defaults(freeScene.params), R: 5 } as never);
+    expect(100 * (p5 / p0 - 1)).toBeCloseTo(0.3, 1);
+    for (const s of [ko['ch31.f.obs.damp'], en['ch31.f.obs.damp']]) {
+      expect(s).toContain('1.99 ms');
+      expect(s).toContain('2.09 ms');
+      expect(s).toContain('0.3 %');
+    }
+  });
+
+  it('the R ↔ b row of the analogy table is explained: b is the damping constant', () => {
+    for (const s of [ko['ch31.f.obs.spring'], en['ch31.f.obs.spring']]) {
+      expect(s).toContain('R \\leftrightarrow b');
+      expect(s).toContain('-bv');
+    }
+  });
+});

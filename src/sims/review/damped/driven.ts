@@ -5,15 +5,13 @@
 // Free-body diagram of the block: F_s = mg − kx, mg, F_d = −bv and the driving force F = k y_s, the
 // part of the spring force that the moving support adds (m x'' + b x' + kx = F_m cos ω_d t).
 import { fmtTick, niceTicks } from '../../../core/format';
-import { t as tr } from '../../../core/i18n';
 import type { ParamSchema, Scene } from '../../../core/types';
 import type { Draw } from '../../../draw/draw';
 import { Frame, W, textPx } from '../../modern/frame';
 import { fbdParam, type FbdForce } from '../../../draw/fbd';
-import { slider } from '../../../core/tex';
+import { slider, tn, tp, u } from '../../../core/tex';
 import { DAMPED_G, drawColumns, drawMech, mechLayout } from './mech';
-import { drivenAmp, drivenLag, gamma, omega0, peakAmp, peakOmega, rk4, type Osc } from './physics';
-import { tn, tp, u } from './tex';
+import { drivenAmp, omega0, peakAmp, peakOmega, rk4, type Osc } from './physics';
 
 type P = { ratio: number; b: number; m: number; k: number; fbd: boolean };
 type S = { t: number; x: number; v: number; th: number };
@@ -235,30 +233,19 @@ export const drivenScene: Scene<P, S> = {
 
   formula: (s, p) => {
     const o = oscOf(p);
-    const w0 = omega0(o);
     const wd = wdOf(p);
     const Fm = p.k * D;
     const xm = drivenAmp(o, { d: D, wd });
-    const lag = (drivenLag(o, { d: D, wd }) * 180) / Math.PI;
-    const wr = peakOmega(o);
+    // k − mω_d² is computed directly (R5), not from the rounded k and mω_d².
     const den = Math.hypot(p.k - p.m * wd * wd, p.b * wd);
     // Policy D: ratio, k, m as their slider labels (R1), derived values at 3 figures (R3), x_m as its
-    // readout. k − mω_d² is computed directly (R5); at ω_d = ω_0 it is 0 (rounding noise only), so
-    // φ = 90° is stated instead of a fraction.
-    const bw = p.b * wd;
-    const kw = p.k - p.m * wd * wd;
-    const resonant = Math.abs(kw) < 1e-9 * p.k;
+    // readout. The phase lag and the shift of the peak (√(ω₀² − 2γ²)) are beyond first year and stay
+    // off the panel: the forced oscillation keeps ω_d, F_m and x_m.
     const kS = slider(params.k, p.k);
     const lines = [
       `\\omega_d = ${slider(params.ratio, p.ratio)}\\,\\omega_0 = ${slider(params.ratio, p.ratio)}\\sqrt{${kS}/${slider(params.m, p.m)}} = ${tn(wd)}${u('rad/s')}`,
       `F_m = kd = ${kS} \\times ${D.toFixed(3)} = ${tn(Fm)}${u('N')}`,
       `x_m = \\frac{F_m}{\\sqrt{(k - m\\omega_d^2)^2 + (b\\omega_d)^2}} = \\frac{${tn(Fm)}}{${tn(den)}} = ${tn(xm)}${u('m')}`,
-      resonant
-        ? `\\omega_d = \\omega_0:\\ k - m\\omega_d^2 = 0,\\quad \\phi = 90^\\circ`
-        : `\\tan\\phi = \\frac{b\\omega_d}{k - m\\omega_d^2} = \\frac{${tn(bw)}}{${tn(kw)}},\\quad \\phi = ${tn(lag, 3)}^\\circ`,
-      Number.isFinite(wr)
-        ? `\\omega_\\text{peak} = \\sqrt{\\omega_0^2 - 2\\gamma^2} = ${tn(wr)}${u('rad/s')} = ${tn(wr / w0)}\\,\\omega_0`
-        : `\\gamma = ${tn(gamma(o))}${u('s^{-1}')} \\ge \\omega_0/\\sqrt{2}:\\ \\text{${tr('damped.nopeak')}}`,
     ];
     if (p.fbd) {
       // Net force from the drawn forces (y up): F_s − mg + F_d + F = ma.
@@ -274,7 +261,7 @@ export const drivenScene: Scene<P, S> = {
 
   info: {
     goals: ['damped.d.goal.res', 'damped.d.goal.b'],
-    observe: ['damped.d.obs.build', 'damped.d.obs.sweep', 'damped.d.obs.b', 'damped.d.obs.phase', 'damped.d.obs.ring'],
+    observe: ['damped.d.obs.build', 'damped.d.obs.sweep', 'damped.d.obs.b', 'damped.d.obs.ring'],
     equations: [
       'm\\frac{d^2x}{dt^2} + b\\frac{dx}{dt} + kx = F_m\\cos\\omega_d t',
       'x = x_m\\cos(\\omega_d t - \\phi), \\quad x_m = \\frac{F_m}{\\sqrt{(k - m\\omega_d^2)^2 + (b\\omega_d)^2}}',

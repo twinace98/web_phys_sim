@@ -172,7 +172,7 @@ export const processScene: Scene<P, S> = {
       '\\Delta E_\\text{int} = Q - W',
       'W = \\int_{V_i}^{V_f} p\\,dV',
       'E_\\text{int} = \\tfrac{f}{2}\\,nRT, \\quad pV = nRT',
-      'W_\\text{isothermal} = nRT\\ln\\frac{V_f}{V_i}, \\quad pV^\\gamma = \\text{const (adiabatic)}',
+      'W_\\text{isothermal} = nRT\\ln\\frac{V_f}{V_i}, \\quad pV^\\gamma = \\text{const (adiabatic)}, \\quad \\gamma = \\frac{f + 2}{f}',
     ],
     assumptions: ['ch18.assume.ideal', 'ch18.assume.quasi'],
   },

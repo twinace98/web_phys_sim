@@ -17,18 +17,17 @@ import {
   dimLine,
   drawBarrier,
   drawMarker,
-  drawScreen,
   fieldFor,
   initSlit,
   relIntensity,
   slitEnd,
   stepSlit,
-  worldOf,
   type SlitState,
 } from '../wave2d/slits';
 import { drawWave } from '../wave2d/view';
 import { num, slider, tn } from '../../core/tex';
 import { brightAt, fringeSpacing, pathDiff } from './physics';
+import { drawSlitScreen, slitWorld } from './screen';
 
 type P = { d: number; lambda: number; D: number; yp: number };
 
@@ -41,7 +40,7 @@ const field = (p: P) => fieldFor(p.lambda, apsOf(p), p.D);
 
 /**
  * First bright fringe above the centre (ΔL = λ exactly, the maximum the wave field shows):
- * the Δy mark and readout. λD/d is its small-angle limit and differs by up to 13 % at the
+ * the Δy mark and readout. λD/d is its small-angle limit and falls short by up to 12 % at the
  * slider extremes (λ = 700 nm, d = 1.5 μm).
  */
 export const firstBright = (p: P) => brightAt(1, p.lambda / 1000, p.d, p.D);
@@ -122,7 +121,7 @@ export const doubleSlit: Scene<P, SlitState> = {
   title: 'ch35.scene',
   params,
   time: { h: H_FS, recordEvery: 20, frameStep: 1, scale: 10, unit: 'fs', tEnd: (p) => slitEnd(field(p as P), (p as P).D) },
-  world: (p) => worldOf(p.D),
+  world: (p) => slitWorld(p.D),
   init: () => initSlit(),
   step: (s, h, p) => stepSlit(s, h, field(p)),
 
@@ -134,15 +133,17 @@ export const doubleSlit: Scene<P, SlitState> = {
     drawWave(g, f, ui?.tFrame ?? s.t, rgb);
     drawBarrier(g, aps);
     const I = relIntensity(s, f);
-    const inset = drawScreen(g, p.D, f, I, rgb);
+    const inset = drawSlitScreen(g, p.D, f, I, rgb);
 
     // Fringe spacing beside the graph: from the central maximum to the first bright fringe
-    // (omitted when that fringe lies beyond the screen).
+    // (omitted when that fringe lies beyond the screen). Heights through the graph (under the
+    // field on narrow stages).
     const dy = firstBright(p);
     if (dy < Y1) {
       const bx = inset.r.x1 + 0.9;
-      for (const y of [0, dy]) g.line({ x: inset.r.x0, y }, { x: bx, y }, { color: '#b5b5b5', width: 1, dash: [3, 4] });
-      dimLine(g, { x: bx, y: 0 }, { x: bx, y: dy }, 'Δ*y*', 20, 0);
+      const [g0, g1] = [0, dy].map((y) => inset.P(0, y).y);
+      for (const y of [g0, g1]) g.line({ x: inset.r.x0, y }, { x: bx, y }, { color: '#b5b5b5', width: 1, dash: [3, 4] });
+      dimLine(g, { x: bx, y: g0 }, { x: bx, y: g1 }, 'Δ*y*', 20, 0);
     }
 
     dimLine(g, { x: -1.1, y: -p.d / 2 }, { x: -1.1, y: p.d / 2 }, '*d*', -16, 0);

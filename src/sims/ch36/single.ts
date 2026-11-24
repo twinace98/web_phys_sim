@@ -7,6 +7,7 @@ import type { ParamSchema, Scene, Vec2 } from '../../core/types';
 import { ROLE_COLOR } from '../../draw/theme';
 import { boxText } from '../inset/inset';
 import { pathDiff } from '../ch35/physics';
+import { drawSlitScreen, slitWorld } from '../ch35/screen';
 import { WaveField, wavelengthRGB, type Aperture } from '../wave2d/field';
 import {
   H_FS,
@@ -19,13 +20,11 @@ import {
   dimLine,
   drawBarrier,
   drawMarker,
-  drawScreen,
   fieldFor,
   initSlit,
   relIntensity,
   slitEnd,
   stepSlit,
-  worldOf,
   type SlitState,
 } from '../wave2d/slits';
 import { drawWave } from '../wave2d/view';
@@ -225,7 +224,7 @@ export const singleSlit: Scene<P, SlitState> = {
   title: 'ch36.s.scene',
   params,
   time: { h: H_FS, recordEvery: 20, frameStep: 1, scale: 10, unit: 'fs', tEnd: (p) => slitEnd(field(p as P), (p as P).D) },
-  world: (p) => worldOf(p.D),
+  world: (p) => slitWorld(p.D),
   init: () => initSlit(),
   step: (s, h, p) => stepSlit(s, h, field(p)),
 
@@ -236,7 +235,7 @@ export const singleSlit: Scene<P, SlitState> = {
     // Wave drawn at the frame's own time (between steps), so the wavefronts move smoothly.
     drawWave(g, f, ui?.tFrame ?? s.t, rgb);
     drawBarrier(g, aps);
-    const inset = drawScreen(g, p.D, f, relIntensity(s, f), rgb);
+    const inset = drawSlitScreen(g, p.D, f, relIntensity(s, f), rgb);
     if (two(p)) {
       const env = envelope(p);
       inset.curve(
@@ -253,8 +252,10 @@ export const singleSlit: Scene<P, SlitState> = {
     const mark = y1Mark(p);
     if (mark !== 'hidden' && Number.isFinite(y1) && y1 < 11.5) {
       const faint = mark === 'faint';
-      for (const y of [-y1, 0, y1]) g.line({ x: inset.r.x0, y }, { x: y === 0 ? bx : inset.r.x1, y }, { color: faint ? '#d6d6d6' : '#b5b5b5', width: 1, dash: [3, 4] });
-      dimLine(g, { x: bx, y: 0 }, { x: bx, y: y1 }, '*y*_{1}', 20, 0, faint ? FAINT : undefined);
+      // Heights through the graph (under the field on narrow stages).
+      const Y = (y: number) => inset.P(0, y).y;
+      for (const y of [-y1, 0, y1]) g.line({ x: inset.r.x0, y: Y(y) }, { x: y === 0 ? bx : inset.r.x1, y: Y(y) }, { color: faint ? '#d6d6d6' : '#b5b5b5', width: 1, dash: [3, 4] });
+      dimLine(g, { x: bx, y: Y(0) }, { x: bx, y: Y(y1) }, '*y*_{1}', 20, 0, faint ? FAINT : undefined);
     }
 
     dimLine(g, { x: 0, y: Y0 - 1.2 }, { x: p.D, y: Y0 - 1.2 }, '*D*', 0, 0);

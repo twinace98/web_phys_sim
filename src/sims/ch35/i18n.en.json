@@ -16,6 +16,6 @@
   "ch35.obs.lambda": "Wavelength 400 → 700 nm: the fringes spread apart",
   "ch35.obs.d": "Slit separation 2 → 4 μm: the fringes move closer together",
   "ch35.assume.model": "2D model: each slit is one Huygens point source (a very narrow slit), amplitude $\\propto r^{-1/2}$, no reflection from the barrier. The diffraction envelope of slits with a width is in Ch 36 tab 1 (two slits)",
-  "ch35.assume.scale": "Slit separation and screen distance are scaled down to μm to fit the stage. Real set-ups have $D \\gg d$, where $\\Delta y = \\lambda D/d$ becomes exact. Here $\\Delta y$ (mark and readout) is the exact first bright fringe, $\\Delta L = \\lambda$",
+  "ch35.assume.scale": "Slit separation and screen distance are scaled down to μm to fit the stage. $\\Delta y = \\lambda D/d$ becomes exact at small angles ($\\lambda \\ll d$, $\\sin\\theta \\approx \\tan\\theta$). Here $\\lambda/d$ = 0.08–0.47, so the first bright fringe lies at a large angle and $\\lambda D/d$ falls short of the exact value by up to 12 %. Not having $D \\gg d$ (parallel paths, $\\Delta L = d\\sin\\theta$) costs 2 % at most. Here $\\Delta y$ (mark and readout) is the exact first bright fringe, $\\Delta L = \\lambda$",
   "ch35.assume.colour": "Lines are wavefronts (crests); their strength is the amplitude relative to the brightest point at the same distance (left out near nodal lines). The intensity graph is relative to the central maximum"
 }

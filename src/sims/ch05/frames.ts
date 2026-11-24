@@ -156,7 +156,9 @@ function drawBallFbd(g: Draw, p: P, bc: Vec2, ceil: number | null): void {
   const { real, pseudo } = framesFbd(p);
   drawFbd(g, bc, real, perPx);
   if (pseudo !== 0) {
-    const len = g.px(Math.max(Math.abs(pseudo) * perPx, FBD_MIN_PX)) * Math.sign(pseudo);
+    // At least FBD_MIN_PX beyond the faded ball (radius 9 px): from the centre, a 14 px arrow
+    // would show only 5 px outside the ball.
+    const len = g.px(Math.max(Math.abs(pseudo) * perPx, 9 + FBD_MIN_PX)) * Math.sign(pseudo);
     g.arrow(bc, { x: len, y: 0 }, { color: PSEUDO, width: 2.5, dash: PSEUDO_DASH });
     // Above the arrow's line: the table top is just below the ball centre.
     g.text({ x: bc.x + len, y: bc.y }, tr('ch05.f.pseudoLabel'), { size: 13, color: PSEUDO, align: 'right', baseline: 'middle', dx: -5, dy: -9 });
@@ -271,8 +273,10 @@ export const frames: Scene<P, S> = {
     { label: 'v', unit: 'm/s', value: (s, p) => ball(p, s.t).v },
   ],
 
-  // Σ panel: no horizontal force on the ball. Ground frame: a = 0, v = v_0. Train frame:
-  // a' = a − a_0, v' = a' t, and the pseudo force −m a_0 when shown.
+  // Σ panel: no horizontal force on the ball. Ground frame: a = 0, v = v_0. Train frame: a and v are
+  // measured in the train, as on the stage, in the readouts and on the plots (one symbol, R8):
+  // a = a_G − a_0 with a_G = 0 the ball's acceleration seen from the ground, v = a t, and the
+  // pseudo force −m a_0 when shown.
   formula: (s, p) => {
     const b = ball(p, s.t);
     const A0 = trainOf(p).A;
@@ -281,21 +285,21 @@ export const frames: Scene<P, S> = {
     const W = FRAMES_M * G5;
     const vert = p.fbd ? [`\\Sigma F_y = N - mg = ${tn(W)} - ${tn(W)} = 0`] : [];
     if (p.frame !== 'train') return [`${F} \\;\\Rightarrow\\; a = ${tn(b.a)}${u('m/s^2')}`, `v = v_0 = ${tn(b.v)}${u('m/s')}`, ...vert];
-    // a₀ is the slider value (its label) or exactly 0; a' and t with 3 figures (policy D, R1/R3).
+    // a₀ is the slider value (its label) or exactly 0; a and t with 3 figures (policy D, R1/R3).
     const a0 = A0 > 0 ? slider(params.A, A0) : '0';
     const lines = [
       F,
-      `a' = a - a_0 = 0 - ${a0} = ${tn(b.a)}${u('m/s^2')}`,
-      `v' = a't = ${tp(b.a)} \\times ${tn(s.t)} = ${tn(b.v)}${u('m/s')}`,
+      `a = a_\\text{G} - a_0 = 0 - ${a0} = ${tn(b.a)}${u('m/s^2')}`,
+      `v = at = ${tp(b.a)} \\times ${tn(s.t)} = ${tn(b.v)}${u('m/s')}`,
     ];
-    if (A0 > 0 && p.pseudo) lines.push(`ma' = -ma_0 = -1 \\times ${a0} = ${tn(-A0)}${u('N')}`);
+    if (A0 > 0 && p.pseudo) lines.push(`F_\\text{pseudo} = -ma_0 = -1 \\times ${a0} = ${tn(-A0)}${u('N')}`);
     return [...lines, ...vert];
   },
 
   info: {
     goals: ['ch05.f.goal.inertial', 'ch05.f.goal.non'],
     observe: ['ch05.f.obs.ground', 'ch05.f.obs.uniform', 'ch05.f.obs.accel', 'ch05.f.obs.pseudo'],
-    equations: ["a' = a - a_0", "\\vec F_\\text{net} = 0 \\;\\Rightarrow\\; m\\vec a' = -m\\vec a_0"],
+    equations: ['a = a_\\text{G} - a_0', '\\vec F_\\text{net} = 0 \\;\\Rightarrow\\; m\\vec a = -m\\vec a_0 = \\vec F_\\text{pseudo}'],
     assumptions: ['ch05.f.assume', 'ch05.f.assume.sym'],
   },
 };

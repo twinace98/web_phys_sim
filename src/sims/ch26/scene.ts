@@ -280,6 +280,9 @@ function wireEnd(g: Draw, x: number, bot: number, top: number, cut: boolean, up:
   return up ? pts : pts.reverse();
 }
 
+/** Resistivity of the model at 300 K [Ω m]: the reference wire, R = 10 Ω for L = 4 cm, A = 2 mm². */
+export const RHO_300 = (REF.R * REF.A * 1e-6) / (REF.L * 1e-2);
+
 /** Readouts: measured Ī [mA], V/Ī [Ω] (NaN until there is a reading). */
 export const readI = (s: S) => measuredI(s);
 export const readVI = (s: S, p: P) => (p.V > 0 && measuredI(s) > 0 ? (p.V / measuredI(s)) * 1e3 : NaN);
@@ -304,11 +307,17 @@ export function formulaLines(s: S, p: P): string[] {
   const R = resistanceOf(w);
   const sl = (k: 'V' | 'T' | 'L' | 'A') => slider(params[k] as NumberParam, p[k]);
   const lines = [`\\tau = \\tau_{300}\\,\\frac{300\\ \\mathrm{K}}{T} = (${TAU_300}\\ \\mathrm{s})\\,\\frac{300}{${sl('T')}} = ${tn(tau)}${u('s')}`];
+  // Long lines: the symbolic form, then the substituted numbers on their own row ("= …").
   lines.push(
-    p.V > 0 ? `v_d = a\\tau = (${tn(accelOf(w, p.V))}\\ \\mathrm{cm/s^2})(${tn(tau)}\\ \\mathrm{s}) = ${tn(driftSpeed(w, p.V))}${u('cm/s')}` : `v_d = 0\\ \\ (V = 0)`,
+    ...(p.V > 0 ? [`v_d = a\\tau`, `= (${tn(accelOf(w, p.V))}\\ \\mathrm{cm/s^2})(${tn(tau)}\\ \\mathrm{s}) = ${tn(driftSpeed(w, p.V))}${u('cm/s')}`] : [`v_d = 0\\ \\ (V = 0)`]),
   );
+  // ρ of the model (∝ T through τ ∝ 1/T), then R = ρL/A with L in m and A in m² (QA 2026-11-24:
+  // the line showed no value of ρ). ρ₃₀₀ is set by the reference wire, 10 Ω for 4 cm and 2 mm².
+  const rho = (R * p.A * 1e-6) / (p.L * 1e-2);
   lines.push(
-    `R = \\rho\\,\\frac{L}{A} = (${REF.R}\\ \\Omega)\\,\\frac{${sl('L')}}{${REF.L}}\\cdot\\frac{${REF.A}}{${sl('A')}}\\cdot\\frac{${sl('T')}}{${REF.T}} = ${tn(R)}${u('\\Omega')}`,
+    `\\rho = \\rho_{300}\\,\\frac{T}{300\\ \\mathrm{K}} = (${tn(RHO_300)}\\ \\mathrm{\\Omega\\,m})\\,\\frac{${sl('T')}}{${REF.T}} = ${tn(rho)}${u('\\Omega\\,m')}`,
+    `R = \\rho\\,\\frac{L}{A}`,
+    `= \\frac{(${tn(rho)})(${sl('L')}\\times 10^{-2})}{${sl('A')}\\times 10^{-6}}\\ \\mathrm{\\Omega} = ${tn(R)}${u('\\Omega')}`,
   );
   // The prediction: not the measured Ī of the readout, so not written as I.
   lines.push(`\\frac{V}{R} = \\frac{${sl('V')}\\ \\mathrm{V}}{${tn(R)}\\ \\Omega} = ${tn(currentOf(w, p.V) * 1e3)}${u('mA')}`);
@@ -506,6 +515,6 @@ export const conduction: Scene<P, S> = {
     goals: ['ch26.goal.drift', 'ch26.goal.R'],
     observe: ['ch26.obs.zero', 'ch26.obs.drift', 'ch26.obs.count', 'ch26.obs.ohm', 'ch26.obs.LA', 'ch26.obs.T'],
     equations: ['v_d = \\frac{eE}{m}\\tau, \\quad J = n e v_d', 'I = \\frac{V}{R}, \\quad R = \\rho\\frac{L}{A}', '\\rho = \\frac{m}{e^2 n \\tau}'],
-    assumptions: ['ch26.assume.speed', 'ch26.assume.model', 'ch26.assume.units', 'ch26.assume.digits'],
+    assumptions: ['ch26.assume.sym', 'ch26.assume.speed', 'ch26.assume.model', 'ch26.assume.rho', 'ch26.assume.units', 'ch26.assume.digits'],
   },
 };

@@ -1,5 +1,5 @@
 {
-  "ch36.s.scene": "Single-slit diffraction",
+  "ch36.s.scene": "Slit diffraction",
   "ch36.p.slits": "Slits",
   "ch36.d.slits": "Number of slits: one (single-slit diffraction) or two of the same width $a$ (double slit = interference × diffraction)",
   "ch36.slits.one": "One slit",
@@ -18,9 +18,9 @@
   "ch36.s.goal.min": "First minimum: each source in the upper half pairs with one half a slit below; every pair differs in path by $\\lambda/2$ and cancels, so $a\\sin\\theta = \\lambda$",
   "ch36.s.goal.two": "Two slits: the two-slit interference fringes ($\\cos^2\\beta$) sit inside the single-slit diffraction envelope ($(\\sin\\alpha/\\alpha)^2$); a bright fringe that falls on an envelope minimum is missing",
   "ch36.s.obs.build": "Play: the wave spreads out behind the slit and the screen builds up a wide central maximum and weak outer maxima",
-  "ch36.s.obs.pair": "Default point (first minimum): the top source (blue) and the source half a slit below it (orange) differ in path by $\\Delta L \\approx 0.5\\lambda$, and so does every other pair",
+  "ch36.s.obs.pair": "Default point (first minimum): the top source (blue) and the source half a slit below it (orange) differ in path by $\\Delta L$ = 0.47λ. Lower pairs differ more, up to 0.53λ for the lowest, 0.50λ = λ/2 on average (the screen is close, so the pairs differ a little; for a distant screen every pair differs by λ/2)",
   "ch36.s.obs.narrow": "Slit width 1 μm: the central maximum spreads wide ($\\sin\\theta_1 = \\lambda/a$)",
-  "ch36.s.obs.wide": "Slit width 6 μm ($a \\gg \\lambda$): the spread is small ($\\sin\\theta_1 = \\lambda/a \\le 0.12$), and the central bright band is ±1–2 μm wide at half maximum, narrower than the slit (±3 μm). A bright band as wide as the slit (the shadow of geometric optics) needs $a^2/(\\lambda D) \\gg 1$, beyond the settings of this scene",
+  "ch36.s.obs.wide": "Slit width 6 μm ($a \\gg \\lambda$) at the default wavelength 500 nm and screen distance 25 μm: the spread is small ($\\sin\\theta_1 = \\lambda/a$ = 0.083), and the central bright band is ±1.0 μm wide at half maximum, narrower than the slit (±3 μm). Where $a^2/(\\lambda D)$ exceeds 3 (Fresnel diffraction) the centre can darken and the peak split in two (wavelength 400 nm, screen 15 μm: the centre has 0.47 of the maximum). A bright band as wide as the slit (the shadow of geometric optics) needs $a^2/(\\lambda D) \\gg 1$, beyond the settings of this scene",
   "ch36.s.obs.lambda": "Wavelength 400 → 700 nm (settings): the same slit spreads the light wider",
   "ch36.s.obs.two": "Two slits (default $a$ = 2 μm, $d$ = 4 μm, $d/a = 2$): three bright fringes inside the central envelope (grey dashed line); the $m = \\pm2$ fringes fall on the first envelope minimum $y_1$ and are missing. At the default point $\\Delta L \\approx 2\\lambda$ (constructive), yet it is dark",
   "ch36.s.obs.ratio": "Slit width 1.5 μm, separation 4.5 μm in settings ($d/a = 3$): five bright fringes inside the central envelope ($2d/a - 1$), $m = \\pm3$ missing",
@@ -41,5 +41,5 @@
   "ch36.ph.obs.a": "Narrower slit: smaller phase difference at the same angle, the chain curls less, so the central maximum is wider",
   "ch36.ph.obs.N": "Changing the number of sources (settings) leaves the minima in place: they are set by the edge-to-edge phase difference $\\phi$",
   "ch36.ph.assume.far": "Screen very far away (Fraunhofer diffraction): rays from all sources are parallel",
-  "ch36.ph.assume.draw": "The slit on the left is an enlarged sketch; the graph and $I/I_m$ are the sum of $N$ sources. The minima are those of $(\\sin\\alpha/\\alpha)^2$ for a continuous slit ($N \\ge 8$). The outer maxima are higher than for a continuous slit by $[(\\phi/2N)/\\sin(\\phi/2N)]^2$: 1.1–1.2 times at the defaults ($a$ = 2 μm, $N$ = 10), 6.8 times at the 34° maximum for $a$ = 4 μm, $\\lambda$ = 400 nm, $N$ = 8 (0.023 against 0.0034). All of them stay below 0.06; more sources bring the sum closer to the continuous slit"
+  "ch36.ph.assume.draw": "The slit on the left is an enlarged sketch; the graph and $I/I_m$ are the sum of $N$ sources. The minima are those of $(\\sin\\alpha/\\alpha)^2$ for a continuous slit ($N \\ge 8$). The outer maxima are higher than for a continuous slit by $[(\\phi/2N)/\\sin(\\phi/2N)]^2$: 1.1–1.2 times at the defaults ($a$ = 2 μm, $N$ = 10), 6.8 times at the 34° maximum for $a$ = 4 μm, $\\lambda$ = 400 nm, $N$ = 8 (0.023 against 0.0034). All of them stay below 0.06; more sources bring the sum closer to the continuous slit. When the chain curls into several tight turns and becomes tiny, a round loupe beside it shows the same chain magnified (×factor)"
 }

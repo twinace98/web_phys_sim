@@ -135,7 +135,8 @@ const vParam = (pr: Preset): NumberParam =>
     min: V_RANGE[pr][0],
     max: V_RANGE[pr][1],
     step: 0.01,
-    default: SETUPS[pr].v,
+    // On the slider's grid (the design speed 8.4462 and the cone's 1.6820 are not): 8.45, 1.68.
+    default: Number(SETUPS[pr].v.toFixed(2)),
     unit: 'm/s',
     visibleIf: (p) => p.preset === pr,
   });
@@ -326,8 +327,11 @@ function netArrow(g: Draw, P0: Vec2, side: Vec2, L: number, body: number): void 
   const inward = { x: -P0.x, y: -P0.y };
   const len = Math.hypot(inward.x, inward.y) || 1;
   const u = { x: inward.x / len, y: inward.y / len };
-  g.arrow(P0, { x: u.x * L, y: u.y * L }, { role: 'force', width: 3.5 });
-  const m = add(P0, u, Math.max(0.8 * L, body + g.px(14)));
+  // From the object's inner edge, so a short arrow (banked curve at 4 m/s: about 9 px) is not hidden
+  // under the car; its length stays proportional to the force.
+  const from = add(P0, u, body);
+  g.arrow(from, { x: u.x * L, y: u.y * L }, { role: 'force', width: 3.5 });
+  const m = add(from, u, Math.max(0.8 * L, g.px(14)));
   g.text(add(m, side, g.px(18)), '*F*_{net}', { size: 13, role: 'force', align: 'center', baseline: 'middle' });
 }
 
@@ -405,12 +409,76 @@ function drawTopRotating(g: Draw, p: P, t: number): void {
   const cor = { x: f.cor.x * kf, y: f.cor.y * kf };
   const len = Math.hypot(cor.x, cor.y);
   const short = len < g.px(COR_SHORT);
-  fictArrow(g, P0, cor, short ? COR : undefined, 24);
-  if (len < 1e-12 || short) return;
+  fictArrow(g, P0, cor, undefined, 24);
+  if (len < 1e-12) return;
   let n = { x: -cor.y / len, y: cor.x / len };
   if (n.x * P0.x + n.y * P0.y < 0) n = { x: -n.x, y: -n.y };
+  if (short) {
+    // A short arrow: the label beyond its tip (as fictArrow places it). Just after the release the
+    // arrow runs along the circle and that spot is on the ground ring and its marks (QA 2026-11-24,
+    // phone): then it moves outward, away from the axis, clear of the ring.
+    const u = { x: cor.x / len, y: cor.y / len };
+    const w = COR.replace(/[*_{}]/g, '').length * 7;
+    let q = add(P0, u, Math.max(len, g.px(24)) + g.px(10 + Math.abs(u.x) * (w / 2 - 6)));
+    const clear = 0.07 + g.px(14);
+    const off = Math.hypot(q.x, q.y) - 1;
+    if (Math.abs(off) < clear) {
+      // Outward; inward instead where outward would leave the panel on the left (narrow stage).
+      const out = add(q, n, clear - off);
+      q = out.x - g.px(w / 2) < XL ? add(q, n, -clear - off) : out;
+    }
+    g.text(q, COR, { size: 13, role: 'force', align: 'center', baseline: 'middle' });
+    return;
+  }
   const m = add(add(P0, cor, 0.5), n, g.px(18));
   g.text(m, COR, { size: 13, role: 'force', align: 'right', baseline: 'middle', dx: -6 });
+}
+
+/**
+ * Banked curve, side view: the horizontal component of the friction, the f_s cos θ of
+ * F_net,r = N sin θ + f_s cos θ (inward above the design speed, outward below it), dashed like the
+ * N sin θ component. Its label takes the first spot past the tip that clears the N sin θ and f_s
+ * labels (estimated boxes, world units): below, a row lower, or above.
+ */
+function bankFrictionComponent(g: Draw, fs: Force[], at: Vec2, foot: Vec2, slope: Vec2, KF: number): void {
+  const f = fs.find((q) => q.name === 'f');
+  const N = fs.find((q) => q.name === 'N');
+  if (!f || Math.abs(f.r) < 1e-9) return;
+  const v = { x: -f.r * KF, y: f.z * KF };
+  const tip = { x: foot.x + v.x, y: foot.y };
+  g.arrow(foot, { x: v.x, y: 0 }, { role: 'force', width: 1.5, dash: [4, 3] });
+  g.line(tip, add(foot, v), { role: 'force', width: 1, dash: [2, 3], alpha: 0.6 });
+  type B = { x0: number; x1: number; y0: number; y1: number };
+  const px = (n: number) => g.px(n);
+  const hit = (a: B, b: B) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+  const taken: B[] = [];
+  if (N) {
+    // "N sin θ": right-aligned 8 px left of its component's tip, about 40 px wide.
+    const nx = at.x - N.r * KF;
+    taken.push({ x0: nx - px(50), x1: nx - px(6), y0: at.y - px(9), y1: at.y + px(9) });
+  }
+  {
+    // "f_s": centred 12 px past the friction tip and 13 px below the road.
+    const len = Math.hypot(v.x, v.y);
+    const d = len > 1e-12 ? { x: v.x / len, y: v.y / len } : slope;
+    const q = add(add(add(foot, v), d, px(12)), { x: slope.y, y: -slope.x }, px(13));
+    taken.push({ x0: q.x - px(10), x1: q.x + px(10), y0: q.y - px(9), y1: q.y + px(9) });
+  }
+  const left = v.x < 0;
+  const W = px(52);
+  const fBox = taken[taken.length - 1];
+  // Screen rows (down +): below the component, above it, a row lower; first just past the tip,
+  // then also past the f_s label.
+  const cand: { y: number; b: B; edge: number }[] = [];
+  for (const far of [false, true])
+    for (const dy of [12, -12, 28]) {
+      const y = tip.y - px(dy);
+      const edge = left ? Math.min(tip.x - px(4), far ? fBox.x0 - px(4) : Infinity) : Math.max(tip.x + px(4), far ? fBox.x1 + px(4) : -Infinity);
+      const x0 = left ? edge - W : edge;
+      cand.push({ y, edge, b: { x0, x1: x0 + W, y0: y - px(8), y1: y + px(8) } });
+    }
+  const pick = cand.find((c) => !taken.some((o) => hit(o, c.b))) ?? cand[cand.length - 1];
+  g.text({ x: pick.edge, y: pick.y }, '*f*_{s} cos*θ*', { size: 12, role: 'force', align: left ? 'right' : 'left', baseline: 'middle' });
 }
 
 function drawSide(g: Draw, p: P, t: number, frame: Frame): void {
@@ -498,6 +566,7 @@ function drawSide(g: Draw, p: P, t: number, frame: Frame): void {
       g.line({ x: from.x + v.x, y: from.y }, add(from, v), { role: 'force', width: 1, dash: [2, 3], alpha: 0.6 });
     }
   }
+  if (frame === 'inertial' && pr === 'banked') bankFrictionComponent(g, fs, at, foot, slope, KF);
   if (frame === 'rotating') {
     // Centrifugal force, away from the axis (to the right), at the current distance from the axis.
     const q = rotatingViewAt(s, t, tRel(p));
@@ -543,7 +612,8 @@ export function circularFormula(p: P, t: number): string[] {
   // forces that may round the other way (3612 against 3613 N at 8.50 m/s banked; policy D, R8).
   const Fr = rel ? netForce(pr, rel, st).r : need;
   const m = num(st.m);
-  const r = num(st.r);
+  // The cone's radius follows from the angle: 3 figures on every line (R8: 0.414, not 0.41 in ω = v/r).
+  const r = pr === 'cone' ? tn(st.r) : num(st.r);
   const mg = st.m * G;
   const g = CONST.g.tex;
   const v = slider(params[V_KEY[pr]], st.v);
@@ -564,7 +634,7 @@ export function circularFormula(p: P, t: number): string[] {
     // The angle follows from the speed (string length fixed); after the cut the pendulum falls.
     const thd = st.theta / DEG;
     lines.push(`\\tan\\theta = \\frac{v^2}{g r},\\; r = L\\sin\\theta \\;\\Rightarrow\\; \\theta = ${tn(thd)}^\\circ`);
-    lines.push(`r = L\\sin\\theta = ${num(L_CONE)} \\times \\sin ${tn(thd)}^\\circ = ${tn(st.r)}${u('m')}`);
+    lines.push(`r = L\\sin\\theta = ${num(L_CONE)} \\times \\sin ${tn(thd)}^\\circ = ${r}${u('m')}`);
     lines.push(`\\frac{mv^2}{r} = mg\\tan\\theta = ${m} \\times ${g}\\tan ${tn(thd)}^\\circ = ${tn(need)}${u('N')}`);
   } else lines.push(mv2r());
   lines.push(rel ? `${LOST[pr]} = 0 \\;\\Rightarrow\\; F_{\\text{net},r} = ${tn(Fr)}${u('N')}` : `F_{\\text{net},r} = ${SUPPLY[pr]} = \\frac{mv^2}{r} = ${tn(Fr)}${u('N')}`);
@@ -654,19 +724,7 @@ export const circular: Scene<P, { t: number; n: number }> = {
 
   info: {
     goals: ['ch06.c.goal.net', 'ch06.c.goal.notnew', 'ch06.c.goal.rot'],
-    observe: [
-      'ch06.c.obs.v',
-      'ch06.c.obs.string',
-      'ch06.c.obs.flat',
-      'ch06.c.obs.tilt',
-      'ch06.c.obs.bank',
-      'ch06.c.obs.cone',
-      'ch06.c.obs.cut',
-      'ch06.c.obs.rot',
-      'ch06.c.obs.fict',
-      'ch06.c.obs.car',
-      'ch06.c.obs.cor',
-    ],
+    observe: ['ch06.c.obs.v', 'ch06.c.obs.flat', 'ch06.c.obs.bank', 'ch06.c.obs.cone', 'ch06.c.obs.cut', 'ch06.c.obs.rot'],
     equations: [
       'F_{\\text{net},r} = \\frac{mv^2}{r}',
       'f_s \\le f_{s,\\text{max}} = \\mu_s mg \\;\\Rightarrow\\; v \\le \\sqrt{\\mu_s g r}',

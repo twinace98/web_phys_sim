@@ -21,7 +21,7 @@
   "wj.assume.scale": "Both axes follow $L$: the well always fills the panel and the energy axis runs to $27.5\\,E_1$, so the picture looks the same for every width while the numbers change",
   "wj.assume.pick": "Drag the knobs (circles marked ▲▼) at the ends of the arrow up or down: they snap to the nearest level ($n \\le 5$). Double tap either knob to reverse the transition",
   "wj.assume.amp": "Wave-function heights in arbitrary units (every state drawn the same height); the baseline sits at the state's energy",
-  "wj.assume.dipole": "Every pair of levels is given a photon, as in the textbook problems. In a symmetric well an electric-dipole transition needs $n_i - n_f$ odd (opposite parity); $3 \\to 1$ is forbidden at this order",
+  "wj.assume.dipole": "Every pair of levels is given a photon, as in the textbook problems (in reality some transitions hardly ever happen)",
   "wj.assume.log": "Spectrum strip: logarithmic wavelength axis from 5 nm to 5 µm; X-ray below 10 nm, visible band taken as 380 to 750 nm; lines outside the visible are grey and dashed. Clear button: removes the collected lines, keeping the current one",
   "wj.clear": "Clear"
 }

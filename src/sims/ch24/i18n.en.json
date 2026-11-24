@@ -23,5 +23,7 @@
   "ch24.as.units": "Charges in nC, lengths in m, test charge $q_0 = +1$ nC, so $W$ is in nJ",
   "ch24.as.ref": "Potential reference: $V = 0$ infinitely far away",
   "ch24.as.levels": "Equipotentials are left out only where adjacent lines would be less than about 3 px apart on screen (near a charge). Map colours are compressed as $\\tanh(V/25\\,\\mathrm{V})$",
-  "ch24.as.num": "$W$ integrates $q_0\\vec E\\cdot d\\vec s$ numerically along the dragged path (a long path has its older points thinned; $W$ does not depend on the path, so it is unchanged); $\\Delta V$ is the potential difference of its end points"
+  "ch24.as.num": "$W$ integrates $q_0\\vec E\\cdot d\\vec s$ numerically along the dragged path (a long path has its older points thinned; $W$ does not depend on the path, so it is unchanged); $\\Delta V$ is the potential difference of its end points",
+  "ch24.as.sym": "A: start of the path (black dot); B: end of the path, the present position of the test charge $q_0$. $V$: potential at B, $V_A$: potential at A, $\\Delta V = V - V_A$. $k = 1/(4\\pi\\varepsilon_0)$ = 8.99×10⁹ N·m²/C²: Coulomb constant, $\\varepsilon_0$: permittivity of free space. $q_i$, $r_i$: the $i$-th charge and the distance to it. $d\\vec s$: small displacement along the path",
+  "ch24.as.clear": "A, the path and the test charge keep at least 5 cm from every charge: a charge dropped on them pushes A aside and the path is redrawn around it (at a charge $V$ is infinite)"
 }

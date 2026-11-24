@@ -175,7 +175,9 @@ describe('Ch 39', () => {
   it('wells: h²/8m to 3 figures, L as its slider prints it; finite-well count with tnCmp (R6)', async () => {
     const d = await at(39, 'wells');
     expect(d.lines[0]).toBe('E_1 = \\frac{h^2}{8mL^2} = \\frac{0.376\\ \\mathrm{eV\\,nm^2}}{(1.00\\ \\mathrm{nm})^2} = 0.376\\ \\mathrm{eV}');
-    expect(d.lines[1]).toBe('E_2 = 2^2 E_1 = 4 \\times 0.376 = 1.50\\ \\mathrm{eV}');
+    // n² times h²/8mL², not times the rounded E₁ (QA 2026-11-24: 4 × 1.50 = 6.02 at L = 0.50 nm).
+    expect(d.lines[1]).toBe('E_2 = 2^2 E_1 = 4 \\times \\frac{0.376\\ \\mathrm{eV\\,nm^2}}{(1.00\\ \\mathrm{nm})^2} = 1.50\\ \\mathrm{eV}');
+    expect((await at(39, 'wells', { L: 0.5 })).lines[1]).toBe('E_2 = 2^2 E_1 = 4 \\times \\frac{0.376\\ \\mathrm{eV\\,nm^2}}{(0.50\\ \\mathrm{nm})^2} = 6.02\\ \\mathrm{eV}');
     expect((await at(39, 'wells', { pot: 'finite', L: 1.3 })).lines.at(-1)).toBe('N = \\left\\lceil \\frac{2 z_0}{\\pi} \\right\\rceil = \\lceil 2.998 \\rceil = 3');
     expect((await at(39, 'wells', { pot: 'harmonic' })).lines[0]).toBe('E_0 = \\tfrac12\\hbar\\omega = \\tfrac12 \\times 0.20\\ \\mathrm{eV} = 0.100\\ \\mathrm{eV}');
   });
@@ -183,10 +185,11 @@ describe('Ch 39', () => {
   it('superposition: h from CONST, ΔE to 3 figures, t/T as whole periods + φ, ⟨x⟩ with the run-scale decimals', async () => {
     const h = await at(39, 'superposition', { pot: 'harmonic' }, 300);
     expect(h.lines[1]).toBe('T = \\frac{h}{\\Delta E} = \\frac{4.14\\ \\mathrm{eV\\,fs}}{0.200\\ \\mathrm{eV}} = 20.7\\ \\mathrm{fs}');
-    const d = await at(39, 'superposition', {}, 777);
-    expect(d.lines[2]).toBe('\\frac{t}{T} = \\frac{7.11\\ \\mathrm{fs}}{3.67\\ \\mathrm{fs}} = 1 + 0.939');
-    expect(d.lines.at(-1)).toBe('= 0 - 0.180\\cos(2\\pi \\times 0.939) = -0.167\\ \\mathrm{nm}');
-    expect(d.ro('\\langle x\\rangle')).toBe('−0.167');
+    // 78 runner steps of h: 7 state steps each (h is in runner units, not fs).
+    const d = await at(39, 'superposition', {}, 78);
+    expect(d.lines[2]).toBe('\\frac{t}{T} = \\frac{7.15\\ \\mathrm{fs}}{3.67\\ \\mathrm{fs}} = 1 + 0.950');
+    expect(d.lines.at(-1)).toBe('= 0 - 0.180\\cos(2\\pi \\times 0.950) = -0.171\\ \\mathrm{nm}');
+    expect(d.ro('\\langle x\\rangle')).toBe('−0.171');
   });
 });
 

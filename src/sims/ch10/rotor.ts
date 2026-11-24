@@ -24,8 +24,12 @@ const params: ParamSchema<P> = {
   tau: { kind: 'number', label: 'ch10.p.tau', desc: 'ch10.d.tau', group: 'advanced', live: false, control: 'slider', min: 0.1, max: 1, step: 0.05, default: 0.5, unit: 'N·m' },
 };
 
-/** Run length: 6 s, shorter if the faster rotor would pass 15 rad/s. */
-export const runTime = (p: P) => Math.min(6, 15 / (p.tau / inertia(p.m, Math.min(p.rA, p.rB))));
+/**
+ * Run length: 6 s, shorter if the faster rotor would pass 15 rad/s, but at least 2 s, long enough to
+ * watch both spin up (QA 2026-11-24: 0.600 s at τ = 1, m = 0.5, r_A = 0.2; that rotor then ends at
+ * 50 rad/s, under 1 rad per 60 Hz frame).
+ */
+export const runTime = (p: P) => Math.min(6, Math.max(2, 15 / (p.tau / inertia(p.m, Math.min(p.rA, p.rB)))));
 
 /** Two equal masses at ±r. */
 const inertia = (m: number, r: number) =>
