@@ -272,16 +272,19 @@ export const readI = (s: S, p: P) => {
  * Policy D: R and C as their sliders, state values with 3 figures. While charging, i is written as
  * the exponential of the segment (R5): ℰ − V_C would cancel to a few digits of 12 V once settled.
  */
-export function formulaLines(s: S, p: P): string[] {
-  const vc = readVC(s, p);
-  const i = readI(s, p);
+export function formulaLines(s0: S, p: P): string[] {
+  // After a switch or an R, C change while paused the state still holds the old segment: the new
+  // one starts now (t_s = t, q₀ = q), so τ is never applied to the old segment's elapsed time.
+  const s = inSegment(s0, p) ? s0 : { ...s0, mode: p.sw, rc: `${p.R}|${p.C}`, ts: s0.t, q0: s0.q };
+  const vc = readVC(s0, p);
+  const i = readI(s0, p);
   const c = rcOf(p);
   const T = tau(c);
   const qm = s.q * 1e3;
   const CE = finalCharge(c, true) * 1e3;
   const dt = s.t - s.ts;
   // Elapsed time and τ in the exponent as the readouts show them (t is live).
-  const ex = `e^{-${tn(dt)}/${tn(T)}}`;
+  const ex = `e^{-${dt === 0 ? '0' : tn(dt)}/${tn(T)}}`;
   const tt = s.ts > 0 ? '(t - t_s)' : 't';
   const sl = (k: 'R' | 'C') => slider(params[k] as NumberParam, p[k]);
   const lines = [`\\tau = RC = (${sl('R')}\\ \\mathrm{k\\Omega})(${sl('C')}\\ \\mathrm{\\mu F}) = ${tn(T)}${u('s')}`];
@@ -296,7 +299,7 @@ export function formulaLines(s: S, p: P): string[] {
   lines.push(`V_C = \\frac{q}{C} = \\frac{${Math.abs(qm) < 1e-3 ? tz(s.q) : `${tz(qm)}\\times 10^{-3}`}}{${sl('C')}\\times 10^{-6}}\\ \\mathrm{V} = ${tz(vc)}${u('V')}`);
   const R = `${sl('R')}\\ \\mathrm{k\\Omega}`;
   const it = tz(i);
-  if (p.sw === 'charge' && inSegment(s, p)) {
+  if (p.sw === 'charge' && inSegment(s0, p)) {
     lines.push(
       Math.abs(s.q0) < 1e-12
         ? `i = \\frac{\\mathcal{E}}{R}\\,e^{-${tt}/\\tau} = \\frac{${EMF}\\ \\mathrm{V}}{${R}}\\,${ex} = ${it}${u('mA')}`
@@ -357,7 +360,8 @@ export const rcCircuit: Scene<P, S> = {
 
   draw: (g, s, p) => {
     prepare(s, p);
-    shown ={ ts: s.ts, q0: s.q0, mode: s.mode };
+    // Paused after a switch or an R, C change: the markers belong to the segment that starts now.
+    shown = inSegment(s, p) ? { ts: s.ts, q0: s.q0, mode: s.mode } : { ts: s.t, q0: s.q, mode: p.sw };
     const c = rcOf(p);
     const charging = p.sw === 'charge';
     circuit(g, charging);

@@ -167,10 +167,10 @@ describe('ch34 review fixes', () => {
   });
 });
 
-describe('ch34 focal-length slider shows every image type (default object at 18 cm)', () => {
+describe('ch34 focal-length slider shows every image type (default object at 20 cm)', () => {
   it('f sweeps reduced real, enlarged real and upright virtual images on one fixed stage', () => {
     const p = defaults(lensScene.params).p;
-    expect(p).toBe(18);
+    expect(p).toBe(20);
     const img = (f: number) => {
       const i = 1 / (1 / f - 1 / p);
       return { i, m: -i / p };
@@ -179,10 +179,13 @@ describe('ch34 focal-length slider shows every image type (default object at 18 
     expect(Math.abs(img(6).m)).toBeLessThan(1);
     expect(img(12).i).toBeGreaterThan(0);
     expect(Math.abs(img(12).m)).toBeGreaterThan(1);
-    expect(img(25).i).toBeLessThan(0);
-    expect(img(25).m).toBeGreaterThan(1);
-    // The virtual image at f = 25 (i = −64.3 cm) and the real one at f = 12 (i = 36 cm) lie on the 70 cm stage.
-    expect(Math.abs(img(25).i)).toBeLessThan(halfWidth('converging', 25));
+    expect(img(30).i).toBeLessThan(0);
+    expect(img(30).m).toBeGreaterThan(1);
+    // QA 2026-11-24: the default image (f = 15, i = 60 cm; 90 cm at p = 18) is on the 70 cm stage,
+    // and so are the virtual image at f = 30 (i = −60 cm) and the real one at f = 12 (i = 30 cm).
+    const f0 = defaults(lensScene.params).f;
+    expect(Math.abs(img(f0).i)).toBeLessThan(halfWidth('converging', f0));
+    expect(Math.abs(img(30).i)).toBeLessThan(halfWidth('converging', 30));
     expect(Math.abs(img(12).i)).toBeLessThan(halfWidth('converging', 12));
   });
 });

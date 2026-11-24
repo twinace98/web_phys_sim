@@ -88,13 +88,13 @@ describe('policy D, Ch 13–20: audit items at the quoted settings', () => {
     expect(lines.slice(-2)).toEqual(['\\Sigma F = F_s - mg = 10.2 - 9.80', '= -kx = -(40)(-0.0103) = 0.414\\ \\mathrm{N} = ma']);
   });
 
-  it('Ch 15 pendulum, 10°: T₀ = 2.01 s, K = 1.57, T = 2.01 s, (T − T₀)/T₀ = 2K/π − 1 = 0.191 %', () => {
+  it('Ch 15 pendulum, 10°: T₀ = 2.01 s, K = 1.5738 (R5b), T = 2.01 s, (T − T₀)/T₀ = 2K/π − 1 = 0.191 %', () => {
     const { lines, ro } = at(pendulum, { theta0: 10 });
     expect(lines.slice(0, 4)).toEqual([
       'T_0 = 2\\pi\\sqrt{L/g} = 2\\pi\\sqrt{1.0/9.8} = 2.01\\ \\mathrm{s}',
-      'K\\!\\left(\\sin\\tfrac{\\theta_0}{2}\\right) = K(\\sin 5^\\circ) = 1.57',
-      'T = 4\\sqrt{L/g}\\,K = 4\\sqrt{1.0/9.8} \\times 1.57 = 2.01\\ \\mathrm{s}',
-      '\\frac{T - T_0}{T_0} = \\frac{2K}{\\pi} - 1 = 0.191\\ \\%',
+      'K\\!\\left(\\sin\\tfrac{\\theta_0}{2}\\right) = K(\\sin 5^\\circ) = 1.5738',
+      'T = 4\\sqrt{L/g}\\,K = 4\\sqrt{1.0/9.8} \\times 1.5738 = 2.01\\ \\mathrm{s}',
+      '\\frac{T - T_0}{T_0} = \\frac{2K}{\\pi} - 1 = \\frac{2 \\times 1.5738}{\\pi} - 1 = 0.191\\ \\%',
     ]);
     expect(ro).toEqual(['2.01', '2.01', '0.191']);
     // At release v = 0 and a_r = 0 exactly (R7a).

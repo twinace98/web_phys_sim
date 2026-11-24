@@ -290,23 +290,24 @@ describe('ch15 pendulum: one real pendulum against the small-angle model', () =>
     const f = pendulum.formula!(s, p).join('\n');
     expect(f).toContain('2\\pi\\sqrt{1.0/9.8} = 2.01\\ \\mathrm{s}');
     expect(f).toContain('K(\\sin 45^\\circ) = 1.85');
-    expect(f).toContain('\\times 1.85 = 2.37\\ \\mathrm{s}');
-    expect(f).toContain('\\frac{T - T_0}{T_0} = \\frac{2K}{\\pi} - 1 = 18.0\\ \\%');
+    expect(f).toContain('\\times 1.854 = 2.37\\ \\mathrm{s}');
+    expect(f).toContain('\\frac{T - T_0}{T_0} = \\frac{2K}{\\pi} - 1 = \\frac{2 \\times 1.854}{\\pi} - 1 = 18.0\\ \\%');
     expect(f).toContain('-9.8\\sin(90.0^\\circ) = -9.80');
     expect(f).toContain('-g\\theta = -9.8 \\times 1.57 = -15.4');
   });
 
   // Review 2026-11-20 P2 and policy D (docs/design.md §3.3): at 10° the panel printed K = 1.574 next
   // to T = 2.01092 s and the error from 5-figure periods. Now T₀, K and T have 3 figures, T₀ and T
-  // are their readouts (R3), and the error is written as 2K/π − 1 (R5), the readout 0.191 %.
-  it('regression: at 10° T₀ = 2.01 s, K = 1.57, T = 2.01 s, (T − T₀)/T₀ = 2K/π − 1 = 0.191 %', () => {
+  // are their readouts (R3), and the error is written as 2K/π − 1 (R5), the readout 0.191 %. K keeps
+  // the figures that reproduce it (R5b, QA 2026-11-24: 2(1.57)/π − 1 = −0.05 % read as T < T₀).
+  it('regression: at 10° T₀ = 2.01 s, K = 1.5738, T = 2.01 s, (T − T₀)/T₀ = 2(1.5738)/π − 1 = 0.191 %', () => {
     const p = { ...defaults(pendulum.params), theta0: 10, L: 1 };
     const s = pendulum.init(p, null as never);
     const f = pendulum.formula!(s, p);
     expect(f[0]).toBe('T_0 = 2\\pi\\sqrt{L/g} = 2\\pi\\sqrt{1.0/9.8} = 2.01\\ \\mathrm{s}');
-    expect(f[1]).toBe('K\\!\\left(\\sin\\tfrac{\\theta_0}{2}\\right) = K(\\sin 5^\\circ) = 1.57');
-    expect(f[2]).toBe('T = 4\\sqrt{L/g}\\,K = 4\\sqrt{1.0/9.8} \\times 1.57 = 2.01\\ \\mathrm{s}');
-    expect(f[3]).toBe('\\frac{T - T_0}{T_0} = \\frac{2K}{\\pi} - 1 = 0.191\\ \\%');
+    expect(f[1]).toBe('K\\!\\left(\\sin\\tfrac{\\theta_0}{2}\\right) = K(\\sin 5^\\circ) = 1.5738');
+    expect(f[2]).toBe('T = 4\\sqrt{L/g}\\,K = 4\\sqrt{1.0/9.8} \\times 1.5738 = 2.01\\ \\mathrm{s}');
+    expect(f[3]).toBe('\\frac{T - T_0}{T_0} = \\frac{2K}{\\pi} - 1 = \\frac{2 \\times 1.5738}{\\pi} - 1 = 0.191\\ \\%');
     const ro = pendulum.readouts!.map((r) => readoutText(r as never, r.value(s, p), p));
     expect(ro).toEqual(['2.01', '2.01', '0.191']);
     expect(periodLineIssues(p)).toEqual([]);
@@ -325,9 +326,9 @@ describe('ch15 pendulum: one real pendulum against the small-angle model', () =>
         maxK = Math.max(maxK, figures(grab(f[1], new RegExp(`= (${NUM})$`))[0]));
       }
     expect(bad).toEqual([]);
-    // Policy D: T and K with 3 figures (R3).
+    // Policy D: T with 3 figures (R3); K with up to 6 where 2K/π − 1 cancels (R5b).
     expect(maxT).toBeLessThanOrEqual(3);
-    expect(maxK).toBeLessThanOrEqual(3);
+    expect(maxK).toBeLessThanOrEqual(6);
     // Mid-run (θ, ω change; the period lines do not) and with the free-body toggle.
     const p = { ...defaults(pendulum.params), theta0: 37, L: 0.6, fbd: true };
     const r = new Runner(pendulum, p);
@@ -343,8 +344,8 @@ const figures = (t: string) => t.replace(/\\times.*$/, '').replace(/\D/g, '').re
 
 /**
  * The four period lines at p: T₀ and T are their readouts and agree with the arithmetic on the
- * numbers printed before them (R3, 1 %); the error is 2K/π − 1 from the unrounded K (R5), its
- * readout, with 3 figures.
+ * numbers printed before them (R3, 1 %); the error is 2K/π − 1 (R5), its readout, with 3 figures,
+ * and the printed K reproduces it (R5b).
  */
 function periodLineIssues(p: ReturnType<typeof defaults> & { theta0: number; L: number }): string[] {
   const s = pendulum.init(p as never, null as never);
@@ -354,13 +355,15 @@ function periodLineIssues(p: ReturnType<typeof defaults> & { theta0: number; L: 
   const [T0] = grab(f[0], new RegExp(`= (${NUM})\\\\ \\\\mathrm\\{s\\}`));
   const [K] = grab(f[1], new RegExp(`= (${NUM})$`));
   const [Kin, T] = grab(f[2], new RegExp(`\\\\times (${NUM}) = (${NUM})\\\\ \\\\mathrm\\{s\\}`));
-  const [e] = grab(f[3], new RegExp(`\\\\frac\\{2K\\}\\{\\\\pi\\} - 1 = (${NUM})\\\\ \\\\%$`));
+  const [Ke, e] = grab(f[3], new RegExp(`\\\\frac\\{2 \\\\times (${NUM})\\}\\{\\\\pi\\} - 1 = (${NUM})\\\\ \\\\%$`));
   const out: string[] = [];
   const tag = `${p.theta0}° L=${L}`;
   if (T0 !== roT0 || !agrees(2 * Math.PI * Math.sqrt(L / 9.8), T0)) out.push(`${tag}: T0 ${f[0]} (readout ${roT0})`);
   if (Kin !== K || T !== roT || !agrees(4 * Math.sqrt(L / 9.8) * val(K), T)) out.push(`${tag}: T from K ${f[2]} (readout ${roT})`);
   if (e !== roE || e !== tn(100 * periodError({ L, g: 9.8 }, p.theta0 * DEG))) out.push(`${tag}: error ${f[3]} (readout ${roE})`);
   if (figures(e) !== 3) out.push(`${tag}: error with ${figures(e)} figures`);
+  // R5b: the printed K reproduces the printed error (1 % or its last digit).
+  if (Ke !== K || !agrees(100 * ((2 * val(K)) / Math.PI - 1), e)) out.push(`${tag}: 2K/π − 1 from K ${f[3]}`);
   return out;
 }
 

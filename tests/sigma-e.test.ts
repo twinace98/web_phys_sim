@@ -108,7 +108,7 @@ describe('Σ Ch 32', () => {
       const s = r.state as unknown as { B: number };
       if (p.mat === 'para') shows(lines, tn(paraM(s.B, p.T * TC), 2));
       if (p.mat === 'ferro' && p.T < 1) shows(lines, tn(onsagerM(p.T * TC)));
-      if (p.mat === 'ferro' && p.T >= 1) expect(lines.at(-1)).toContain('= 0');
+      if (p.mat === 'ferro' && p.T >= 1) expect(lines.at(-1)).toContain('\\to 0\\ (N \\to \\infty)');
     }
   });
 });

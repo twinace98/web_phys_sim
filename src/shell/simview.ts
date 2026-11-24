@@ -21,6 +21,8 @@ import { StagePanel, resizableSidePanel, restoreSize } from './resize';
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
 /** Pointer travel [CSS px] below which a press is a tap, not a drag. */
 const TAP_PX = 4;
+/** Narrowest sim [px] left beside a docked side panel; below it the panel overlays the sim. */
+const DOCK_MIN_SIM = 680;
 /** Two taps on one handle within this time [ms] make a double tap. */
 const DOUBLE_MS = 400;
 
@@ -112,6 +114,9 @@ export class SimView {
     // Crossing the phone breakpoint switches an open panel between docked column and bottom sheet.
     const phone = window.matchMedia('(max-width: 767px)');
     const onPhone = () => this.dockPanel();
+    // A window resized across the docking width docks or undocks the open panel.
+    const onResize = () => this.dockPanel();
+    window.addEventListener('resize', onResize);
     window.addEventListener('keydown', onKey);
     window.addEventListener('pointerdown', onPointer, true);
     window.addEventListener('focusin', onFocus, true);
@@ -120,6 +125,7 @@ export class SimView {
     this.off.push(
       () => window.removeEventListener('keydown', onKey),
       () => phone.removeEventListener('change', onPhone),
+      () => window.removeEventListener('resize', onResize),
       () => window.removeEventListener('pointerdown', onPointer, true),
       () => window.removeEventListener('focusin', onFocus, true),
       () => document.removeEventListener('visibilitychange', onVis),
@@ -478,22 +484,28 @@ export class SimView {
   /**
    * Side panels (settings, ⓘ, Σ) are read while the sim keeps running, so on a wide screen the open
    * one docks as a third column: the sim narrows by the panel width (the stage and plots re-lay out)
-   * instead of being covered. Phones keep the bottom sheet.
+   * instead of being covered. Phones keep the bottom sheet, and a window too narrow to leave the
+   * sim DOCK_MIN_SIM px beside the panel keeps the overlay (768–1020 px: docking left the stage
+   * 160 px wide, QA 2026-11-24).
    */
   private dockPanel(): void {
     const main = this.mainEl;
     if (!main) return;
     const el = this.panelEl();
-    const docked = !!el && !window.matchMedia('(max-width: 767px)').matches;
-    main.style.marginRight = docked ? `${el.offsetWidth}px` : '';
     this.dockRo?.disconnect();
-    if (docked) {
-      // Follow the panel when its edge is dragged.
-      this.dockRo = new ResizeObserver(() => {
-        if (this.panelEl() === el) main.style.marginRight = `${el.offsetWidth}px`;
-      });
-      this.dockRo.observe(el);
+    if (!el) {
+      main.style.marginRight = '';
+      return;
     }
+    const apply = () => {
+      if (this.panelEl() !== el) return;
+      const docked = !window.matchMedia('(max-width: 767px)').matches && window.innerWidth - el.offsetWidth >= DOCK_MIN_SIM;
+      main.style.marginRight = docked ? `${el.offsetWidth}px` : '';
+    };
+    apply();
+    // Follow the panel when its edge is dragged (docking or undocking at DOCK_MIN_SIM).
+    this.dockRo = new ResizeObserver(apply);
+    this.dockRo.observe(el);
   }
 
   /** The open side panel, if any. */
@@ -566,6 +578,14 @@ export class SimView {
   private onParamsChanged(refresh: boolean): void {
     this.scrubT = null;
     if (refresh) {
+      // The rebuild replaces the focused dropdown or checkbox: when it was reached by keyboard, focus
+      // goes back to the same control (by its label), so arrow keys keep stepping through a dropdown
+      // (QA 2026-11-24: it fell to <body> after each change). After a click the page shortcuts keep
+      // the keys, as before.
+      const act = document.activeElement;
+      const keyed = !this.focusByPointer && act instanceof HTMLElement && !!act.getAttribute('aria-label');
+      const where = keyed ? (this.bar.contains(act) ? 'bar' : this.settings.contains(act) ? 'settings' : null) : null;
+      const sel = where ? `${act!.tagName.toLowerCase()}[aria-label="${CSS.escape(act!.getAttribute('aria-label')!)}"]` : '';
       const bar = this.buildBar();
       this.bar.replaceWith(bar);
       this.bar = bar;
@@ -574,6 +594,7 @@ export class SimView {
       this.settings = settings;
       this.applyPanel();
       this.shownPlaying = null;
+      if (where) (where === 'bar' ? this.bar : this.settings).querySelector<HTMLElement>(sel)?.focus({ preventScroll: true });
     }
     this.syncUrl(false);
   }

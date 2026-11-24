@@ -8,7 +8,7 @@ import type { Draw } from '../../draw/draw';
 import { WIRE_B } from '../ch29/physics';
 import { FieldLayers } from '../field/layers';
 import { CONST, slider, tn, u } from '../../core/tex';
-import { MU0, circlePoly, closedCirc, discOverlap, edgeIntegrals, fieldAt, fieldFn, perimeter, resample, type Src, type V2 } from '../field/physics';
+import { MU0, circlePoly, discOverlap, edgeIntegrals, fieldAt, fieldFn, perimeter, resample, type Src, type V2 } from '../field/physics';
 import { IN, Memo, OUT, componentArrows, drawSurface, drawVectorGrid, knob, texNum, vectorGrid, vpKey, wireGlyph } from '../field/render';
 import { freeDefault, knobs, surfaceHandles } from '../field/surface';
 import { GAP, I_CAP, R_AMP, R_B, R_PLATE, ampereMaxwell, faradayRhs, inducedE } from './physics';
@@ -210,10 +210,25 @@ function gaussB(p: P) {
   });
 }
 
+/**
+ * ∮ f·ds around the circle (cx, cy, r), counter-clockwise, on the circle itself (exact tangent,
+ * n points): the 160-gon drawn on the stage encloses 2.6×10⁻⁴ less area, which showed as
+ * −0.0769 V against −0.0770 V on the two sides of Faraday's law (QA 2026-11-24).
+ */
+export function circleCirc(f: (x: number, y: number) => V2, cx: number, cy: number, r: number, n = 4096): number {
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    const a = (2 * Math.PI * (i + 0.5)) / n;
+    const [fx, fy] = f(cx + r * Math.cos(a), cy + r * Math.sin(a));
+    sum += -fx * Math.sin(a) + fy * Math.cos(a);
+  }
+  return (sum * 2 * Math.PI * r) / n;
+}
+
 /** Faraday panel values: numerical ∮ E·ds and −dΦ_B/dt [V]. */
 export function faradayValues(p: P): { circ: number; rhs: number } {
   const G = Gin(p);
-  return { circ: closedCirc((x, y) => inducedE(x, y, p.dBdt), poly(p)), rhs: faradayRhs(G[0], G[1], G[2], p.dBdt) };
+  return { circ: circleCirc((x, y) => inducedE(x, y, p.dBdt), G[0], G[1], G[2]), rhs: faradayRhs(G[0], G[1], G[2], p.dBdt) };
 }
 
 const UT = '\\ \\mu\\mathrm{T\\,m}';

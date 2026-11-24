@@ -14,7 +14,7 @@
   "ch29.b.obs.r": "Drag $P$ away from the wire: $B$ falls as $1/d$; compare with the dashed reference $\\mu_0 I/2\\pi d$",
   "ch29.b.obs.loop": "Centre of the loop: every element gives the same $dB$ in the same direction, summing to $\\mu_0 I/2R$",
   "ch29.b.obs.inside": "Inside the loop the field is ⊙; outside, the nearby elements dominate and it is ⊗",
-  "ch29.b.obs.n": "The sum converges as $n$ grows, once the elements are much shorter than their distance to $P$: 6 cm from the straight wire the sum is off by $-91$ % at $n = 4$, $-9$ % at $n = 24$ and $-0.2$ % at $n = 48$. Just outside the loop (0.51 m from its centre) $n = 4$ even gets the sign wrong",
+  "ch29.b.obs.n": "The sum converges as $n$ grows, once the elements are much shorter than their distance to $P$: 6 cm from the straight wire the sum is off by $-91$ to $+360$ % at $n = 4$, within $\\pm 9$ % at $n = 24$ and within 0.5 % at $n = 48$ (depending on where $P$ sits along the wire). Just outside the loop (0.51 m from its centre) $n = 4$ even gets the sign wrong",
   "ch29.b.as.units": "Current $I = 10$ A, lengths in m, field in μT",
   "ch29.b.as.plane": "The wire and the field point lie in one plane (the page)",
   "ch29.b.as.mid": "Each element's contribution is evaluated at its midpoint (midpoint rule)",

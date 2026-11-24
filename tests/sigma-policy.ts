@@ -2,7 +2,7 @@
 // reader does (token classification of the 2026-11-23 audit), evaluate the substituted side, and run
 // the policy checks on a scene (policyIssues, used by tests/sigma-all.test.ts).
 import { defaults, logStops, stepOf } from '../src/core/params';
-import { CONST, readoutText, slider, texOf } from '../src/core/precision';
+import { CANCEL_SIG, CONST, readoutText, slider, texOf } from '../src/core/precision';
 import { tn } from '../src/core/tex';
 import { Runner } from '../src/core/runner';
 import type { NumberParam, Params, Scene } from '../src/core/types';
@@ -331,7 +331,8 @@ export function recomputes(v: number, r: Tok): boolean {
 
 /**
  * The checks of policy D: (result) a Σ result is its readout string; (slider) a slider value prints
- * as its control label; (inputSig) decimal inputs have at most 3 figures; (recompute) the arithmetic
+ * as its control label; (inputSig) decimal inputs have at most 3 figures (R5b: up to CANCEL_SIG where
+ * 3 do not reproduce the result); (recompute) the arithmetic
  * on the printed inputs is within 1 % of the result; (zero) a physical small value never prints as
  * 0.00.
  */
@@ -382,6 +383,8 @@ export const PHYSICAL_SMALL: Record<string, string[]> = {
 };
 
 const STEPS = 600;
+/** Sign changes of a readout sampled per case, besides t = 0 and the last step. */
+const MAX_CROSSINGS = 4;
 
 function cases(scene: Scene): { name: string; p: Params }[] {
   const base = defaults(scene.params) as Params;
@@ -486,6 +489,34 @@ export function policyIssues(key: string, scene: Scene): Map<Check, string[]> {
           });
         });
       }
+      // (inputSig) R5b: a live input of a cancelling line may keep up to CANCEL_SIG figures where 3
+      // do not reproduce the result: the line recomputes as printed but not with those inputs
+      // rounded to 3 figures. A string needed on one line may repeat on another (R8: t on the v
+      // and y lines). Every other input with more than 3 figures is reported.
+      const longIn: { t: Tok; lhs: string; msg: string }[] = [];
+      const needed = new Set<string>();
+      for (const l of lines)
+        for (const part of parts(l)) {
+          const lhs = part.lhs.trim();
+          if (allowed(lhs, 'inputSig')) continue;
+          const long = part.inp.filter((t) => !t.int && t.sig > 3 && !CONST_TOKS.has(abs(t.s)) && !labels.has(abs(t.s)));
+          for (const t of long) longIn.push({ t, lhs, msg: `${t.s} ${tag}: ${part.sub}` });
+          if (!long.length || part.inRaw === undefined || !part.res) continue;
+          const v = evalTex(part.inRaw);
+          if (v === undefined || !recomputes(part.resDeg ? v / DEG : v, part.res)) continue;
+          let raw = part.inRaw;
+          for (const t of long) {
+            const m = abs(t.s).split('e')[0];
+            raw = raw.replace(new RegExp(`(?<![\\d.])${m.replace('.', '\\.')}(?!\\d)`, 'g'), String(Number(Number(m).toPrecision(3))));
+          }
+          const w = evalTex(raw);
+          // A result printed as an exact 0 (R7a): its tolerance is 1 % of the run scale (ZERO in
+          // precision.ts), which is not on the line; the extra figures count when they bring the
+          // arithmetic closer to 0.
+          const off = (x: number) => (part.res!.v === 0 ? Math.abs(x) > Math.abs(v) : !recomputes(part.resDeg ? x / DEG : x, part.res!));
+          if (w !== undefined && off(w)) for (const t of long) needed.add(abs(t.s));
+        }
+      for (const { t, msg } of longIn) if (t.sig > CANCEL_SIG || !needed.has(abs(t.s))) add('inputSig', msg);
       for (const l of lines)
         for (const part of parts(l)) {
           const lhs = part.lhs.trim();
@@ -496,10 +527,7 @@ export function policyIssues(key: string, scene: Scene): Map<Check, string[]> {
             const want = firstTok(rd.text);
             if (want && want.s !== part.res.s && !(want.v === 0 && part.res.v === 0)) add('result', `${lhs}: readout '${rd.text}' vs Σ '${part.res.s}' ${tag}: ${part.sub}`);
           }
-          // (inputSig) R3: decimal inputs with at most 3 figures, except constants and slider labels.
-          if (!allowed(lhs, 'inputSig'))
-            for (const t of part.inp)
-              if (!t.int && t.sig > 3 && !CONST_TOKS.has(abs(t.s)) && !labels.has(abs(t.s))) add('inputSig', `${t.s} ${tag}: ${part.sub}`);
+          // (inputSig) above: decimal inputs with at most 3 figures, except constants, slider labels and R5b.
           // (recompute) R3: the printed arithmetic within 1 % of the printed result (degrees as such).
           if (part.inRaw !== undefined && part.res && part.inp.length && !allowed(lhs, 'recompute')) {
             const v = evalTex(part.inRaw);
@@ -516,8 +544,23 @@ export function policyIssues(key: string, scene: Scene): Map<Check, string[]> {
     };
     frame('t=0');
     if (scene.time) {
+      // Besides t = 0 and the last step: the steps where a readout changes sign (turning points,
+      // v ≈ 0, a crossing), where the terms of a line nearly cancel (QA 2026-11-24), and the step
+      // before the run stops (a landing).
+      const signs = (): number[] => (scene.readouts ?? []).map((spec) => Math.sign(spec.value(r.state as never, r.params as never)) || 0);
+      let prev = signs();
+      let crossings = 0;
       r.play();
-      for (let i = 0; i < STEPS && r.playing; i++) r.advance(scene.time.h);
+      for (let i = 0; i < STEPS && r.playing; i++) {
+        r.advance(scene.time.h);
+        if (!r.playing) break;
+        const now = signs();
+        if (crossings < MAX_CROSSINGS && now.some((x, j) => x * prev[j] < 0)) {
+          crossings++;
+          frame(`t=${r.state.t.toFixed(3)}`);
+        }
+        prev = now;
+      }
       frame(`t=${r.state.t.toFixed(2)}`);
     }
   }

@@ -1,7 +1,7 @@
 // Ch 5 scene: first law. A puck slides off with an initial velocity. Friction (the only horizontal
 // force) slows it down and stops it; with no friction, or with a push that cancels the friction,
 // the net force is zero and the velocity stays constant.
-import { CONST, paren, slider, tn, u } from '../../core/tex';
+import { CONST, paren, sigCancel, slider, tn, tnCancel, u } from '../../core/tex';
 import type { ParamSchema, Scene } from '../../core/types';
 import { fbdParam, fbdScale, type FbdForce } from '../../draw/fbd';
 import { drawPuckFbd, drawTrack, padded, weightPair } from './common';
@@ -223,11 +223,16 @@ export const first: Scene<P, S> = {
     lines.push(`a = \\frac{F_\\text{net}}{m} = \\frac{${tn(Fnet)}}{${FIRST_M}} = ${tn(a)}${u('m/s^2')}`);
     // Inputs with 3 figures, the result as the v readout prints it (policy D, R3): on a tie such as
     // 2.02 − 2.94 × 0.0833… = 1.775 (μ = 0.3) it follows the unrounded speed.
+    // R5b: as the puck comes to rest (v ≈ 0) the terms cancel; a, t (and t₁, v₁) then keep the
+    // figures that reproduce the printed v.
+    const V = tn(s.v);
     if (fromStart) {
-      lines.push(`v = v_0 + at = ${slider(params.v0, p.v0)} + ${paren(tn(a))} \\times ${tn(s.t)} = ${tn(s.v)}${u('m/s')}`);
+      const k = sigCancel((r) => p.v0 + r(a) * r(s.t), V);
+      lines.push(`v = v_0 + at = ${slider(params.v0, p.v0)} + ${paren(tnCancel(a, k))} \\times ${tnCancel(s.t, k)} = ${V}${u('m/s')}`);
     } else {
+      const k = sigCancel((r) => r(s.v1) + r(a) * (r(s.t) - r(s.t1)), V);
       // Two lines, as the work lines of Ch 8: one line would shrink below the panel's reading size.
-      lines.push(`v = v_1 + a(t - t_1)`, `= ${tn(s.v1)} + ${paren(tn(a))} \\times (${tn(s.t)} - ${tn(s.t1)}) = ${tn(s.v)}${u('m/s')}`);
+      lines.push(`v = v_1 + a(t - t_1)`, `= ${tnCancel(s.v1, k)} + ${paren(tnCancel(a, k))} \\times (${tnCancel(s.t, k)} - ${tnCancel(s.t1, k)}) = ${V}${u('m/s')}`);
     }
     return lines;
   },

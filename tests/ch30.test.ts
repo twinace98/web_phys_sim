@@ -131,3 +131,20 @@ describe('ch30 overlap cleanup: Gauss (E) lives in Ch 23 only', () => {
     for (const eq of EQS) expect(() => maxwell.overlay!({ t: 0 }, { ...defaults(maxwell.params), eq })).not.toThrow();
   });
 });
+
+describe('ch30 Faraday panel: both sides on the same circle (QA 2026-11-24)', () => {
+  it('∮E·ds on the circle equals −dΦ_B/dt, also where the circle cuts the field edge', async () => {
+    const { faradayValues } = await import('../src/sims/ch30/maxwell');
+    const { tn } = await import('../src/core/tex');
+    const base = defaults(maxwell.params);
+    // G = [cx, cy, r, tag]: tag 2 is the Faraday circle (maxwell.ts TAG).
+    for (const G of [[0.1, 0.05, 0.25], [0, 0, 0.1], [0.3, -0.2, 0.4], [0.6, 0.1, 0.3], [-0.4, 0.5, 0.9]])
+      for (const dBdt of [0.2, 1, 2]) {
+        const p = { ...base, eq: 'faraday', dBdt, G: [...G, 2] } as never;
+        expect(Gin(p)).toEqual(G);
+        const { circ, rhs } = faradayValues(p);
+        expect(Math.abs(circ / rhs - 1), `${G} dB/dt=${dBdt}`).toBeLessThan(2e-6);
+        expect(tn(circ)).toBe(tn(rhs));
+      }
+  });
+});
