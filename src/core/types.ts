@@ -66,6 +66,11 @@ export interface NumberParam extends ParamBase {
   min?: number;
   max?: number;
   step?: number;
+  /**
+   * slider only: a stage handle sets values between the grid points (θ = θc in Ch 33), so a URL
+   * value is kept as it is instead of snapped to the grid.
+   */
+  free?: boolean;
 }
 
 export interface ToggleParam extends ParamBase {

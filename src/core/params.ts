@@ -78,8 +78,9 @@ export function snapNumber(spec: NumberParam, v: number): number {
  * - stepper, or slider with a whole-number step (counts, harmonic numbers, whole degrees):
  *   the nearest min + k·step (nClosed = 2 on a step-2 stepper from 1 becomes 3, never even);
  * - log slider: one of its `marks` as it is, any other value rounded to `sig` figures;
- * - slider with a fractional step: kept, since the step is only the track's resolution of a
- *   continuous quantity and stage handles set values between its points (θ = θc in Ch 33).
+ * - slider with a fractional step: the nearest grid point too, so its label shows the value the
+ *   physics uses (b = 8.04 would read "8.0" next to b_c = 8.00, QA 2026-11-24); except a `free`
+ *   slider, whose stage handle sets values between its points (θ = θc in Ch 33), kept as it is.
  */
 export function urlNumber(spec: NumberParam, v: number): number {
   if (spec.control === 'select') return v;
@@ -87,7 +88,7 @@ export function urlNumber(spec: NumberParam, v: number): number {
     if (v === spec.default || spec.marks?.includes(v)) return v;
     return Math.min(spec.max ?? Infinity, Math.max(spec.min ?? 0, Number(v.toPrecision(spec.sig ?? 2))));
   }
-  return spec.control === 'stepper' || Number.isInteger(stepOf(spec)) ? snapNumber(spec, v) : v;
+  return spec.free && spec.control === 'slider' ? v : snapNumber(spec, v);
 }
 
 /** Parse a URL value; returns undefined if it does not fit the spec. */

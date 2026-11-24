@@ -8,7 +8,11 @@ import { toggleLang } from './prefs';
 export class HomeView {
   private off: () => void;
 
-  constructor(private readonly root: HTMLElement) {
+  /** `missing`: the chapter a route asked for that has no page (Ch 12) or does not exist (Ch 999). */
+  constructor(
+    private readonly root: HTMLElement,
+    private readonly missing?: { ch: number; known: boolean },
+  ) {
     this.build();
     this.off = onLangChange(() => this.build());
   }
@@ -32,6 +36,11 @@ export class HomeView {
       { class: 'home' },
       h('header', { class: 'home-head' }, h('h1', null, t('app.title')), seg),
     );
+    // A link to a chapter without a page lands here with a line saying so, not a silent contents page.
+    if (this.missing) {
+      const { ch, known } = this.missing;
+      page.append(h('p', { class: 'home-note', role: 'status' }, t(known ? 'ui.noSim' : 'ui.noChapter', { ch })));
+    }
     for (const part of [1, 2, 3, 4, 5, 6] as const) {
       const list = part === 6 ? REVIEW : CHAPTERS.filter((c) => c.part === part);
       if (!list.length) continue;
